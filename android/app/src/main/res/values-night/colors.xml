@@ -1,17 +1,17 @@
 <resources>
-    <!-- Light variant of the brand palette (DayNight + manual toggle). -->
-    <color name="bg">#f4f4f5</color>
-    <color name="surface">#ffffff</color>
-    <color name="surface_2">#ececee</color>
-    <color name="border">#d6d6da</color>
-    <color name="border_soft">#e4e4e7</color>
-    <color name="text">#1a1a1d</color>
-    <color name="text_dim">#5a5a60</color>
-    <color name="text_faint">#9a9aa0</color>
-    <color name="accent">#c9a237</color>
-    <color name="accent_soft">#8a722a</color>
-    <color name="accent_ink">#151208</color>
-    <color name="blocked">#4e7a44</color>
-    <color name="deny">#b6564f</color>
-    <color name="ic_launcher_background">#0e0e10</color>
+    <!-- Monochrome black & white (identical in night mode — the brand is dark). -->
+    <color name="bg">#000000</color>
+    <color name="surface">#101010</color>
+    <color name="surface_2">#181818</color>
+    <color name="border">#26262a</color>
+    <color name="border_soft">#1a1a1e</color>
+    <color name="text">#fafafa</color>
+    <color name="text_dim">#c4c4c7</color>
+    <color name="text_faint">#8a8a8f</color>
+    <color name="accent">#ffffff</color>
+    <color name="accent_soft">#c4c4c7</color>
+    <color name="accent_ink">#000000</color>
+    <color name="blocked">#e8e8ea</color>
+    <color name="deny">#b0b0b6</color>
+    <color name="ic_launcher_background">#000000</color>
 </resources>

@@ -31,6 +31,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Space;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -79,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
     private TabManager tabs;
     private TabStateStore tabState;
     private FrameLayout contentContainer;
-    private View bottomToolbar;
+    private View bottomNav;
     private DebugOverlay debugOverlay;
     private boolean toolbarHidden = false;
 
@@ -122,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
         tabs = new TabManager();
         tabState = new TabStateStore(this);
         contentContainer = findViewById(R.id.content_container);
-        bottomToolbar = findViewById(R.id.bottom_toolbar);
+        bottomNav = findViewById(R.id.bottom_nav);
         addressInput = findViewById(R.id.address_input);
         secureIcon = findViewById(R.id.secure_icon);
         browserLayout = findViewById(R.id.browser_layout);
@@ -296,9 +297,8 @@ public class MainActivity extends AppCompatActivity {
             Tab t = tabs.getActive();
             if (t != null && t.canGoBack()) t.goBack();
         });
-        findViewById(R.id.btn_new_tab).setOnClickListener(v -> newTab(false));
-        findViewById(R.id.btn_tabs).setOnClickListener(v -> showSessions());
-        findViewById(R.id.btn_menu).setOnClickListener(v -> showMenu());
+
+        buildBottomNav();
 
         secureIcon.setOnClickListener(v -> showPrivacyPanel());
         findViewById(R.id.privacy_back).setOnClickListener(v -> hidePrivacyPanel());
@@ -354,9 +354,9 @@ public class MainActivity extends AppCompatActivity {
     private void setToolbarCollapsed(boolean collapsed) {
         if (toolbarHidden == collapsed) return;
         toolbarHidden = collapsed;
-        if (bottomToolbar != null) {
-            float targetY = collapsed ? (bottomToolbar.getHeight() + dp(48)) : 0f;
-            bottomToolbar.animate()
+        if (bottomNav != null) {
+            float targetY = collapsed ? (bottomNav.getHeight() + dp(48)) : 0f;
+            bottomNav.animate()
                     .translationY(targetY)
                     .alpha(collapsed ? 0f : 1f)
                     .setDuration(250)
@@ -365,6 +365,86 @@ public class MainActivity extends AppCompatActivity {
         if (debugOverlay != null) {
             debugOverlay.setCollapsed(collapsed);
         }
+    }
+
+    /**
+     * Build the monochrome bottom navigation: Home · Tabs · (+) · Tasks · Settings,
+     * with a raised circular "+" floating above the center slot.
+     */
+    private void buildBottomNav() {
+        FrameLayout container = findViewById(R.id.bottom_nav);
+        if (container == null) return;
+
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setBackgroundColor(color(com.mrnobody.browser.R.color.surface));
+        FrameLayout.LayoutParams barLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, dp(58));
+        barLp.gravity = Gravity.BOTTOM;
+        bar.setLayoutParams(barLp);
+        container.addView(bar);
+
+        addNavItem(bar, "⌂", "Home", v -> {
+            hideAllPanels();
+            if (tabs.getActive() == null) newTab(false);
+        });
+        addNavItem(bar, "▦", "Tabs", v -> showSessions());
+
+        // center spacer reserves room for the raised "+"
+        Space spacer = new Space(this);
+        bar.addView(spacer, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+
+        addNavItem(bar, "☑", "Tasks", v -> showTasks());
+        addNavItem(bar, "⚙", "Settings", v -> startActivity(new Intent(this, SettingsActivity.class)));
+
+        // raised circular "+"
+        TextView plus = new TextView(this);
+        plus.setText("+");
+        plus.setTextSize(22);
+        plus.setGravity(Gravity.CENTER);
+        plus.setTextColor(color(com.mrnobody.browser.R.color.accent_ink));
+        plus.setBackground(circleDrawable(color(com.mrnobody.browser.R.color.accent)));
+        FrameLayout.LayoutParams plusLp = new FrameLayout.LayoutParams(dp(48), dp(48),
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        plusLp.topMargin = -dp(24);
+        plus.setLayoutParams(plusLp);
+        plus.setOnClickListener(v -> newTab(false));
+        container.addView(plus);
+    }
+
+    private void addNavItem(LinearLayout bar, String glyph, String label, View.OnClickListener onClick) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setGravity(Gravity.CENTER);
+        item.setClickable(true);
+        item.setFocusable(true);
+        item.setPadding(0, dp(6), 0, dp(6));
+
+        TextView icon = new TextView(this);
+        icon.setText(glyph);
+        icon.setTextSize(17);
+        icon.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
+        icon.setGravity(Gravity.CENTER);
+        item.addView(icon);
+
+        TextView lbl = new TextView(this);
+        lbl.setText(label);
+        lbl.setTextSize(9);
+        lbl.setTypeface(Typeface.MONOSPACE);
+        lbl.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        lbl.setGravity(Gravity.CENTER);
+        item.addView(lbl);
+
+        item.setOnClickListener(onClick);
+        bar.addView(item, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+    }
+
+    private android.graphics.drawable.GradientDrawable circleDrawable(int fill) {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        d.setColor(fill);
+        return d;
     }
 
     private void switchToTab(int index) {
@@ -506,12 +586,12 @@ public class MainActivity extends AppCompatActivity {
         String url = t.getUrl();
         if (url == null || url.isEmpty()) {
             addressInput.setText("");
-            secureIcon.setColorFilter(Color.parseColor("#5c5c62"));
+            secureIcon.setColorFilter(Color.parseColor("#8a8a8f"));
             return;
         }
         addressInput.setText(url);
         boolean secure = url.startsWith("https://");
-        secureIcon.setColorFilter(Color.parseColor(secure ? "#7f9c78" : "#c9a237"));
+        secureIcon.setColorFilter(Color.parseColor(secure ? "#fafafa" : "#c4c4c7"));
     }
 
     // ---------------------------------------------------------------- privacy

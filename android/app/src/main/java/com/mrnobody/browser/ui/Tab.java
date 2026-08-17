@@ -86,7 +86,7 @@ public final class Tab {
         wv.getSettings().setSupportMultipleWindows(false);
         // Privacy: WebView Safe Browsing phones Google; keep it off.
         wv.getSettings().setSafeBrowsingEnabled(false);
-        wv.setBackgroundColor(0xFF0E0E10);
+        wv.setBackgroundColor(0xFF000000);
 
         // Third-party cookies blocked (best-effort, documented).
         CookieManager.getInstance().setAcceptThirdPartyCookies(wv, false);

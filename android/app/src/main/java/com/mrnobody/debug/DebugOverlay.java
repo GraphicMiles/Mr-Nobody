@@ -39,12 +39,12 @@ public final class DebugOverlay {
         // --- expanded panel (hidden by default) ---
         panel = new LinearLayout(context);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setBackgroundColor(Color.parseColor("#1b1c21"));
+        panel.setBackgroundColor(Color.parseColor("#181818"));
         panel.setPadding(dp * 10, dp * 10, dp * 10, dp * 10);
 
         TextView head = new TextView(context);
         head.setText("DEBUG");
-        head.setTextColor(Color.parseColor("#5aa8e0"));
+        head.setTextColor(Color.parseColor("#fafafa"));
         head.setTypeface(Typeface.MONOSPACE);
         head.setTextSize(11);
         panel.addView(head);
@@ -52,12 +52,12 @@ public final class DebugOverlay {
         // Copy button — copies the full log so testers can paste it anywhere.
         TextView copy = new TextView(context);
         copy.setText("COPY");
-        copy.setTextColor(Color.parseColor("#5aa8e0"));
+        copy.setTextColor(Color.parseColor("#fafafa"));
         copy.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         copy.setTextSize(9);
         copy.setGravity(Gravity.CENTER);
         copy.setPadding(dp * 8, dp * 4, dp * 8, dp * 4);
-        copy.setBackground(roundedRect(context, "#1b1c21", "#5aa8e0"));
+        copy.setBackground(roundedRect(context, "#181818", "#fafafa"));
         LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         copyLp.setMargins(0, dp * 4, 0, dp * 4);
@@ -85,10 +85,10 @@ public final class DebugOverlay {
         // --- FAB circle ---
         fab = new TextView(context);
         fab.setText("ⓘ");
-        fab.setTextColor(Color.parseColor("#5aa8e0"));
+        fab.setTextColor(Color.parseColor("#fafafa"));
         fab.setTextSize(dp * 11);
         fab.setGravity(Gravity.CENTER);
-        fab.setBackground(roundedCircle(context, "#1b1c21", "#5aa8e0"));
+        fab.setBackground(roundedCircle(context, "#181818", "#fafafa"));
 
         FrameLayout.LayoutParams fabLp = new FrameLayout.LayoutParams(dp * 40, dp * 40);
         fabLp.gravity = Gravity.BOTTOM | Gravity.END;
@@ -143,7 +143,7 @@ public final class DebugOverlay {
         int count = ErrorLog.count();
         badge.setText(String.valueOf(count));
         badge.setBackground(roundedCircle(root.getContext(),
-                count == 0 ? "#7f9c78" : "#b6564f", "transparent"));
+                count == 0 ? "#e8e8ea" : "#ffffff", "transparent"));
 
         LinearLayout list = root.findViewWithTag("log_list");
         if (list == null) return;
@@ -153,7 +153,7 @@ public final class DebugOverlay {
         if (tail.isEmpty()) {
             TextView empty = new TextView(context);
             empty.setText("no errors");
-            empty.setTextColor(Color.parseColor("#7f9c78"));
+            empty.setTextColor(Color.parseColor("#e8e8ea"));
             empty.setTypeface(Typeface.MONOSPACE);
             empty.setTextSize(10);
             list.addView(empty);
@@ -162,7 +162,7 @@ public final class DebugOverlay {
         for (String entry : tail) {
             TextView t = new TextView(context);
             t.setText("✗ " + entry);
-            t.setTextColor(Color.parseColor("#b6564f"));
+            t.setTextColor(Color.parseColor("#ffffff"));
             t.setTypeface(Typeface.MONOSPACE);
             t.setTextSize(9);
             t.setPadding(0, 0, 0, (int) (2 * context.getResources().getDisplayMetrics().density));

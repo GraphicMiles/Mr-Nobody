@@ -25,6 +25,17 @@
             android:paddingStart="12dp"
             android:paddingEnd="6dp">
 
+            <TextView
+                android:id="@+id/btn_back"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:gravity="center"
+                android:text="←"
+                android:textColor="@color/text_dim"
+                android:textSize="18sp"
+                android:clickable="true"
+                android:focusable="true" />
+
             <ImageView
                 android:id="@+id/secure_icon"
                 android:layout_width="16dp"
@@ -69,65 +80,12 @@
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- Bottom toolbar (safe area: 3rem bottom margin ≈ 48dp) -->
-        <LinearLayout
-            android:id="@+id/bottom_toolbar"
+        <!-- Bottom navigation (built programmatically: Home · Tabs · + · Tasks · Settings) -->
+        <FrameLayout
+            android:id="@+id/bottom_nav"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginBottom="48dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@color/surface"
-            android:elevation="6dp">
-
-            <TextView
-                android:id="@+id/btn_back"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="←"
-                android:textColor="@color/text_dim"
-                android:textSize="20sp"
-                android:clickable="true"
-                android:focusable="true" />
-
-            <TextView
-                android:id="@+id/btn_new_tab"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="+"
-                android:textColor="@color/text_dim"
-                android:textSize="22sp"
-                android:clickable="true"
-                android:focusable="true" />
-
-            <TextView
-                android:id="@+id/btn_tabs"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="□"
-                android:textColor="@color/text_dim"
-                android:textSize="16sp"
-                android:clickable="true"
-                android:focusable="true" />
-
-            <TextView
-                android:id="@+id/btn_menu"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="⋮"
-                android:textColor="@color/text_dim"
-                android:textSize="20sp"
-                android:clickable="true"
-                android:focusable="true" />
-        </LinearLayout>
+            android:layout_height="64dp"
+            android:layout_marginBottom="48dp" />
     </LinearLayout>
 
     <!-- ============ PRIVACY DASHBOARD (overlay) ============ -->

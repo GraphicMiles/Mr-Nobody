@@ -1,18 +1,18 @@
 <resources>
-    <!-- Brand palette (dark-first). The night variant lives in values-night/.
-         Accent = gold; blocked = muted green; surfaces are warm near-black. -->
-    <color name="bg">#0e0e10</color>
-    <color name="surface">#17171a</color>
-    <color name="surface_2">#1f1f23</color>
-    <color name="border">#2b2b30</color>
-    <color name="border_soft">#212125</color>
-    <color name="text">#e9e9ea</color>
-    <color name="text_dim">#8a8a90</color>
-    <color name="text_faint">#5c5c62</color>
-    <color name="accent">#c9a237</color>
-    <color name="accent_soft">#8a722a</color>
-    <color name="accent_ink">#151208</color>
-    <color name="blocked">#7f9c78</color>
-    <color name="deny">#b6564f</color>
-    <color name="ic_launcher_background">#0e0e10</color>
+    <!-- Monochrome black & white, aligned to the logo. White is the single accent;
+         surface tiers are near-black; borders are hairlines (white at low alpha). -->
+    <color name="bg">#000000</color>
+    <color name="surface">#101010</color>
+    <color name="surface_2">#181818</color>
+    <color name="border">#26262a</color>
+    <color name="border_soft">#1a1a1e</color>
+    <color name="text">#fafafa</color>
+    <color name="text_dim">#c4c4c7</color>
+    <color name="text_faint">#8a8a8f</color>
+    <color name="accent">#ffffff</color>
+    <color name="accent_soft">#c4c4c7</color>
+    <color name="accent_ink">#000000</color>
+    <color name="blocked">#e8e8ea</color>
+    <color name="deny">#b0b0b6</color>
+    <color name="ic_launcher_background">#000000</color>
 </resources>
