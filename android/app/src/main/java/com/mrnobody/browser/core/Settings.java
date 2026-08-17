@@ -137,11 +137,51 @@ public final class Settings {
     }
 
     public String apiBase(String provider) {
-        return prefs.getString("api_base_" + provider, "");
+        String v = prefs.getString("api_base_" + provider, "");
+        return v == null || v.trim().isEmpty() ? defaultBase(provider) : v;
+    }
+
+    public void setApiBase(String provider, String base) {
+        prefs.edit().putString("api_base_" + provider, base).apply();
     }
 
     public String apiModel(String provider) {
-        return prefs.getString("api_model_" + provider, "");
+        String v = prefs.getString("api_model_" + provider, "");
+        return v == null || v.trim().isEmpty() ? defaultModel(provider) : v;
+    }
+
+    public void setApiModel(String provider, String model) {
+        prefs.edit().putString("api_model_" + provider, model).apply();
+    }
+
+    /**
+     * Correct, free-accessible defaults for each remote provider. A user can
+     * override these (e.g. point OpenAI-compatible at their own gateway).
+     */
+    private static String defaultBase(String provider) {
+        switch (provider) {
+            case "gemini":
+                return "https://generativelanguage.googleapis.com/v1beta"; // Google AI Studio free tier
+            case "groq":
+                return "https://api.groq.com/openai/v1"; // Groq free tier
+            case "openai":
+                return "https://openrouter.ai/api/v1"; // OpenRouter (has :free models)
+            default:
+                return "";
+        }
+    }
+
+    private static String defaultModel(String provider) {
+        switch (provider) {
+            case "gemini":
+                return "gemini-2.0-flash";
+            case "groq":
+                return "llama-3.3-70b-versatile";
+            case "openai":
+                return "meta-llama/llama-3.3-70b-instruct:free"; // OpenRouter free model
+            default:
+                return "";
+        }
     }
 
     public String activeAiProvider() {

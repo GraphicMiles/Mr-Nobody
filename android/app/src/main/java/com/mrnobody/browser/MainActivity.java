@@ -301,6 +301,8 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle(title)
                 .setMessage(truncate(message, 1200))
                 .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(R.string.copy, (d, w) ->
+                        copyToClipboard(message == null ? "" : message))
                 .show();
     }
 
@@ -815,12 +817,23 @@ public class MainActivity extends AppCompatActivity {
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(status)
                 .setMessage(body)
-                .setPositiveButton(android.R.string.ok, null);
+                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(R.string.copy, (d, w) -> copyToClipboard(body));
         if (task.status() == Task.Status.FAILED) {
             b.setNeutralButton(getString(R.string.tasks_run_again), (d, w) ->
                     runTask(task.instruction()));
         }
         b.show();
+    }
+
+    /** Copy text to the system clipboard and confirm. */
+    private void copyToClipboard(String text) {
+        android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+        if (cm != null) {
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("Mr Nobody", text));
+            Toast.makeText(this, R.string.copied, Toast.LENGTH_SHORT).show();
+        }
     }
 
     private int statusColor(Task.Status status) {

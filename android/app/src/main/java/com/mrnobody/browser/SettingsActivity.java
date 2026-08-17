@@ -263,19 +263,59 @@ public class SettingsActivity extends AppCompatActivity {
                 .show();
     }
 
+    /** Full provider config: API key, base URL and model (pre-filled with free-tier defaults). */
     private void promptForKey(String providerId) {
-        android.widget.EditText input = new android.widget.EditText(this);
-        input.setHint(getString(R.string.ai_key_hint));
-        input.setSingleLine(true);
-        input.setText(settings.apiKey(providerId));
+        android.widget.EditText keyInput = new android.widget.EditText(this);
+        keyInput.setHint(getString(R.string.ai_key_hint));
+        keyInput.setSingleLine(true);
+        keyInput.setText(settings.apiKey(providerId));
+
+        android.widget.EditText baseInput = new android.widget.EditText(this);
+        baseInput.setHint("Base URL");
+        baseInput.setSingleLine(true);
+        baseInput.setText(settings.apiBase(providerId));
+
+        android.widget.EditText modelInput = new android.widget.EditText(this);
+        modelInput.setHint("Model");
+        modelInput.setSingleLine(true);
+        modelInput.setText(settings.apiModel(providerId));
+
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(8), dp(8), dp(8), 0);
+
+        TextView kLbl = new TextView(this);
+        kLbl.setText("API key");
+        kLbl.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        kLbl.setTextSize(11);
+        form.addView(kLbl);
+        form.addView(keyInput);
+
+        TextView bLbl = new TextView(this);
+        bLbl.setText("Base URL");
+        bLbl.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        bLbl.setTextSize(11);
+        bLbl.setPadding(0, dp(8), 0, 0);
+        form.addView(bLbl);
+        form.addView(baseInput);
+
+        TextView mLbl = new TextView(this);
+        mLbl.setText("Model");
+        mLbl.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        mLbl.setTextSize(11);
+        mLbl.setPadding(0, dp(8), 0, 0);
+        form.addView(mLbl);
+        form.addView(modelInput);
 
         new AlertDialog.Builder(this)
-                .setTitle(MrNobodyApp.providerDisplayName(providerId) + " · " + getString(R.string.ai_key_title))
+                .setTitle(MrNobodyApp.providerDisplayName(providerId))
                 .setMessage(getString(R.string.ai_disclosure))
-                .setView(input)
+                .setView(form)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
-                    settings.setApiKey(providerId, input.getText().toString().trim());
+                    settings.setApiKey(providerId, keyInput.getText().toString().trim());
+                    settings.setApiBase(providerId, baseInput.getText().toString().trim());
+                    settings.setApiModel(providerId, modelInput.getText().toString().trim());
                     MrNobodyApp.setActiveAiProviderId(providerId);
                     android.widget.Toast.makeText(this, R.string.ai_key_set,
                             android.widget.Toast.LENGTH_SHORT).show();

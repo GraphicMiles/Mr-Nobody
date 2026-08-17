@@ -102,13 +102,15 @@ public final class MrNobodyApp extends Application {
 
     // ------------------------------------------------------------ AI providers
 
-    /** Build the provider for an id, reading the current API key from settings. */
+    /** Build the provider for an id, reading the current key/base/model from settings. */
     public static AiProvider buildProvider(String id) {
         switch (id) {
             case "gemini":
-                return new GeminiProvider(settings.apiKey("gemini"));
+                return new GeminiProvider(settings.apiBase("gemini"),
+                        settings.apiModel("gemini"), settings.apiKey("gemini"));
             case "groq":
-                return new GroqProvider(settings.apiKey("groq"));
+                return new GroqProvider(settings.apiBase("groq"),
+                        settings.apiModel("groq"), settings.apiKey("groq"));
             case "openai-compatible":
                 return new OpenAiCompatibleProvider(
                         "openai-compatible", "OpenAI-compatible",

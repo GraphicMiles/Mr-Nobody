@@ -1,5 +1,7 @@
 package com.mrnobody.debug;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -9,6 +11,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.List;
 
@@ -43,6 +46,22 @@ public final class DebugOverlay {
         head.setTypeface(Typeface.MONOSPACE);
         head.setTextSize(11);
         panel.addView(head);
+
+        // Copy button — copies the full log so testers can paste it anywhere.
+        TextView copy = new TextView(context);
+        copy.setText("COPY");
+        copy.setTextColor(Color.parseColor("#5aa8e0"));
+        copy.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        copy.setTextSize(9);
+        copy.setGravity(Gravity.CENTER);
+        copy.setPadding(dp * 8, dp * 4, dp * 8, dp * 4);
+        copy.setBackground(roundedRect(context, "#1b1c21", "#5aa8e0"));
+        LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        copyLp.setMargins(0, dp * 4, 0, dp * 4);
+        copy.setLayoutParams(copyLp);
+        copy.setOnClickListener(v -> copyLog(context));
+        panel.addView(copy);
 
         ScrollView scroll = new ScrollView(context);
         panel.addView(scroll);
@@ -134,10 +153,37 @@ public final class DebugOverlay {
         }
     }
 
+    private void copyLog(Context context) {
+        StringBuilder sb = new StringBuilder();
+        List<String> entries = ErrorLog.tail(200);
+        if (entries.isEmpty()) {
+            sb.append("(no errors)");
+        } else {
+            for (String e : entries) sb.append(e).append('\n');
+        }
+        ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm != null) {
+            cm.setPrimaryClip(ClipData.newPlainText("MrNobody debug log", sb.toString()));
+            Toast.makeText(context, "Debug log copied", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private static android.graphics.drawable.GradientDrawable roundedCircle(
             Context context, String fill, String stroke) {
         android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
         d.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        d.setColor(Color.parseColor(fill));
+        if (!"transparent".equals(stroke)) {
+            d.setStroke((int) (context.getResources().getDisplayMetrics().density), Color.parseColor(stroke));
+        }
+        return d;
+    }
+
+    private static android.graphics.drawable.GradientDrawable roundedRect(
+            Context context, String fill, String stroke) {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        d.setCornerRadius((int) (6 * context.getResources().getDisplayMetrics().density));
         d.setColor(Color.parseColor(fill));
         if (!"transparent".equals(stroke)) {
             d.setStroke((int) (context.getResources().getDisplayMetrics().density), Color.parseColor(stroke));

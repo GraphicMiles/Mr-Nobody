@@ -90,6 +90,8 @@
     <string name="task_worker_local">on-device</string>
     <string name="task_worker_remote">remote</string>
     <string name="sessions_empty">No tabs or tasks</string>
+    <string name="copy">Copy</string>
+    <string name="copied">Copied</string>
 
     <!-- V2: profiles -->
     <string name="profile_title">Privacy profile</string>
