@@ -56,7 +56,7 @@ public class ToolCallPathTest {
         for (Path file : mainSources()) {
             String rel = relative(file);
             if (ALLOWED.contains(rel)) continue;
-            String source = Files.readString(file, StandardCharsets.UTF_8);
+            String source = read(file);
             Matcher m = DIRECT_CALL.matcher(source);
             while (m.find()) {
                 // Tool.execute is the only execute(context, ...) in the core;
@@ -80,7 +80,7 @@ public class ToolCallPathTest {
             String rel = relative(file);
             if (MAY_CONSTRUCT_TOOLS.contains(rel)) continue;
             if (rel.startsWith("agent/tools/")) continue; // a tool may build its own helpers
-            String source = Files.readString(file, StandardCharsets.UTF_8);
+            String source = read(file);
             Matcher m = TOOL_CONSTRUCTION.matcher(source);
             while (m.find()) {
                 offenders.add(rel + " → " + line(source, m.start()));
@@ -94,12 +94,19 @@ public class ToolCallPathTest {
 
     @Test
     public void theEntryPointExists() throws IOException {
-        String engine = Files.readString(
-                sourceRoot().resolve("agent/core/AgentEngine.java"), StandardCharsets.UTF_8);
+        String engine = read(sourceRoot().resolve("agent/core/AgentEngine.java"));
         assertTrue("AgentEngine must declare callTool()", engine.contains("callTool("));
     }
 
     // ------------------------------------------------------------- helpers
+
+    /**
+     * Unit tests compile against android.jar, whose {@code java.nio.file.Files}
+     * predates {@code readString}. Read bytes and decode instead.
+     */
+    private static String read(Path file) throws IOException {
+        return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+    }
 
     private static boolean isDispatcherCall(String source, int at) {
         // Worker.execute(context, task) — the dispatcher's own seam.
