@@ -26,6 +26,10 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // TESTING ONLY: sign with the auto-generated debug key so the APK
+            // is installable. Replace with a real keystore (GitHub Secrets)
+            // before any Play Store distribution — never ship the debug key.
+            signingConfig signingConfigs.debug
         }
     }
 

@@ -35,28 +35,12 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Build release APK (R8 + resource shrinking)
+      - name: Build release APK (R8 + shrinking, debug-signed for install)
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
 
       - name: APK size gate (hard limit 45 MB)
-        run: python3 tools/apk_size_check.py android/app/build/outputs/apk/release/app-release-unsigned.apk 45
-
-      # Sign the minified release build with the auto-generated debug keystore
-      # so testers can install it directly. A real release keystore (stored in
-      # GitHub Secrets) is still required for Play Store distribution — see
-      # docs/ARCHITECTURE.md and .github/workflows/release.yml.
-      - name: Sign release APK with debug key (for testing)
-        run: |
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          echo "Using apksigner: $APKSIGNER"
-          "$APKSIGNER" sign \
-            --ks "$HOME/.android/debug.keystore" \
-            --ks-pass pass:android \
-            --key-pass pass:android \
-            --ks-key-alias androiddebugkey \
-            --out android/app/build/outputs/apk/release/mrnobody-debug-signed.apk \
-            android/app/build/outputs/apk/release/app-release-unsigned.apk
+        run: python3 tools/apk_size_check.py android/app/build/outputs/apk/release/app-release.apk 45
 
       - name: Upload installable APKs
         uses: actions/upload-artifact@v4
@@ -64,4 +48,4 @@ jobs:
           name: mrnobody-apks
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/apk/release/mrnobody-debug-signed.apk
+            android/app/build/outputs/apk/release/app-release.apk
