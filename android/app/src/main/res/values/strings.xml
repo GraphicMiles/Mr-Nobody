@@ -74,6 +74,22 @@
     <string name="menu_bookmarks">Bookmarks</string>
     <string name="menu_site_settings">Site privacy (for %1$s)</string>
     <string name="menu_reports">Privacy report</string>
+    <string name="menu_tasks">Tasks</string>
+
+    <!-- Sessions / Tasks screens -->
+    <string name="sessions_title">Sessions</string>
+    <string name="sessions_tabs_section">Tabs</string>
+    <string name="sessions_tasks_section">Task sessions</string>
+    <string name="sessions_new_tab">+ New tab</string>
+    <string name="sessions_new_private">+ New private tab</string>
+    <string name="sessions_close_all">Close all tabs</string>
+    <string name="tab_private_badge">PRIVATE</string>
+    <string name="tasks_title">Tasks</string>
+    <string name="tasks_empty">No tasks yet.\nType an instruction like \u201cFind laptops under \u20a6500,000\u201d.</string>
+    <string name="tasks_run_again">Run again</string>
+    <string name="task_worker_local">on-device</string>
+    <string name="task_worker_remote">remote</string>
+    <string name="sessions_empty">No tabs or tasks</string>
 
     <!-- V2: profiles -->
     <string name="profile_title">Privacy profile</string>

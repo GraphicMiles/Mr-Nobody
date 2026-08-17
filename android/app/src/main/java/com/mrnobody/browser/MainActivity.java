@@ -7,8 +7,11 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
@@ -26,6 +29,8 @@ import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -79,6 +84,10 @@ public class MainActivity extends AppCompatActivity {
     private View browserLayout, privacyPanel, firstLaunch;
     private TextView dashAds, dashTrackers, dashHistory;
     private TextView dashScore, dashTodayAds, dashTodayTrackers;
+
+    // Native Sessions (S3) and Tasks (S5) overlay screens.
+    private View sessionsPanel, tasksPanel;
+    private LinearLayout sessionsList, tasksList;
 
     // Pending web permission requests (camera/mic/location).
     private PermissionRequest pendingPermissionRequest;
@@ -153,8 +162,12 @@ public class MainActivity extends AppCompatActivity {
             loadUrl(intent.getData().toString());
         }
 
+        // Build the Sessions and Tasks screens (native overlays).
+        buildPanels();
+
         // Debug overlay: floating circle with an error-count badge, expandable
-        // on tap. Testers use it to surface failures instantly.
+        // on tap. Testers use it to surface failures instantly. Added last so it
+        // stays on top of the screens.
         new DebugOverlay((FrameLayout) findViewById(android.R.id.content));
     }
 
@@ -175,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
             if (t != null && t.canGoBack()) t.goBack();
         });
         findViewById(R.id.btn_new_tab).setOnClickListener(v -> newTab(false));
-        findViewById(R.id.btn_tabs).setOnClickListener(v -> showTabSwitcher());
+        findViewById(R.id.btn_tabs).setOnClickListener(v -> showSessions());
         findViewById(R.id.btn_menu).setOnClickListener(v -> showMenu());
 
         secureIcon.setOnClickListener(v -> showPrivacyPanel());
@@ -417,6 +430,7 @@ public class MainActivity extends AppCompatActivity {
         items.add(getString(R.string.menu_bookmark_page));
         items.add(getString(R.string.menu_bookmarks));
         if (host != null) items.add(getString(R.string.menu_site_settings, host));
+        items.add(getString(R.string.menu_tasks));
         items.add(getString(R.string.menu_reports));
         items.add(getString(R.string.settings_title));
         items.add(getString(R.string.downloads_title));
@@ -431,6 +445,8 @@ public class MainActivity extends AppCompatActivity {
                         bookmarkCurrentPage();
                     } else if (label.equals(getString(R.string.menu_bookmarks))) {
                         showBookmarks();
+                    } else if (label.equals(getString(R.string.menu_tasks))) {
+                        showTasks();
                     } else if (label.equals(getString(R.string.menu_reports))) {
                         showReportDialog();
                     } else if (label.equals(getString(R.string.settings_title))) {
@@ -549,27 +565,332 @@ public class MainActivity extends AppCompatActivity {
         newTab(false);
     }
 
-    private void showTabSwitcher() {
-        List<Tab> all = tabs.all();
-        List<String> labels = new ArrayList<>();
-        for (Tab t : all) {
-            labels.add((t.isPrivate() ? "🕶 " : "") + t.label());
-        }
-        labels.add("+ " + getString(R.string.toolbar_new_tab));
-        labels.add(getString(R.string.menu_new_private));
+    // ----------------------------------------------- Sessions (S3) & Tasks (S5)
 
-        new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.toolbar_tabs))
-                .setItems(labels.toArray(new String[0]), (d, which) -> {
-                    if (which < all.size()) {
-                        switchToTab(which);
-                    } else if (which == all.size()) {
-                        newTab(false);
-                    } else {
-                        newTab(true);
-                    }
-                })
-                .show();
+    /** Build the two native overlay screens and attach them to the content root. */
+    private void buildPanels() {
+        FrameLayout root = (FrameLayout) findViewById(android.R.id.content);
+
+        sessionsPanel = buildPanel(getString(R.string.sessions_title),
+                v -> hideSessions(), container -> sessionsList = container);
+        root.addView(sessionsPanel);
+
+        tasksPanel = buildPanel(getString(R.string.tasks_title),
+                v -> hideTasks(), container -> tasksList = container);
+        root.addView(tasksPanel);
+    }
+
+    private interface ListRef {
+        void set(LinearLayout list);
+    }
+
+    /** Create a full-screen panel: header (‹ back + title) + scrollable list. */
+    private View buildPanel(String title, View.OnClickListener back, ListRef listRef) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackgroundColor(color(com.mrnobody.browser.R.color.bg));
+        panel.setVisibility(View.GONE);
+
+        panel.addView(panelHeader(title, back));
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(0, 0, 0, dp(24));
+        scroll.addView(list);
+        panel.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        listRef.set(list);
+        return panel;
+    }
+
+    private LinearLayout panelHeader(String title, View.OnClickListener back) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(8), dp(8), dp(12), dp(8));
+        row.setBackgroundColor(color(com.mrnobody.browser.R.color.surface));
+
+        TextView backBtn = new TextView(this);
+        backBtn.setText("‹");
+        backBtn.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
+        backBtn.setTextSize(22);
+        backBtn.setGravity(Gravity.CENTER);
+        backBtn.setPadding(dp(14), 0, dp(16), 0);
+        backBtn.setOnClickListener(back);
+        row.addView(backBtn);
+
+        TextView t = new TextView(this);
+        t.setText(title);
+        t.setTextColor(color(com.mrnobody.browser.R.color.text));
+        t.setTextSize(16);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        row.addView(t);
+        return row;
+    }
+
+    // -------------------------------------------------------------- Sessions
+
+    private void showSessions() {
+        renderSessions();
+        hideAllPanels();
+        sessionsPanel.setVisibility(View.VISIBLE);
+    }
+
+    private void hideSessions() {
+        sessionsPanel.setVisibility(View.GONE);
+        browserLayout.setVisibility(View.VISIBLE);
+    }
+
+    private void renderSessions() {
+        sessionsList.removeAllViews();
+        List<Tab> all = tabs.all();
+        Tab active = tabs.getActive();
+
+        if (all.isEmpty()) {
+            sessionsList.addView(emptyRow(getString(R.string.sessions_empty)));
+        } else {
+            sessionsList.addView(sectionLabel(getString(R.string.sessions_tabs_section)));
+            for (int i = 0; i < all.size(); i++) {
+                final int index = i;
+                Tab tab = all.get(i);
+                boolean isActive = (tab == active);
+                sessionsList.addView(tabRow(tab, isActive, () -> {
+                    switchToTab(index);
+                    hideSessions();
+                }));
+            }
+        }
+
+        sessionsList.addView(sectionLabel(getString(R.string.sessions_tasks_section)));
+        List<Task> tasks = MrNobodyApp.tasks().recent(20);
+        List<Task> live = new ArrayList<>();
+        for (Task t : tasks) {
+            if (t.status() == Task.Status.RUNNING || t.status() == Task.Status.QUEUED
+                    || t.status() == Task.Status.WAITING) {
+                live.add(t);
+            }
+        }
+        if (live.isEmpty()) {
+            sessionsList.addView(emptyRow(getString(R.string.tasks_empty)));
+        } else {
+            for (Task t : live) {
+                sessionsList.addView(taskRow(t, () -> showTaskDetail(t)));
+            }
+        }
+
+        sessionsList.addView(actionRow(getString(R.string.sessions_new_tab), () -> {
+            newTab(false);
+            hideSessions();
+        }));
+        sessionsList.addView(actionRow(getString(R.string.sessions_new_private), () -> {
+            newTab(true);
+            hideSessions();
+        }));
+        if (!all.isEmpty()) {
+            sessionsList.addView(actionRow(getString(R.string.sessions_close_all), () -> {
+                closeAllTabs();
+                hideSessions();
+            }));
+        }
+    }
+
+    private View tabRow(Tab tab, boolean isActive, Runnable onClick) {
+        LinearLayout row = baseRow();
+        row.setOnClickListener(v -> onClick.run());
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        TextView title = new TextView(this);
+        title.setText((isActive ? "● " : "") + tab.label());
+        title.setTextColor(isActive ? color(com.mrnobody.browser.R.color.accent)
+                : color(com.mrnobody.browser.R.color.text));
+        title.setTextSize(14);
+        title.setMaxLines(1);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        textCol.addView(title);
+        if (tab.isPrivate()) {
+            TextView badge = new TextView(this);
+            badge.setText(getString(R.string.tab_private_badge));
+            badge.setTextColor(color(com.mrnobody.browser.R.color.accent_soft));
+            badge.setTextSize(9);
+            badge.setTypeface(Typeface.MONOSPACE);
+            textCol.addView(badge);
+        }
+        row.addView(textCol, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView close = new TextView(this);
+        close.setText("×");
+        close.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        close.setTextSize(18);
+        close.setGravity(Gravity.CENTER);
+        close.setPadding(dp(14), dp(4), dp(4), dp(4));
+        close.setOnClickListener(v -> {
+            tabs.close(tabs.indexOf(tab));
+            renderSessions();
+        });
+        row.addView(close);
+        return row;
+    }
+
+    // ----------------------------------------------------------------- Tasks
+
+    private void showTasks() {
+        renderTasks();
+        hideAllPanels();
+        tasksPanel.setVisibility(View.VISIBLE);
+    }
+
+    private void hideTasks() {
+        tasksPanel.setVisibility(View.GONE);
+        browserLayout.setVisibility(View.VISIBLE);
+    }
+
+    private void renderTasks() {
+        tasksList.removeAllViews();
+        List<Task> tasks = MrNobodyApp.tasks().recent(100);
+        if (tasks.isEmpty()) {
+            tasksList.addView(emptyRow(getString(R.string.tasks_empty)));
+            return;
+        }
+        for (Task t : tasks) {
+            tasksList.addView(taskRow(t, () -> showTaskDetail(t)));
+        }
+    }
+
+    private View taskRow(Task task, Runnable onClick) {
+        LinearLayout row = baseRow();
+        row.setOnClickListener(v -> onClick.run());
+
+        LinearLayout textCol = new LinearLayout(this);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        TextView name = new TextView(this);
+        name.setText(task.instruction());
+        name.setTextColor(color(com.mrnobody.browser.R.color.text));
+        name.setTextSize(14);
+        name.setMaxLines(1);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        textCol.addView(name);
+
+        TextView meta = new TextView(this);
+        String worker = MrNobodyApp.dispatcher().isLocal(task)
+                ? getString(R.string.task_worker_local) : getString(R.string.task_worker_remote);
+        meta.setText(worker + (task.currentStep() != null && !task.currentStep().isEmpty()
+                ? " · " + task.currentStep() : ""));
+        meta.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        meta.setTextSize(10);
+        meta.setTypeface(Typeface.MONOSPACE);
+        textCol.addView(meta);
+        row.addView(textCol, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView chip = new TextView(this);
+        chip.setText(task.status().name());
+        chip.setTextSize(9);
+        chip.setTypeface(Typeface.MONOSPACE);
+        chip.setPadding(dp(8), dp(3), dp(8), dp(3));
+        chip.setTextColor(statusColor(task.status()));
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setCornerRadius(dp(10));
+        d.setColor(android.graphics.Color.TRANSPARENT);
+        d.setStroke(dp(1), statusColor(task.status()));
+        chip.setBackground(d);
+        row.addView(chip);
+        return row;
+    }
+
+    private void showTaskDetail(Task task) {
+        String status = task.status().name();
+        String body = task.instruction() + "\n\n";
+        if (task.currentStep() != null && !task.currentStep().isEmpty()) {
+            body += "Step: " + task.currentStep() + "\n";
+        }
+        body += "Worker: " + (MrNobodyApp.dispatcher().isLocal(task) ? "on-device" : "remote")
+                + "\n\n";
+        body += task.status() == Task.Status.COMPLETED
+                ? (task.result() != null ? truncate(task.result(), 800) : "")
+                : (task.error() != null ? "Error: " + task.error() : "");
+
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle(status)
+                .setMessage(body)
+                .setPositiveButton(android.R.string.ok, null);
+        if (task.status() == Task.Status.FAILED) {
+            b.setNeutralButton(getString(R.string.tasks_run_again), (d, w) ->
+                    runTask(task.instruction()));
+        }
+        b.show();
+    }
+
+    private int statusColor(Task.Status status) {
+        switch (status) {
+            case COMPLETED: return color(com.mrnobody.browser.R.color.blocked);
+            case FAILED:
+            case CANCELLED: return color(com.mrnobody.browser.R.color.deny);
+            case WAITING:   return color(com.mrnobody.browser.R.color.accent);
+            default:        return color(com.mrnobody.browser.R.color.accent); // RUNNING/QUEUED
+        }
+    }
+
+    // ------------------------------------------------------------- UI helpers
+
+    private LinearLayout baseRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), dp(12), dp(16), dp(12));
+        row.setBackgroundColor(color(com.mrnobody.browser.R.color.surface));
+        row.setClickable(true);
+        row.setFocusable(true);
+        return row;
+    }
+
+    private TextView sectionLabel(String text) {
+        TextView t = new TextView(this);
+        t.setText(text.toUpperCase());
+        t.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        t.setTextSize(10);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setLetterSpacing(0.1f);
+        t.setPadding(dp(16), dp(16), dp(16), dp(4));
+        return t;
+    }
+
+    private View actionRow(String label, Runnable onClick) {
+        LinearLayout row = baseRow();
+        TextView t = new TextView(this);
+        t.setText(label);
+        t.setTextColor(color(com.mrnobody.browser.R.color.accent));
+        t.setTextSize(14);
+        row.addView(t);
+        row.setOnClickListener(v -> onClick.run());
+        return row;
+    }
+
+    private TextView emptyRow(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        t.setTextSize(13);
+        t.setPadding(dp(16), dp(16), dp(16), dp(16));
+        return t;
+    }
+
+    private void hideAllPanels() {
+        privacyPanel.setVisibility(View.GONE);
+        firstLaunch.setVisibility(View.GONE);
+        sessionsPanel.setVisibility(View.GONE);
+        tasksPanel.setVisibility(View.GONE);
+        browserLayout.setVisibility(View.VISIBLE);
+    }
+
+    private int color(int resId) {
+        return ContextCompat.getColor(this, resId);
+    }
+
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
     }
 
     // -------------------------------------------------------- webview clients
@@ -803,7 +1124,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {
         Tab t = tabs.getActive();
-        if (privacyPanel.getVisibility() == View.VISIBLE) {
+        if (sessionsPanel != null && sessionsPanel.getVisibility() == View.VISIBLE) {
+            hideSessions();
+        } else if (tasksPanel != null && tasksPanel.getVisibility() == View.VISIBLE) {
+            hideTasks();
+        } else if (privacyPanel.getVisibility() == View.VISIBLE) {
             hidePrivacyPanel();
         } else if (firstLaunch.getVisibility() == View.VISIBLE) {
             super.onBackPressed();

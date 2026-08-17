@@ -13,5 +13,6 @@
     <color name="accent_soft">#8a722a</color>
     <color name="accent_ink">#151208</color>
     <color name="blocked">#7f9c78</color>
+    <color name="deny">#b6564f</color>
     <color name="ic_launcher_background">#0e0e10</color>
 </resources>
