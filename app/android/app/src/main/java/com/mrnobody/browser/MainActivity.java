@@ -9,7 +9,6 @@ import androidx.annotation.Nullable;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
-import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.deeplink.DeepLinkHandler;
@@ -132,8 +131,10 @@ public class MainActivity extends FlutterActivity {
                             }
                             final String query = q.trim();
                             executor.execute(() -> {
-                                SearchTool tool = new SearchTool();
-                                ToolResult r = tool.execute(getApplicationContext(),
+                                // Through the engine, never straight at the tool:
+                                // the guarded pipeline lives on callTool().
+                                ToolResult r = MrNobodyApp.agent().callTool(
+                                        getApplicationContext(), "search",
                                         ToolRequest.of("search", "q", query));
                                 Map<String, Object> m = new HashMap<>();
                                 m.put("success", r.isSuccess());
@@ -221,6 +222,33 @@ public class MainActivity extends FlutterActivity {
                             Boolean makeActive = call.argument("active");
                             if (makeActive != null && makeActive) MrNobodyApp.setActiveAiProviderId(id);
                             result.success(null);
+                            return;
+                        }
+                        case "cancelTask": {
+                            Number cancelId = call.argument("id");
+                            if (cancelId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            long id = cancelId.longValue();
+                            Task pending = MrNobodyApp.tasks().get(id);
+                            if (pending == null) {
+                                result.success(false);
+                                return;
+                            }
+                            // The request is persisted either way: a worker may
+                            // be mid-step in another process, or not started at
+                            // all. Queued work can be closed out immediately.
+                            MrNobodyApp.tasks().requestCancel(id);
+                            MrNobodyApp.scheduler().cancel(getApplicationContext(), id);
+                            if (pending.status() == Task.Status.QUEUED
+                                    || pending.status() == Task.Status.WAITING) {
+                                pending.setStatus(Task.Status.CANCELLED);
+                                pending.setCurrentStep("");
+                                MrNobodyApp.tasks().update(pending);
+                                MrNobodyApp.tasks().clearCancelRequest(id);
+                            }
+                            result.success(true);
                             return;
                         }
                         case "task": {

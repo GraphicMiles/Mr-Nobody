@@ -3,6 +3,7 @@ package com.mrnobody.agent.dispatcher;
 import android.content.Context;
 
 import com.mrnobody.agent.core.AgentEngine;
+import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 
 /**
@@ -24,9 +25,9 @@ public final class LocalWorker implements Worker {
     }
 
     @Override
-    public void execute(Context context, Task task) {
+    public void execute(Context context, Task task, Cancellation cancellation) {
         task.setWorker("local");
         task.setStatus(Task.Status.RUNNING);
-        engine.run(context, task);
+        engine.run(context, task, cancellation);
     }
 }

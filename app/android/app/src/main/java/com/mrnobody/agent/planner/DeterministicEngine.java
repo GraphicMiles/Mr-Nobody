@@ -4,6 +4,7 @@ import android.content.Context;
 
 import com.mrnobody.agent.ai.AiProvider;
 import com.mrnobody.agent.core.AgentEngine;
+import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
@@ -39,6 +40,12 @@ public final class DeterministicEngine implements AgentEngine {
             + "Answer the user's request using the provided context. "
             + "Be concise and factual. Do not invent sources.";
 
+    /** How long a remote provider gets before we give up on it. */
+    private static final long PROVIDER_TIMEOUT_MS = 90_000L;
+
+    /** How often that wait checks for a cancel request. */
+    private static final long POLL_MS = 250L;
+
     private static final Pattern URL_IN_TEXT =
             Pattern.compile("(https?://[^\\s\"'<>]+)");
 
@@ -65,17 +72,22 @@ public final class DeterministicEngine implements AgentEngine {
     }
 
     @Override
-    public void run(Context context, Task task) {
+    public void run(Context context, Task task, Cancellation cancellation) {
         String instruction = task.instruction();
         task.setStatus(Task.Status.RUNNING);
 
+        // Cancellation is observed between steps: the task stops in a state we
+        // can describe, never halfway through one.
+        if (stopped(task, cancellation)) return;
+
         // 1. Search — returns parsed results, never a page scrape.
         task.setCurrentStep("Search");
-        ToolResult search = runTool(context, "search", ToolRequest.of("search", "q", instruction));
+        ToolResult search = callTool(context, "search", ToolRequest.of("search", "q", instruction));
         if (!search.isSuccess()) {
             fail(task, search);
             return;
         }
+        if (stopped(task, cancellation)) return;
 
         // 2. If the instruction names a URL, also extract that page's text so
         //    the answer is grounded in the specific page the user asked about.
@@ -83,7 +95,7 @@ public final class DeterministicEngine implements AgentEngine {
         String contextText = search.result();
         if (namedUrl != null) {
             task.setCurrentStep("Open page");
-            ToolResult page = runTool(context, "browser", ToolRequest.of("fetch", "url", namedUrl));
+            ToolResult page = callTool(context, "browser", ToolRequest.of("fetch", "url", namedUrl));
             if (page.isSuccess() && page.result().trim().length() > 0) {
                 contextText = contextText + "\n\nPage (" + namedUrl + "):\n"
                         + truncate(page.result(), 2000);
@@ -92,20 +104,30 @@ public final class DeterministicEngine implements AgentEngine {
 
         // 3. Result synthesis. A remote provider may summarize; the local
         //    (deterministic) provider shows the parsed results directly.
+        if (stopped(task, cancellation)) return;
+
         task.setCurrentStep("Summarize");
         AiProvider provider = MrNobodyApp.activeProvider();
         String answer;
         if (provider.isRemote()) {
-            answer = askProvider(provider, instruction, truncate(contextText, 4000));
+            answer = askProvider(provider, instruction, truncate(contextText, 4000), cancellation);
         } else {
             answer = contextText;
         }
+        if (stopped(task, cancellation)) return;
 
         task.setResult(truncate(answer, 4000));
         task.setStatus(Task.Status.COMPLETED);
     }
 
-    private ToolResult runTool(Context context, String name, ToolRequest request) {
+    /**
+     * The single tool entry point (see {@link AgentEngine#callTool}). Today it
+     * resolves the tool and normalises a throw into a failed result; the
+     * guarded pipeline — parameter validation, policy, confirmation, timeout,
+     * audit record — is inserted here and nowhere else.
+     */
+    @Override
+    public ToolResult callTool(Context context, String name, ToolRequest request) {
         Tool tool = tools.get(name);
         if (tool == null) return ToolResult.fail("no tool named " + name);
         try {
@@ -113,6 +135,14 @@ public final class DeterministicEngine implements AgentEngine {
         } catch (Exception e) {
             return ToolResult.fail(name + " threw: " + e.getMessage());
         }
+    }
+
+    /** Mark the task cancelled and stop, if a cancel request is outstanding. */
+    private boolean stopped(Task task, Cancellation cancellation) {
+        if (cancellation == null || !cancellation.isCancelled()) return false;
+        task.setCurrentStep("");
+        task.setStatus(Task.Status.CANCELLED);
+        return true;
     }
 
     private void fail(Task task, ToolResult r) {
@@ -125,7 +155,13 @@ public final class DeterministicEngine implements AgentEngine {
         return m.find() ? m.group(1) : null;
     }
 
-    private String askProvider(AiProvider provider, String instruction, String context) {
+    /**
+     * Wait for a provider, in short slices so a cancel request is noticed in
+     * under a second rather than after the whole timeout. A blocking
+     * {@code await(90s)} here is what made "cancel" mean "cancel, eventually".
+     */
+    private String askProvider(AiProvider provider, String instruction, String context,
+                               Cancellation cancellation) {
         final CountDownLatch latch = new CountDownLatch(1);
         final String[] out = {"(no AI response)"};
         String prompt = instruction + "\n\nContext:\n" + truncate(context, 4000);
@@ -134,7 +170,11 @@ public final class DeterministicEngine implements AgentEngine {
                 @Override public void onResult(String text) { out[0] = text; latch.countDown(); }
                 @Override public void onError(String error) { out[0] = "AI error: " + error; latch.countDown(); }
             });
-            latch.await(90, TimeUnit.SECONDS);
+            long deadline = System.currentTimeMillis() + PROVIDER_TIMEOUT_MS;
+            while (System.currentTimeMillis() < deadline) {
+                if (latch.await(POLL_MS, TimeUnit.MILLISECONDS)) return out[0];
+                if (cancellation != null && cancellation.isCancelled()) return "(cancelled)";
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

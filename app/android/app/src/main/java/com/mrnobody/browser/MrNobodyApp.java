@@ -15,6 +15,7 @@ import com.mrnobody.agent.dispatcher.LocalWorker;
 import com.mrnobody.agent.dispatcher.RemoteWorker;
 import com.mrnobody.agent.dispatcher.TaskDispatcher;
 import com.mrnobody.agent.planner.DeterministicEngine;
+import com.mrnobody.agent.tasks.TaskReconciler;
 import com.mrnobody.agent.tasks.TaskStore;
 import com.mrnobody.agent.tasks.TaskScheduler;
 import com.mrnobody.agent.tasks.WorkManagerTaskScheduler;
@@ -29,6 +30,7 @@ import com.mrnobody.browser.core.PermissionStore;
 import com.mrnobody.browser.core.PrivacyReport;
 import com.mrnobody.browser.core.Settings;
 import com.mrnobody.browser.history.HistoryStore;
+import com.mrnobody.debug.ErrorLog;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -96,6 +98,21 @@ public final class MrNobodyApp extends Application {
         taskDispatcher.register(new LocalWorker(agentEngine));
         taskDispatcher.register(new RemoteWorker()); // no-op until V2 enables it
         taskScheduler = new WorkManagerTaskScheduler();
+
+        // Android can stop the process mid-task and nothing writes the ending,
+        // so a row can claim RUNNING forever. Close those out on the way up.
+        // After the store exists, and off the main thread: this touches SQLite.
+        final TaskStore store = taskStore;
+        new Thread(() -> {
+            try {
+                int closed = store.reconcileStale(TaskReconciler.DEFAULT_STALE_AFTER_MS);
+                if (closed > 0) {
+                    ErrorLog.record("Reconciled " + closed + " interrupted task(s) at startup");
+                }
+            } catch (Exception e) {
+                ErrorLog.record("Task reconciliation failed: " + e);
+            }
+        }, "task-reconcile").start();
     }
 
     public static FilterEngine filters() { return filterEngine; }

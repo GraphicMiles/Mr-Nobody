@@ -53,6 +53,13 @@ jobs:
         working-directory: app
         run: flutter build apk --release
 
+      # The Java agent core (routing, filtering, policy, reconciliation) is
+      # written to run on a plain JVM precisely so it can be tested without a
+      # device. Runs after the APK build, which generates local.properties.
+      - name: Tests (Java agent core)
+        working-directory: app/android
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+
       - name: Report APK size
         working-directory: app
         run: |
