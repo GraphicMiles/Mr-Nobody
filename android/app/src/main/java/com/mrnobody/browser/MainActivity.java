@@ -64,8 +64,6 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * The browser. Native chrome (address bar, toolbar, privacy panel, tab
@@ -95,8 +93,6 @@ public class MainActivity extends AppCompatActivity {
     private String pendingGeoOrigin;
 
     private ValueCallback<Uri[]> filePathCallback;
-
-    private final ExecutorService agentExecutor = Executors.newSingleThreadExecutor();
 
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -275,35 +271,18 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** Create a persistent task and dispatch it (local worker, background). */
+    /** Create a persistent task and enqueue it for background (resumable) execution. */
     private void runTask(String instruction) {
         long id = MrNobodyApp.tasks().insert(instruction);
-        Task task = MrNobodyApp.tasks().get(id);
-        if (task == null) {
+        if (id < 0) {
             ErrorLog.record("failed to create task");
             return;
         }
         Toast.makeText(this, "Task started: " + instruction, Toast.LENGTH_SHORT).show();
-        agentExecutor.execute(() -> {
-            MrNobodyApp.dispatcher().dispatch(getApplicationContext(), task);
-            MrNobodyApp.tasks().update(task);
-            if (task.status() == Task.Status.FAILED) {
-                ErrorLog.record("task failed: " + task.error());
-            }
-            runOnUiThread(() -> showTaskResult(task));
-        });
-    }
 
-    private void showTaskResult(Task task) {
-        String title = task.status() == Task.Status.COMPLETED ? "Task done" : "Task failed";
-        String message = task.status() == Task.Status.COMPLETED ? task.result() : task.error();
-        new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setMessage(truncate(message, 1200))
-                .setPositiveButton(android.R.string.ok, null)
-                .setNegativeButton(R.string.copy, (d, w) ->
-                        copyToClipboard(message == null ? "" : message))
-                .show();
+        // Enqueue via WorkManager so the task survives process death and runs
+        // to completion even if the user leaves the app (spec §13).
+        MrNobodyApp.scheduler().schedule(getApplicationContext(), id);
     }
 
     private static String truncate(String s, int max) {

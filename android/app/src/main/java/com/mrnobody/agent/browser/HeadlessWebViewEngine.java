@@ -107,6 +107,70 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
     }
 
     @Override
+    public boolean click(String selector) {
+        return evalBool("(function(){var e=document.querySelector("
+                + jsString(selector) + ");if(!e)return false;e.click();return true})()");
+    }
+
+    @Override
+    public boolean type(String selector, String text) {
+        return evalBool("(function(){var e=document.querySelector("
+                + jsString(selector) + ");if(!e)return false;"
+                + "e.focus();"
+                + "if(typeof e.value!=='undefined'){e.value=" + jsString(text) + ";}"
+                + "else{e.textContent=" + jsString(text) + ";}"
+                + "e.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
+    }
+
+    @Override
+    public boolean scroll(String direction) {
+        String js;
+        switch (direction == null ? "down" : direction.toLowerCase()) {
+            case "up":    js = "window.scrollBy(0,-600)"; break;
+            case "down":
+            default:      js = "window.scrollBy(0,600)"; break;
+        }
+        return evalBool("(function(){" + js + ";return true})()");
+    }
+
+    @Override
+    public void waitFor(long millis) {
+        try {
+            Thread.sleep(Math.max(0, millis));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Evaluate a JS expression that must return a boolean, on the main thread. */
+    private boolean evalBool(String js) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Boolean> result = new AtomicReference<>(false);
+        onMain(() -> {
+            WebView wv = webView();
+            wv.evaluateJavascript(js, value -> {
+                result.set("true".equalsIgnoreCase(unescapeJs(value)));
+                latch.countDown();
+            });
+        });
+        try {
+            latch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return Boolean.TRUE.equals(result.get());
+    }
+
+    /** JSON-string-encode a value for safe inlining into JS source. */
+    private static String jsString(String s) {
+        return "\"" + (s == null ? "" : s)
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r") + "\"";
+    }
+
+    @Override
     public void close() {
         onMain(() -> {
             if (webView != null) {

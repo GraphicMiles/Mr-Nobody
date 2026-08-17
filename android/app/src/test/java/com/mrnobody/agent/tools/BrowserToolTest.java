@@ -14,6 +14,8 @@ public class BrowserToolTest {
     /** Fake engine that records the last URL opened. */
     static final class FakeEngine implements BrowserEngine {
         String opened;
+        String lastClicked;
+        String lastTyped;
         @Override public void open(String url) { opened = url; }
         @Override public void back() { }
         @Override public void forward() { }
@@ -21,6 +23,10 @@ public class BrowserToolTest {
         @Override public String extractText() { return "text"; }
         @Override public String title() { return "title"; }
         @Override public String loadAndExtract(String url, long timeoutMs) { return "body of " + url; }
+        @Override public boolean click(String selector) { lastClicked = selector; return true; }
+        @Override public boolean type(String selector, String text) { lastTyped = selector + ":" + text; return true; }
+        @Override public boolean scroll(String direction) { return true; }
+        @Override public void waitFor(long millis) { }
         @Override public void close() { }
     }
 
@@ -46,5 +52,41 @@ public class BrowserToolTest {
         BrowserTool tool = new BrowserTool(new FakeEngine());
         ToolResult r = tool.execute(null, com.mrnobody.agent.core.ToolRequest.of("explode"));
         assertTrue(!r.isSuccess());
+    }
+
+    @Test
+    public void clickRequiresSelector() {
+        BrowserTool tool = new BrowserTool(new FakeEngine());
+        ToolResult r = tool.execute(null, com.mrnobody.agent.core.ToolRequest.of("click"));
+        assertTrue(!r.isSuccess());
+    }
+
+    @Test
+    public void clickDelegatesToEngine() {
+        FakeEngine engine = new FakeEngine();
+        BrowserTool tool = new BrowserTool(engine);
+        ToolResult r = tool.execute(null,
+                com.mrnobody.agent.core.ToolRequest.of("click", "selector", "#submit"));
+        assertTrue(r.isSuccess());
+        assertEquals("#submit", engine.lastClicked);
+    }
+
+    @Test
+    public void typeRequiresSelector() {
+        BrowserTool tool = new BrowserTool(new FakeEngine());
+        ToolResult r = tool.execute(null, com.mrnobody.agent.core.ToolRequest.of("type"));
+        assertTrue(!r.isSuccess());
+    }
+
+    @Test
+    public void typeDelegatesToEngine() {
+        FakeEngine engine = new FakeEngine();
+        BrowserTool tool = new BrowserTool(engine);
+        java.util.Map<String, String> params = new java.util.HashMap<>();
+        params.put("selector", "#q");
+        params.put("text", "hello");
+        ToolResult r = tool.execute(null, new com.mrnobody.agent.core.ToolRequest("type", params));
+        assertTrue(r.isSuccess());
+        assertEquals("#q:hello", engine.lastTyped);
     }
 }

@@ -61,6 +61,33 @@ public final class BrowserTool implements Tool {
                 return ToolResult.ok(engine.extractText());
             case "title":
                 return ToolResult.ok(engine.title());
+            case "click": {
+                String sel = request.param("selector");
+                if (sel == null || sel.isEmpty()) return ToolResult.fail("browser.click needs 'selector'");
+                return engine.click(sel)
+                        ? ToolResult.ok("Clicked " + sel)
+                        : ToolResult.fail("no element matched " + sel);
+            }
+            case "type": {
+                String sel = request.param("selector");
+                String text = request.param("text");
+                if (sel == null || sel.isEmpty()) return ToolResult.fail("browser.type needs 'selector'");
+                if (text == null) text = "";
+                return engine.type(sel, text)
+                        ? ToolResult.ok("Typed into " + sel)
+                        : ToolResult.fail("no element matched " + sel);
+            }
+            case "scroll": {
+                String dir = request.param("direction", "down");
+                return engine.scroll(dir)
+                        ? ToolResult.ok("Scrolled " + dir)
+                        : ToolResult.fail("scroll failed");
+            }
+            case "wait": {
+                long ms = parseLong(request.param("ms"), 1000);
+                engine.waitFor(ms);
+                return ToolResult.ok("Waited " + ms + "ms");
+            }
             default:
                 return ToolResult.fail("unknown browser action: " + action);
         }

@@ -16,6 +16,8 @@ import com.mrnobody.agent.dispatcher.RemoteWorker;
 import com.mrnobody.agent.dispatcher.TaskDispatcher;
 import com.mrnobody.agent.planner.DeterministicEngine;
 import com.mrnobody.agent.tasks.TaskStore;
+import com.mrnobody.agent.tasks.TaskScheduler;
+import com.mrnobody.agent.tasks.WorkManagerTaskScheduler;
 import com.mrnobody.agent.tools.BrowserTool;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.core.BookmarksStore;
@@ -51,6 +53,7 @@ public final class MrNobodyApp extends Application {
     private static AgentEngine agentEngine;
     private static TaskStore taskStore;
     private static TaskDispatcher taskDispatcher;
+    private static TaskScheduler taskScheduler;
     private static HeadlessWebViewEngine headlessEngine;
     private static String activeAiProviderId = "local";
 
@@ -85,6 +88,7 @@ public final class MrNobodyApp extends Application {
         taskDispatcher = new TaskDispatcher("local");
         taskDispatcher.register(new LocalWorker(agentEngine));
         taskDispatcher.register(new RemoteWorker()); // no-op until V2 enables it
+        taskScheduler = new WorkManagerTaskScheduler();
     }
 
     public static FilterEngine filters() { return filterEngine; }
@@ -98,6 +102,7 @@ public final class MrNobodyApp extends Application {
     public static AgentEngine agent() { return agentEngine; }
     public static TaskStore tasks() { return taskStore; }
     public static TaskDispatcher dispatcher() { return taskDispatcher; }
+    public static TaskScheduler scheduler() { return taskScheduler; }
     public static HeadlessWebViewEngine headlessEngine() { return headlessEngine; }
 
     // ------------------------------------------------------------ AI providers

@@ -44,6 +44,9 @@ dependencies {
     // 1.6.1 (not 1.7.x) to avoid a transitive Kotlin-stdlib version clash in
     // this pure-Java project.
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    // Background task resumption: durable, resumable work that survives
+    // process death (spec §13). Local-first; no remote component.
+    implementation 'androidx.work:work-runtime:2.9.1'
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'

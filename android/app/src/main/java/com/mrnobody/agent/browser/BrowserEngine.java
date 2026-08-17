@@ -28,5 +28,18 @@ public interface BrowserEngine {
      */
     String loadAndExtract(String url, long timeoutMs);
 
+    /**
+     * Interaction actions (V1 basic set). All return true on success, false on
+     * failure. Implementations drive the engine's DOM via JavaScript; these
+     * must never throw and must be safe to call from a background thread.
+     */
+    boolean click(String selector);
+
+    boolean type(String selector, String text);
+
+    boolean scroll(String direction);
+
+    void waitFor(long millis);
+
     void close();
 }
