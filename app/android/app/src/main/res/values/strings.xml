@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mr Nobody</string>
+
+    <!-- Background task notifications (V1 §13). -->
+    <string name="notification_channel_tasks">Tasks</string>
+    <string name="notification_channel_tasks_desc">Tells you when a task you asked for has finished.</string>
+    <string name="notification_task_done">Task finished</string>
+    <string name="notification_task_failed">Task failed</string>
+</resources>

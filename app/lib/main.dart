@@ -85,6 +85,9 @@ class _AppShellState extends State<AppShell> {
     _listenForDeepLinks();
     _checkFirstLaunch();
     AppState.instance.load();
+    // A settings change (JavaScript, parameter stripping) has to reach the
+    // engines of pages that are already open.
+    AppState.instance.addListener(_pushSettingsToTabs);
     for (final entry in _scrollControllers.entries) {
       entry.value.addListener(() => _onScroll(entry.key, entry.value));
     }
@@ -92,12 +95,15 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    AppState.instance.removeListener(_pushSettingsToTabs);
     for (final c in _scrollControllers.values) {
       c.dispose();
     }
     _tabs.dispose();
     super.dispose();
   }
+
+  void _pushSettingsToTabs() => _tabs.applySettingsToAll();
 
   Future<void> _checkFirstLaunch() async {
     final done = await NativeBridge.guard(

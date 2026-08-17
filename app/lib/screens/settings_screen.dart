@@ -69,7 +69,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       }),
                       _toggle('JavaScript', _state.js, (v) {
                         _state.setJs(v);
-                        AppToast.show(context, 'JavaScript ${v ? 'ON' : 'OFF'}');
+                        // WebSettings take effect on the next load, so say so
+                        // rather than let the current page look unchanged.
+                        AppToast.show(
+                          context,
+                          'JavaScript ${v ? 'ON' : 'OFF'} — reload the page to apply',
+                        );
                       }),
                       _toggle('Search suggestions', _state.suggestions, (v) {
                         _state.setSuggestions(v);

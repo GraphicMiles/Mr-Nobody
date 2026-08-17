@@ -30,6 +30,11 @@ jobs:
         working-directory: app
         run: flutter analyze --no-fatal-infos
 
+      # The product's privacy claims are checked mechanically: prohibited
+      # permissions, analytics/ad SDKs, JS bridges, cleartext traffic.
+      - name: Privacy audit
+        run: python3 tools/privacy_audit.py .
+
       # Widget + golden tests. The goldens are the UI-parity gate against
       # prototype/interactive-wireframe.html: if a screen drifts, this fails.
       - name: Tests (widgets + screen goldens)
