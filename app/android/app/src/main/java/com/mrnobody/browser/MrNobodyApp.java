@@ -18,7 +18,10 @@ import com.mrnobody.agent.planner.DeterministicEngine;
 import com.mrnobody.agent.tasks.TaskStore;
 import com.mrnobody.agent.tasks.TaskScheduler;
 import com.mrnobody.agent.tasks.WorkManagerTaskScheduler;
+import com.mrnobody.agent.policy.PolicyGate;
 import com.mrnobody.agent.tools.BrowserTool;
+import com.mrnobody.agent.tools.DownloadTool;
+import com.mrnobody.agent.tools.TerminalTool;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PerSiteSettings;
@@ -82,7 +85,11 @@ public final class MrNobodyApp extends Application {
         DeterministicEngine engine = new DeterministicEngine();
         headlessEngine = new HeadlessWebViewEngine(this);
         engine.registerTool(new BrowserTool(headlessEngine));
+        engine.registerTool(new DownloadTool());
         agentEngine = engine;
+        applyTerminalSetting();
+
+        TaskNotifier.ensureChannel(this);
 
         taskStore = new TaskStore(this);
         taskDispatcher = new TaskDispatcher("local");
@@ -100,6 +107,21 @@ public final class MrNobodyApp extends Application {
     public static PerSiteSettings perSite() { return perSiteSettings; }
 
     public static AgentEngine agent() { return agentEngine; }
+
+    /**
+     * The terminal tool only exists while the user has it switched on. It is
+     * not merely hidden: an agent cannot call a tool that was never registered
+     * (V1 §9 — feature-flagged until proven necessary).
+     */
+    public static void applyTerminalSetting() {
+        if (!(agentEngine instanceof DeterministicEngine)) return;
+        DeterministicEngine engine = (DeterministicEngine) agentEngine;
+        if (settings.isTerminalEnabled()) {
+            if (!engine.hasTool("terminal")) engine.registerTool(new TerminalTool(new PolicyGate()));
+        } else {
+            engine.unregisterTool("terminal");
+        }
+    }
     public static TaskStore tasks() { return taskStore; }
     public static TaskDispatcher dispatcher() { return taskDispatcher; }
     public static TaskScheduler scheduler() { return taskScheduler; }

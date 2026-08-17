@@ -54,6 +54,16 @@ public final class DeterministicEngine implements AgentEngine {
         tools.put(tool.name(), tool);
     }
 
+    /** Remove a tool — used when the user switches the terminal back off. */
+    public void unregisterTool(String name) {
+        tools.remove(name);
+    }
+
+    /** Whether a tool is currently available to the planner. */
+    public boolean hasTool(String name) {
+        return tools.containsKey(name);
+    }
+
     @Override
     public void run(Context context, Task task) {
         String instruction = task.instruction();

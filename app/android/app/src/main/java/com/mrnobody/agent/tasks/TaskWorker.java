@@ -8,6 +8,7 @@ import androidx.work.WorkerParameters;
 
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.browser.MrNobodyApp;
+import com.mrnobody.browser.TaskNotifier;
 import com.mrnobody.debug.ErrorLog;
 
 /**
@@ -61,10 +62,16 @@ public final class TaskWorker extends Worker {
         MrNobodyApp.tasks().update(task);
 
         if (task.status() == Task.Status.COMPLETED) {
+            // The app may well be closed by now — this is the only way the user
+            // finds out (V1 §13).
+            TaskNotifier.notifyFinished(getApplicationContext(), task);
             return Result.success();
         }
         if (task.status() == Task.Status.FAILED) {
             ErrorLog.record("TaskWorker: task " + taskId + " failed: " + task.error());
+            if (task.retryCount() > 0) {
+                TaskNotifier.notifyFinished(getApplicationContext(), task);
+            }
             // Let WorkManager apply its backoff; the FAILED guard above bounds
             // how many times we actually re-execute.
             return Result.retry();

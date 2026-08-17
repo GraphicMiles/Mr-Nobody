@@ -65,6 +65,14 @@ class TabManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Push the current user settings (JavaScript, parameter stripping) into
+  /// every live engine, so a Settings change reaches pages already open.
+  Future<void> applySettingsToAll() async {
+    for (final tab in _tabs) {
+      await tab.engine.applySettings();
+    }
+  }
+
   void closeAll() {
     for (final t in _tabs) {
       t.dispose();

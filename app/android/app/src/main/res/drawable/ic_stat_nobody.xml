@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64"
+    android:tint="#FFFFFFFF">
+    <!--
+      Status-bar icon: the Mr Nobody mark as a single flat silhouette. Status
+      bar icons are masked to their alpha channel, so this must be one solid
+      colour with no strokes to lose.
+    -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M18,30 L24,15 C26,20 30,21 32,12 C34,21 38,20 40,15 L46,30 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M14,30 h36 a2,2 0 0,1 0,4 h-36 a2,2 0 0,1 0,-4 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M24,34 a8,8 0 1,0 0,16 a8,8 0 1,0 0,-16 Z M24,38 a4,4 0 1,1 0,8 a4,4 0 1,1 0,-8 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M40,34 a8,8 0 1,0 0,16 a8,8 0 1,0 0,-16 Z M40,38 a4,4 0 1,1 0,8 a4,4 0 1,1 0,-8 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M30,40 h4 v3 h-4 Z" />
+</vector>

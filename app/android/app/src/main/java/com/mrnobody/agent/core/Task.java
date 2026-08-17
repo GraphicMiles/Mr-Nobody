@@ -49,12 +49,31 @@ public final class Task {
     public String worker() { return worker; }
     public void setWorker(String w) { this.worker = w; }
 
-    /** Progress 0..100, derived from the step index when possible (V1 heuristic). */
+    /**
+     * The V1 plan, in order. Progress is derived from how far down this list
+     * the task has got, which is why the step label is persisted rather than a
+     * number: it survives process death with the rest of the task.
+     */
+    public static final String[] PLAN = {"Search", "Open page", "Summarize"};
+
+    /** Progress 0..100, derived from the current step's position in {@link #PLAN}. */
     public int progress() {
         switch (status) {
-            case COMPLETED: return 100;
-            case FAILED: case CANCELLED: return 0;
-            default: return 0;
+            case COMPLETED:
+                return 100;
+            case FAILED:
+            case CANCELLED:
+                return 0;
+            default:
+                break;
         }
+        if (currentStep == null || currentStep.isEmpty()) return 5; // queued/starting
+        for (int i = 0; i < PLAN.length; i++) {
+            if (PLAN[i].equalsIgnoreCase(currentStep)) {
+                // Never report 100 while running: the last step is still work.
+                return (int) Math.round((i + 1) * 100.0 / (PLAN.length + 1));
+            }
+        }
+        return 10;
     }
 }

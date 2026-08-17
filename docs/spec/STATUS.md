@@ -1,6 +1,6 @@
 # Where Mr Nobody stands — V1 / V2 audit
 
-Audited at commit `94e8039` against `docs/spec/V1_SPEC.md`, `docs/spec/V2_SPEC.md`
+Audited at commit `fbdb3e9` against `docs/spec/V1_SPEC.md`, `docs/spec/V2_SPEC.md`
 and `docs/spec/ARCHITECTURE_EXPLAINED.md`. Every claim below points at code.
 
 ---
@@ -20,22 +20,23 @@ and `docs/spec/ARCHITECTURE_EXPLAINED.md`. Every claim below points at code.
 | 9 | Basic agent routing | Done | `agent/planner/IntentRouter.java` (+ Dart mirror), unit-tested |
 | 10 | Search / fetch / extraction tools | Done | `SearchTool`, `HttpTool`, `util/HtmlText.java` |
 | 11 | Basic browser actions | Done | `HeadlessWebViewEngine.click/type/scroll` |
-| 12 | Downloads | **Partial** | `DownloadTool` exists but is **not registered** with the engine, and the visible browser has **no download listener** — see §3.2 |
-| 13 | Sandboxed terminal, feature-flagged | **Partial** | `PolicyGate` (ALLOW/CONFIRM/DENY) + `TerminalTool` exist; the tool is **not registered**, and the new Settings toggle currently gates nothing |
+| 12 | Downloads | Done | `MrNobodyWebView.setDownloadListener` → DownloadManager; `DownloadTool` registered for the agent path; Downloads screen reads them back |
+| 13 | Sandboxed terminal, feature-flagged | Done (V1 scope) | `TerminalTool` is registered **only while the Settings switch is on** (`MrNobodyApp.applyTerminalSetting`); `PolicyGate` runs ALLOW commands, refuses DENY, and reports CONFIRM as needing the user — the approval UI is V2 §11 |
 | 14 | Persistent task model | Done | `agent/tasks/TaskStore.java` (SQLite), `agent/core/Task.java` |
 | 15 | Basic background tasks | Done | `TaskWorker` + `WorkManagerTaskScheduler`, resumable after process death |
 | 16 | History OFF by default | Done | `browser/core/Settings.java` |
-| 17 | Local ad/tracker blocking | **REGRESSED — not enforced** | see §3.1 |
-| 18 | Cookie/storage controls | Partial | third-party cookies claimed "Blocked" in the dashboard, but nothing enforces it on the Flutter WebView; `clearData` does work |
+| 17 | Local ad/tracker blocking | Done | `webview/MrNobodyWebView.shouldInterceptRequest` → `FilterEngine`; per-page counters + `PrivacyReport` totals; live count next to the padlock |
+| 18 | Cookie/storage controls | Done | `CookieManager.setAcceptThirdPartyCookies(webView, false)`, no file/content access, mixed content blocked, `clearData` for the rest |
 | 19 | No analytics / no ads SDK / no account | Done | no SDKs in `app/android/app/build.gradle`; only network I/O is user-initiated |
-| 20 | Privacy regression tests | Partial | `tests/privacy`, `tools/privacy_audit.py` exist but are not in the Flutter CI job |
+| 20 | Privacy regression tests | Done (static) | `tools/privacy_audit.py` runs in CI on every push; behavioural filter tests are still to write |
 | 21 | APK size benchmark | Done | CI reports size; `tools/apk_size_check.py` |
 | 22 | GitHub Actions build/release | Done | `.github/workflows/flutter.yml` (analyze → tests → APK) |
 | 23 | UI parity with the approved prototype | Done | all 11 views built; `app/test/screens_golden_test.dart` gates drift |
 
-**V1 is ~80% real.** The UI half is now complete and gated by tests. The gap is
-not features — it is that **the product's headline promise is currently not
-enforced on the screen the user actually browses on** (§3.1).
+**V1 is essentially complete.** The UI half is gated by golden tests, and the
+privacy promise is now enforced on the visible path rather than asserted. What
+is left is behavioural test coverage of the filter engine and the confirmation
+UI for terminal CONFIRM commands, which is V2 work.
 
 ---
 
@@ -60,9 +61,9 @@ without a rewrite (`AgentEngine`, `Tool`, `Worker`, `TaskScheduler`,
 | Persistent tasks / background execution | Done | |
 | Resumable tasks | Done | bounded retry in `TaskWorker` |
 | Scheduled tasks / monitoring | **Not started** | no `Schedule` model |
-| Notifications | **Not started** | no `NotificationManager` anywhere — a background task finishes silently |
+| Notifications | Done | `browser/TaskNotifier.java` posts on COMPLETED/FAILED from `TaskWorker`, deep-links to Tasks; permission is requested when the user starts their first task |
 | Human confirmation gates | **Not started** | no review/approve UI |
-| Downloads | Partial | see §3.2 |
+| Downloads | Done | see V1 item 12 |
 | Local-first task data | Done | SQLite, on-device |
 | AI provider abstraction | Done | `AiProvider` + Gemini/Groq/OpenAI-compatible/Local, UI wired |
 | Advanced privacy controls | Partial | profiles + param stripping exist in `Settings`; not all enforced |
@@ -72,74 +73,48 @@ without a rewrite (`AgentEngine`, `Tool`, `Worker`, `TaskScheduler`,
 
 ---
 
-## 3. What the audit found
+## 3. What the audit found — and what has been fixed since
 
-### 3.1 Ad/tracker blocking is not applied to the visible browser (critical)
+### 3.1 Ad/tracker blocking was not applied to the visible browser — FIXED (`fbdb3e9`)
 
 The pre-Flutter Java UI intercepted every sub-resource request and asked the
-filter engine:
+filter engine (`android/.../MainActivity.java:1854`). `webview_flutter` cannot
+express `shouldInterceptRequest`, so after the migration nothing was refusing
+ad or tracker requests, and the dashboard could only ever report 0/0.
 
-```
-android/app/src/main/java/com/mrnobody/browser/MainActivity.java:1854
-    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request)
-```
+The visible page is now our own WebView hosted as a platform view
+(`app/android/.../webview/MrNobodyWebView.java`), which puts `FilterEngine`
+back on the request path in-process. That one change also restored the download
+listener, the third-party cookie refusal, the JavaScript switch and tracking
+parameter stripping, and let `webview_flutter` be dropped from the app
+entirely — there is no longer a component that could quietly bypass the filter.
 
-The Flutter app has no equivalent. `webview_flutter` exposes navigation
-callbacks but **not** `shouldInterceptRequest`, so in `app/`, `FilterEngine` is
-only ever read for dashboard counters:
+### 3.2 Downloads were half-wired — FIXED (`fbdb3e9`)
 
-```
-app/android/.../MainActivity.java:85   m.put("pageAds", MrNobodyApp.filters().getPageAdsBlocked());
-```
+`setDownloadListener` hands the download to Android's DownloadManager;
+unsupported `blob:`/`data:` downloads say so instead of failing silently.
+`DownloadTool` is now registered with the agent engine as well.
 
-Consequences:
+### 3.3 Task progress was a stub — FIXED
 
-- **No ads or trackers are blocked** on the browser the user sees.
-- The Privacy dashboard therefore reports **0 / 0 forever** — it is honest
-  about a number that is only zero because nothing is filtering.
-- "No ads. No tracking." is, on the visible path, currently untrue.
+`Task.progress()` derives from the position of the persisted `currentStep` in
+`Task.PLAN`, so a running task reports 25 / 50 / 75 and survives process death
+without a schema migration.
 
-Fix options, in order of preference:
+### 3.4 Nothing notified — FIXED
 
-1. **Host the WebView as a Java PlatformView** (`MrNobodyWebView`) with a
-   `WebViewClient.shouldInterceptRequest` that calls the existing
-   `FilterEngine`, plus `setDownloadListener` and the JS/cookie policy. Zero new
-   dependencies, filtering stays in-process (no channel hop per request), and
-   the Dart side keeps a thin controller. Restores items 12, 17 and 18 at once.
-2. Swap `webview_flutter` for `flutter_inappwebview`, which exposes
-   `shouldInterceptRequest` on Android. Faster, but adds a large dependency and
-   moves per-request decisions across the platform boundary.
-3. JS-injected blocking — rejected: it cannot stop a request that has already
-   left the device.
+`TaskNotifier` posts a notification when a background task completes or fails,
+deep-linking into Tasks. `POST_NOTIFICATIONS` is requested the first time the
+user starts a task, not at launch where it would have no context.
 
-### 3.2 Downloads are half-wired
+### 3.5 Still open
 
-`DownloadTool` is never registered with the engine
-(`MrNobodyApp` registers only `BrowserTool`), and the visible WebView has no
-`setDownloadListener`, so tapping a download link in the browser does nothing.
-The Downloads screen reads the system DownloadManager correctly, so it will
-show whatever *other* apps downloaded and nothing of ours.
-
-### 3.3 Task progress is a stub
-
-```java
-// agent/core/Task.java
-public int progress() {
-    switch (status) { case COMPLETED: return 100; ... default: return 0; }
-}
-```
-
-Every running task reports 0%. Home and Task detail render that faithfully, so
-the UI shows a 0% bar for the whole run. Progress should be derived from the
-plan step index (`currentStep` / total steps) once the planner has a plan.
-
-### 3.4 Nothing notifies
-
-V1 §13 and V2 §15 both end their background-work flow with "Notification".
-There is no notification code at all, so a task that finishes while the app is
-closed is invisible until the user reopens the app.
-
----
+- Behavioural tests for the filter engine on a real page (the static privacy
+  audit runs in CI; request-level assertions do not exist yet).
+- The CONFIRM half of the policy gate has no approval UI, so those commands are
+  refused rather than queued (V2 §11).
+- Per-tab cookie isolation: `CookieManager` is process-wide, so a private tab
+  clears on close rather than being truly isolated (V2 §10).
 
 ## 4. The Java-vs-Flutter deviation
 
@@ -160,14 +135,14 @@ interception layer as a PlatformView), or plan the UI back to Java.
 
 ---
 
-## 5. Recommended order of work
+## 5. Remaining work
 
-1. Restore request interception + downloads on the visible path (§3.1, §3.2) —
-   this is the product promise, and it is the only "regression" class item here.
-2. Notifications for finished/failed background tasks (§3.4).
-3. Real progress from plan steps (§3.3).
-4. Register `TerminalTool` behind the existing Settings toggle, with a CONFIRM
-   dialog wired to `PolicyGate` (V1 §9).
-5. Then V2: typed tool schemas → tool router → multi-step loop → schedules →
-   confirmation gates. See `docs/spec/COWAGENT_LEVERAGE.md` for how much of that
-   can be borrowed instead of invented.
+V1 items 1–4 of the previous plan are done. What is left:
+
+1. Behavioural filter tests: load a page with known ad hosts against
+   `FilterEngine` and assert the requests are refused (§3.5).
+2. Then V2, in this order: typed tool schemas → tool router → multi-step loop →
+   confirmation gates → schedules. See `docs/spec/COWAGENT_LEVERAGE.md` for how
+   much of that can be borrowed instead of invented — including wiring a
+   user-run CowAgent instance into the `RemoteWorker` slot that V2 §9 already
+   reserves.

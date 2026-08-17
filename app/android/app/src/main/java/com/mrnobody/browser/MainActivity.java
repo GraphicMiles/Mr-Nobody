@@ -67,6 +67,7 @@ public class MainActivity extends FlutterActivity {
                                 result.error("bad_arg", "instruction required", null);
                                 return;
                             }
+                            ensureNotificationPermission();
                             long id = MrNobodyApp.tasks().insert(instruction.trim());
                             MrNobodyApp.scheduler().schedule(getApplicationContext(), id);
                             result.success(Map.of("id", id));
@@ -274,6 +275,21 @@ public class MainActivity extends FlutterActivity {
                 flutterEngine.getDartExecutor().getBinaryMessenger(), DEEPLINK);
     }
 
+    /**
+     * A task can finish while the app is closed, so ask for notification
+     * permission the first time the user actually starts one — not at launch,
+     * where the request has no context.
+     */
+    private void ensureNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return;
+        if (TaskNotifier.canNotify(this)) return;
+        try {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 91);
+        } catch (Exception ignored) {
+            // Not fatal: tasks still run, the user just won't be told.
+        }
+    }
+
     /** Persist a single settings key coming from the Flutter Settings screen. */
     private void applySetting(String key, Object value) {
         switch (key) {
@@ -291,6 +307,9 @@ public class MainActivity extends FlutterActivity {
                 break;
             case "terminal":
                 MrNobodyApp.settings().setTerminalEnabled(Boolean.TRUE.equals(value));
+                // Register/unregister the tool right away — the switch is the
+                // gate, not a label.
+                MrNobodyApp.applyTerminalSetting();
                 break;
             case "profile":
                 MrNobodyApp.settings().setProfile(
