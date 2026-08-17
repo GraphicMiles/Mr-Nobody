@@ -44,6 +44,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.planner.IntentRouter;
@@ -124,6 +128,11 @@ public class MainActivity extends AppCompatActivity {
         applyTheme();
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Draw edge-to-edge and apply real system-bar insets (status bar / notch
+        // top, gesture bar bottom) so nothing is cut off at the screen edge.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        applySystemBarInsets();
 
         tabs = new TabManager();
         tabState = new TabStateStore(this);
@@ -298,6 +307,32 @@ public class MainActivity extends AppCompatActivity {
         AppCompatDelegate.setDefaultNightMode(mode);
     }
 
+    /**
+     * Pad the address bar by the status-bar/notch inset and the bottom nav by the
+     * navigation-bar/gesture inset. This replaces the old fixed 48dp margins, so
+     * content clears every device's cutout/gesture area correctly.
+     */
+    private void applySystemBarInsets() {
+        final View addressBar = findViewById(R.id.address_bar);
+        final View bottomNav = findViewById(R.id.bottom_nav);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            if (addressBar != null) {
+                addressBar.setPadding(addressBar.getPaddingLeft(),
+                        bars.top + dp(8),
+                        addressBar.getPaddingRight(),
+                        addressBar.getPaddingBottom());
+            }
+            if (bottomNav != null) {
+                bottomNav.setPadding(bottomNav.getPaddingLeft(),
+                        bottomNav.getPaddingTop(),
+                        bottomNav.getPaddingRight(),
+                        bars.bottom);
+            }
+            return WindowInsetsCompat.CONSUMED;
+        });
+    }
+
     private void wireToolbar() {
         findViewById(R.id.btn_back).setOnClickListener(v -> {
             Tab t = tabs.getActive();
@@ -391,22 +426,23 @@ public class MainActivity extends AppCompatActivity {
         bar.setLayoutParams(barLp);
         container.addView(bar);
 
-        addNavItem(bar, "⌂", "Home", v -> showHome());
-        addNavItem(bar, "▦", "Tabs", v -> showSessions());
+        addNavItem(bar, R.drawable.ic_home, "Home", v -> showHome());
+        addNavItem(bar, R.drawable.ic_layers, "Tabs", v -> showSessions());
 
         // center spacer reserves room for the raised "+"
         Space spacer = new Space(this);
         bar.addView(spacer, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        addNavItem(bar, "☑", "Tasks", v -> showTasks());
-        addNavItem(bar, "⚙", "Settings", v -> startActivity(new Intent(this, SettingsActivity.class)));
+        addNavItem(bar, R.drawable.ic_checklist, "Tasks", v -> showTasks());
+        addNavItem(bar, R.drawable.ic_settings, "Settings", v -> startActivity(new Intent(this, SettingsActivity.class)));
 
         // raised circular "+" — opens the Agent Home (a fresh "new tab")
         TextView plus = new TextView(this);
         plus.setText("+");
-        plus.setTextSize(22);
+        plus.setTextSize(24);
         plus.setGravity(Gravity.CENTER);
         plus.setTextColor(color(com.mrnobody.browser.R.color.accent_ink));
+        plus.setTypeface(Typeface.DEFAULT_BOLD);
         plus.setBackground(circleDrawable(color(com.mrnobody.browser.R.color.accent)));
         FrameLayout.LayoutParams plusLp = new FrameLayout.LayoutParams(dp(48), dp(48),
                 Gravity.TOP | Gravity.CENTER_HORIZONTAL);
@@ -416,20 +452,20 @@ public class MainActivity extends AppCompatActivity {
         container.addView(plus);
     }
 
-    private void addNavItem(LinearLayout bar, String glyph, String label, View.OnClickListener onClick) {
+    private void addNavItem(LinearLayout bar, int iconRes, String label, View.OnClickListener onClick) {
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER);
         item.setClickable(true);
         item.setFocusable(true);
-        item.setPadding(0, dp(6), 0, dp(6));
+        item.setPadding(0, dp(7), 0, dp(7));
 
-        TextView icon = new TextView(this);
-        icon.setText(glyph);
-        icon.setTextSize(17);
-        icon.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
-        icon.setGravity(Gravity.CENTER);
-        item.addView(icon);
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(color(com.mrnobody.browser.R.color.text_dim));
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(22), dp(22));
+        iconLp.gravity = Gravity.CENTER_HORIZONTAL;
+        item.addView(icon, iconLp);
 
         TextView lbl = new TextView(this);
         lbl.setText(label);
@@ -818,14 +854,12 @@ public class MainActivity extends AppCompatActivity {
         row.setPadding(dp(8), dp(8), dp(12), dp(8));
         row.setBackgroundColor(color(com.mrnobody.browser.R.color.surface));
 
-        TextView backBtn = new TextView(this);
-        backBtn.setText("‹");
-        backBtn.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
-        backBtn.setTextSize(22);
-        backBtn.setGravity(Gravity.CENTER);
-        backBtn.setPadding(dp(14), 0, dp(16), 0);
+        ImageView backBtn = new ImageView(this);
+        backBtn.setImageResource(R.drawable.ic_chevron_left);
+        backBtn.setColorFilter(color(com.mrnobody.browser.R.color.text_dim));
+        backBtn.setPadding(dp(12), dp(8), dp(14), dp(8));
         backBtn.setOnClickListener(back);
-        row.addView(backBtn);
+        row.addView(backBtn, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         TextView t = new TextView(this);
         t.setText(title);
@@ -892,11 +926,10 @@ public class MainActivity extends AppCompatActivity {
         });
         pill.addView(homeInput, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        TextView go = new TextView(this);
-        go.setText("→");
-        go.setTextSize(16);
-        go.setGravity(Gravity.CENTER);
-        go.setTextColor(color(com.mrnobody.browser.R.color.accent_ink));
+        ImageView go = new ImageView(this);
+        go.setImageResource(R.drawable.ic_arrow_forward);
+        go.setColorFilter(color(com.mrnobody.browser.R.color.accent_ink));
+        go.setPadding(dp(9), dp(9), dp(9), dp(9));
         go.setBackground(circleDrawable(color(com.mrnobody.browser.R.color.accent)));
         go.setOnClickListener(v -> navigateFromHome(homeInput.getText().toString()));
         pill.addView(go, new LinearLayout.LayoutParams(dp(36), dp(36)));
@@ -980,10 +1013,10 @@ public class MainActivity extends AppCompatActivity {
 
         // shortcuts
         homeShortcuts.removeAllViews();
-        homeShortcuts.addView(homeShortcutRow("▦", "Tabs", v -> showSessions()));
-        homeShortcuts.addView(homeShortcutRow("☑", "Tasks", v -> showTasks()));
-        homeShortcuts.addView(homeShortcutRow("↓", "Downloads", v -> openSystemDownloads()));
-        homeShortcuts.addView(homeShortcutRow("⚙", "Settings",
+        homeShortcuts.addView(homeShortcutRow(R.drawable.ic_layers, "Tabs", v -> showSessions()));
+        homeShortcuts.addView(homeShortcutRow(R.drawable.ic_checklist, "Tasks", v -> showTasks()));
+        homeShortcuts.addView(homeShortcutRow(R.drawable.ic_download, "Downloads", v -> openSystemDownloads()));
+        homeShortcuts.addView(homeShortcutRow(R.drawable.ic_settings, "Settings",
                 v -> startActivity(new Intent(this, SettingsActivity.class))));
     }
 
@@ -1019,14 +1052,13 @@ public class MainActivity extends AppCompatActivity {
         return row;
     }
 
-    private View homeShortcutRow(String glyph, String label, View.OnClickListener onClick) {
+    private View homeShortcutRow(int iconRes, String label, View.OnClickListener onClick) {
         LinearLayout row = baseRow();
         row.setOnClickListener(onClick);
-        TextView g = new TextView(this);
-        g.setText(glyph);
-        g.setTextSize(15);
-        g.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
-        g.setGravity(Gravity.CENTER);
+        ImageView g = new ImageView(this);
+        g.setImageResource(iconRes);
+        g.setColorFilter(color(com.mrnobody.browser.R.color.text_dim));
+        g.setPadding(dp(4), dp(4), dp(4), dp(4));
         row.addView(g, new LinearLayout.LayoutParams(dp(28), dp(28)));
         TextView t = new TextView(this);
         t.setText(label);
@@ -1162,18 +1194,16 @@ public class MainActivity extends AppCompatActivity {
         title.setMaxLines(1);
         title.setEllipsize(TextUtils.TruncateAt.END);
         head.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        TextView close = new TextView(this);
-        close.setText("×");
-        close.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
-        close.setTextSize(14);
-        close.setGravity(Gravity.CENTER);
-        close.setPadding(dp(6), 0, 0, 0);
+        ImageView close = new ImageView(this);
+        close.setImageResource(R.drawable.ic_close);
+        close.setColorFilter(color(com.mrnobody.browser.R.color.text_faint));
+        close.setPadding(dp(4), dp(4), 0, dp(4));
         close.setOnClickListener(v -> {
             tabs.close(tabs.indexOf(tab));
             persistTabs();
             renderSessions();
         });
-        head.addView(close);
+        head.addView(close, new LinearLayout.LayoutParams(dp(20), dp(20)));
         card.addView(head);
 
         // thumbnail

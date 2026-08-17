@@ -11,28 +11,28 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Address / search bar (safe area: 3rem top margin ≈ 48dp) -->
+        <!-- Address / search bar (top inset applied programmatically for the
+             status bar / notch — see MainActivity.applySystemBarInsets). -->
         <LinearLayout
+            android:id="@+id/address_bar"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_marginStart="10dp"
-            android:layout_marginTop="48dp"
+            android:layout_marginTop="8dp"
             android:layout_marginEnd="10dp"
             android:layout_marginBottom="4dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:background="@drawable/addr_bar_bg"
-            android:paddingStart="12dp"
+            android:paddingStart="8dp"
             android:paddingEnd="6dp">
 
-            <TextView
+            <ImageView
                 android:id="@+id/btn_back"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:gravity="center"
-                android:text="←"
-                android:textColor="@color/text_dim"
-                android:textSize="18sp"
+                android:src="@drawable/ic_arrow_back"
+                android:contentDescription="@string/toolbar_back"
                 android:clickable="true"
                 android:focusable="true" />
 
@@ -61,14 +61,12 @@
                 android:textColorHint="@color/text_faint"
                 android:textSize="14sp" />
 
-            <TextView
+            <ImageView
                 android:id="@+id/addr_menu"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:gravity="center"
-                android:text="⋮"
-                android:textColor="@color/text_dim"
-                android:textSize="18sp"
+                android:src="@drawable/ic_more_vert"
+                android:contentDescription="@string/toolbar_menu"
                 android:clickable="true"
                 android:focusable="true" />
         </LinearLayout>
@@ -80,12 +78,12 @@
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- Bottom navigation (built programmatically: Home · Tabs · + · Tasks · Settings) -->
+        <!-- Bottom navigation (built programmatically: Home · Tabs · + · Tasks · Settings).
+             Navigation-bar inset applied programmatically — see applySystemBarInsets. -->
         <FrameLayout
             android:id="@+id/bottom_nav"
             android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginBottom="48dp" />
+            android:layout_height="64dp" />
     </LinearLayout>
 
     <!-- ============ PRIVACY DASHBOARD (overlay) ============ -->
@@ -105,14 +103,12 @@
             android:paddingStart="8dp"
             android:paddingEnd="12dp">
 
-            <TextView
+            <ImageView
                 android:id="@+id/privacy_back"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:gravity="center"
-                android:text="‹"
-                android:textColor="@color/text_dim"
-                android:textSize="22sp"
+                android:src="@drawable/ic_chevron_left"
+                android:contentDescription="@string/toolbar_back"
                 android:clickable="true"
                 android:focusable="true" />
 
