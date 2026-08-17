@@ -6,8 +6,13 @@ import 'browser_engine.dart';
 /// Platform View (Android System WebView underneath). This is a rendering
 /// surface, not the engine — navigation, loading/error state, and URL/title
 /// tracking are all owned here, so callers never touch the raw controller.
+///
+/// When no WebView platform is registered (widget tests, the web design
+/// preview, a desktop host) the engine stays [isAvailable] == false and simply
+/// tracks state without rendering, instead of throwing and taking the whole
+/// screen down with it.
 class WebViewBrowserEngine implements BrowserEngine {
-  late final WebViewController _controller;
+  WebViewController? _controller;
 
   @override
   ValueChanged<bool>? onLoadingChanged;
@@ -19,63 +24,76 @@ class WebViewBrowserEngine implements BrowserEngine {
   ValueChanged<String>? onError;
 
   WebViewBrowserEngine({String initialUrl = ''}) {
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF000000))
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (url) {
-          onLoadingChanged?.call(true);
-          onUrlChanged?.call(url);
-        },
-        onPageFinished: (url) async {
-          onLoadingChanged?.call(false);
-          onUrlChanged?.call(url);
-          final t = await _controller.getTitle();
-          if (t != null && t.isNotEmpty) onTitleChanged?.call(t);
-        },
-        onWebResourceError: (error) {
-          onLoadingChanged?.call(false);
-          // A sub-resource (image/script) failing is not fatal; only surface
-          // main-frame errors so we never show a spurious "page failed" state.
-          if (error.isForMainFrame == true) {
-            onError?.call(error.description);
-          }
-        },
-      ));
+    try {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0xFF000000))
+        ..setNavigationDelegate(NavigationDelegate(
+          onPageStarted: (url) {
+            onLoadingChanged?.call(true);
+            onUrlChanged?.call(url);
+          },
+          onPageFinished: (url) async {
+            onLoadingChanged?.call(false);
+            onUrlChanged?.call(url);
+            final t = await _controller?.getTitle();
+            if (t != null && t.isNotEmpty) onTitleChanged?.call(t);
+          },
+          onWebResourceError: (error) {
+            onLoadingChanged?.call(false);
+            // A sub-resource (image/script) failing is not fatal; only surface
+            // main-frame errors so we never show a spurious "page failed" state.
+            if (error.isForMainFrame == true) {
+              onError?.call(error.description);
+            }
+          },
+        ));
+    } catch (_) {
+      _controller = null; // no WebView platform on this host
+    }
     if (initialUrl.isNotEmpty) {
-      _controller.loadRequest(Uri.parse(initialUrl));
+      loadUrl(initialUrl);
     }
   }
 
-  @override
-  WebViewController get controller => _controller;
+  /// Whether a real WebView is backing this engine.
+  bool get isAvailable => _controller != null;
 
   @override
-  Future<void> loadUrl(String url) => _controller.loadRequest(Uri.parse(url));
+  WebViewController get controller => _controller!;
 
   @override
-  Future<void> reload() => _controller.reload();
+  Future<void> loadUrl(String url) async {
+    onUrlChanged?.call(url);
+    final c = _controller;
+    if (c == null) return;
+    await c.loadRequest(Uri.parse(url));
+  }
 
   @override
-  Future<bool> canGoBack() => _controller.canGoBack();
+  Future<void> reload() async => _controller?.reload();
 
   @override
-  Future<void> goBack() => _controller.goBack();
+  Future<bool> canGoBack() async => await _controller?.canGoBack() ?? false;
 
   @override
-  Future<bool> canGoForward() => _controller.canGoForward();
+  Future<void> goBack() async => _controller?.goBack();
 
   @override
-  Future<void> goForward() => _controller.goForward();
+  Future<bool> canGoForward() async => await _controller?.canGoForward() ?? false;
 
   @override
-  Future<String?> currentUrl() => _controller.currentUrl();
+  Future<void> goForward() async => _controller?.goForward();
 
   @override
-  Future<String?> title() => _controller.getTitle();
+  Future<String?> currentUrl() async => _controller?.currentUrl();
+
+  @override
+  Future<String?> title() async => _controller?.getTitle();
 
   @override
   void dispose() {
     // The controller holds no resources we must release beyond the view.
+    _controller = null;
   }
 }

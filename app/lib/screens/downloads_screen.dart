@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
-import '../bridge/native_bridge.dart';
+import '../widgets/debug_fab.dart';
+import '../widgets/toast.dart';
 
-/// Downloads (S8) — Storage summary + Recent list from the system DownloadManager
-/// (via the Java core). No hardcoded values.
+/// Downloads (S8) — storage summary plus the real DownloadManager rows
+/// (running / done / failed), matching `#v-downloads`.
 class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
 
@@ -13,7 +15,12 @@ class DownloadsScreen extends StatefulWidget {
 }
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
-  List<Map<String, dynamic>> _items = [];
+  // android.app.DownloadManager status constants.
+  static const _statusRunning = 2;
+  static const _statusSuccessful = 8;
+  static const _statusFailed = 16;
+
+  List<Map<String, dynamic>> _items = const [];
   bool _loaded = false;
 
   @override
@@ -23,13 +30,16 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _load() async {
-    try {
-      final items = await NativeBridge.downloads();
-      if (!mounted) return;
-      setState(() { _items = items; _loaded = true; });
-    } catch (_) {
-      if (mounted) setState(() => _loaded = true);
-    }
+    final items = await NativeBridge.guard(
+      NativeBridge.downloads,
+      const <Map<String, dynamic>>[],
+      'downloads unavailable',
+    );
+    if (!mounted) return;
+    setState(() {
+      _items = items;
+      _loaded = true;
+    });
   }
 
   @override
@@ -37,94 +47,168 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     var done = 0;
     var bytes = 0;
     for (final d in _items) {
-      if (d['status'] == 8) done++; // DownloadManager.STATUS_SUCCESSFUL
-      bytes += (d['size'] as num?)?.toInt() ?? 0;
+      if (d['status'] == _statusSuccessful) done++;
+      bytes += ((d['size'] as num?) ?? 0).toInt();
     }
+
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: PanelShell(
         title: 'Downloads',
         onBack: () => Navigator.of(context).pop(),
+        overlay: const DebugOverlay(bottomInset: 20),
         children: [
           const SectionLabel('Storage'),
-          _Card([
-            MetricRow('Files downloaded', '$done'),
-            const Divider(),
-            MetricRow('Storage used', _human(bytes)),
-          ]),
-          const SectionLabel('Recent'),
-          !_loaded
-              ? const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator(color: AppColors.accent)))
-              : _items.isEmpty
-                  ? const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No downloads yet', style: TextStyle(color: AppColors.textFaint))))
-                  : _Card(List.generate(_items.length, (i) {
-                      final d = _items[i];
-                      return Column(children: [
-                        _DownloadRow(name: d['name'] as String? ?? 'download', size: _human((d['size'] as num?)?.toInt() ?? 0), status: d['status'] as int? ?? 0),
-                        if (i != _items.length - 1) const Divider(),
-                      ]);
-                    })),
-        ],
-      ),
-    );
-  }
-
-  static String _human(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-}
-
-class _DownloadRow extends StatelessWidget {
-  final String name;
-  final String size;
-  final int status;
-  const _DownloadRow({required this.name, required this.size, required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final IconData stateIcon;
-    switch (status) {
-      case 8: stateIcon = Icons.check; break; // successful
-      case 16: stateIcon = Icons.refresh; break; // failed
-      default: stateIcon = Icons.download; break; // pending/running
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.line)),
-            child: const Icon(Icons.insert_drive_file_outlined, size: 15, color: AppColors.textDim),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
+          AppCard(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: AppTheme.sans(size: 12.5, w: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(size, style: AppTheme.mono(size: 10, color: AppColors.textFaint)),
-              ],
+              children: withDividers([
+                MetricRow('Files downloaded', '$done'),
+                MetricRow('Storage used', humanBytes(bytes)),
+              ]),
             ),
           ),
-          Icon(stateIcon, size: 14, color: status == 16 ? AppColors.textFaint : AppColors.textDim),
+          const SectionLabel('Recent'),
+          AppCard(
+            child: !_loaded
+                ? const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                      ),
+                    ),
+                  )
+                : _items.isEmpty
+                    ? const EmptyNote('No downloads yet')
+                    : Column(children: withDividers([for (final d in _items) _row(d)])),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: Text(
+              'Files open with Android’s own file handling.',
+              style: AppTheme.mono(size: 10.5, color: AppColors.textMuted, height: 1.5),
+            ),
+          ),
         ],
       ),
     );
   }
-}
 
-class _Card extends StatelessWidget {
-  final List<Widget> children;
-  const _Card(this.children);
+  Widget _row(Map<String, dynamic> d) {
+    final name = d['name'] as String? ?? 'download';
+    final size = ((d['size'] as num?) ?? 0).toInt();
+    final status = (d['status'] as num?)?.toInt() ?? 0;
+    final downloaded = ((d['downloaded'] as num?) ?? 0).toInt();
+    final running = status == _statusRunning;
+    final failed = status == _statusFailed;
+    final pct = (running && size > 0) ? (downloaded / size).clamp(0.0, 1.0) : 0.0;
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: AppCard(child: Column(children: children)),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (running) {
+          AppToast.show(context, 'Still downloading…');
+        } else if (failed) {
+          AppToast.show(context, 'Download failed');
+        } else {
+          AppToast.show(context, 'Opening $name…');
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppColors.surface2,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: AppColors.line),
+              ),
+              child: Icon(_iconFor(name), size: 14, color: AppColors.textDim),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: AppTheme.sans(size: 12.5, w: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        size > 0 ? humanBytes(size) : '—',
+                        style: AppTheme.mono(size: 10, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  if (running)
+                    Row(
+                      children: [
+                        Expanded(child: ProgressBar(pct)),
+                        const SizedBox(width: 10),
+                        Text('${(pct * 100).round()}%',
+                            style: AppTheme.mono(size: 10, color: AppColors.textMuted)),
+                      ],
+                    )
+                  else
+                    Text(
+                      failed ? 'failed' : 'tap to open',
+                      style: AppTheme.mono(size: 10, color: AppColors.textMuted),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: running
+                  ? const Padding(
+                      padding: EdgeInsets.all(7),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                    )
+                  : Icon(
+                      failed ? Icons.refresh : Icons.check,
+                      size: 14,
+                      color: failed ? AppColors.textDim : AppColors.text,
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
+
+  static IconData _iconFor(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.pdf')) return Icons.picture_as_pdf_outlined;
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png') || n.endsWith('.webp')) {
+      return Icons.image_outlined;
+    }
+    if (n.endsWith('.zip') || n.endsWith('.tar') || n.endsWith('.gz')) return Icons.folder_zip_outlined;
+    return Icons.insert_drive_file_outlined;
+  }
+}
+
+/// Human-readable byte count for the storage rows.
+String humanBytes(int bytes) {
+  if (bytes <= 0) return '0 B';
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} KB';
+  if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }

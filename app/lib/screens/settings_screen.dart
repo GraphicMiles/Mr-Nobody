@@ -1,178 +1,251 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
-import '../widgets/common.dart';
 import '../bridge/native_bridge.dart';
-import 'privacy_screen.dart';
-import 'downloads_screen.dart';
+import '../state/app_state.dart';
+import '../theme/app_theme.dart';
+import '../widgets/anchored_menu.dart';
+import '../widgets/common.dart';
+import '../widgets/toast.dart';
+import 'ai_provider_screen.dart';
 import 'clear_data_screen.dart';
+import 'downloads_screen.dart';
+import 'privacy_screen.dart';
 
-/// Settings (S6) — toggles persisted to the core, value rows with anchored
-/// bottom-sheet menus, and navigation to the Clear-data/Downloads/Privacy screens.
+/// Settings (S6) — three groups, exactly as in `#v-settings`:
+/// Browsing (toggles), Agent (profile / provider / terminal), Data.
+///
+/// Every control writes straight through to the Java core, so what the screen
+/// shows is what is actually persisted.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final VoidCallback? onBack;
+  final ScrollController? scrollController;
+
+  const SettingsScreen({super.key, this.onBack, this.scrollController});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool history = false;
-  bool js = true;
-  bool suggest = false;
-  String profile = 'Balanced';
-  String provider = 'Local';
-  String engine = 'DuckDuckGo';
+  final _state = AppState.instance;
+  int? _downloadCount;
 
   @override
   void initState() {
     super.initState();
-    NativeBridge.isHistoryEnabled().then((v) { if (mounted) setState(() => history = v); }).catchError((_) {});
+    _state.load();
+    _loadDownloadCount();
   }
 
-  void _pick(String title, List<String> options, String current, ValueChanged<String> onPick) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (c) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(title.toUpperCase(), style: AppTheme.mono(size: 10, color: AppColors.textFaint, w: FontWeight.w600)),
-            ),
-            for (final o in options)
-              ListTile(
-                title: Text(o, style: AppTheme.sans(size: 14, color: o == current ? AppColors.accent : AppColors.text, w: o == current ? FontWeight.w700 : FontWeight.w400)),
-                onTap: () { onPick(o); Navigator.pop(c); },
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+  Future<void> _loadDownloadCount() async {
+    final items = await NativeBridge.guard(
+      NativeBridge.downloads,
+      const <Map<String, dynamic>>[],
+      'downloads unavailable',
     );
+    if (!mounted) return;
+    setState(() => _downloadCount = items.length);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          color: AppColors.surface,
-          padding: EdgeInsets.only(left: 8, top: 8 + MediaQuery.of(context).padding.top, right: 12, bottom: 8),
-          child: Row(
-            children: [
-              IconButton(onPressed: () {}, icon: const Icon(Icons.chevron_left, color: AppColors.textDim, size: 26)),
-              Text('Settings', style: AppTheme.sans(size: 16, w: FontWeight.w700)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView(
-            children: [
-              const SectionLabel('Browsing'),
-              _card([
-                _toggle('Save browsing history', history, (v) { setState(() => history = v); NativeBridge.setHistoryEnabled(v); }),
-                const Divider(),
-                _toggle('JavaScript', js, (v) => setState(() => js = v)),
-                const Divider(),
-                _toggle('Search suggestions', suggest, (v) => setState(() => suggest = v)),
-              ]),
-              const SectionLabel('Privacy & data'),
-              _card([
-                _value('Privacy profile', profile, () => _pick('Privacy profile', ['Balanced', 'Strict', 'Maximum'], profile, (v) => setState(() => profile = v))),
-                const Divider(),
-                _value('AI provider', provider, () => _pick('AI provider', ['Local (on-device)', 'Gemini', 'Groq', 'OpenAI-compatible'], provider, (v) => setState(() => provider = v))),
-                const Divider(),
-                _value('Terminal', 'off', () => _pick('Terminal', ['Off', 'On (sandboxed)'], 'Off', (_) {})),
-              ]),
-              const SectionLabel('Data & controls'),
-              _card([
-                _value('Search engine', engine, () => _pick('Search engine', ['DuckDuckGo', 'Startpage', 'Bing'], engine, (v) => setState(() => engine = v))),
-                const Divider(),
-                _nav('Bookmarks', () => _info('Bookmarks', 'No bookmarks yet')),
-                const Divider(),
-                _nav('Clear browsing data', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ClearDataScreen()))),
-                const Divider(),
-                _nav('Downloads', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DownloadsScreen()))),
-                const Divider(),
-                _nav('Privacy dashboard', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyScreen()))),
-                const Divider(),
-                _nav('About', () => _info('Mr Nobody', 'A tiny native privacy browser.\nNo ads, no trackers, no history by default.')),
-              ]),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _info(String title, String msg) {
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(title, style: AppTheme.sans(size: 16, w: FontWeight.w700)),
-        content: Text(msg, style: AppTheme.sans(size: 13, color: AppColors.textDim)),
-        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('OK', style: TextStyle(color: AppColors.accent)))],
-      ),
-    );
-  }
-
-  Widget _card(List<Widget> children) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: AppCard(child: Column(children: children)),
-    );
-  }
-
-  Widget _toggle(String label, bool value, ValueChanged<bool> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
+    return AnimatedBuilder(
+      animation: _state,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: Text(label, style: AppTheme.sans(size: 14))),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: AppColors.accent,
-            inactiveTrackColor: AppColors.surface2,
-            thumbColor: WidgetStateProperty.all(value ? AppColors.accentInk : AppColors.textFaint),
+          SafeArea(bottom: false, child: TopBar(title: 'Settings', onBack: widget.onBack)),
+          Expanded(
+            child: ListView(
+              controller: widget.scrollController,
+              padding: const EdgeInsets.only(bottom: 120),
+              children: [
+                const SectionLabel('Browsing'),
+                AppCard(
+                  child: Column(
+                    children: withDividers([
+                      _toggle('Save browsing history', _state.history, (v) {
+                        _state.setHistory(v);
+                        AppToast.show(context, 'History ${v ? 'ON' : 'OFF'}');
+                      }),
+                      _toggle('JavaScript', _state.js, (v) {
+                        _state.setJs(v);
+                        AppToast.show(context, 'JavaScript ${v ? 'ON' : 'OFF'}');
+                      }),
+                      _toggle('Search suggestions', _state.suggestions, (v) {
+                        _state.setSuggestions(v);
+                        AppToast.show(context, 'Suggestions ${v ? 'ON' : 'OFF'}');
+                      }),
+                    ]),
+                  ),
+                ),
+                const SectionLabel('Agent'),
+                AppCard(
+                  child: Column(
+                    children: withDividers([
+                      Builder(
+                        builder: (rowContext) => SettingRow(
+                          label: 'Privacy profile',
+                          value: _state.profileLabel,
+                          valueOn: true,
+                          onTap: () => _pickProfile(rowContext),
+                        ),
+                      ),
+                      Builder(
+                        builder: (rowContext) => SettingRow(
+                          label: 'AI provider',
+                          value: _state.providerLabel,
+                          onTap: () => _pickProvider(rowContext),
+                        ),
+                      ),
+                      Builder(
+                        builder: (rowContext) => SettingRow(
+                          label: 'Terminal',
+                          value: _state.terminalLabel,
+                          onTap: () => _pickTerminal(rowContext),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+                const SectionLabel('Data'),
+                AppCard(
+                  child: Column(
+                    children: withDividers([
+                      SettingRow(
+                        label: 'Clear browsing data',
+                        onTap: () => Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const ClearDataScreen())),
+                      ),
+                      SettingRow(
+                        label: 'Downloads',
+                        value: _downloadCount?.toString(),
+                        onTap: () async {
+                          await Navigator.of(context)
+                              .push(MaterialPageRoute(builder: (_) => const DownloadsScreen()));
+                          _loadDownloadCount();
+                        },
+                      ),
+                      SettingRow(
+                        label: 'Privacy dashboard',
+                        onTap: () => Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const PrivacyScreen())),
+                      ),
+                      SettingRow(label: 'About', onTap: _about),
+                    ]),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _value(String label, String value, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(child: Text(label, style: AppTheme.sans(size: 14))),
-            Text(value, style: AppTheme.mono(size: 11.5, color: AppColors.textFaint)),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, size: 18, color: AppColors.textFaint),
-          ],
-        ),
-      ),
+  Widget _toggle(String label, bool value, ValueChanged<bool> onChanged) {
+    return SettingRow(
+      label: label,
+      trailing: PillToggle(value: value, onChanged: onChanged),
+      onTap: () => onChanged(!value),
     );
   }
 
-  Widget _nav(String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(child: Text(label, style: AppTheme.sans(size: 14))),
-            const Icon(Icons.chevron_right, size: 18, color: AppColors.textFaint),
-          ],
+  Future<void> _pickProfile(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<String>(
+      context: rowContext,
+      title: 'Privacy profile',
+      selected: _state.profile,
+      options: const [
+        MenuOption(id: 'BALANCED', label: 'Balanced', icon: Icons.balance, tag: 'default'),
+        MenuOption(id: 'STRICT', label: 'Strict', icon: Icons.shield_outlined, tag: '3P cookies blocked'),
+        MenuOption(id: 'MAXIMUM', label: 'Maximum', icon: Icons.lock_outline, tag: 'JS off'),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    await _state.setProfile(picked);
+    if (!mounted) return;
+    AppToast.show(context, 'Profile: ${_state.profileLabel}');
+  }
+
+  Future<void> _pickTerminal(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<bool>(
+      context: rowContext,
+      title: 'Terminal',
+      selected: _state.terminal,
+      options: const [
+        MenuOption(id: false, label: 'Off', icon: Icons.power_settings_new),
+        MenuOption(
+          id: true,
+          label: 'On (sandboxed)',
+          icon: Icons.terminal,
+          tag: 'ALLOW / CONFIRM / DENY',
         ),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    await _state.setTerminal(picked);
+    if (!mounted) return;
+    AppToast.show(context, 'Terminal ${picked ? 'enabled' : 'disabled'}');
+  }
+
+  Future<void> _pickProvider(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<String>(
+      context: rowContext,
+      title: 'AI provider',
+      selected: _state.providerId,
+      options: [
+        for (final p in AiProviderOption.all)
+          MenuOption(id: p.id, label: p.name, icon: _providerIcon(p.id), tag: p.tag),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    if (picked == 'local') {
+      await _state.setProvider('local');
+      if (!mounted) return;
+      AppToast.show(context, 'Local provider active');
+      return;
+    }
+    // A remote provider needs a key/base/model before it can be made active —
+    // send the user to the provider screen instead of silently enabling it.
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AiProviderScreen(initialProvider: picked)),
+    );
+    if (mounted) setState(() {});
+  }
+
+  static IconData _providerIcon(String id) {
+    switch (id) {
+      case 'gemini':
+        return Icons.auto_awesome;
+      case 'groq':
+        return Icons.bolt;
+      case 'openai':
+        return Icons.hub_outlined;
+      default:
+        return Icons.memory;
+    }
+  }
+
+  void _about() {
+    showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Mr Nobody', style: AppTheme.sans(size: 16, w: FontWeight.w700)),
+        content: Text(
+          'A small, private, agentic browser.\n\n'
+          'No ads. No tracking by Mr Nobody. No automatic browsing history.\n'
+          'Tell Mr Nobody what you want from the web.',
+          style: AppTheme.sans(size: 12.5, color: AppColors.textDim, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: Text('OK', style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w600)),
+          ),
+        ],
       ),
     );
   }

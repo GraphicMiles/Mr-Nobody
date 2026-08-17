@@ -1,123 +1,191 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
+import '../widgets/debug_fab.dart';
+import '../widgets/toast.dart';
 
-/// Task detail (S2 state) — centered title, plan steps, progress, actions.
-/// Data comes from the core; nothing here is fabricated.
-class TaskDetailScreen extends StatelessWidget {
+/// Task detail — the agent's plan, where it is now, and what it produced.
+/// Matches `#v-taskdetail`: centred title, plan steps, progress, actions.
+///
+/// Everything shown comes from the core's task record; nothing is invented.
+class TaskDetailScreen extends StatefulWidget {
+  final int? taskId;
   final String title;
-  final String status;
-  final String step;
-  final int progress;
-  final String result;
+  final String initialStatus;
+  final String initialStep;
+  final int initialProgress;
 
   const TaskDetailScreen({
     super.key,
     required this.title,
-    this.status = 'RUNNING',
-    this.step = '',
-    this.progress = 0,
-    this.result = '',
+    this.taskId,
+    this.initialStatus = 'QUEUED',
+    this.initialStep = '',
+    this.initialProgress = 0,
   });
 
-  static const _steps = [
+  @override
+  State<TaskDetailScreen> createState() => _TaskDetailScreenState();
+}
+
+class _TaskDetailScreenState extends State<TaskDetailScreen> {
+  static const _plan = [
     ('Search', Icons.search),
     ('Open candidates', Icons.folder_open),
     ('Extract prices', Icons.sell_outlined),
     ('Verify', Icons.check_circle_outline),
     ('Compare', Icons.balance),
   ];
+  static const _live = {'RUNNING', 'QUEUED', 'WAITING', 'VERIFYING'};
+
+  late String _status = widget.initialStatus;
+  late String _step = widget.initialStep;
+  late int _progress = widget.initialProgress;
+  String _result = '';
+  String _error = '';
+  String _worker = 'on-device';
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.taskId != null) {
+      _refresh();
+      _poll = Timer.periodic(const Duration(seconds: 2), (_) => _refresh());
+    }
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    final id = widget.taskId;
+    if (id == null) return;
+    final task = await NativeBridge.guard(
+      () => NativeBridge.task(id),
+      null,
+      'task $id unavailable',
+    );
+    if (!mounted || task == null) return;
+    setState(() {
+      _status = task['status'] as String? ?? _status;
+      _step = task['step'] as String? ?? '';
+      _progress = ((task['progress'] as num?) ?? _progress).toInt();
+      _result = task['result'] as String? ?? '';
+      _error = task['error'] as String? ?? '';
+      _worker = (task['worker'] as String? ?? 'local') == 'local' ? 'on-device' : 'remote';
+    });
+    if (!_live.contains(_status)) _poll?.cancel();
+  }
+
+  bool get _done => _status == 'COMPLETED';
 
   @override
   Widget build(BuildContext context) {
-    final doneStep = status == 'COMPLETED' ? _steps.length : (progress / 20).floor().clamp(0, _steps.length);
+    final pct = _done ? 100 : _progress;
+    final doneSteps = _done ? _plan.length : (pct / 20).floor().clamp(0, _plan.length);
+
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: PanelShell(
         title: 'Task',
         onBack: () => Navigator.of(context).pop(),
+        overlay: const IgnorePointer(
+          ignoring: false,
+          child: DebugOverlay(bottomInset: 20),
+        ),
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-            child: Center(child: Text(title, textAlign: TextAlign.center, style: AppTheme.sans(size: 14, w: FontWeight.w600))),
-          ),
-          const SectionLabel('Status'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: AppCard(
-              child: Column(
-                children: [
-                  MetricRow('State', status),
-                  if (step.isNotEmpty) ...[
-                    const Divider(),
-                    MetricRow('Step', step, dim: true),
-                  ],
-                  const Divider(),
-                  const MetricRow('Worker', 'on-device', dim: true),
-                ],
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Center(
+              child: Text(
+                widget.title,
+                textAlign: TextAlign.center,
+                style: AppTheme.sans(size: 14, w: FontWeight.w600),
               ),
             ),
           ),
-          const SectionLabel('Plan'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: AppCard(
-              child: Column(
-                children: [
-                  for (var i = 0; i < _steps.length; i++) ...[
-                    _Step(icon: _steps[i].$2, label: _steps[i].$1, done: i < doneStep, current: i == doneStep && status != 'COMPLETED'),
-                    if (i != _steps.length - 1) const Divider(),
-                  ],
-                ],
-              ),
+          AppCard(
+            child: Column(
+              children: [
+                for (var i = 0; i < _plan.length; i++)
+                  _PlanStep(
+                    label: _plan[i].$1,
+                    icon: _plan[i].$2,
+                    done: i < doneSteps,
+                    current: i == doneSteps && !_done && _status != 'FAILED',
+                  ),
+              ],
             ),
           ),
           const SectionLabel('Progress'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: AppCard(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: (progress / 100).clamp(0.0, 1.0),
-                      backgroundColor: AppColors.surface2,
-                      color: AppColors.accent,
-                      minHeight: 4,
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ProgressBar(pct / 100),
+                const SizedBox(height: 7),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('$pct%', style: AppTheme.mono(size: 10, color: AppColors.textMuted)),
+                    Text(
+                      _step.isEmpty ? _worker : '$_step · $_worker',
+                      style: AppTheme.mono(size: 10, color: AppColors.textMuted),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('$progress%', style: AppTheme.mono(size: 10, color: AppColors.textFaint)),
-                      Text('on-device', style: AppTheme.mono(size: 10, color: AppColors.textFaint)),
-                    ],
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ),
           ),
-          if (result.isNotEmpty) ...[
+          if (_error.isNotEmpty) ...[
+            const SectionLabel('Error'),
+            AppCard(
+              padding: const EdgeInsets.all(14),
+              child: Text(_error, style: AppTheme.sans(size: 12, color: AppColors.textDim, height: 1.5)),
+            ),
+          ],
+          if (_result.isNotEmpty) ...[
             const SectionLabel('Result'),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: AppCard(
-                padding: const EdgeInsets.all(16),
-                child: Text(result, style: AppTheme.sans(size: 12, color: AppColors.textDim)),
+            AppCard(
+              padding: const EdgeInsets.all(14),
+              child: SelectableText(
+                _result,
+                style: AppTheme.sans(size: 12.5, color: AppColors.textDim, height: 1.55),
               ),
             ),
           ],
-          const SizedBox(height: 12),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Expanded(child: ActionButton('Copy', solid: false, onTap: () => Clipboard.setData(ClipboardData(text: result.isNotEmpty ? result : title)))),
-                const SizedBox(width: 8),
-                Expanded(child: ActionButton('Done', solid: true, onTap: () => Navigator.of(context).pop())),
+                if (!_live.contains(_status))
+                  Expanded(
+                    child: ActionButton('Run again', onTap: _runAgain),
+                  ),
+                if (!_live.contains(_status)) const SizedBox(width: 8),
+                Expanded(
+                  child: ActionButton(
+                    'Copy result',
+                    solid: true,
+                    onTap: () {
+                      if (_result.isEmpty) {
+                        AppToast.show(context, 'Nothing to copy yet');
+                        return;
+                      }
+                      Clipboard.setData(ClipboardData(text: _result));
+                      AppToast.show(context, 'Result copied');
+                    },
+                  ),
+                ),
               ],
             ),
           ),
@@ -125,17 +193,44 @@ class TaskDetailScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _runAgain() async {
+    await NativeBridge.guard(
+      () => NativeBridge.runTask(widget.title),
+      const <String, dynamic>{},
+      'could not restart task',
+    );
+    if (!mounted) return;
+    AppToast.show(context, 'Task queued again');
+    Navigator.of(context).pop();
+  }
 }
 
-class _Step extends StatelessWidget {
-  final IconData icon;
+/// `.plan-step` — circular mark (outline → filled when done → accent when
+/// current) with the step name.
+class _PlanStep extends StatelessWidget {
   final String label;
+  final IconData icon;
   final bool done;
   final bool current;
-  const _Step({required this.icon, required this.label, required this.done, required this.current});
+
+  const _PlanStep({required this.label, required this.icon, required this.done, required this.current});
 
   @override
   Widget build(BuildContext context) {
+    final Color markBg;
+    final Color markFg;
+    if (current) {
+      markBg = AppColors.accent;
+      markFg = AppColors.accentInk;
+    } else if (done) {
+      markBg = AppColors.surface3;
+      markFg = AppColors.text;
+    } else {
+      markBg = Colors.transparent;
+      markFg = AppColors.textMuted;
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
@@ -144,14 +239,21 @@ class _Step extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
+              color: markBg,
               shape: BoxShape.circle,
-              color: current ? AppColors.accent : (done ? AppColors.surface3 : Colors.transparent),
-              border: Border.all(color: current || done ? Colors.transparent : AppColors.lineStrong),
+              border: Border.all(color: current ? AppColors.accent : AppColors.lineStrong),
             ),
-            child: Icon(icon, size: 12, color: current ? AppColors.accentInk : (done ? AppColors.text : AppColors.textFaint)),
+            child: Icon(done && !current ? Icons.check : icon, size: 12, color: markFg),
           ),
           const SizedBox(width: 11),
-          Text(label, style: AppTheme.sans(size: 12.5, color: current || done ? AppColors.text : AppColors.textDim, w: current ? FontWeight.w600 : FontWeight.w400)),
+          Text(
+            label,
+            style: AppTheme.sans(
+              size: 12.5,
+              color: (done || current) ? AppColors.text : AppColors.textDim,
+              w: current ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
         ],
       ),
     );
