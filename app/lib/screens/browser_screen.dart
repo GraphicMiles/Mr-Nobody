@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../browser/browser_tab.dart';
 import '../browser/tab_manager.dart';
@@ -49,10 +48,13 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
   BrowserTab? get _tab => widget.tabs.active;
 
+  BrowserTab? _noticeTab;
+
   @override
   void initState() {
     super.initState();
     _address.text = _tab?.url ?? '';
+    _listenForDownloads(_tab);
     _addressFocus.addListener(() {
       // Editing the address should never happen behind a hidden bar.
       if (_addressFocus.hasFocus) _tab?.showChrome();
@@ -61,9 +63,26 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
   @override
   void dispose() {
+    _noticeTab?.downloadNotice.removeListener(_onDownloadNotice);
     _address.dispose();
     _addressFocus.dispose();
     super.dispose();
+  }
+
+  /// Downloads are handed to Android's DownloadManager by the engine; the user
+  /// still needs to be told one started (or that it could not).
+  void _listenForDownloads(BrowserTab? tab) {
+    if (identical(tab, _noticeTab)) return;
+    _noticeTab?.downloadNotice.removeListener(_onDownloadNotice);
+    _noticeTab = tab;
+    tab?.downloadNotice.addListener(_onDownloadNotice);
+  }
+
+  void _onDownloadNotice() {
+    final notice = _noticeTab?.downloadNotice.value;
+    if (notice == null || !mounted) return;
+    AppToast.show(context, notice);
+    _noticeTab?.downloadNotice.value = null;
   }
 
   /// Keep the field in sync with the tab, but never fight the user's typing.
@@ -90,6 +109,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
       builder: (context, _) {
         final tab = widget.tabs.active;
         if (tab == null) return const Scaffold(backgroundColor: AppColors.bg);
+        _listenForDownloads(tab);
 
         return AnimatedBuilder(
           animation: tab,
@@ -152,28 +172,10 @@ class _BrowserScreenState extends State<BrowserScreen> {
     );
   }
 
-  /// The page itself. On Android this is the platform WebView; where no WebView
-  /// platform exists (design preview, widget tests) we show a neutral
-  /// placeholder rather than taking the screen down.
-  Widget _pageSurface(BrowserTab tab) {
-    if (!tab.engine.isAvailable) {
-      return Container(
-        color: AppColors.bg,
-        alignment: Alignment.center,
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Text(
-            tab.url.isEmpty
-                ? 'New tab'
-                : 'Page rendering uses the Android System WebView.\n\n${tab.url}',
-            textAlign: TextAlign.center,
-            style: AppTheme.mono(size: 11.5, color: AppColors.textMuted, height: 1.6),
-          ),
-        ),
-      );
-    }
-    return WebViewWidget(controller: tab.engine.controller);
-  }
+  /// The page itself — our own WebView, hosted as a platform view. The engine
+  /// returns a neutral placeholder where no WebView exists (widget tests, the
+  /// design preview) rather than taking the screen down.
+  Widget _pageSurface(BrowserTab tab) => tab.engine.buildView();
 
   Widget _addressBar(BrowserTab tab) {
     return Container(
@@ -187,10 +189,25 @@ class _BrowserScreenState extends State<BrowserScreen> {
       ),
       child: Row(
         children: [
-          Icon(
-            tab.isSecure ? Icons.lock_outline : Icons.lock_open,
-            size: 14,
-            color: tab.isSecure ? AppColors.text : AppColors.textFaint,
+          GestureDetector(
+            onTap: () => widget.onOpenDestination(BrowserDestination.privacy),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                Icon(
+                  tab.isSecure ? Icons.lock_outline : Icons.lock_open,
+                  size: 14,
+                  color: tab.isSecure ? AppColors.text : AppColors.textFaint,
+                ),
+                if (tab.blocked.total > 0) ...[
+                  const SizedBox(width: 5),
+                  Text(
+                    '${tab.blocked.total}',
+                    style: AppTheme.mono(size: 10, w: FontWeight.w600, color: AppColors.textFaint),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(

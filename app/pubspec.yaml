@@ -9,9 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # Bundled engine rendering (Android System WebView via Platform Views) — the
-  # visible browser page stays native; Flutter is the chrome around it.
-  webview_flutter: ^4.8.0
+  # No WebView plugin: the visible page is our own Android WebView hosted as a
+  # platform view (see android/.../webview/MrNobodyWebView.java). A plugin
+  # cannot express shouldInterceptRequest, and without that the filter engine
+  # is off the request path — i.e. no ad/tracker blocking at all.
 
 dev_dependencies:
   flutter_test:

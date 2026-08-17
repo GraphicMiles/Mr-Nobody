@@ -6,8 +6,16 @@ import 'package:mrnobody/browser/tab_manager.dart';
 import 'package:mrnobody/theme/app_theme.dart';
 import 'package:mrnobody/widgets/toast.dart';
 
+import 'fake_browser_engine.dart';
+
 /// Regressions for state that the UI reads but nothing was updating.
 void main() {
+  setUpAll(() {
+    BrowserTab.engineFactory = ({required String url, required bool isPrivate}) =>
+        FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
+  });
+  tearDownAll(() => BrowserTab.engineFactory = null);
+
   group('BrowserTab keeps its own state', () {
     test('a navigation updates url, host and label', () {
       final tab = BrowserTab(1);

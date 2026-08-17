@@ -13,6 +13,7 @@ import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.deeplink.DeepLinkHandler;
+import com.mrnobody.browser.webview.MrNobodyWebViewFactory;
 
 import android.app.DownloadManager;
 import android.database.Cursor;
@@ -49,6 +50,12 @@ public class MainActivity extends FlutterActivity {
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
+
+        // The visible browser is our own WebView, hosted as a platform view, so
+        // the filter engine sits on the request path (see MrNobodyWebView).
+        flutterEngine.getPlatformViewsController().getRegistry().registerViewFactory(
+                MrNobodyWebViewFactory.VIEW_TYPE,
+                new MrNobodyWebViewFactory(flutterEngine.getDartExecutor().getBinaryMessenger()));
 
         // Core bridge: run tasks, list tasks, privacy stats, settings.
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CORE)
