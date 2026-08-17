@@ -37,6 +37,12 @@ android {
 dependencies {
     // Background task resumption for the Java agent core (spec §13).
     implementation "androidx.work:work-runtime:2.9.1"
+
+    // JVM unit tests for the agent core. The core is deliberately written so
+    // its logic (routing, parsing, filtering, policy, reconciliation) runs on a
+    // plain JVM without an Android runtime — these tests are the reason it
+    // stays that way.
+    testImplementation "junit:junit:4.13.2"
 }
 
 flutter {

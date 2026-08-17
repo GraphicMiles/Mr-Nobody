@@ -27,6 +27,12 @@ class NativeBridge {
     return r == null ? null : Map<String, dynamic>.from(r as Map);
   }
 
+  /// Ask the core to stop a task. The request is persisted, so a worker in
+  /// another process observes it at its next safe boundary.
+  static Future<bool> cancelTask(int id) async {
+    return await _ch.invokeMethod('cancelTask', {'id': id}) as bool? ?? false;
+  }
+
   /// Privacy counters for the dashboard.
   static Future<Map<String, dynamic>> privacyStats() async {
     return Map<String, dynamic>.from(await _ch.invokeMethod('privacyStats'));

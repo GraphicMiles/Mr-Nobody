@@ -2,6 +2,7 @@ package com.mrnobody.agent.dispatcher;
 
 import android.content.Context;
 
+import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 
 import java.util.LinkedHashMap;
@@ -25,7 +26,7 @@ public final class TaskDispatcher {
         workers.put(worker.id(), worker);
     }
 
-    public void dispatch(Context context, Task task) {
+    public void dispatch(Context context, Task task, Cancellation cancellation) {
         Worker w = workers.get(task.worker());
         if (w == null) w = workers.get(defaultWorkerId);
         if (w == null) {
@@ -33,7 +34,7 @@ public final class TaskDispatcher {
             task.setStatus(Task.Status.FAILED);
             return;
         }
-        w.execute(context, task);
+        w.execute(context, task, cancellation);
     }
 
     /** A task that runs on the device (privacy default). */

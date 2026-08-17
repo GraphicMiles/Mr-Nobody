@@ -2,6 +2,7 @@ package com.mrnobody.agent.dispatcher;
 
 import android.content.Context;
 
+import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 
 /**
@@ -17,5 +18,5 @@ public interface Worker {
      * Execute a task. Must update the task's status/step as it progresses and
      * must be resumable (state lives in the TaskStore, not in memory).
      */
-    void execute(Context context, Task task);
+    void execute(Context context, Task task, Cancellation cancellation);
 }

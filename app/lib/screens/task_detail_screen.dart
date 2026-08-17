@@ -40,7 +40,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     ('Verify', Icons.check_circle_outline),
     ('Compare', Icons.balance),
   ];
-  static const _live = {'RUNNING', 'QUEUED', 'WAITING', 'VERIFYING'};
 
   late String _status = widget.initialStatus;
   late String _step = widget.initialStep;
@@ -82,14 +81,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       _error = task['error'] as String? ?? '';
       _worker = (task['worker'] as String? ?? 'local') == 'local' ? 'on-device' : 'remote';
     });
-    if (!_live.contains(_status)) _poll?.cancel();
+    if (!_live) _poll?.cancel();
   }
 
   bool get _done => _status == 'COMPLETED';
+  /// Statuses that mean a worker is (or will be) on this task.
+  static const _liveStatuses = {'RUNNING', 'QUEUED', 'WAITING', 'VERIFYING'};
+
+  bool get _live => _liveStatuses.contains(_status);
+
+  Future<void> _cancel() async {
+    final id = widget.taskId;
+    if (id == null) return;
+    final accepted = await NativeBridge.guard(
+      () => NativeBridge.cancelTask(id),
+      false,
+      'could not cancel task',
+    );
+    if (!mounted) return;
+    AppToast.show(context, accepted ? 'Stopping…' : 'Could not stop this task');
+    _refresh();
+  }
 
   @override
   Widget build(BuildContext context) {
     final pct = _done ? 100 : _progress;
+    final stopped = _status == 'CANCELLED' || _status == 'FAILED';
     final doneSteps = _done ? _plan.length : (pct / 20).floor().clamp(0, _plan.length);
 
     return Scaffold(
@@ -120,7 +137,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     label: _plan[i].$1,
                     icon: _plan[i].$2,
                     done: i < doneSteps,
-                    current: i == doneSteps && !_done && _status != 'FAILED',
+                    current: i == doneSteps && !_done && !stopped,
                   ),
               ],
             ),
@@ -167,11 +184,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                if (!_live.contains(_status))
+                if (_live)
+                  Expanded(child: ActionButton('Stop task', onTap: _cancel)),
+                if (_live) const SizedBox(width: 8),
+                if (!_live)
                   Expanded(
                     child: ActionButton('Run again', onTap: _runAgain),
                   ),
-                if (!_live.contains(_status)) const SizedBox(width: 8),
+                if (!_live) const SizedBox(width: 8),
                 Expanded(
                   child: ActionButton(
                     'Copy result',

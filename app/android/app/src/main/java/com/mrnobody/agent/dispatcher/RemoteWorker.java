@@ -2,6 +2,7 @@ package com.mrnobody.agent.dispatcher;
 
 import android.content.Context;
 
+import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 
 /**
@@ -18,7 +19,7 @@ public final class RemoteWorker implements Worker {
     }
 
     @Override
-    public void execute(Context context, Task task) {
+    public void execute(Context context, Task task, Cancellation cancellation) {
         task.setWorker("remote");
         task.setStatus(Task.Status.FAILED);
         task.setError("Remote worker is not enabled (V2). The task stayed on-device.");
