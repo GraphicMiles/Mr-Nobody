@@ -16,10 +16,13 @@ import '../widgets/toast.dart';
 enum BrowserDestination { privacy, settings, downloads }
 
 /// The visible browser (S2 · browser state): address bar with the lock, the
-/// rendered page, and the Back / Forward / + / Tabs / Menu bar. Tabs are owned
-/// by the shared [TabManager], so switching preserves each tab's engine state.
+/// rendered page at full height, and the Back / Forward / (+) / Tabs / Menu
+/// bar floating over it. Tabs are owned by the shared [TabManager], so
+/// switching preserves each tab's engine state.
 ///
-/// This is the human path. The agent's headless path never renders here.
+/// The page fills the whole area under the address bar and the chrome floats
+/// on top of it, collapsing as the user scrolls down — the page is never
+/// squeezed into a shorter viewport by the bar.
 class BrowserScreen extends StatefulWidget {
   final TabManager tabs;
 
@@ -43,127 +46,109 @@ class BrowserScreen extends StatefulWidget {
 class _BrowserScreenState extends State<BrowserScreen> {
   final _address = TextEditingController();
   final _addressFocus = FocusNode();
-  bool _loading = false;
-  bool _canBack = false;
-  bool _canForward = false;
-  String? _error;
-  int? _boundTabId;
 
   BrowserTab? get _tab => widget.tabs.active;
 
   @override
   void initState() {
     super.initState();
-    widget.tabs.addListener(_onTabsChanged);
-    _bindTab();
+    _address.text = _tab?.url ?? '';
+    _addressFocus.addListener(() {
+      // Editing the address should never happen behind a hidden bar.
+      if (_addressFocus.hasFocus) _tab?.showChrome();
+    });
   }
 
   @override
   void dispose() {
-    widget.tabs.removeListener(_onTabsChanged);
     _address.dispose();
     _addressFocus.dispose();
     super.dispose();
   }
 
-  void _onTabsChanged() {
-    _bindTab();
-    if (mounted) setState(() {});
-  }
-
-  /// Attach to the active tab's engine callbacks (once per tab).
-  void _bindTab() {
-    final tab = widget.tabs.active;
-    if (tab == null || tab.id == _boundTabId) return;
-    _boundTabId = tab.id;
-    tab.engine
-      ..onLoadingChanged = (l) {
-        if (!mounted) return;
-        setState(() => _loading = l);
-        if (!l) _refreshHistoryButtons();
-      }
-      ..onUrlChanged = (u) {
-        if (!mounted) return;
-        setState(() {
-          if (!_addressFocus.hasFocus) _address.text = u;
-          _error = null;
-        });
-      }
-      ..onTitleChanged = (_) {
-        if (mounted) setState(() {});
-      }
-      ..onError = (e) {
-        if (mounted) setState(() => _error = e);
-      };
-    _address.text = tab.url;
-    _refreshHistoryButtons();
-  }
-
-  Future<void> _refreshHistoryButtons() async {
-    final tab = _tab;
-    if (tab == null || !tab.engine.isAvailable) return;
-    final back = await tab.engine.canGoBack();
-    final forward = await tab.engine.canGoForward();
-    if (!mounted) return;
-    setState(() {
-      _canBack = back;
-      _canForward = forward;
-    });
+  /// Keep the field in sync with the tab, but never fight the user's typing.
+  void _syncAddress(BrowserTab tab) {
+    if (_addressFocus.hasFocus) return;
+    if (_address.text == tab.url) return;
+    _address.value = TextEditingValue(text: tab.url);
   }
 
   void _navigate(String input) {
     final tab = _tab;
     if (tab == null || input.trim().isEmpty) return;
-    setState(() => _error = null);
     _addressFocus.unfocus();
     // From the address bar even an instruction-shaped line is browsed, not
     // dispatched to the agent: the agent is driven from Home, so the address
     // bar never surprises the user with a background task.
-    tab.engine.loadUrl(IntentRouter.toUrl(input));
+    tab.load(IntentRouter.toUrl(input));
   }
 
   @override
   Widget build(BuildContext context) {
-    final tab = _tab;
-    if (tab == null) return const Scaffold(backgroundColor: AppColors.bg);
+    return AnimatedBuilder(
+      animation: widget.tabs,
+      builder: (context, _) {
+        final tab = widget.tabs.active;
+        if (tab == null) return const Scaffold(backgroundColor: AppColors.bg);
 
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: Column(
-        children: [
-          SafeArea(bottom: false, child: _addressBar(tab)),
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(child: _pageSurface(tab)),
-                if (_loading)
-                  const Align(
-                    alignment: Alignment.topCenter,
-                    child: LinearProgressIndicator(
-                      minHeight: 2,
-                      color: AppColors.accent,
-                      backgroundColor: AppColors.surface2,
+        return AnimatedBuilder(
+          animation: tab,
+          builder: (context, __) {
+            _syncAddress(tab);
+            return Scaffold(
+              backgroundColor: AppColors.bg,
+              body: ValueListenableBuilder<bool>(
+                valueListenable: tab.chromeVisible,
+                builder: (context, chromeVisible, ___) => Column(
+                  children: [
+                    SafeArea(bottom: false, child: _addressBar(tab)),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          // The page owns the full height; the bar floats over it.
+                          Positioned.fill(child: _pageSurface(tab)),
+                          if (tab.isLoading)
+                            const Align(
+                              alignment: Alignment.topCenter,
+                              child: LinearProgressIndicator(
+                                minHeight: 2,
+                                color: AppColors.accent,
+                                backgroundColor: AppColors.surface2,
+                              ),
+                            ),
+                          if (tab.error != null && !tab.isLoading)
+                            Positioned.fill(child: _errorView(tab)),
+                          DebugOverlay(
+                            bottomInset: chromeVisible ? BrowserNav.height(context) + 12 : 16,
+                          ),
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: BrowserNav(
+                              visible: chromeVisible,
+                              canGoBack: tab.canGoBack,
+                              canGoForward: tab.canGoForward,
+                              onBack: tab.goBack,
+                              onForward: tab.goForward,
+                              onNewTab: () {
+                                widget.tabs.newTab();
+                                AppToast.show(context, 'New tab');
+                              },
+                              onTabs: widget.onShowTabs,
+                              onMenu: _openMenu,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                if (_error != null && !_loading) Positioned.fill(child: _errorView(tab)),
-                const Positioned.fill(child: DebugOverlay(bottomInset: 16)),
-              ],
-            ),
-          ),
-          BrowserNav(
-            canGoBack: _canBack,
-            canGoForward: _canForward,
-            onBack: () => tab.engine.goBack(),
-            onForward: () => tab.engine.goForward(),
-            onNewTab: () {
-              widget.tabs.newTab();
-              AppToast.show(context, 'New tab');
-            },
-            onTabs: widget.onShowTabs,
-            onMenu: _openMenu,
-          ),
-        ],
-      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -226,7 +211,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
             ),
           ),
           GestureDetector(
-            onTap: () => tab.engine.reload(),
+            onTap: tab.reload,
             behavior: HitTestBehavior.opaque,
             child: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 6),
@@ -259,22 +244,12 @@ class _BrowserScreenState extends State<BrowserScreen> {
           Text("Couldn't load this page", style: AppTheme.sans(size: 14, w: FontWeight.w600)),
           const SizedBox(height: 6),
           Text(
-            _error ?? 'Network error',
+            tab.error ?? 'Network error',
             textAlign: TextAlign.center,
             style: AppTheme.sans(size: 12, color: AppColors.textFaint),
           ),
           const SizedBox(height: 18),
-          SizedBox(
-            width: 180,
-            child: ActionButton(
-              'Retry',
-              solid: true,
-              onTap: () {
-                setState(() => _error = null);
-                tab.engine.reload();
-              },
-            ),
-          ),
+          SizedBox(width: 180, child: ActionButton('Retry', solid: true, onTap: tab.reload)),
         ],
       ),
     );
@@ -283,6 +258,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   void _openMenu() {
     final tab = _tab;
     if (tab == null) return;
+    tab.showChrome();
     showMenuSheet(context, [
       SheetItem(Icons.visibility_off_outlined, 'New private tab', () {
         widget.tabs.newTab(isPrivate: true);
@@ -332,9 +308,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
       for (final m in marks.take(8))
         SheetItem(Icons.link, m['title'] as String? ?? m['url'] as String? ?? '', () {
           final url = m['url'] as String? ?? '';
-          if (url.isNotEmpty) _tab?.engine.loadUrl(url);
+          if (url.isNotEmpty) _tab?.load(url);
         }),
     ]);
   }
 }
-

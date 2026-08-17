@@ -54,7 +54,7 @@ class TabManager extends ChangeNotifier {
     if (index < 0 || index >= _tabs.length) return;
     final wasActive = index == _activeIndex;
     final tab = _tabs.removeAt(index);
-    tab.engine.dispose();
+    tab.dispose();
     if (_tabs.isEmpty) {
       _activeIndex = -1;
     } else if (wasActive) {
@@ -67,7 +67,7 @@ class TabManager extends ChangeNotifier {
 
   void closeAll() {
     for (final t in _tabs) {
-      t.engine.dispose();
+      t.dispose();
     }
     _tabs.clear();
     _activeIndex = -1;

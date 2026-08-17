@@ -33,13 +33,17 @@ class _DebugOverlayState extends State<DebugOverlay> {
         return Stack(
           children: [
             if (_open)
-              Positioned(
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
                 left: 16,
                 right: 16,
                 bottom: safeBottom + widget.bottomInset + 48,
                 child: _panel(context, count),
               ),
-            Positioned(
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutCubic,
               right: 16,
               bottom: safeBottom + widget.bottomInset,
               child: GestureDetector(

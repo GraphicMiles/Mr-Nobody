@@ -12,7 +12,16 @@ class TasksScreen extends StatefulWidget {
   final void Function(Map<String, dynamic> task) onOpenTask;
   final ScrollController? scrollController;
 
-  const TasksScreen({super.key, required this.onOpenTask, this.scrollController});
+  /// Whether this destination is the one on screen. Destinations live in an
+  /// IndexedStack, so without this they would keep polling in the background.
+  final bool isActive;
+
+  const TasksScreen({
+    super.key,
+    required this.onOpenTask,
+    this.scrollController,
+    this.isActive = true,
+  });
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -29,7 +38,9 @@ class _TasksScreenState extends State<TasksScreen> {
   void initState() {
     super.initState();
     _load();
-    _poll = Timer.periodic(const Duration(seconds: 3), (_) => _load());
+    _poll = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (widget.isActive) _load();
+    });
   }
 
   @override

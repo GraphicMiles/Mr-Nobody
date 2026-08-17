@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Geometry shared by both bottom bars.
-///
-/// The raised "+" must never be positioned outside its parent: a child painted
-/// beyond the parent's bounds is clipped away by the enclosing Stack AND is
-/// dead to hit-testing, which is exactly how the button ended up sliced in
-/// half with an untappable top edge. So the bar reserves [_overhang] of its own
-/// height above the bar surface and lays the button out inside that space.
-const double _overhang = 22;
+/// Height of the bar's content row (icons + labels).
 const double _barContent = 46;
-const double _plusSize = 44;
+
+/// The "new" button reads as one of the row's items — same row, same optical
+/// centre — instead of a raised circle hanging above the bar. A raised button
+/// forces the bar to reserve empty space above itself, and that reserved strip
+/// covers the top of whatever is underneath (a rendered page, most visibly).
+const double _plusSize = 36;
+
+/// Stable handle for the "new" button (used by tests and by anything that
+/// needs to point at it).
+const Key kNavNewButtonKey = Key('nav-new-button');
 
 class _NavShell extends StatelessWidget {
-  final List<Widget> items; // exactly four, two per side
+  /// Two items, the "new" button, then two items.
+  final List<Widget> items;
   final VoidCallback onPlus;
   final bool visible;
 
@@ -21,75 +24,54 @@ class _NavShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    assert(items.length == 4, 'the bar is two items, the raised +, then two items');
+    assert(items.length == 4, 'two items, the + slot, then two items');
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    final barHeight = _barContent + 18 + safeBottom; // 8 top + 10 bottom padding
 
     return AnimatedSlide(
-      duration: const Duration(milliseconds: 260),
+      duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
-      offset: visible ? Offset.zero : const Offset(0, 1.05),
+      offset: visible ? Offset.zero : const Offset(0, 1),
       child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 260),
+        duration: const Duration(milliseconds: 240),
         opacity: visible ? 1 : 0,
-        child: SizedBox(
-          height: _overhang + barHeight,
-          child: Stack(
-            children: [
-              // The bar surface, pinned to the bottom of the reserved box.
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: barHeight,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: AppColors.bg,
-                    border: Border(top: BorderSide(color: AppColors.line)),
-                  ),
-                  padding: EdgeInsets.only(left: 14, right: 14, top: 8, bottom: safeBottom + 10),
-                  // The bar is a fixed height, so an extreme system font scale
-                  // must not be allowed to push the labels out of it.
-                  child: MediaQuery.withClampedTextScaling(
-                    maxScaleFactor: 1.15,
-                    child: Row(
-                      children: [
-                        items[0],
-                        items[1],
-                        // Slot the raised button sits in — keeps the four
-                        // labels evenly spaced around it.
-                        const SizedBox(width: _plusSize + 12),
-                        items[2],
-                        items[3],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // The raised button, fully inside the box → drawn and tappable.
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: _plusSize,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: onPlus,
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: _plusSize,
-                      height: _plusSize,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.bg, width: 4),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.bg,
+            border: Border(top: BorderSide(color: AppColors.line)),
+          ),
+          padding: EdgeInsets.only(left: 10, right: 10, top: 6, bottom: safeBottom + 8),
+          child: SizedBox(
+            height: _barContent,
+            // A fixed-height bar must not be re-flowed by a large system font.
+            child: MediaQuery.withClampedTextScaling(
+              maxScaleFactor: 1.15,
+              child: Row(
+                children: [
+                  items[0],
+                  items[1],
+                  Expanded(
+                    child: Center(
+                      child: GestureDetector(
+                        key: kNavNewButtonKey,
+                        onTap: onPlus,
+                        behavior: HitTestBehavior.opaque,
+                        child: Container(
+                          width: _plusSize,
+                          height: _plusSize,
+                          decoration: const BoxDecoration(
+                            color: AppColors.accent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.add, color: AppColors.accentInk, size: 19),
+                        ),
                       ),
-                      child: const Icon(Icons.add, color: AppColors.accentInk, size: 18),
                     ),
                   ),
-                ),
+                  items[2],
+                  items[3],
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -114,9 +96,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active
-        ? AppColors.accent
-        : (enabled ? AppColors.textFaint : AppColors.textMuted);
+    final color = active ? AppColors.accent : (enabled ? AppColors.textFaint : AppColors.textMuted);
     return Expanded(
       child: GestureDetector(
         onTap: enabled ? onTap : null,
@@ -140,14 +120,17 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-/// Bottom navigation — Home · Tabs · (+) · Tasks · Settings, with the raised
-/// circular "+" above the bar, as in `.bottombar` in the wireframe. Hides on
+/// Bottom navigation — Home · Tabs · (+) · Tasks · Settings. Hides on
 /// scroll-down and returns on scroll-up.
 class BottomNav extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onSelect;
   final VoidCallback onNew;
   final bool visible;
+
+  /// Height the bar occupies, so overlaying screens can pad their content.
+  static double height(BuildContext context) =>
+      _barContent + 14 + MediaQuery.of(context).padding.bottom;
 
   const BottomNav({
     super.key,
@@ -163,36 +146,16 @@ class BottomNav extends StatelessWidget {
       visible: visible,
       onPlus: onNew,
       items: [
-        _NavItem(
-          icon: Icons.home_rounded,
-          label: 'Home',
-          active: selected == 0,
-          onTap: () => onSelect(0),
-        ),
-        _NavItem(
-          icon: Icons.layers_rounded,
-          label: 'Tabs',
-          active: selected == 1,
-          onTap: () => onSelect(1),
-        ),
-        _NavItem(
-          icon: Icons.checklist_rounded,
-          label: 'Tasks',
-          active: selected == 2,
-          onTap: () => onSelect(2),
-        ),
-        _NavItem(
-          icon: Icons.settings_rounded,
-          label: 'Settings',
-          active: selected == 3,
-          onTap: () => onSelect(3),
-        ),
+        _NavItem(icon: Icons.home_rounded, label: 'Home', active: selected == 0, onTap: () => onSelect(0)),
+        _NavItem(icon: Icons.layers_rounded, label: 'Tabs', active: selected == 1, onTap: () => onSelect(1)),
+        _NavItem(icon: Icons.checklist_rounded, label: 'Tasks', active: selected == 2, onTap: () => onSelect(2)),
+        _NavItem(icon: Icons.settings_rounded, label: 'Settings', active: selected == 3, onTap: () => onSelect(3)),
       ],
     );
   }
 }
 
-/// The browser's own bottom bar: Back · Forward · (+) · Tabs · Menu.
+/// The browser's own bar: Back · Forward · (+) · Tabs · Menu.
 class BrowserNav extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onForward;
@@ -202,6 +165,8 @@ class BrowserNav extends StatelessWidget {
   final bool canGoBack;
   final bool canGoForward;
   final bool visible;
+
+  static double height(BuildContext context) => BottomNav.height(context);
 
   const BrowserNav({
     super.key,
