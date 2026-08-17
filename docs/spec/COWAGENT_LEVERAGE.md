@@ -1,5 +1,9 @@
 # What CowAgent gives us
 
+> Part of the harness survey — see `AGENT_HARNESS_SURVEY.md` for how this sits
+> next to oh-my-pi (tool contract, approval model) and DeerFlow (long-horizon
+> run discipline).
+
 `github.com/GraphicMiles/CowAgent` — MIT, Python, actively developed (upstream
 `zhayujie/CowAgent`). It calls itself "a reference implementation of Agent
 Harness engineering", and that is a fair description: it is a mature build of
