@@ -1,9 +1,20 @@
 import 'package:flutter/foundation.dart';
 
-import 'webview_browser_engine.dart';
+import 'browser_engine.dart';
+import 'native_webview_engine.dart';
+
+/// Live counts of what the filter engine refused on the current page.
+class BlockedCounts {
+  final int ads;
+  final int trackers;
+
+  const BlockedCounts({this.ads = 0, this.trackers = 0});
+
+  int get total => ads + trackers;
+}
 
 /// One browser tab — stable identity, its own engine, and the state the UI
-/// reads (url, title, loading, error, history).
+/// reads (url, title, loading, error, history, blocked counts).
 ///
 /// The tab owns its engine callbacks. Screens listen to the tab instead of
 /// re-assigning those callbacks: when a screen replaced them, the tab's own
@@ -12,7 +23,7 @@ import 'webview_browser_engine.dart';
 class BrowserTab extends ChangeNotifier {
   final int id;
   final bool isPrivate;
-  late final WebViewBrowserEngine engine;
+  late final BrowserEngine engine;
 
   String url;
   String title;
@@ -20,20 +31,31 @@ class BrowserTab extends ChangeNotifier {
   String? error;
   bool canGoBack = false;
   bool canGoForward = false;
+  BlockedCounts blocked = const BlockedCounts();
 
   /// Whether the browser chrome should be showing. Driven by page scrolling,
   /// kept separate from [notifyListeners] so a scroll never rebuilds the page.
   final ValueNotifier<bool> chromeVisible = ValueNotifier(true);
 
+  /// Latest download notice: the file name, or an error to show the user.
+  final ValueNotifier<String?> downloadNotice = ValueNotifier(null);
+
   int _lastScrollY = 0;
 
+  /// Injected in tests; production always builds the platform-view engine.
+  static BrowserEngine Function({required String url, required bool isPrivate})? engineFactory;
+
   BrowserTab(this.id, {this.isPrivate = false, this.url = '', this.title = ''}) {
-    engine = WebViewBrowserEngine(initialUrl: url);
+    engine = (engineFactory ?? _defaultEngine)(url: url, isPrivate: isPrivate);
     engine
       ..onUrlChanged = (u) {
         if (u == url) return;
-        // A new document: the old page's title no longer describes this tab.
-        if (_stripFragment(u) != _stripFragment(url)) title = '';
+        // A new document: the old page's title no longer describes this tab,
+        // and its blocked counters start again.
+        if (_stripFragment(u) != _stripFragment(url)) {
+          title = '';
+          blocked = const BlockedCounts();
+        }
         url = u;
         notifyListeners();
       }
@@ -43,6 +65,7 @@ class BrowserTab extends ChangeNotifier {
         notifyListeners();
       }
       ..onLoadingChanged = (l) {
+        if (l == isLoading) return;
         isLoading = l;
         if (l) error = null;
         notifyListeners();
@@ -53,8 +76,19 @@ class BrowserTab extends ChangeNotifier {
         isLoading = false;
         notifyListeners();
       }
-      ..onScroll = _onScroll;
+      ..onScroll = _onScroll
+      ..onBlockedCountChanged = (ads, trackers) {
+        if (ads == blocked.ads && trackers == blocked.trackers) return;
+        blocked = BlockedCounts(ads: ads, trackers: trackers);
+        notifyListeners();
+      }
+      ..onDownload = (name, err) {
+        downloadNotice.value = err ?? (name == null ? null : 'Downloading $name');
+      };
   }
+
+  static BrowserEngine _defaultEngine({required String url, required bool isPrivate}) =>
+      NativeWebViewEngine(initialUrl: url, isPrivate: isPrivate);
 
   /// Load a URL through this tab, clearing any error state first.
   Future<void> load(String target) async {
@@ -123,6 +157,7 @@ class BrowserTab extends ChangeNotifier {
   @override
   void dispose() {
     chromeVisible.dispose();
+    downloadNotice.dispose();
     engine.dispose();
     super.dispose();
   }

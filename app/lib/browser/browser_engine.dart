@@ -1,16 +1,22 @@
 import 'package:flutter/widgets.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 /// The engine-independent browser capability used by the visible browser and,
-/// in the agent path, by the BrowserTool. The V1 implementation is
-/// [WebViewBrowserEngine] (wrapping webview_flutter → Android WebView). Nothing
-/// in the UI depends on the concrete engine — it depends on this interface.
+/// in the agent path, by the BrowserTool.
+///
+/// Nothing in the UI depends on a concrete engine — it depends on this
+/// interface, so the rendering surface can be replaced (V1 §8, V2 §7) without
+/// touching a screen.
 abstract class BrowserEngine {
-  /// The underlying controller, for the WebViewWidget to render.
-  WebViewController get controller;
+  /// The page surface to place in the layout.
+  Widget buildView();
+
+  /// Whether a real engine backs this instance. False in widget tests and in
+  /// the design preview, where [buildView] returns a neutral placeholder.
+  bool get isAvailable;
 
   Future<void> loadUrl(String url);
   Future<void> reload();
+  Future<void> stop();
   Future<bool> canGoBack();
   Future<void> goBack();
   Future<bool> canGoForward();
@@ -18,21 +24,33 @@ abstract class BrowserEngine {
   Future<String?> currentUrl();
   Future<String?> title();
 
+  /// Re-read user settings (JavaScript, parameter stripping) into the engine.
+  Future<void> applySettings();
+
   /// Called with true/false as navigation begins/ends (loading state).
   ValueChanged<bool>? onLoadingChanged;
 
   /// Called with the committed URL on navigation.
   ValueChanged<String>? onUrlChanged;
 
-  /// Called with the page title once loaded.
+  /// Called with the page title once known.
   ValueChanged<String>? onTitleChanged;
 
-  /// Called when a resource fails to load (error state).
+  /// Called when the main frame fails to load.
   ValueChanged<String>? onError;
 
   /// Called with the page's vertical scroll offset, so the UI can collapse the
   /// browser chrome while the user reads.
   ValueChanged<int>? onScroll;
+
+  /// Called with the ads/trackers refused on the current page.
+  void Function(int ads, int trackers)? onBlockedCountChanged;
+
+  /// Called when a download starts, or fails to start ([error] set).
+  void Function(String? name, String? error)? onDownload;
+
+  /// Called with the load progress 0..100.
+  ValueChanged<int>? onProgress;
 
   void dispose();
 }

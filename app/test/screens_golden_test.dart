@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mrnobody/browser/browser_tab.dart';
 import 'package:mrnobody/browser/tab_manager.dart';
 import 'package:mrnobody/screens/ai_provider_screen.dart';
 import 'package:mrnobody/screens/browser_screen.dart';
@@ -18,6 +19,7 @@ import 'package:mrnobody/state/app_state.dart';
 import 'package:mrnobody/theme/app_theme.dart';
 import 'package:mrnobody/widgets/bottom_nav.dart';
 
+import 'fake_browser_engine.dart';
 import 'test_fonts.dart';
 
 /// Renders every screen at a phone size against a faked core and captures a
@@ -32,7 +34,12 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
     await loadTestFonts();
     _mockCore();
+    // No Android platform view in a widget test.
+    BrowserTab.engineFactory = ({required String url, required bool isPrivate}) =>
+        FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
   });
+
+  tearDownAll(() => BrowserTab.engineFactory = null);
 
   Future<void> pumpScreen(WidgetTester tester, Widget child, String golden) async {
     tester.view.physicalSize = phone * 3;
