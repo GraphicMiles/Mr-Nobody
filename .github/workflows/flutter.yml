@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -29,9 +30,30 @@ jobs:
         working-directory: app
         run: flutter analyze --no-fatal-infos
 
+      # Widget + golden tests. The goldens are the UI-parity gate against
+      # prototype/interactive-wireframe.html: if a screen drifts, this fails.
+      - name: Tests (widgets + screen goldens)
+        working-directory: app
+        run: flutter test
+
+      - name: Upload golden diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: app/test/failures
+          if-no-files-found: ignore
+
       - name: Build release APK
         working-directory: app
         run: flutter build apk --release
+
+      - name: Report APK size
+        working-directory: app
+        run: |
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          size=$(stat -c%s "$apk")
+          echo "APK: $((size / 1024 / 1024)) MB ($size bytes)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

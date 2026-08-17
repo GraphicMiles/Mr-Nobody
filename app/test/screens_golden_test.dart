@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +18,8 @@ import 'package:mrnobody/state/app_state.dart';
 import 'package:mrnobody/theme/app_theme.dart';
 import 'package:mrnobody/widgets/bottom_nav.dart';
 
+import 'test_fonts.dart';
+
 /// Renders every screen at a phone size against a faked core and captures a
 /// golden image, so a UI regression against the approved wireframe shows up as
 /// a failing test instead of a surprise on someone's phone.
@@ -30,7 +30,7 @@ void main() {
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    await _loadFonts();
+    await loadTestFonts();
     _mockCore();
   });
 
@@ -150,30 +150,6 @@ void main() {
   testWidgets('S8 downloads', (tester) async {
     await pumpScreen(tester, const DownloadsScreen(), 's8_downloads');
   });
-}
-
-/// Load the bundled brand fonts (and Material's icon font) so goldens show
-/// real typography and real glyphs, not Ahem boxes.
-Future<void> _loadFonts() async {
-  final flutterRoot = Platform.environment['FLUTTER_ROOT'];
-  if (flutterRoot != null) {
-    final icons = File('$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
-    if (icons.existsSync()) {
-      final loader = FontLoader('MaterialIcons')
-        ..addFont(icons.readAsBytes().then((b) => ByteData.view(b.buffer)));
-      await loader.load();
-    }
-  }
-  for (final entry in {
-    'Inter': ['assets/fonts/Inter-400.ttf', 'assets/fonts/Inter-600.ttf', 'assets/fonts/Inter-700.ttf'],
-    'JetBrainsMono': ['assets/fonts/JetBrainsMono-500.ttf', 'assets/fonts/JetBrainsMono-700.ttf'],
-  }.entries) {
-    final loader = FontLoader(entry.key);
-    for (final path in entry.value) {
-      loader.addFont(File(path).readAsBytes().then((b) => ByteData.view(b.buffer)));
-    }
-    await loader.load();
-  }
 }
 
 /// A stand-in for the Java core, so screens render with representative data.
