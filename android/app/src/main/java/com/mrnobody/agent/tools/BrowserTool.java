@@ -39,6 +39,15 @@ public final class BrowserTool implements Tool {
                 if (url == null || url.isEmpty()) return ToolResult.fail("browser.open needs 'url'");
                 engine.open(url);
                 return ToolResult.ok("Opened " + url);
+            case "fetch":
+                // Load + extract in one blocking call (the agent's extraction path).
+                String fetchUrl = request.param("url");
+                if (fetchUrl == null || fetchUrl.isEmpty()) {
+                    return ToolResult.fail("browser.fetch needs 'url'");
+                }
+                long timeout = parseLong(request.param("timeout"), 20_000);
+                String text = engine.loadAndExtract(fetchUrl, timeout);
+                return ToolResult.ok(text);
             case "back":
                 engine.back();
                 return ToolResult.ok("Navigated back");
@@ -54,6 +63,15 @@ public final class BrowserTool implements Tool {
                 return ToolResult.ok(engine.title());
             default:
                 return ToolResult.fail("unknown browser action: " + action);
+        }
+    }
+
+    private static long parseLong(String s, long fallback) {
+        if (s == null) return fallback;
+        try {
+            return Long.parseLong(s.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
         }
     }
 }

@@ -21,5 +21,12 @@ public interface BrowserEngine {
     /** Extract the page title, or null. */
     String title();
 
+    /**
+     * Load a URL and extract page text, blocking up to {@code timeoutMs}.
+     * Implementations must run the WebView work on the main thread internally
+     * and return best-effort text (never throw for expected failures).
+     */
+    String loadAndExtract(String url, long timeoutMs);
+
     void close();
 }

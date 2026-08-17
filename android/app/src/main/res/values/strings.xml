@@ -90,6 +90,18 @@
     <string name="settings_storage_dashboard">Storage dashboard</string>
     <string name="settings_site_overrides">Site overrides</string>
 
+    <!-- AI provider -->
+    <string name="settings_agent_section">Agent</string>
+    <string name="settings_ai_provider">AI provider</string>
+    <string name="ai_local">Local (on-device)</string>
+    <string name="ai_gemini">Gemini</string>
+    <string name="ai_groq">Groq</string>
+    <string name="ai_openai">OpenAI-compatible</string>
+    <string name="ai_key_title">API key</string>
+    <string name="ai_key_hint">Paste your API key (stored on-device only)</string>
+    <string name="ai_key_set">Key saved</string>
+    <string name="ai_disclosure">If a remote provider is enabled, task context may leave the device.</string>
+
     <!-- V2: per-site -->
     <string name="site_blocking">Block ads &amp; trackers</string>
     <string name="site_js">JavaScript</string>

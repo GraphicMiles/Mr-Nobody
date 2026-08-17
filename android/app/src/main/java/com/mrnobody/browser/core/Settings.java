@@ -143,4 +143,12 @@ public final class Settings {
     public String apiModel(String provider) {
         return prefs.getString("api_model_" + provider, "");
     }
+
+    public String activeAiProvider() {
+        return prefs.getString("active_ai_provider", "local");
+    }
+
+    public void setActiveAiProvider(String id) {
+        prefs.edit().putString("active_ai_provider", id).apply();
+    }
 }

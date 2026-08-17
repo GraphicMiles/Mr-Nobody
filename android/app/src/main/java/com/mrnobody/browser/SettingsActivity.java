@@ -69,6 +69,12 @@ public class SettingsActivity extends AppCompatActivity {
                 settings.isFingerprintProtection(),
                 settings::setFingerprintProtection);
 
+        section(getString(R.string.settings_agent_section));
+
+        valueRow(getString(R.string.settings_ai_provider),
+                MrNobodyApp.providerDisplayName(MrNobodyApp.activeAiProviderId()),
+                this::showAiProviderDialog);
+
         section("Data & controls");
 
         navRow(getString(R.string.settings_search_engine), () -> showSearchEngineDialog());
@@ -191,6 +197,32 @@ public class SettingsActivity extends AppCompatActivity {
         return row;
     }
 
+    /** A nav-style row that also shows a current value between the label and chevron. */
+    private void valueRow(String label, String value, Runnable onClick) {
+        LinearLayout row = baseRow();
+        TextView t = new TextView(this);
+        t.setText(label);
+        t.setTextColor(color(com.mrnobody.browser.R.color.text));
+        t.setTextSize(14);
+        row.addView(t, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextColor(color(com.mrnobody.browser.R.color.accent));
+        v.setTextSize(12);
+        v.setTypeface(Typeface.MONOSPACE);
+        v.setPadding(dp(8), 0, dp(4), 0);
+        row.addView(v);
+
+        TextView chev = new TextView(this);
+        chev.setText("›");
+        chev.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        chev.setTextSize(18);
+        row.addView(chev);
+        row.setOnClickListener(vi -> onClick.run());
+        container.addView(row);
+    }
+
     // ------------------------------------------------------------- dialogs
 
     private void showSearchEngineDialog() {
@@ -202,6 +234,51 @@ public class SettingsActivity extends AppCompatActivity {
                 .setSingleChoiceItems(engines, current, (d, which) -> {
                     settings.setSearchEngine(urls[which]);
                     d.dismiss();
+                })
+                .show();
+    }
+
+    private void showAiProviderDialog() {
+        String[] ids = {"local", "gemini", "groq", "openai-compatible"};
+        String[] labels = new String[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            labels[i] = MrNobodyApp.providerDisplayName(ids[i]);
+        }
+        String current = MrNobodyApp.activeAiProviderId();
+        int checked = 0;
+        for (int i = 0; i < ids.length; i++) if (ids[i].equals(current)) checked = i;
+
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.settings_ai_provider))
+                .setSingleChoiceItems(labels, checked, (d, which) -> {
+                    d.dismiss();
+                    String id = ids[which];
+                    if ("local".equals(id)) {
+                        MrNobodyApp.setActiveAiProviderId("local");
+                    } else {
+                        promptForKey(id);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void promptForKey(String providerId) {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setHint(getString(R.string.ai_key_hint));
+        input.setSingleLine(true);
+        input.setText(settings.apiKey(providerId));
+
+        new AlertDialog.Builder(this)
+                .setTitle(MrNobodyApp.providerDisplayName(providerId) + " · " + getString(R.string.ai_key_title))
+                .setMessage(getString(R.string.ai_disclosure))
+                .setView(input)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    settings.setApiKey(providerId, input.getText().toString().trim());
+                    MrNobodyApp.setActiveAiProviderId(providerId);
+                    android.widget.Toast.makeText(this, R.string.ai_key_set,
+                            android.widget.Toast.LENGTH_SHORT).show();
                 })
                 .show();
     }
