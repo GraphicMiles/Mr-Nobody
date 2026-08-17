@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mr Nobody — Full App Study (monochrome)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+  :root{
+    --bg:#000000;
+    --s-0:#000000;
+    --s-1:#101010;
+    --s-2:#181818;
+    --s-3:#212121;
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(255,255,255,.16);
+    --t-0:#fafafa;
+    --t-1:#c4c4c7;
+    --t-2:#8a8a8f;
+    --t-3:#5c5c61;
+    --accent:#ffffff;       /* monochrome accent = white (logo) */
+    --accent-ink:#000000;
+    --accent-dim:rgba(255,255,255,.12);
+    --good:#e8e8ea;
+    --bad:#ffffff;
+    --sans:'Inter',system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    /* safe areas */
+    --sa-top:env(safe-area-inset-top,0px);
+    --sa-bottom:env(safe-area-inset-bottom,0px);
+    --sa-left:env(safe-area-inset-left,0px);
+    --sa-right:env(safe-area-inset-right,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:#050505;color:var(--t-0);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  ::selection{background:var(--accent);color:var(--accent-ink);}
+
+  .stage{
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    gap:clamp(14px,2.5vh,20px);
+    padding:
+      calc(var(--sa-top) + clamp(16px,3vh,26px))
+      calc(var(--sa-right) + 14px)
+      calc(var(--sa-bottom) + 40px)
+      calc(var(--sa-left) + 14px);
+  }
+
+  .mast{text-align:center;max-width:520px;}
+  .mast .t{font-weight:800;font-size:clamp(18px,3.4vw,22px);letter-spacing:-.02em;}
+  .mast .t span{color:var(--accent);}
+  .mast .sub{color:var(--t-2);font-size:clamp(11.5px,1.8vw,12.5px);line-height:1.55;margin-top:7px;padding:0 6px;}
+
+  .switcher{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:600px;padding:0 6px;}
+  .switcher button{
+    appearance:none;border:1px solid var(--line);outline:none;background:var(--s-1);
+    color:var(--t-2);font:600 clamp(11px,1.9vw,12px)/1 var(--sans);padding:8px 14px;border-radius:999px;cursor:pointer;
+    transition:background .15s ease,color .15s ease,border-color .15s ease;
+  }
+  .switcher button.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+
+  /* ---- phone frame (responsive) ---- */
+  .frame{
+    width:min(390px,92vw);
+    height:min(800px,80vh);
+    background:var(--bg);
+    border-radius:clamp(24px,4vw,34px);
+    border:1px solid var(--line-strong);
+    overflow:hidden;position:relative;display:flex;flex-direction:column;
+  }
+  .statusbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:calc(var(--sa-top) + 13px) 22px 8px;
+    color:var(--t-1);font-weight:600;font-size:12.5px;flex-shrink:0;
+  }
+  .statusbar .time{color:var(--t-1);font-weight:600;font-size:12.5px;}
+  .statusbar .right{display:flex;align-items:center;gap:6px;color:var(--t-2);font-size:11px;}
+  .statusbar .right i{font-size:12px;}
+
+  .view{flex:1;overflow-y:auto;display:none;scrollbar-width:none;}
+  .view::-webkit-scrollbar{display:none;}
+  .view.active{display:block;}
+
+  /* ---- top bar (drill-in screens: back affordance) ---- */
+  .topbar{display:flex;align-items:center;gap:10px;padding:calc(var(--sa-top) + 8px) 16px 6px;flex-shrink:0;}
+  .topbar .back{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--t-1);font-size:12px;flex-shrink:0;cursor:pointer;}
+  .topbar .title{font-weight:700;font-size:16px;letter-spacing:-.01em;color:var(--t-0);}
+
+  /* ---- primitives ---- */
+  .section-label{color:var(--t-3);font:600 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;margin:20px 20px 10px;}
+  .card{background:var(--s-1);border:1px solid var(--line);border-radius:16px;margin:0 16px;}
+  .chip{font:600 9.5px/1 var(--mono);letter-spacing:.04em;padding:4px 9px;border-radius:999px;white-space:nowrap;}
+  .chip.run{background:var(--accent);color:var(--accent-ink);}
+  .chip.done{background:var(--accent-dim);color:var(--t-1);}
+  .chip.wait{background:transparent;color:var(--t-1);border:1px solid var(--line-strong);}
+  .progress{height:3px;border-radius:2px;background:var(--s-2);overflow:hidden;}
+  .progress i{display:block;height:100%;background:var(--accent);border-radius:2px;}
+
+  /* ---- bottom navigation (frame-level, pinned — NOT inside the scroll view) ---- */
+  .bottombar{
+    flex-shrink:0;display:flex;align-items:center;justify-content:space-around;
+    padding:8px 14px calc(var(--sa-bottom) + 10px);
+    border-top:1px solid var(--line);background:var(--s-0);
+  }
+  .nav-item{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    color:var(--t-2);flex:1;max-width:64px;padding:6px 0;border-radius:12px;
+    text-decoration:none;cursor:pointer;
+  }
+  .nav-item i{font-size:16px;line-height:1;}
+  .nav-item span{font:600 9px/1 var(--mono);letter-spacing:.02em;}
+  .nav-item.on{color:var(--accent);}
+  .nav-item.on i{color:var(--accent);}
+  /* raised primary action — a perfect circle, centered, floating above the bar */
+  .nav-item.primary{
+    flex:0 0 auto;width:44px;height:44px;min-width:0;padding:0;
+    border-radius:50%;background:var(--accent);color:var(--accent-ink);
+    display:flex;align-items:center;justify-content:center;
+    margin-top:-24px;border:4px solid var(--s-0);
+  }
+  .nav-item.primary i{font-size:15px;color:var(--accent-ink);}
+
+  .fab{position:absolute;right:16px;bottom:calc(var(--sa-bottom) + 76px);width:38px;height:38px;border-radius:50%;background:var(--s-2);border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:13px;z-index:5;}
+  .fab .badge{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font:700 9.5px/1 var(--mono);display:flex;align-items:center;justify-content:center;padding:0 4px;}
+  .fab .badge.zero{background:var(--s-3);color:var(--t-2);border:1px solid var(--line-strong);}
+
+  /* ---------- NEW TAB / AGENT HOME ---------- */
+  .newtab{padding:2px 18px 28px;}
+  .brand-mark{display:flex;align-items:center;justify-content:center;margin:34px 0 24px;}
+  .brand-mark .logo{width:88px;height:88px;color:var(--accent);}
+  .brand-mark .wm{font-weight:800;font-size:clamp(20px,5vw,24px);letter-spacing:-.02em;}
+  .search-pill{display:flex;align-items:center;gap:12px;background:var(--s-1);border:1px solid var(--line);border-radius:999px;padding:13px 16px;color:var(--t-2);}
+  .search-pill .q{flex:1;color:var(--t-2);font-weight:500;font-size:14.5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .search-pill i{flex-shrink:0;font-size:14px;}
+  .search-pill i.go{background:var(--accent);color:var(--accent-ink);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;}
+  .mode-row{display:flex;gap:8px;margin-top:10px;}
+  .mode-chip{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:var(--s-1);color:var(--t-1);border:1px solid var(--line);border-radius:999px;padding:9px 0;font-weight:600;font-size:12.5px;}
+  .mode-chip i{font-size:12px;}
+  .mode-chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  .task-line{padding:12px 14px;display:flex;align-items:center;gap:11px;border-bottom:1px solid var(--line);}
+  .task-line:last-child{border-bottom:none;}
+  .task-line .tl-ic{width:28px;height:28px;border-radius:9px;background:var(--s-2);display:flex;align-items:center;justify-content:center;color:var(--t-1);flex-shrink:0;font-size:12px;}
+  .task-line .tl-body{flex:1;min-width:0;}
+  .task-line .tl-title{font-size:13px;font-weight:600;color:var(--t-0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .task-line .tl-sub{font:500 10.5px/1.3 var(--mono);color:var(--t-3);margin-top:3px;}
+
+  /* ---------- BROWSER ---------- */
+  .addrbar{margin:2px 16px 10px;display:flex;align-items:center;gap:10px;background:var(--s-1);border:1px solid var(--line);border-radius:999px;padding:10px 14px;color:var(--t-2);}
+  .addrbar .u{flex:1;font:500 12px/1 var(--mono);color:var(--t-1);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .addrbar i{flex-shrink:0;font-size:11px;}
+  .addrbar i.lock{color:var(--t-0);}
+  .webpage{padding:0 16px;}
+  .wp-hero{height:110px;border-radius:12px;background:var(--s-1);border:1px solid var(--line);margin-bottom:12px;}
+  .wp-line{height:6px;border-radius:3px;background:var(--s-2);margin-bottom:8px;}
+
+  /* ---------- TAB GRID ---------- */
+  .gridtop{display:flex;align-items:center;justify-content:space-between;padding:2px 18px 10px;}
+  .gt-btn{width:36px;height:36px;border-radius:11px;background:var(--s-1);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--t-1);font-size:15px;}
+  .gt-btn.accent{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  .gt-count{min-width:36px;height:36px;border-radius:11px;border:1.5px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:var(--t-0);font-weight:700;font-size:12px;padding:0 10px;}
+  .grid-search{margin:0 18px 12px;background:var(--s-1);border:1px solid var(--line);border-radius:999px;padding:10px 14px;color:var(--t-2);font-size:13px;font-weight:500;display:flex;align-items:center;gap:9px;}
+  .grid-search i{font-size:12px;}
+  .inactive-banner{margin:0 18px 12px;background:var(--s-1);border:1px solid var(--line);border-radius:14px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;}
+  .inactive-banner .left{display:flex;align-items:center;gap:10px;}
+  .inactive-banner .ic{width:30px;height:30px;border-radius:9px;background:var(--s-2);display:flex;align-items:center;justify-content:center;color:var(--t-1);font-size:12px;}
+  .inactive-banner .title{color:var(--t-0);font-weight:600;font-size:12.5px;}
+  .inactive-banner .sub{color:var(--t-3);font-size:10.5px;margin-top:2px;}
+  .tab-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 22px;}
+  .tab-card{background:var(--s-1);border-radius:14px;overflow:hidden;border:1px solid var(--line);display:flex;flex-direction:column;}
+  .tab-card .tc-head{display:flex;align-items:center;gap:7px;padding:9px 9px 7px;}
+  .tc-favicon{width:14px;height:14px;border-radius:4px;flex-shrink:0;background:var(--s-3);}
+  .tc-title{flex:1;color:var(--t-0);font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tc-close{color:var(--t-3);font-size:11px;width:14px;text-align:center;}
+  .tc-thumb{height:96px;margin:0 7px 7px;border-radius:10px;position:relative;overflow:hidden;background:var(--s-2);}
+  .tc-thumb .mock-line{position:absolute;left:9px;right:9px;height:5px;border-radius:2px;background:var(--s-3);}
+  .tc-priv{position:absolute;top:6px;right:6px;font:700 7.5px/1 var(--mono);letter-spacing:.06em;color:var(--accent);background:var(--accent-dim);padding:3px 6px;border-radius:999px;}
+
+  .detail-title{text-align:center;font-weight:600;font-size:14px;letter-spacing:-.01em;margin:16px 20px 12px;color:var(--t-0);}
+
+  /* ---------- LISTS (tasks / settings / providers) ---------- */
+  .row-item{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--line);}
+  .row-item:last-child{border-bottom:none;}
+  .row-item .ri-ic{width:28px;height:28px;border-radius:9px;background:var(--s-2);display:flex;align-items:center;justify-content:center;color:var(--t-1);flex-shrink:0;font-size:12px;}
+  .row-item .ri-body{flex:1;min-width:0;}
+  .row-item .ri-title{font-size:13px;font-weight:600;color:var(--t-0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row-item .ri-sub{font:500 10.5px/1.3 var(--mono);color:var(--t-3);margin-top:3px;}
+
+  .plan-step{display:flex;align-items:center;gap:11px;padding:10px 14px;}
+  .plan-step .mark{
+    width:28px;height:28px;border-radius:50%;border:1px solid var(--line-strong);
+    display:flex;align-items:center;justify-content:center;color:var(--t-3);
+    flex-shrink:0;line-height:0;
+  }
+  .plan-step .mark i{font-size:11px;}
+  .plan-step.done .mark{background:var(--s-3);border-color:var(--line-strong);color:var(--t-0);}
+  .plan-step.cur .mark{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+  .plan-step .pt{font-size:12.5px;color:var(--t-1);}
+  .plan-step.done .pt{color:var(--t-0);}
+  .plan-step.cur .pt{color:var(--t-0);font-weight:600;}
+
+  .debug-panel{position:absolute;left:16px;right:16px;bottom:calc(var(--sa-bottom) + 64px);background:var(--s-2);border:1px solid var(--line-strong);border-radius:14px;padding:12px;z-index:4;}
+  .debug-panel .dp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+  .debug-panel .dp-title{font:700 9.5px/1 var(--mono);letter-spacing:.1em;color:var(--t-0);}
+  .debug-panel .dp-count{font:600 9.5px/1 var(--mono);color:var(--t-2);}
+  .debug-panel .dp-copy{font:700 8.5px/1 var(--mono);color:var(--accent);border:1px solid var(--line-strong);border-radius:999px;padding:4px 9px;background:var(--s-3);}
+  .debug-panel .dp-log{font:500 10px/1.6 var(--mono);color:var(--t-2);}
+  .debug-panel .dp-log .err{color:var(--t-0);}
+  .debug-panel .dp-log .ok{color:var(--t-3);}
+
+  /* ---------- PRIVACY ---------- */
+  .metric{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-bottom:1px solid var(--line);}
+  .metric:last-child{border-bottom:none;}
+  .metric .mk{font-size:12.5px;color:var(--t-1);}
+  .metric .mv{font:600 15px/1 var(--mono);color:var(--t-0);}
+  .metric .mv.off{color:var(--t-3);font-weight:500;font-size:11px;}
+
+  /* ---------- SETTINGS ---------- */
+  .setting{display:flex;justify-content:space-between;align-items:center;padding:14px 14px;border-bottom:1px solid var(--line);}
+  .setting:last-child{border-bottom:none;}
+  .setting .sk{font-size:13px;color:var(--t-0);}
+  .setting .sv{font:500 11.5px/1 var(--mono);color:var(--t-2);margin-left:auto;padding-right:8px;}
+  .setting .sv.on{color:var(--t-0);}
+  .setting .chev{color:var(--t-3);font-size:11px;}
+  .toggle{width:36px;height:20px;border-radius:999px;border:1px solid var(--line-strong);background:var(--s-2);position:relative;flex-shrink:0;}
+  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--t-3);transition:.15s;}
+  .toggle.on{border-color:var(--accent);background:var(--accent);}
+  .toggle.on::after{left:auto;right:2px;background:var(--accent-ink);}
+
+  /* ---------- AI PROVIDER ---------- */
+  .provider{display:flex;align-items:center;gap:11px;padding:13px 14px;border-bottom:1px solid var(--line);}
+  .provider:last-child{border-bottom:none;}
+  .provider .pi{width:30px;height:30px;border-radius:9px;background:var(--s-2);display:flex;align-items:center;justify-content:center;color:var(--t-1);font-size:13px;flex-shrink:0;}
+  .provider .pn{flex:1;font-size:13px;font-weight:600;color:var(--t-0);}
+  .provider .pv{font:600 9.5px/1 var(--mono);color:var(--t-3);}
+  .provider .pv.sel{color:var(--t-0);}
+  .field{padding:13px 14px 0;}
+  .field .fl{font:600 10px/1 var(--mono);letter-spacing:.06em;color:var(--t-3);margin-bottom:6px;}
+  .field .fi{background:var(--s-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:500 12px/1 var(--mono);color:var(--t-0);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .field:last-of-type{padding-bottom:13px;}
+
+  /* ---------- CLEAR DATA ---------- */
+  .cd-row{display:flex;align-items:center;gap:10px;padding:13px 14px;border-bottom:1px solid var(--line);}
+  .cd-row:last-child{border-bottom:none;}
+  .cd-box{width:18px;height:18px;border-radius:6px;border:1.5px solid var(--line-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--accent-ink);font-size:10px;}
+  .cd-box.on{background:var(--accent);border-color:var(--accent);}
+  .cd-row .cdt{font-size:13px;color:var(--t-0);}
+  .cta-row{display:flex;gap:8px;padding:16px;}
+  .cta{flex:1;text-align:center;border-radius:999px;padding:12px 0;font-weight:600;font-size:13px;}
+  .cta.ghost{background:var(--s-1);color:var(--t-1);border:1px solid var(--line);}
+  .cta.solid{background:var(--accent);color:var(--accent-ink);}
+
+  /* ---------- DOWNLOADS ---------- */
+  .dl-item{display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--line);}
+  .dl-item:last-child{border-bottom:none;}
+  .dl-icon{width:34px;height:34px;border-radius:9px;background:var(--s-2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--t-1);font-size:13px;flex-shrink:0;}
+  .dl-body{flex:1;min-width:0;}
+  .dl-line1{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+  .dl-name{font-size:12.5px;font-weight:600;color:var(--t-0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dl-size{font:500 10px/1 var(--mono);color:var(--t-3);flex-shrink:0;}
+  .dl-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:7px;}
+  .dl-bar{flex:1;height:3px;border-radius:2px;background:var(--s-2);overflow:hidden;}
+  .dl-bar i{display:block;height:100%;background:var(--accent);border-radius:2px;}
+  .dl-pct{font:500 10px/1 var(--mono);color:var(--t-3);flex-shrink:0;}
+  .dl-state{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
+  .dl-state.done{color:var(--t-0);}
+  .dl-state.failed{color:var(--t-1);border:1px solid var(--line-strong);}
+  .dl-state.loading{color:var(--accent);}
+
+  /* ---------- FIRST LAUNCH ---------- */
+  .launch{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 32px;text-align:center;}
+  .launch .logo{width:40px;height:40px;color:var(--accent);margin-bottom:16px;}
+  .launch .mark{font-weight:800;font-size:26px;letter-spacing:-.02em;}
+  .launch .sub{color:var(--t-2);font-size:12.5px;line-height:1.55;margin:10px 0 22px;}
+  .checks{width:100%;margin-bottom:24px;}
+  .checks div{display:flex;align-items:center;gap:10px;padding:7px 4px;font-size:12.5px;color:var(--t-1);}
+  .checks i{color:var(--t-0);font-size:12px;width:14px;}
+  .cta-full{width:100%;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:14px;border-radius:999px;padding:14px 0;text-align:center;}
+  .cta-full.ghost{background:transparent;color:var(--t-1);border:1px solid var(--line-strong);margin-top:10px;font-weight:600;}
+
+  .caption{color:var(--t-3);font-size:11.5px;text-align:center;max-width:440px;line-height:1.55;font-family:var(--mono);}
+
+  /* responsive: smaller frame + tighter type on phones */
+  @media (max-width:420px){
+    .frame{width:min(360px,94vw);height:min(720px,76vh);}
+    .tab-grid{gap:8px;padding:0 12px 20px;}
+    .tc-thumb{height:80px;}
+    .card{margin:0 12px;}
+    .section-label{margin:18px 16px 9px;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="mast">
+    <div class="t">Mr Nobody — full app study</div>
+    <div class="sub">Monochrome black &amp; white, aligned to the logo · imported fonts (Inter + JetBrains Mono) · Font Awesome icons · safe-area aware and responsive.</div>
+  </div>
+
+  <div class="switcher" id="switcher">
+    <button class="active" data-view="v-newtab">New tab</button>
+    <button data-view="v-browser">Browser</button>
+    <button data-view="v-tabs">Tabs</button>
+    <button data-view="v-tasks">Tasks</button>
+    <button data-view="v-taskdetail">Task</button>
+    <button data-view="v-privacy">Privacy</button>
+    <button data-view="v-settings">Settings</button>
+    <button data-view="v-ai">AI provider</button>
+    <button data-view="v-clear">Clear data</button>
+    <button data-view="v-downloads">Downloads</button>
+    <button data-view="v-launch">Launch</button>
+  </div>
+
+  <div class="frame">
+    <div class="statusbar">
+      <span class="time">9:41</span>
+      <div class="right"><span>5G</span><i class="fa-solid fa-signal"></i><i class="fa-solid fa-battery-three-quarters"></i></div>
+    </div>
+
+    <!-- NEW TAB / AGENT HOME -->
+    <div class="view active" id="v-newtab">
+      <div class="newtab">
+        <div class="brand-mark">
+          <svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <path d="M18 30 L24 15 C26 20 30 21 32 12 C34 21 38 20 40 15 L46 30 Z" fill="currentColor"/>
+            <rect x="14" y="30" width="36" height="4" rx="2" fill="currentColor"/>
+            <circle cx="24" cy="42" r="7" stroke="currentColor" stroke-width="3" fill="none"/>
+            <circle cx="40" cy="42" r="7" stroke="currentColor" stroke-width="3" fill="none"/>
+            <line x1="31" y1="42" x2="33" y2="42" stroke="currentColor" stroke-width="3"/>
+          </svg>
+        </div>
+        <div class="search-pill">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <span class="q">Ask Mr Nobody or enter URL…</span>
+          <i class="fa-solid fa-arrow-right go"></i>
+        </div>
+        <div class="section-label">Active tasks</div>
+        <div class="card">
+          <div class="task-line">
+            <div class="tl-ic"><i class="fa-solid fa-laptop"></i></div>
+            <div class="tl-body"><div class="tl-title">Find laptop under ₦500,000</div><div class="tl-sub">on-device · searching</div></div>
+            <span class="chip run">RUNNING</span>
+          </div>
+          <div class="task-line">
+            <div class="tl-ic"><i class="fa-solid fa-download"></i></div>
+            <div class="tl-body"><div class="tl-title">Download report.pdf</div><div class="tl-sub">72%</div><div class="progress" style="margin-top:5px"><i style="width:72%"></i></div></div>
+            <span class="chip run">RUNNING</span>
+          </div>
+          <div class="task-line">
+            <div class="tl-ic"><i class="fa-solid fa-scale-balanced"></i></div>
+            <div class="tl-body"><div class="tl-title">Compare phones</div></div>
+            <span class="chip done">DONE</span>
+          </div>
+        </div>
+      </div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- BROWSER -->
+    <div class="view" id="v-browser">
+      <div class="addrbar">
+        <i class="fa-solid fa-lock lock"></i>
+        <span class="u">example.com</span>
+        <i class="fa-solid fa-ellipsis-vertical"></i>
+      </div>
+      <div class="webpage">
+        <div class="wp-hero"></div>
+        <div class="wp-line" style="width:78%"></div>
+        <div class="wp-line" style="width:92%"></div>
+        <div class="wp-line" style="width:60%"></div>
+        <div class="wp-line" style="width:84%"></div>
+        <div class="wp-line" style="width:47%"></div>
+      </div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="view" id="v-tabs">
+      <div class="gridtop">
+        <div style="display:flex;gap:8px;">
+          <div class="gt-btn accent"><i class="fa-solid fa-plus"></i></div>
+          <div class="gt-btn" title="New private tab"><i class="fa-solid fa-eye-slash"></i></div>
+        </div>
+        <div class="gt-count">6</div>
+        <div class="gt-btn"><i class="fa-solid fa-grip"></i></div>
+      </div>
+      <div class="grid-search"><i class="fa-solid fa-magnifying-glass"></i>Search your tabs</div>
+      <div class="inactive-banner">
+        <div class="left">
+          <div class="ic"><i class="fa-solid fa-copy"></i></div>
+          <div><div class="title">2 inactive items</div><div class="sub">Unused tabs</div></div>
+        </div>
+        <i class="fa-solid fa-chevron-right" style="color:var(--t-3);font-size:11px;"></i>
+      </div>
+      <div class="tab-grid">
+        <div class="tab-card">
+          <div class="tc-head"><div class="tc-favicon"></div><div class="tc-title">Docs</div><i class="fa-solid fa-xmark tc-close"></i></div>
+          <div class="tc-thumb"><div class="mock-line" style="top:12px;width:70%"></div><div class="mock-line" style="top:22px;width:45%"></div></div>
+        </div>
+        <div class="tab-card">
+          <div class="tc-head"><div class="tc-favicon"></div><div class="tc-title">Mail</div><i class="fa-solid fa-xmark tc-close"></i></div>
+          <div class="tc-thumb"><div class="mock-line" style="top:12px;width:60%"></div><div class="mock-line" style="top:22px;width:40%"></div></div>
+        </div>
+        <div class="tab-card">
+          <div class="tc-head"><div class="tc-favicon"></div><div class="tc-title">News</div><i class="fa-solid fa-xmark tc-close"></i></div>
+          <div class="tc-thumb"><div class="mock-line" style="top:12px;width:65%"></div><div class="mock-line" style="top:22px;width:50%"></div><span class="tc-priv">PRIVATE</span></div>
+        </div>
+        <div class="tab-card">
+          <div class="tc-head"><div class="tc-favicon"></div><div class="tc-title">Agent · laptops</div><i class="fa-solid fa-xmark tc-close"></i></div>
+          <div class="tc-thumb"><div class="mock-line" style="top:12px;width:55%"></div><div class="mock-line" style="top:22px;width:38%"></div><span class="chip run" style="position:absolute;bottom:7px;left:7px;">RUNNING</span></div>
+        </div>
+        <div class="tab-card">
+          <div class="tc-head"><div class="tc-favicon"></div><div class="tc-title">Rotten Tomatoes</div><i class="fa-solid fa-xmark tc-close"></i></div>
+          <div class="tc-thumb"><div class="mock-line" style="top:12px;width:50%"></div><div class="mock-line" style="top:22px;width:60%"></div></div>
+        </div>
+        <div class="tab-card" style="border-style:dashed;align-items:center;justify-content:center;min-height:118px;">
+          <i class="fa-solid fa-plus" style="color:var(--t-3);font-size:18px;"></i>
+        </div>
+      </div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- TASKS -->
+    <div class="view" id="v-tasks">
+      <div class="section-label">All tasks</div>
+      <div class="card">
+        <div class="row-item"><div class="ri-ic"><i class="fa-solid fa-laptop"></i></div><div class="ri-body"><div class="ri-title">Find laptop under ₦500,000</div><div class="ri-sub">on-device · searching</div></div><span class="chip run">RUNNING</span></div>
+        <div class="row-item"><div class="ri-ic"><i class="fa-solid fa-download"></i></div><div class="ri-body"><div class="ri-title">Download report.pdf</div><div class="ri-sub">needs your approval</div></div><span class="chip wait">WAITING</span></div>
+        <div class="row-item"><div class="ri-ic"><i class="fa-solid fa-chart-line"></i></div><div class="ri-body"><div class="ri-title">Price watch · daily 08:00</div><div class="ri-sub">remote · scheduled</div></div><span class="chip run">SCHEDULED</span></div>
+        <div class="row-item"><div class="ri-ic"><i class="fa-solid fa-scale-balanced"></i></div><div class="ri-body"><div class="ri-title">Compare phones</div></div><span class="chip done">DONE</span></div>
+        <div class="row-item"><div class="ri-ic"><i class="fa-solid fa-star"></i></div><div class="ri-body"><div class="ri-title">Scrape reviews</div></div><span class="chip wait">FAILED</span></div>
+      </div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge">1</span></div>
+    </div>
+
+    <!-- TASK DETAIL -->
+    <div class="view" id="v-taskdetail">
+      <div class="topbar"><div class="back"><i class="fa-solid fa-arrow-left"></i></div><span class="title">Task</span></div>
+      <div class="detail-title">Find 5 laptops &lt; ₦500k</div>
+      <div class="card">
+        <div class="plan-step done"><span class="mark"><i class="fa-solid fa-magnifying-glass"></i></span><span class="pt">Search</span></div>
+        <div class="plan-step done"><span class="mark"><i class="fa-solid fa-folder-open"></i></span><span class="pt">Open candidates</span></div>
+        <div class="plan-step cur"><span class="mark"><i class="fa-solid fa-tags"></i></span><span class="pt">Extract prices</span></div>
+        <div class="plan-step"><span class="mark"><i class="fa-solid fa-circle-check"></i></span><span class="pt">Verify</span></div>
+        <div class="plan-step"><span class="mark"><i class="fa-solid fa-scale-balanced"></i></span><span class="pt">Compare</span></div>
+      </div>
+      <div class="section-label">Progress</div>
+      <div class="card" style="padding:13px 14px;">
+        <div class="progress"><i style="width:58%"></i></div>
+        <div style="display:flex;justify-content:space-between;margin-top:7px;"><span style="font:500 10px/1 var(--mono);color:var(--t-3)">58%</span><span style="font:500 10px/1 var(--mono);color:var(--t-3)">on-device</span></div>
+      </div>
+      <div class="debug-panel">
+        <div class="dp-head"><span class="dp-title">DEBUG</span><span class="dp-count">2 errors</span><span class="dp-copy"><i class="fa-solid fa-copy"></i> COPY</span></div>
+        <div class="dp-log"><span class="err">✗</span> price extract: selector not found<br><span class="err">✗</span> retry #1 failed (timeout)<br><span class="ok">✓</span> search returned 5 results</div>
+      </div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge">2</span></div>
+    </div>
+
+    <!-- PRIVACY -->
+    <div class="view" id="v-privacy">
+      <div class="topbar"><div class="back"><i class="fa-solid fa-arrow-left"></i></div><span class="title">Privacy</span></div>
+      <div class="section-label">This page</div>
+      <div class="card">
+        <div class="metric"><span class="mk">Privacy score</span><span class="mv">92 / 100</span></div>
+        <div class="metric"><span class="mk">Ads blocked</span><span class="mv">8</span></div>
+        <div class="metric"><span class="mk">Trackers blocked</span><span class="mv">4</span></div>
+      </div>
+      <div class="section-label">Today</div>
+      <div class="card">
+        <div class="metric"><span class="mk">Ads blocked</span><span class="mv">183</span></div>
+        <div class="metric"><span class="mk">Trackers blocked</span><span class="mv">47</span></div>
+      </div>
+      <div class="section-label">Cookies</div>
+      <div class="card">
+        <div class="metric"><span class="mk">Third-party</span><span class="mv off">Blocked</span></div>
+      </div>
+      <div class="section-label">History</div>
+      <div class="card">
+        <div class="metric"><span class="mk">Saved locally</span><span class="mv off">OFF</span></div>
+      </div>
+      <div style="padding:14px 20px;text-align:center;font:500 10.5px/1.5 var(--mono);color:var(--t-3);">all counts stay on-device</div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="view" id="v-settings">
+      <div class="section-label">Browsing</div>
+      <div class="card">
+        <div class="setting"><span class="sk">Save browsing history</span><span class="toggle"></span></div>
+        <div class="setting"><span class="sk">JavaScript</span><span class="toggle on"></span></div>
+        <div class="setting"><span class="sk">Search suggestions</span><span class="toggle"></span></div>
+      </div>
+      <div class="section-label">Agent</div>
+      <div class="card">
+        <div class="setting"><span class="sk">Privacy profile</span><span class="sv on">Balanced</span><i class="fa-solid fa-chevron-right chev"></i></div>
+        <div class="setting"><span class="sk">AI provider</span><span class="sv">Local</span><i class="fa-solid fa-chevron-right chev"></i></div>
+        <div class="setting"><span class="sk">Terminal</span><span class="sv">off</span><i class="fa-solid fa-chevron-right chev"></i></div>
+      </div>
+      <div class="section-label">Data</div>
+      <div class="card">
+        <div class="setting"><span class="sk">Permissions</span><i class="fa-solid fa-chevron-right chev"></i></div>
+        <div class="setting"><span class="sk">Clear browsing data</span><i class="fa-solid fa-chevron-right chev"></i></div>
+        <div class="setting"><span class="sk">Downloads</span><i class="fa-solid fa-chevron-right chev"></i></div>
+        <div class="setting"><span class="sk">About</span><i class="fa-solid fa-chevron-right chev"></i></div>
+      </div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- AI PROVIDER -->
+    <div class="view" id="v-ai">
+      <div class="topbar"><div class="back"><i class="fa-solid fa-arrow-left"></i></div><span class="title">AI provider</span></div>
+      <div class="section-label">Choose where the brain runs</div>
+      <div class="card">
+        <div class="provider"><div class="pi"><i class="fa-solid fa-microchip"></i></div><div class="pn">Local (on-device)</div><div class="pv sel">ACTIVE</div></div>
+        <div class="provider"><div class="pi"><i class="fa-solid fa-gem"></i></div><div class="pn">Gemini</div><div class="pv">free tier</div></div>
+        <div class="provider"><div class="pi"><i class="fa-solid fa-bolt"></i></div><div class="pn">Groq</div><div class="pv">free tier</div></div>
+        <div class="provider"><div class="pi"><i class="fa-solid fa-cube"></i></div><div class="pn">OpenAI-compatible</div><div class="pv">OpenRouter :free</div></div>
+      </div>
+      <div class="section-label">Configuration</div>
+      <div class="card">
+        <div class="field"><div class="fl">API KEY</div><div class="fi">••••••••••••••••</div></div>
+        <div class="field"><div class="fl">BASE URL</div><div class="fi">https://api.groq.com/openai/v1</div></div>
+        <div class="field"><div class="fl">MODEL</div><div class="fi">llama-3.3-70b-versatile</div></div>
+      </div>
+      <div style="padding:11px 20px;color:var(--t-3);font-size:11px;line-height:1.5;">If a remote provider is enabled, task context may leave the device.</div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- CLEAR DATA -->
+    <div class="view" id="v-clear">
+      <div class="topbar"><div class="back"><i class="fa-solid fa-arrow-left"></i></div><span class="title">Clear data</span></div>
+      <div class="section-label">Clear browsing data</div>
+      <div class="card">
+        <div class="cd-row"><div class="cd-box on"><i class="fa-solid fa-check"></i></div><span class="cdt">History</span></div>
+        <div class="cd-row"><div class="cd-box on"><i class="fa-solid fa-check"></i></div><span class="cdt">Cookies</span></div>
+        <div class="cd-row"><div class="cd-box on"><i class="fa-solid fa-check"></i></div><span class="cdt">Cache</span></div>
+        <div class="cd-row"><div class="cd-box"></div><span class="cdt">Site data</span></div>
+        <div class="cd-row"><div class="cd-box"></div><span class="cdt">Task state</span></div>
+        <div class="cd-row"><div class="cd-box"></div><span class="cdt">Download workspace</span></div>
+      </div>
+      <div class="cta-row"><div class="cta ghost">Cancel</div><div class="cta solid">Clear data</div></div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- DOWNLOADS -->
+    <div class="view" id="v-downloads">
+      <div class="topbar"><div class="back"><i class="fa-solid fa-arrow-left"></i></div><span class="title">Downloads</span></div>
+      <div class="section-label">Storage</div>
+      <div class="card">
+        <div class="metric"><span class="mk">Files downloaded</span><span class="mv">3</span></div>
+        <div class="metric"><span class="mk">Storage used</span><span class="mv">2.6 MB</span></div>
+      </div>
+      <div class="section-label">Recent</div>
+      <div class="card">
+        <div class="dl-item">
+          <div class="dl-icon"><i class="fa-solid fa-file-pdf"></i></div>
+          <div class="dl-body">
+            <div class="dl-line1"><span class="dl-name">report.pdf</span><span class="dl-size">2.1 MB</span></div>
+            <div class="dl-meta"><div class="dl-bar"><i style="width:62%"></i></div><span class="dl-pct">62%</span></div>
+          </div>
+          <div class="dl-state loading"><i class="fa-solid fa-circle-notch fa-spin"></i></div>
+        </div>
+        <div class="dl-item">
+          <div class="dl-icon"><i class="fa-solid fa-file-image"></i></div>
+          <div class="dl-body">
+            <div class="dl-line1"><span class="dl-name">image.jpg</span><span class="dl-size">480 KB</span></div>
+            <div class="dl-line1" style="margin-top:6px"><span style="font:500 10px/1 var(--mono);color:var(--t-3)">tap to open</span></div>
+          </div>
+          <div class="dl-state done"><i class="fa-solid fa-check"></i></div>
+        </div>
+        <div class="dl-item">
+          <div class="dl-icon"><i class="fa-solid fa-file-zipper"></i></div>
+          <div class="dl-body">
+            <div class="dl-line1"><span class="dl-name">archive.zip</span><span class="dl-size">—</span></div>
+            <div class="dl-line1" style="margin-top:6px"><span style="font:500 10px/1 var(--mono);color:var(--t-3)">failed</span></div>
+          </div>
+          <div class="dl-state failed"><i class="fa-solid fa-rotate-right"></i></div>
+        </div>
+      </div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- FIRST LAUNCH -->
+    <div class="view" id="v-launch">
+      <div class="launch">
+        <svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <path d="M18 30 L24 15 C26 20 30 21 32 12 C34 21 38 20 40 15 L46 30 Z" fill="currentColor"/>
+          <rect x="14" y="30" width="36" height="3" rx="1.5" fill="currentColor"/>
+          <circle cx="24" cy="42" r="7" stroke="currentColor" stroke-width="2.4" fill="none"/>
+          <circle cx="40" cy="42" r="7" stroke="currentColor" stroke-width="2.4" fill="none"/>
+          <line x1="31" y1="42" x2="33" y2="42" stroke="currentColor" stroke-width="2.4"/>
+        </svg>
+        <div class="mark">Mr Nobody</div>
+        <div class="sub">Tell Mr Nobody what you want from the web. No ads, no tracking, no history by default.</div>
+        <div class="checks">
+          <div><i class="fa-solid fa-check"></i> Ads blocked</div>
+          <div><i class="fa-solid fa-check"></i> Trackers blocked</div>
+          <div><i class="fa-solid fa-check"></i> History is OFF</div>
+        </div>
+        <div class="cta-full">Start browsing</div>
+        <div class="cta-full ghost">Privacy settings</div>
+      </div>
+      <div class="fab"><i class="fa-solid fa-circle-info"></i><span class="badge zero">0</span></div>
+    </div>
+
+    <!-- SHARED BOTTOM BARS — frame-level, pinned, not inside any scroll view -->
+    <div class="bottombar" id="nav-app" style="display:none;">
+      <div class="nav-item" data-nav="home"><i class="fa-solid fa-house"></i><span>Home</span></div>
+      <div class="nav-item" data-nav="tabs"><i class="fa-solid fa-layer-group"></i><span>Tabs</span></div>
+      <div class="nav-item primary"><i class="fa-solid fa-plus"></i></div>
+      <div class="nav-item" data-nav="tasks"><i class="fa-solid fa-list-check"></i><span>Tasks</span></div>
+      <div class="nav-item" data-nav="settings"><i class="fa-solid fa-gear"></i><span>Settings</span></div>
+    </div>
+    <div class="bottombar" id="nav-browser" style="display:none;">
+      <div class="nav-item"><i class="fa-solid fa-arrow-left"></i><span>Back</span></div>
+      <div class="nav-item"><i class="fa-solid fa-arrow-right"></i><span>Forward</span></div>
+      <div class="nav-item primary"><i class="fa-solid fa-plus"></i></div>
+      <div class="nav-item on"><i class="fa-solid fa-layer-group"></i><span>Tabs</span></div>
+      <div class="nav-item"><i class="fa-solid fa-ellipsis"></i><span>Menu</span></div>
+    </div>
+
+  </div>
+
+  <p class="caption">Monochrome · safe-area aware · Font Awesome icons · Inter + JetBrains Mono · bottom nav centered with a raised primary action · uniform 16px gutter and consistent row rhythm.</p>
+</div>
+
+<script>
+  // Which bottom bar (if any) each screen shows, and the active nav item.
+  const navMap = {
+    'v-newtab':    { bar:'nav-app',     active:'home' },
+    'v-browser':   { bar:'nav-browser' },
+    'v-tabs':      { bar:'nav-app',     active:'tabs' },
+    'v-tasks':     { bar:'nav-app',     active:'tasks' },
+    'v-settings':  { bar:'nav-app',     active:'settings' },
+    'v-taskdetail':{ bar:null },
+    'v-privacy':   { bar:null },
+    'v-ai':        { bar:null },
+    'v-clear':     { bar:null },
+    'v-downloads': { bar:null },
+    'v-launch':    { bar:null }
+  };
+
+  const buttons = document.querySelectorAll('#switcher button');
+  const appNav = document.getElementById('nav-app');
+  const browserNav = document.getElementById('nav-browser');
+
+  buttons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      buttons.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+      document.getElementById(btn.dataset.view).classList.add('active');
+      applyNav(btn.dataset.view);
+    });
+  });
+
+  function applyNav(viewId){
+    const cfg = navMap[viewId] || { bar:null };
+    appNav.style.display = cfg.bar === 'nav-app' ? 'flex' : 'none';
+    browserNav.style.display = cfg.bar === 'nav-browser' ? 'flex' : 'none';
+    if (cfg.bar === 'nav-app') {
+      appNav.querySelectorAll('[data-nav]').forEach(item => {
+        item.classList.toggle('on', item.dataset.nav === cfg.active);
+      });
+    }
+  }
+  applyNav('v-newtab');
+</script>
+</body>
+</html>

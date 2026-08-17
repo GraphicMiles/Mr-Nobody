@@ -71,6 +71,7 @@
 
         <!-- Bottom toolbar (safe area: 3rem bottom margin ≈ 48dp) -->
         <LinearLayout
+            android:id="@+id/bottom_toolbar"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_marginBottom="48dp"

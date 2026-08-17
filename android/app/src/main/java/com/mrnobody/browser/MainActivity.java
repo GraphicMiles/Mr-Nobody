@@ -53,8 +53,10 @@ import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PerSiteSettings;
 import com.mrnobody.browser.core.PermissionStore;
 import com.mrnobody.browser.core.Settings;
+import com.mrnobody.browser.deeplink.DeepLinkHandler;
 import com.mrnobody.browser.ui.Tab;
 import com.mrnobody.browser.ui.TabManager;
+import com.mrnobody.browser.ui.TabStateStore;
 import com.mrnobody.debug.DebugOverlay;
 import com.mrnobody.debug.ErrorLog;
 
@@ -75,7 +77,11 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQ_PERMISSIONS = 100;
 
     private TabManager tabs;
+    private TabStateStore tabState;
     private FrameLayout contentContainer;
+    private View bottomToolbar;
+    private DebugOverlay debugOverlay;
+    private boolean toolbarHidden = false;
 
     private EditText addressInput;
     private ImageView secureIcon;
@@ -114,7 +120,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         tabs = new TabManager();
+        tabState = new TabStateStore(this);
         contentContainer = findViewById(R.id.content_container);
+        bottomToolbar = findViewById(R.id.bottom_toolbar);
         addressInput = findViewById(R.id.address_input);
         secureIcon = findViewById(R.id.secure_icon);
         browserLayout = findViewById(R.id.browser_layout);
@@ -146,16 +154,9 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.addr_menu).setOnClickListener(v -> showMenu());
 
         if (MrNobodyApp.settings().isFirstLaunchDone()) {
-            openInitialTab();
+            restoreOrStart();
         } else {
             showFirstLaunch();
-        }
-
-        // Handle a VIEW intent (e.g. opening a link from another app).
-        Intent intent = getIntent();
-        if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
-            openInitialTab();
-            loadUrl(intent.getData().toString());
         }
 
         // Build the Sessions and Tasks screens (native overlays).
@@ -164,7 +165,119 @@ public class MainActivity extends AppCompatActivity {
         // Debug overlay: floating circle with an error-count badge, expandable
         // on tap. Testers use it to surface failures instantly. Added last so it
         // stays on top of the screens.
-        new DebugOverlay((FrameLayout) findViewById(android.R.id.content));
+        debugOverlay = new DebugOverlay((FrameLayout) findViewById(android.R.id.content));
+
+        // Cold-start deep link / shared URL: reconstruct state, then route.
+        handleIntent(getIntent());
+    }
+
+    /**
+     * State memory: restore the previous tab session, or start fresh. Restoring
+     * "you had N tabs open" is ephemeral UI state — it never writes history
+     * (the history store stays OFF by default and is entirely separate).
+     */
+    private void restoreOrStart() {
+        if (tabState.hasSavedState() && tabState.wasLaunched()) {
+            restoreSession();
+            return;
+        }
+        openInitialTab();
+    }
+
+    private void restoreSession() {
+        List<TabStateStore.Snapshot> snaps = tabState.loadTabs();
+        tabs.setNextId(tabState.loadNextId());
+        if (snaps.isEmpty()) {
+            openInitialTab();
+            return;
+        }
+        for (TabStateStore.Snapshot s : snaps) {
+            tabs.restoreTab(s.id, s.isPrivate, s.url, s.title);
+        }
+        int activeId = tabState.loadActiveId();
+        if (activeId >= 0 && tabs.findById(activeId) != null) {
+            tabs.setActiveById(activeId);
+        }
+        Tab active = tabs.getActive();
+        if (active == null) {
+            tabs.setActive(0);
+            active = tabs.getActive();
+        }
+        // Attach the active tab; other tabs' WebViews are created lazily on switch.
+        if (active != null) {
+            if (active.getUrl().isEmpty()) {
+                attachTab(active);
+                addressInput.setText("");
+            } else {
+                attachTab(active);
+                loadUrl(active.getUrl());
+            }
+            applySecureFlag();
+        }
+    }
+
+    /**
+     * Persist tab state after any mutation (navigation, new/close tab, switch).
+     * Called on the UI thread; cheap enough for a handful of tabs.
+     */
+    private void persistTabs() {
+        tabState.save(tabs.all(), tabs.getActive(), tabs.nextId());
+    }
+
+    // ------------------------------------------------------------ deep links
+
+    /** Route an incoming intent: a shared http(s) URL, or an mrnobody:// link. */
+    private void handleIntent(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+        Uri data = intent.getData();
+        if (data == null) return;
+        String uri = data.toString();
+
+        if (DeepLinkHandler.isWebUrl(uri)) {
+            ensureLaunched();
+            loadUrl(uri);               // a URL shared from another app
+            return;
+        }
+        handleDeepLink(DeepLinkHandler.parse(uri));
+    }
+
+    /** If we're still on the first-launch screen, dismiss it so routing is visible. */
+    private void ensureLaunched() {
+        if (firstLaunch != null && firstLaunch.getVisibility() == View.VISIBLE) {
+            MrNobodyApp.settings().setFirstLaunchDone();
+            hideFirstLaunch();
+        }
+    }
+
+    private void handleDeepLink(DeepLinkHandler link) {
+        if (link == null || link.action == DeepLinkHandler.Action.NONE) {
+            return;                     // unknown link — ignore silently
+        }
+        ensureLaunched();
+        switch (link.action) {
+            case OPEN:
+                if (link.arg != null && !link.arg.isEmpty()) loadUrl(link.arg);
+                break;
+            case SEARCH:
+                if (link.arg != null && !link.arg.isEmpty()) loadUrl(toUrl(link.arg));
+                break;
+            case TASK:
+                if (link.arg != null && !link.arg.isEmpty()) runTask(link.arg);
+                break;
+            case TABS:      showSessions(); break;
+            case TASKS:     showTasks(); break;
+            case SETTINGS:  startActivity(new Intent(this, SettingsActivity.class)); break;
+            case PRIVACY:   showPrivacyPanel(); break;
+            case DOWNLOADS: openSystemDownloads(); break;
+            default: break;
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);              // keep getIntent() in sync
+        handleIntent(intent);           // warm-start route, no state reset
     }
 
     private void applyTheme() {
@@ -215,6 +328,7 @@ public class MainActivity extends AppCompatActivity {
         addressInput.setText("");
         addressInput.requestFocus();
         applySecureFlag();
+        persistTabs();
     }
 
     private void attachTab(Tab tab) {
@@ -223,7 +337,34 @@ public class MainActivity extends AppCompatActivity {
         wv.setLayoutParams(new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         contentContainer.addView(wv);
+        // Hide the bottom toolbar (and drift the debug FAB) when scrolling down,
+        // reveal on scroll up — smooth, never jumps. API 23+ (minSdk is 31).
+        wv.setOnScrollChangeListener((v, sx, sy, osx, osy) -> {
+            int delta = sy - osy;
+            if (sy > dp(48) && delta > dp(3)) {
+                setToolbarCollapsed(true);
+            } else if (delta < -dp(3)) {
+                setToolbarCollapsed(false);
+            }
+        });
         updateAddressBar();
+    }
+
+    /** Slide the bottom toolbar out/in and drift the debug FAB in sync. */
+    private void setToolbarCollapsed(boolean collapsed) {
+        if (toolbarHidden == collapsed) return;
+        toolbarHidden = collapsed;
+        if (bottomToolbar != null) {
+            float targetY = collapsed ? (bottomToolbar.getHeight() + dp(48)) : 0f;
+            bottomToolbar.animate()
+                    .translationY(targetY)
+                    .alpha(collapsed ? 0f : 1f)
+                    .setDuration(250)
+                    .start();
+        }
+        if (debugOverlay != null) {
+            debugOverlay.setCollapsed(collapsed);
+        }
     }
 
     private void switchToTab(int index) {
@@ -232,6 +373,7 @@ public class MainActivity extends AppCompatActivity {
         tabs.setActive(index);
         attachTab(tab);
         applySecureFlag();
+        persistTabs();
     }
 
     private void applySecureFlag() {
@@ -389,6 +531,7 @@ public class MainActivity extends AppCompatActivity {
     private void hidePrivacyPanel() {
         privacyPanel.setVisibility(View.GONE);
         browserLayout.setVisibility(View.VISIBLE);
+        setToolbarCollapsed(false);
     }
 
     private void showFirstLaunch() {
@@ -621,6 +764,7 @@ public class MainActivity extends AppCompatActivity {
     private void hideSessions() {
         sessionsPanel.setVisibility(View.GONE);
         browserLayout.setVisibility(View.VISIBLE);
+        setToolbarCollapsed(false);
     }
 
     private void renderSessions() {
@@ -709,6 +853,7 @@ public class MainActivity extends AppCompatActivity {
         close.setPadding(dp(14), dp(4), dp(4), dp(4));
         close.setOnClickListener(v -> {
             tabs.close(tabs.indexOf(tab));
+            persistTabs();
             renderSessions();
         });
         row.addView(close);
@@ -726,6 +871,7 @@ public class MainActivity extends AppCompatActivity {
     private void hideTasks() {
         tasksPanel.setVisibility(View.GONE);
         browserLayout.setVisibility(View.VISIBLE);
+        setToolbarCollapsed(false);
     }
 
     private void renderTasks() {
@@ -930,6 +1076,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!t.isPrivate()) {
                     MrNobodyApp.history().add(url, view.getTitle());
                 }
+                persistTabs();
             }
             updateAddressBar();
         }
@@ -939,7 +1086,10 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceivedTitle(WebView view, String title) {
             Tab t = tabs.getActive();
-            if (t != null) t.setTitle(title);
+            if (t != null) {
+                t.setTitle(title);
+                persistTabs();
+            }
         }
 
         @Override
@@ -1105,6 +1255,7 @@ public class MainActivity extends AppCompatActivity {
         Tab t = tabs.getActive();
         if (t != null) t.onPause();
         MrNobodyApp.filters().persist(this);
+        persistTabs();
         super.onPause();
     }
 

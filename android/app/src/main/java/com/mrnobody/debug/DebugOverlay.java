@@ -27,6 +27,8 @@ public final class DebugOverlay {
     private final TextView badge;
     private final LinearLayout panel;
     private boolean expanded = false;
+    private boolean collapsed = false;
+    private float fabDrift = 0f;   // px the FAB/badge glide down when the nav collapses
 
     public DebugOverlay(FrameLayout host) {
         Context context = host.getContext();
@@ -114,6 +116,21 @@ public final class DebugOverlay {
 
         refresh();
         ErrorLog.addListener(this::refresh);
+
+        // The FAB/badge drift down into the freed space when the nav is hidden.
+        fabDrift = dp * 12f;
+    }
+
+    /**
+     * Glide the FAB (and its badge) down when the bottom nav collapses, and back
+     * up when it returns. Smooth, in sync with the toolbar's own animation.
+     */
+    public void setCollapsed(boolean c) {
+        if (collapsed == c) return;
+        collapsed = c;
+        float target = c ? fabDrift : 0f;
+        fab.animate().translationY(target).setDuration(250).start();
+        badge.animate().translationY(target).setDuration(250).start();
     }
 
     private void toggle() {
