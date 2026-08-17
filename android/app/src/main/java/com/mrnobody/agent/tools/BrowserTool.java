@@ -70,10 +70,10 @@ public final class BrowserTool implements Tool {
             }
             case "type": {
                 String sel = request.param("selector");
-                String text = request.param("text");
+                String typedText = request.param("text");
                 if (sel == null || sel.isEmpty()) return ToolResult.fail("browser.type needs 'selector'");
-                if (text == null) text = "";
-                return engine.type(sel, text)
+                if (typedText == null) typedText = "";
+                return engine.type(sel, typedText)
                         ? ToolResult.ok("Typed into " + sel)
                         : ToolResult.fail("no element matched " + sel);
             }

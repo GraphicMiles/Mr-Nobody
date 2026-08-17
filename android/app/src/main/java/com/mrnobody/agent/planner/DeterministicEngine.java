@@ -23,13 +23,14 @@ import java.util.regex.Pattern;
  * V1 agent brain — deterministic by default, with an optional AI synthesis step.
  *
  * Lightest-tool cascade for a task:
- *   1. search
- *   2. HTTP fetch/extract
- *   3. headless browser (when the instruction names a URL, or HTTP came back empty)
- *   4. optional AI synthesis (only if a remote provider is enabled)
+ *   1. search (returns PARSED results — title/url/snippet)
+ *   2. if the instruction names a URL, drive the headless browser on it
+ *   3. optional AI synthesis (only if a remote provider is enabled)
  *
- * V2 replaces the internals with LLM planning behind the same AgentEngine
- * interface; nothing here is rewritten.
+ * The deterministic path never dumps raw HTML or page scrapes: it shows the
+ * parsed search results (or extracted page text), which is a clean, readable
+ * answer. V2 replaces the internals with LLM planning behind the same
+ * AgentEngine interface; nothing here is rewritten.
  */
 public final class DeterministicEngine implements AgentEngine {
 
@@ -58,7 +59,7 @@ public final class DeterministicEngine implements AgentEngine {
         String instruction = task.instruction();
         task.setStatus(Task.Status.RUNNING);
 
-        // 1. Search (lightest network-capable tool)
+        // 1. Search — returns parsed results, never a page scrape.
         task.setCurrentStep("Search");
         ToolResult search = runTool(context, "search", ToolRequest.of("search", "q", instruction));
         if (!search.isSuccess()) {
@@ -66,47 +67,32 @@ public final class DeterministicEngine implements AgentEngine {
             return;
         }
 
-        // 2. Fetch/extract. If the instruction names a URL, drive the headless
-        //    browser on it; otherwise try plain HTTP first.
+        // 2. If the instruction names a URL, also extract that page's text so
+        //    the answer is grounded in the specific page the user asked about.
         String namedUrl = findUrl(instruction);
-        ToolResult content;
+        String contextText = search.result();
         if (namedUrl != null) {
-            task.setCurrentStep("Open in headless browser");
-            content = runTool(context, "browser",
-                    ToolRequest.of("fetch", "url", namedUrl));
-            if (!content.isSuccess()) content = fetchViaHttp(context, namedUrl);
-        } else {
-            task.setCurrentStep("Fetch & extract");
-            content = fetchViaHttp(context, ddgHtmlUrl(instruction));
-            if (!content.isSuccess() || content.result().trim().length() < 40) {
-                // Plain fetch too thin — let the headless browser render it.
-                task.setCurrentStep("Render in headless browser");
-                ToolResult browser = runTool(context, "browser",
-                        ToolRequest.of("fetch", "url", ddgHtmlUrl(instruction)));
-                if (browser.isSuccess()) content = browser;
+            task.setCurrentStep("Open page");
+            ToolResult page = runTool(context, "browser", ToolRequest.of("fetch", "url", namedUrl));
+            if (page.isSuccess() && page.result().trim().length() > 0) {
+                contextText = contextText + "\n\nPage (" + namedUrl + "):\n"
+                        + truncate(page.result(), 2000);
             }
         }
 
         // 3. Result synthesis. A remote provider may summarize; the local
-        //    (deterministic) provider returns the extracted text directly —
-        //    never raw HTML, never an echo of the full context.
+        //    (deterministic) provider shows the parsed results directly.
         task.setCurrentStep("Summarize");
-        String contextText = content.display();
         AiProvider provider = MrNobodyApp.activeProvider();
         String answer;
         if (provider.isRemote()) {
             answer = askProvider(provider, instruction, truncate(contextText, 4000));
         } else {
-            answer = "Mr Nobody (local): " + instruction + "\n\n"
-                    + truncate(contextText, 2000);
+            answer = contextText;
         }
 
         task.setResult(truncate(answer, 4000));
         task.setStatus(Task.Status.COMPLETED);
-    }
-
-    private ToolResult fetchViaHttp(Context context, String url) {
-        return runTool(context, "http", ToolRequest.of("http", "url", url));
     }
 
     private ToolResult runTool(Context context, String name, ToolRequest request) {
@@ -127,10 +113,6 @@ public final class DeterministicEngine implements AgentEngine {
     private static String findUrl(String text) {
         Matcher m = URL_IN_TEXT.matcher(text);
         return m.find() ? m.group(1) : null;
-    }
-
-    private static String ddgHtmlUrl(String query) {
-        return "https://html.duckduckgo.com/html/?q=" + query.replace(' ', '+');
     }
 
     private String askProvider(AiProvider provider, String instruction, String context) {
