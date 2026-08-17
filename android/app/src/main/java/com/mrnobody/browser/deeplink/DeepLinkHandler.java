@@ -23,7 +23,7 @@ import java.util.Map;
  */
 public final class DeepLinkHandler {
 
-    public enum Action { OPEN, SEARCH, TASK, TABS, TASKS, SETTINGS, PRIVACY, DOWNLOADS, NONE }
+    public enum Action { OPEN, SEARCH, TASK, TABS, TASKS, SETTINGS, PRIVACY, DOWNLOADS, CLEAR, NONE }
 
     public final Action action;
     public final String arg;   // url for OPEN, query for SEARCH, instruction for TASK
@@ -59,6 +59,7 @@ public final class DeepLinkHandler {
                 case "settings":  return new DeepLinkHandler(Action.SETTINGS, null);
                 case "privacy":   return new DeepLinkHandler(Action.PRIVACY, null);
                 case "downloads": return new DeepLinkHandler(Action.DOWNLOADS, null);
+                case "clear":     return new DeepLinkHandler(Action.CLEAR, null);
                 default:          return new DeepLinkHandler(Action.NONE, null);
             }
         } catch (URISyntaxException e) {

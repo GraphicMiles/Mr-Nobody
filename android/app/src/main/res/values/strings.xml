@@ -10,9 +10,9 @@
     <!-- First launch -->
     <string name="fl_title">PRIVATE BROWSER</string>
     <string name="fl_sub">Browse without built-in tracking.</string>
-    <string name="fl_ads">✓  Ads blocked</string>
-    <string name="fl_trackers">✓  Trackers blocked</string>
-    <string name="fl_history">✓  History is OFF</string>
+    <string name="fl_ads">Ads blocked</string>
+    <string name="fl_trackers">Trackers blocked</string>
+    <string name="fl_history">History is OFF</string>
     <string name="fl_start">Start Browsing</string>
     <string name="fl_privacy_settings">Privacy Settings</string>
 
@@ -147,4 +147,18 @@
     <string name="storage_title">Storage</string>
     <string name="storage_cache">Cache</string>
     <string name="storage_clear_cache">Clear cache</string>
+
+    <!-- Downloads screen -->
+    <string name="dl_storage_section">Storage</string>
+    <string name="dl_files_downloaded">Files downloaded</string>
+    <string name="dl_storage_used">Storage used</string>
+    <string name="dl_recent">Recent</string>
+    <string name="dl_empty">No downloads yet</string>
+    <string name="dl_downloading">downloading</string>
+    <string name="dl_done">tap to open</string>
+    <string name="dl_failed">failed</string>
+
+    <!-- Task detail screen -->
+    <string name="td_progress">Progress</string>
+    <string name="td_on_device">on-device</string>
 </resources>

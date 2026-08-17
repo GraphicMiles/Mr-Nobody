@@ -91,8 +91,6 @@ public class MainActivity extends AppCompatActivity {
     private EditText addressInput;
     private ImageView secureIcon;
     private View browserLayout, privacyPanel, firstLaunch;
-    private TextView dashAds, dashTrackers, dashHistory;
-    private TextView dashScore, dashTodayAds, dashTodayTrackers;
 
     // Agent Home (S2) overlay — the "new tab" landing: logo, search, tasks, shortcuts.
     private View homePanel;
@@ -102,6 +100,16 @@ public class MainActivity extends AppCompatActivity {
     // Native Sessions (S3) and Tasks (S5) overlay screens.
     private View sessionsPanel, tasksPanel;
     private LinearLayout sessionsList, tasksList;
+
+    // Additional screens: Downloads (S8), Clear Data (S7), Task detail (S2 state).
+    private View downloadsPanel, clearPanel, detailPanel;
+    private LinearLayout downloadsList, clearList, detailList;
+
+    // Privacy dashboard (S4) — rebuilt programmatically (card + metric rows).
+    private LinearLayout privacyList;
+
+    // Clear-data checkbox state (history, cookies, cache, site data, tasks, workspace).
+    private final boolean[] clearChecks = {true, true, true, false, false, false};
 
     // Pending web permission requests (camera/mic/location).
     private PermissionRequest pendingPermissionRequest;
@@ -141,14 +149,7 @@ public class MainActivity extends AppCompatActivity {
         addressInput = findViewById(R.id.address_input);
         secureIcon = findViewById(R.id.secure_icon);
         browserLayout = findViewById(R.id.browser_layout);
-        privacyPanel = findViewById(R.id.privacy_panel);
         firstLaunch = findViewById(R.id.first_launch);
-        dashAds = findViewById(R.id.dash_ads);
-        dashTrackers = findViewById(R.id.dash_trackers);
-        dashHistory = findViewById(R.id.dash_history);
-        dashScore = findViewById(R.id.dash_score);
-        dashTodayAds = findViewById(R.id.dash_today_ads);
-        dashTodayTrackers = findViewById(R.id.dash_today_trackers);
 
         // V2: feed the daily privacy report from the local filter engine.
         MrNobodyApp.filters().setBlockListener(category -> {
@@ -284,7 +285,8 @@ public class MainActivity extends AppCompatActivity {
             case TASKS:     showTasks(); break;
             case SETTINGS:  startActivity(new Intent(this, SettingsActivity.class)); break;
             case PRIVACY:   showPrivacyPanel(); break;
-            case DOWNLOADS: openSystemDownloads(); break;
+            case DOWNLOADS: showDownloads(); break;
+            case CLEAR:     showClearData(); break;
             default: break;
         }
     }
@@ -342,7 +344,6 @@ public class MainActivity extends AppCompatActivity {
         buildBottomNav();
 
         secureIcon.setOnClickListener(v -> showPrivacyPanel());
-        findViewById(R.id.privacy_back).setOnClickListener(v -> hidePrivacyPanel());
 
         findViewById(R.id.fl_start).setOnClickListener(v -> {
             MrNobodyApp.settings().setFirstLaunchDone();
@@ -636,14 +637,8 @@ public class MainActivity extends AppCompatActivity {
     // ---------------------------------------------------------------- privacy
 
     private void showPrivacyPanel() {
-        dashScore.setText(MrNobodyApp.filters().privacyScore() + " / 100");
-        dashAds.setText(String.valueOf(MrNobodyApp.filters().getPageAdsBlocked()));
-        dashTrackers.setText(String.valueOf(MrNobodyApp.filters().getPageTrackersBlocked()));
-        dashTodayAds.setText(String.valueOf(MrNobodyApp.report().adsBlocked()));
-        dashTodayTrackers.setText(String.valueOf(MrNobodyApp.report().trackersBlocked()));
-        dashHistory.setText(MrNobodyApp.settings().isHistoryEnabled()
-                ? getString(R.string.on_state) : getString(R.string.off_state));
-        browserLayout.setVisibility(View.GONE);
+        renderPrivacy();
+        hideAllPanels();
         privacyPanel.setVisibility(View.VISIBLE);
     }
 
@@ -651,6 +646,38 @@ public class MainActivity extends AppCompatActivity {
         privacyPanel.setVisibility(View.GONE);
         browserLayout.setVisibility(View.VISIBLE);
         setToolbarCollapsed(false);
+    }
+
+    /** Render the Privacy dashboard: This page / Today / Cookies / History metric cards. */
+    private void renderPrivacy() {
+        privacyList.removeAllViews();
+        FilterEngine f = MrNobodyApp.filters();
+
+        privacyList.addView(sectionLabel(getString(R.string.privacy_this_page)));
+        LinearLayout page = card();
+        page.addView(metricRow(getString(R.string.privacy_score), f.privacyScore() + " / 100", false));
+        page.addView(metricRow(getString(R.string.privacy_ads_blocked), String.valueOf(f.getPageAdsBlocked()), false));
+        page.addView(metricRow(getString(R.string.privacy_trackers_blocked), String.valueOf(f.getPageTrackersBlocked()), false));
+        privacyList.addView(page);
+
+        privacyList.addView(sectionLabel(getString(R.string.privacy_today)));
+        LinearLayout today = card();
+        today.addView(metricRow(getString(R.string.privacy_ads_blocked), String.valueOf(MrNobodyApp.report().adsBlocked()), false));
+        today.addView(metricRow(getString(R.string.privacy_trackers_blocked), String.valueOf(MrNobodyApp.report().trackersBlocked()), false));
+        privacyList.addView(today);
+
+        privacyList.addView(sectionLabel(getString(R.string.privacy_cookies)));
+        LinearLayout cookies = card();
+        cookies.addView(metricRow(getString(R.string.privacy_third_party), getString(R.string.privacy_cookies_blocked), true));
+        privacyList.addView(cookies);
+
+        privacyList.addView(sectionLabel(getString(R.string.privacy_history)));
+        LinearLayout history = card();
+        history.addView(metricRow(getString(R.string.privacy_history_saved),
+                MrNobodyApp.settings().isHistoryEnabled() ? getString(R.string.on_state) : getString(R.string.off_state), true));
+        privacyList.addView(history);
+
+        privacyList.addView(emptyRow(getString(R.string.privacy_stays_local)));
     }
 
     private void showFirstLaunch() {
@@ -796,11 +823,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void openSystemDownloads() {
-        try {
-            startActivity(new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS));
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, R.string.downloads_title, Toast.LENGTH_SHORT).show();
-        }
+        // Open the native Downloads screen (spec S8), not the system manager.
+        showDownloads();
     }
 
     private void closeAllTabs() {
@@ -821,6 +845,22 @@ public class MainActivity extends AppCompatActivity {
         tasksPanel = buildPanel(getString(R.string.tasks_title),
                 v -> hideTasks(), container -> tasksList = container);
         root.addView(tasksPanel);
+
+        downloadsPanel = buildPanel(getString(R.string.downloads_title),
+                v -> hideDownloads(), container -> downloadsList = container);
+        root.addView(downloadsPanel);
+
+        clearPanel = buildPanel(getString(R.string.clear_title),
+                v -> hideClearData(), container -> clearList = container);
+        root.addView(clearPanel);
+
+        detailPanel = buildPanel("Task",
+                v -> hideTaskDetail(), container -> detailList = container);
+        root.addView(detailPanel);
+
+        privacyPanel = buildPanel(getString(R.string.privacy_title),
+                v -> hidePrivacyPanel(), container -> privacyList = container);
+        root.addView(privacyPanel);
     }
 
     private interface ListRef {
@@ -1078,8 +1118,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private android.graphics.drawable.GradientDrawable pillBackground() {
+        return pillBackground(color(com.mrnobody.browser.R.color.surface));
+    }
+
+    private android.graphics.drawable.GradientDrawable pillBackground(int fill) {
         android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
-        d.setColor(color(com.mrnobody.browser.R.color.surface));
+        d.setColor(fill);
         d.setCornerRadius(dp(24));
         d.setStroke(dp(1), color(com.mrnobody.browser.R.color.border_soft));
         return d;
@@ -1263,13 +1307,250 @@ public class MainActivity extends AppCompatActivity {
         lp.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
         lp.setMargins(0, 0, dp(6), dp(6));
         card.setLayoutParams(lp);
-        TextView plus = new TextView(this);
-        plus.setText("+");
-        plus.setTextSize(26);
-        plus.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
-        plus.setGravity(Gravity.CENTER);
-        card.addView(plus);
+        ImageView plus = new ImageView(this);
+        plus.setImageResource(R.drawable.ic_add);
+        plus.setColorFilter(color(com.mrnobody.browser.R.color.text_faint));
+        plus.setPadding(dp(8), dp(8), dp(8), dp(8));
+        card.addView(plus, new LinearLayout.LayoutParams(dp(40), dp(40)));
         return card;
+    }
+
+    // -------------------------------------------------------------- Downloads
+
+    private void showDownloads() {
+        renderDownloads();
+        hideAllPanels();
+        downloadsPanel.setVisibility(View.VISIBLE);
+    }
+
+    private void hideDownloads() {
+        downloadsPanel.setVisibility(View.GONE);
+        browserLayout.setVisibility(View.VISIBLE);
+        setToolbarCollapsed(false);
+    }
+
+    /** One download entry from the system DownloadManager. */
+    private static final class DownloadEntry {
+        final String title;
+        final long total;
+        final long soFar;
+        final int status;
+        DownloadEntry(String t, long total, long soFar, int status) {
+            this.title = t; this.total = total; this.soFar = soFar; this.status = status;
+        }
+    }
+
+    private List<DownloadEntry> queryDownloads() {
+        List<DownloadEntry> out = new ArrayList<>();
+        try {
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (dm == null) return out;
+            DownloadManager.Query q = new DownloadManager.Query();
+            android.database.Cursor c = dm.query(q);
+            if (c == null) return out;
+            int iTitle = c.getColumnIndex(DownloadManager.COLUMN_TITLE);
+            int iTotal = c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
+            int iSoFar = c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
+            int iStatus = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
+            while (c.moveToNext()) {
+                out.add(new DownloadEntry(
+                        c.getString(iTitle),
+                        c.getLong(iTotal),
+                        c.getLong(iSoFar),
+                        c.getInt(iStatus)));
+            }
+            c.close();
+        } catch (Exception e) {
+            ErrorLog.record("download query failed: " + e.getMessage());
+        }
+        return out;
+    }
+
+    private void renderDownloads() {
+        downloadsList.removeAllViews();
+        List<DownloadEntry> entries = queryDownloads();
+
+        // storage summary
+        downloadsList.addView(sectionLabel(getString(R.string.dl_storage_section)));
+        long totalBytes = 0;
+        int done = 0;
+        for (DownloadEntry e : entries) {
+            totalBytes += Math.max(e.total, e.soFar);
+            if (e.status == DownloadManager.STATUS_SUCCESSFUL) done++;
+        }
+        LinearLayout summary = card();
+        summary.addView(metricRow(getString(R.string.dl_files_downloaded), String.valueOf(done), false));
+        summary.addView(metricRow(getString(R.string.dl_storage_used), humanBytes(totalBytes), false));
+        downloadsList.addView(summary);
+
+        // recent list
+        downloadsList.addView(sectionLabel(getString(R.string.dl_recent)));
+        if (entries.isEmpty()) {
+            downloadsList.addView(emptyRow(getString(R.string.dl_empty)));
+        } else {
+            LinearLayout list = card();
+            for (DownloadEntry e : entries) {
+                list.addView(downloadRow(e));
+            }
+            downloadsList.addView(list);
+        }
+    }
+
+    private View downloadRow(DownloadEntry e) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), dp(12), dp(16), dp(12));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_download);
+        icon.setColorFilter(color(com.mrnobody.browser.R.color.text_dim));
+        icon.setPadding(dp(4), dp(4), dp(4), dp(4));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(28), dp(28)));
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        TextView name = new TextView(this);
+        name.setText(e.title != null && !e.title.isEmpty() ? e.title : "download");
+        name.setTextColor(color(com.mrnobody.browser.R.color.text));
+        name.setTextSize(12.5f);
+        name.setMaxLines(1);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        col.addView(name);
+        TextView sub = new TextView(this);
+        sub.setText(humanBytes(Math.max(e.total, e.soFar)));
+        sub.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        sub.setTextSize(10);
+        sub.setTypeface(Typeface.MONOSPACE);
+        col.addView(sub);
+        row.addView(col, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        // status icon (check / refresh / download-in-progress)
+        ImageView state = new ImageView(this);
+        int res;
+        switch (e.status) {
+            case DownloadManager.STATUS_SUCCESSFUL: res = R.drawable.ic_check; break;
+            case DownloadManager.STATUS_FAILED:     res = R.drawable.ic_refresh; break;
+            default:                               res = R.drawable.ic_download; break;
+        }
+        state.setImageResource(res);
+        state.setColorFilter(color(com.mrnobody.browser.R.color.text_dim));
+        state.setPadding(dp(4), dp(4), dp(4), dp(4));
+        row.addView(state, new LinearLayout.LayoutParams(dp(26), dp(26)));
+        return row;
+    }
+
+    private static String humanBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024) + " KB";
+        return String.format(java.util.Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
+    // -------------------------------------------------------------- Clear Data
+
+    private void showClearData() {
+        renderClearData();
+        hideAllPanels();
+        clearPanel.setVisibility(View.VISIBLE);
+    }
+
+    private void hideClearData() {
+        clearPanel.setVisibility(View.GONE);
+        browserLayout.setVisibility(View.VISIBLE);
+        setToolbarCollapsed(false);
+    }
+
+    private void renderClearData() {
+        clearList.removeAllViews();
+        String[] labels = {
+                getString(R.string.clear_history),
+                getString(R.string.clear_cookies),
+                getString(R.string.clear_cache),
+                getString(R.string.clear_site_data),
+                "Task state",
+                "Download workspace"
+        };
+        clearList.addView(sectionLabel(getString(R.string.clear_title)));
+        LinearLayout card = card();
+        for (int i = 0; i < labels.length; i++) {
+            final int idx = i;
+            card.addView(checkRow(labels[i], clearChecks[i], v -> {
+                clearChecks[idx] = !clearChecks[idx];
+                ((ImageView) v).setColorFilter(color(clearChecks[idx]
+                        ? com.mrnobody.browser.R.color.accent
+                        : com.mrnobody.browser.R.color.text_faint));
+                ImageView iv = (ImageView) v;
+                iv.setImageResource(clearChecks[idx] ? R.drawable.ic_check : R.drawable.ic_blank);
+            }));
+        }
+        clearList.addView(card);
+
+        // actions
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(dp(16), dp(18), dp(16), dp(8));
+        actions.addView(clearButton(getString(R.string.clear_cancel), false, v -> hideClearData()),
+                new LinearLayout.LayoutParams(0, dp(44), 1f));
+        actions.addView(clearButton(getString(R.string.clear_action), true, v -> performClearData()),
+                new LinearLayout.LayoutParams(0, dp(44), 1f));
+        clearList.addView(actions);
+    }
+
+    /** A rounded button (ghost or solid) for the clear-data actions. */
+    private TextView clearButton(String label, boolean solid, View.OnClickListener onClick) {
+        TextView b = new TextView(this);
+        b.setText(label);
+        b.setTextSize(13);
+        b.setGravity(Gravity.CENTER);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        if (solid) {
+            b.setTextColor(color(com.mrnobody.browser.R.color.accent_ink));
+            b.setBackground(pillBackground(color(com.mrnobody.browser.R.color.accent)));
+        } else {
+            b.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
+            b.setBackground(pillBackground(color(com.mrnobody.browser.R.color.surface)));
+        }
+        b.setOnClickListener(onClick);
+        return b;
+    }
+
+    /** A checkbox row whose trailing icon toggles on tap. */
+    private View checkRow(String label, boolean checked, View.OnClickListener onToggle) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), dp(12), dp(16), dp(12));
+        TextView t = new TextView(this);
+        t.setText(label);
+        t.setTextColor(color(com.mrnobody.browser.R.color.text));
+        t.setTextSize(13);
+        row.addView(t, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        ImageView box = new ImageView(this);
+        box.setImageResource(checked ? R.drawable.ic_check : R.drawable.ic_blank);
+        box.setColorFilter(color(checked ? com.mrnobody.browser.R.color.accent
+                : com.mrnobody.browser.R.color.text_faint));
+        box.setPadding(dp(5), dp(5), dp(5), dp(5));
+        box.setOnClickListener(onToggle);
+        row.addView(box, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        return row;
+    }
+
+    private void performClearData() {
+        if (clearChecks[0]) MrNobodyApp.history().clear();
+        if (clearChecks[1]) CookieManager.getInstance().removeAllCookies(null);
+        if (clearChecks[2]) clearCache();
+        if (clearChecks[3]) WebStorage.getInstance().deleteAllData();
+        if (clearChecks[4]) MrNobodyApp.tasks().clear();
+        Toast.makeText(this, getString(R.string.clear_action), Toast.LENGTH_SHORT).show();
+        hideClearData();
+    }
+
+    private void clearCache() {
+        try {
+            WebView wv = new WebView(this);
+            wv.clearCache(true);
+            wv.destroy();
+        } catch (Exception ignored) { }
     }
 
     // ----------------------------------------------------------------- Tasks
@@ -1340,28 +1621,93 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showTaskDetail(Task task) {
-        String status = task.status().name();
-        String body = task.instruction() + "\n\n";
-        if (task.currentStep() != null && !task.currentStep().isEmpty()) {
-            body += "Step: " + task.currentStep() + "\n";
-        }
-        body += "Worker: " + (MrNobodyApp.dispatcher().isLocal(task) ? "on-device" : "remote")
-                + "\n\n";
-        body += task.status() == Task.Status.COMPLETED
-                ? (task.result() != null ? truncate(task.result(), 800) : "")
-                : (task.error() != null ? "Error: " + task.error() : "");
+        renderTaskDetail(task);
+        hideAllPanels();
+        detailPanel.setVisibility(View.VISIBLE);
+    }
 
-        AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle(status)
-                .setMessage(body);
-        final String copyText = body;
-        b.setPositiveButton(android.R.string.ok, null)
-                .setNegativeButton(R.string.copy, (d, w) -> copyToClipboard(copyText));
-        if (task.status() == Task.Status.FAILED) {
-            b.setNeutralButton(getString(R.string.tasks_run_again), (d, w) ->
-                    runTask(task.instruction()));
+    private void hideTaskDetail() {
+        detailPanel.setVisibility(View.GONE);
+        browserLayout.setVisibility(View.VISIBLE);
+        setToolbarCollapsed(false);
+    }
+
+    /** Render the Task detail screen: status, progress, result/error, actions. */
+    private void renderTaskDetail(Task task) {
+        detailList.removeAllViews();
+
+        // instruction as a centered title
+        TextView title = new TextView(this);
+        title.setText(task.instruction());
+        title.setTextColor(color(com.mrnobody.browser.R.color.text));
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(dp(20), dp(14), dp(20), dp(10));
+        detailList.addView(title);
+
+        // status + worker card
+        detailList.addView(sectionLabel("Status"));
+        LinearLayout statusCard = card();
+        statusCard.addView(metricRow("State", task.status().name(), false));
+        if (task.currentStep() != null && !task.currentStep().isEmpty()) {
+            statusCard.addView(metricRow("Step", task.currentStep(), true));
         }
-        b.show();
+        statusCard.addView(metricRow("Worker",
+                MrNobodyApp.dispatcher().isLocal(task)
+                        ? getString(R.string.task_worker_local)
+                        : getString(R.string.task_worker_remote), true));
+        detailList.addView(statusCard);
+
+        // progress card
+        detailList.addView(sectionLabel(getString(R.string.td_progress)));
+        LinearLayout progCard = card();
+        int pct = task.status() == Task.Status.COMPLETED ? 100 : task.progress();
+        LinearLayout progRow = new LinearLayout(this);
+        progRow.setOrientation(LinearLayout.HORIZONTAL);
+        progRow.setGravity(Gravity.CENTER_VERTICAL);
+        progRow.setPadding(dp(16), dp(14), dp(16), dp(14));
+        LinearLayout bar = new LinearLayout(this);
+        bar.setBackgroundColor(color(com.mrnobody.browser.R.color.surface_2));
+        LinearLayout fill = new LinearLayout(this);
+        fill.setBackgroundColor(color(com.mrnobody.browser.R.color.accent));
+        LinearLayout.LayoutParams fillLp = new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.MATCH_PARENT, Math.max(0, Math.min(100, pct)) / 100f);
+        fill.setLayoutParams(fillLp);
+        bar.addView(fill);
+        progRow.addView(bar, new LinearLayout.LayoutParams(0, dp(4), 1f));
+        TextView pctTv = new TextView(this);
+        pctTv.setText(pct + "%");
+        pctTv.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        pctTv.setTextSize(11);
+        pctTv.setTypeface(Typeface.MONOSPACE);
+        pctTv.setPadding(dp(10), 0, 0, 0);
+        progRow.addView(pctTv);
+        progCard.addView(progRow);
+        detailList.addView(progCard);
+
+        // result / error card
+        String resultText = task.status() == Task.Status.COMPLETED
+                ? (task.result() != null ? task.result() : "")
+                : (task.error() != null ? task.error() : "");
+        if (!resultText.isEmpty()) {
+            detailList.addView(sectionLabel(task.status() == Task.Status.COMPLETED ? "Result" : "Error"));
+            LinearLayout resultCard = card();
+            TextView r = new TextView(this);
+            r.setText(truncate(resultText, 800));
+            r.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
+            r.setTextSize(12);
+            r.setPadding(dp(16), dp(14), dp(16), dp(14));
+            resultCard.addView(r);
+            detailList.addView(resultCard);
+        }
+
+        // actions
+        detailList.addView(actionRow(getString(R.string.copy), () -> copyToClipboard(resultText)));
+        if (task.status() == Task.Status.FAILED) {
+            detailList.addView(actionRow(getString(R.string.tasks_run_again),
+                    () -> { hideTaskDetail(); runTask(task.instruction()); }));
+        }
     }
 
     /** Copy text to the system clipboard and confirm. */
@@ -1395,6 +1741,43 @@ public class MainActivity extends AppCompatActivity {
         row.setClickable(true);
         row.setFocusable(true);
         return row;
+    }
+
+    /** A key/value metric row (key left, mono value right) — Privacy / Storage. */
+    private View metricRow(String key, String value, boolean dimValue) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), dp(13), dp(16), dp(13));
+        row.setBackgroundColor(color(com.mrnobody.browser.R.color.surface));
+
+        TextView k = new TextView(this);
+        k.setText(key);
+        k.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
+        k.setTextSize(13);
+        row.addView(k, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextColor(dimValue ? color(com.mrnobody.browser.R.color.text_faint)
+                : color(com.mrnobody.browser.R.color.text));
+        v.setTextSize(dimValue ? 11 : 15);
+        v.setTypeface(Typeface.MONOSPACE, dimValue ? Typeface.NORMAL : Typeface.BOLD);
+        row.addView(v);
+        return row;
+    }
+
+    /** A wrapped card with rounded monochrome background. */
+    private LinearLayout card() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(cardBackground());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.leftMargin = dp(16);
+        lp.rightMargin = dp(16);
+        card.setLayoutParams(lp);
+        return card;
     }
 
     private TextView sectionLabel(String text) {
@@ -1433,6 +1816,9 @@ public class MainActivity extends AppCompatActivity {
         firstLaunch.setVisibility(View.GONE);
         sessionsPanel.setVisibility(View.GONE);
         tasksPanel.setVisibility(View.GONE);
+        downloadsPanel.setVisibility(View.GONE);
+        clearPanel.setVisibility(View.GONE);
+        detailPanel.setVisibility(View.GONE);
         if (homePanel != null) homePanel.setVisibility(View.GONE);
         browserLayout.setVisibility(View.VISIBLE);
     }
@@ -1685,8 +2071,14 @@ public class MainActivity extends AppCompatActivity {
             hideSessions();
         } else if (tasksPanel != null && tasksPanel.getVisibility() == View.VISIBLE) {
             hideTasks();
-        } else if (privacyPanel.getVisibility() == View.VISIBLE) {
+        } else if (privacyPanel != null && privacyPanel.getVisibility() == View.VISIBLE) {
             hidePrivacyPanel();
+        } else if (downloadsPanel != null && downloadsPanel.getVisibility() == View.VISIBLE) {
+            hideDownloads();
+        } else if (clearPanel != null && clearPanel.getVisibility() == View.VISIBLE) {
+            hideClearData();
+        } else if (detailPanel != null && detailPanel.getVisibility() == View.VISIBLE) {
+            hideTaskDetail();
         } else if (homePanel != null && homePanel.getVisibility() == View.VISIBLE) {
             // Back from Agent Home → return to the active tab, or exit.
             if (tabs.getActive() != null) hideHome();

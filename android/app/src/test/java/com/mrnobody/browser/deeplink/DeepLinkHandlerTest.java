@@ -37,6 +37,7 @@ public class DeepLinkHandlerTest {
         assertEquals(DeepLinkHandler.Action.TABS, DeepLinkHandler.parse("mrnobody://tabs").action);
         assertEquals(DeepLinkHandler.Action.TASKS, DeepLinkHandler.parse("mrnobody://tasks").action);
         assertEquals(DeepLinkHandler.Action.DOWNLOADS, DeepLinkHandler.parse("mrnobody://downloads").action);
+        assertEquals(DeepLinkHandler.Action.CLEAR, DeepLinkHandler.parse("mrnobody://clear").action);
     }
 
     @Test
