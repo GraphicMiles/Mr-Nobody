@@ -241,14 +241,20 @@ public class MainActivity extends AppCompatActivity {
         String query = input.trim();
         if (query.isEmpty()) return;
 
-        // Vertical slice: unified input → intent routing → dispatcher →
-        // tool selection → result → persistent task → UI.
+        // Intent routing — the key distinction:
+        //   URL    → render in the visible browser (WebView)
+        //   SEARCH → render the search engine's results page in the browser
+        //            (a real rendered page — NOT raw HTML, NOT a task)
+        //   TASK   → agentic pipeline (headless browser + tools), text result
         IntentType type = IntentRouter.route(query);
         switch (type) {
             case URL:
                 loadUrl(toUrl(query));
                 break;
             case SEARCH:
+                // Bare query → search engine results, rendered like a browser.
+                loadUrl(toUrl(query));
+                break;
             case TASK:
             default:
                 runTask(query);
@@ -277,12 +283,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void showTaskResult(Task task) {
         String title = task.status() == Task.Status.COMPLETED ? "Task done" : "Task failed";
+        String message = task.status() == Task.Status.COMPLETED ? task.result() : task.error();
         new AlertDialog.Builder(this)
                 .setTitle(title)
-                .setMessage(task.status() == Task.Status.COMPLETED
-                        ? task.result() : task.error())
+                .setMessage(truncate(message, 1200))
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
+    }
+
+    private static String truncate(String s, int max) {
+        return s != null && s.length() > max ? s.substring(0, max) + "…" : s;
     }
 
     private void loadUrl(String url) {

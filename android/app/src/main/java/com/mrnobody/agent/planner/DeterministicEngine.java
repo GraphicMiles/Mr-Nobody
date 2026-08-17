@@ -87,13 +87,21 @@ public final class DeterministicEngine implements AgentEngine {
             }
         }
 
-        // 3. Optional AI synthesis (remote provider only; local echoes).
-        task.setCurrentStep("Synthesize");
-        String contextText = search.result() + "\n\n" + content.display();
+        // 3. Result synthesis. A remote provider may summarize; the local
+        //    (deterministic) provider returns the extracted text directly —
+        //    never raw HTML, never an echo of the full context.
+        task.setCurrentStep("Summarize");
+        String contextText = content.display();
         AiProvider provider = MrNobodyApp.activeProvider();
-        String answer = askProvider(provider, instruction, contextText);
+        String answer;
+        if (provider.isRemote()) {
+            answer = askProvider(provider, instruction, truncate(contextText, 4000));
+        } else {
+            answer = "Mr Nobody (local): " + instruction + "\n\n"
+                    + truncate(contextText, 2000);
+        }
 
-        task.setResult(answer);
+        task.setResult(truncate(answer, 4000));
         task.setStatus(Task.Status.COMPLETED);
     }
 

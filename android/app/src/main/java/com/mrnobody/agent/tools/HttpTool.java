@@ -5,6 +5,7 @@ import android.content.Context;
 import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.util.HtmlText;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -14,13 +15,15 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Fetch a URL over plain HTTP(S) and return the body (bounded). Used for simple
- * "fetch and extract" steps where a full browser is overkill. Runs synchronously
- * — callers invoke it on a background thread.
+ * Fetch a URL over plain HTTP(S) and return readable text. This is a document
+ * fetcher, NOT a browser — it strips markup and returns plain text. Actual page
+ * rendering goes through the BrowserEngine. Runs synchronously (call on a
+ * background thread).
  */
 public final class HttpTool implements Tool {
 
     private static final int MAX_BYTES = 256 * 1024; // 256 KB bound on the body
+    private static final int MAX_RESULT = 8000;      // bound on the returned text
 
     @Override
     public String name() {
@@ -29,7 +32,7 @@ public final class HttpTool implements Tool {
 
     @Override
     public String description() {
-        return "Fetch a URL and return its body text (bounded).";
+        return "Fetch a URL and return its readable text (bounded, markup-stripped).";
     }
 
     @Override
@@ -50,7 +53,8 @@ public final class HttpTool implements Tool {
                 return ToolResult.fail("HTTP " + code + " for " + url);
             }
             String body = readBounded(conn.getInputStream());
-            return ToolResult.ok(body);
+            String text = HtmlText.toText(body);
+            return ToolResult.ok(truncate(text, MAX_RESULT));
         } catch (Exception e) {
             return ToolResult.fail("http fetch failed: " + e.getMessage());
         }
@@ -72,4 +76,9 @@ public final class HttpTool implements Tool {
         }
         return sb.toString();
     }
+
+    private static String truncate(String s, int max) {
+        return s != null && s.length() > max ? s.substring(0, max) + "…" : s;
+    }
 }
+
