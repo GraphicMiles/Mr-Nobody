@@ -1,7 +1,5 @@
 package com.mrnobody.agent.planner;
 
-import android.webkit.URLUtil;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -26,6 +24,9 @@ public final class IntentRouter {
 
     private static final Pattern IP = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}(:\\d+)?$");
     private static final Pattern LOCALHOST = Pattern.compile("^localhost(:\\d+)?$");
+    // Any scheme, e.g. https://, http://, mailto:, intent:// — pure Java so the
+    // router stays JVM-testable (no android.webkit dependency).
+    private static final Pattern SCHEME = Pattern.compile("^[a-zA-Z][a-zA-Z0-9+.-]*://.*");
 
     private IntentRouter() {
     }
@@ -37,7 +38,7 @@ public final class IntentRouter {
         if (s.isEmpty()) return IntentType.SEARCH;
 
         // explicit scheme → URL
-        if (URLUtil.isValidUrl(s)) return IntentType.URL;
+        if (SCHEME.matcher(s).matches()) return IntentType.URL;
 
         // bare hostname / IP / localhost → URL
         if (IP.matcher(s).matches() || LOCALHOST.matcher(s).matches()) return IntentType.URL;
