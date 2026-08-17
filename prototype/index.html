@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mr Nobody — Interactive UI Prototype (v1)</title>
+<style>
+  :root{
+    --bg:#0e0e10; --surface:#17171a; --surface-2:#1f1f23;
+    --border:#2b2b30; --border-soft:#212125;
+    --text:#e9e9ea; --text-dim:#8a8a90; --text-faint:#5c5c62;
+    --accent:#c9a237; --accent-soft:#8a722a; --accent-ink:#151208;
+    --blocked:#7f9c78;
+    --sans:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  body.light{
+    --bg:#f4f4f5; --surface:#ffffff; --surface-2:#ececee;
+    --border:#d6d6da; --border-soft:#e4e4e7;
+    --text:#1a1a1d; --text-dim:#5a5a60; --text-faint:#9a9aa0;
+    --accent-ink:#151208;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:var(--sans); -webkit-font-smoothing:antialiased;
+    transition:background .25s ease,color .25s ease;
+  }
+  .page{
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    padding:36px 18px 60px;
+  }
+  .mast{ text-align:center; margin-bottom:26px; }
+  .brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;}
+  .brand svg{display:block}
+  .wordmark{font-size:20px;font-weight:600}
+  .tagline{font-family:var(--mono);font-size:12px;color:var(--accent);letter-spacing:.02em}
+  .lede{max-width:520px;font-size:13px;line-height:1.6;color:var(--text-dim);margin:14px auto 0}
+  .lede b{color:var(--text)}
+
+  .toolbar-top{
+    display:flex; align-items:center; gap:12px; margin-bottom:16px;
+  }
+  .flow-legend{
+    font-family:var(--mono); font-size:10px; color:var(--text-faint);
+    border:1px solid var(--border-soft); border-radius:8px; padding:8px 12px;
+    letter-spacing:.02em; text-align:center; max-width:520px;
+  }
+  .flow-legend b{color:var(--text-dim);font-weight:500}
+
+  /* ---------- PHONE FRAME ---------- */
+  .phone{
+    width:340px; height:640px; max-width:92vw; max-height:78vh;
+    background:var(--surface); border:1px solid var(--border); border-radius:22px;
+    overflow:hidden; display:flex; flex-direction:column; position:relative;
+    box-shadow:0 18px 60px rgba(0,0,0,.35);
+  }
+  .statusbar{
+    height:24px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+    padding:0 14px; font-family:var(--mono); font-size:10px; color:var(--text-dim);
+  }
+  .screen{ flex:1; display:none; flex-direction:column; position:relative; overflow:hidden; }
+  .screen.active{ display:flex; }
+  .screen.fade{ animation:fadeIn .18s ease; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none} }
+
+  /* toolbar / chrome */
+  .ptitle{
+    height:40px; flex-shrink:0; display:flex; align-items:center; gap:8px;
+    padding:0 12px; font-size:13px; font-weight:600; border-bottom:1px solid var(--border-soft);
+  }
+  .backbtn{ font-family:var(--mono); color:var(--text-dim); cursor:pointer; padding:2px 4px; }
+  .backbtn:hover{ color:var(--accent) }
+
+  .addr{
+    height:36px; flex-shrink:0; display:flex; align-items:center; gap:7px;
+    margin:8px 12px 6px; padding:0 10px; border:1px solid var(--border); border-radius:18px;
+    font-family:var(--mono); font-size:12px; color:var(--text-dim); cursor:text;
+  }
+  .addr .lock{width:9px;height:9px;flex-shrink:0;cursor:pointer}
+  .addr .lock:hover{color:var(--accent)}
+  .addr .dots{ margin-left:auto; font-size:14px; color:var(--text-faint); cursor:pointer; padding:0 4px; }
+  .addr .dots:hover{ color:var(--accent) }
+
+  .webview{ flex:1; overflow:hidden; padding:12px; }
+  .skel{ height:5px; border-radius:3px; background:var(--surface-2); margin:0 0 8px; }
+
+  .bottom{
+    height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-around;
+    border-top:1px solid var(--border-soft); font-family:var(--mono); font-size:15px;
+  }
+  .bottom span{ color:var(--text-dim); cursor:pointer; padding:8px 14px; border-radius:8px; }
+  .bottom span:hover{ color:var(--accent); background:var(--surface-2) }
+  .bottom span.dim{ color:var(--text-faint) }
+
+  /* first launch */
+  .fl{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+       padding:0 26px; text-align:center; }
+  .fl-title{font-family:var(--mono);font-size:13px;letter-spacing:.14em;margin:14px 0 6px}
+  .fl-sub{font-size:12px;color:var(--text-dim);line-height:1.5;margin-bottom:18px}
+  .checks{width:100%;margin-bottom:22px}
+  .checks div{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);padding:5px 8px}
+  .checks .tick{color:var(--blocked);font-family:var(--mono)}
+  .btn{
+    font-size:12.5px; font-weight:600; text-align:center; border-radius:8px; padding:11px 0;
+    border:1px solid var(--border); cursor:pointer; width:100%;
+  }
+  .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent) }
+  .btn.primary:hover{ filter:brightness(1.06) }
+  .btn.ghost{ color:var(--text-dim); background:transparent }
+  .btn.ghost:hover{ background:var(--surface-2) }
+  .link{ font-size:11.5px; color:var(--accent); text-decoration:underline; text-underline-offset:2px;
+         cursor:pointer; margin-top:12px }
+  .link:hover{ filter:brightness(1.1) }
+
+  /* rows / sections */
+  .lbl{ font-size:9.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--text-faint);
+        padding:14px 14px 4px }
+  .row{ display:flex; align-items:center; justify-content:space-between; padding:11px 14px;
+        font-size:13px; border-bottom:1px solid var(--border-soft); cursor:pointer }
+  .row:hover{ background:var(--surface-2) }
+  .row .v{ font-family:var(--mono); color:var(--text-dim); font-size:12px }
+  .row .v.hit{ color:var(--accent); font-weight:600 }
+  .row .chev{ color:var(--text-faint); font-family:var(--mono) }
+
+  .toggle{ width:38px; height:21px; border:1px solid var(--border); border-radius:11px;
+           position:relative; flex-shrink:0; background:var(--surface-2); transition:.15s }
+  .toggle::after{ content:''; position:absolute; top:2px; left:2px; width:15px; height:15px;
+                  border-radius:50%; background:var(--text-faint); transition:.15s }
+  .toggle.on{ border-color:var(--accent-soft); background:var(--accent-soft) }
+  .toggle.on::after{ left:auto; right:2px; background:var(--accent) }
+
+  /* tab grid */
+  .tabsgrid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; padding:12px; }
+  .tabcell{ border:1px solid var(--border); border-radius:9px; padding:10px; height:84px;
+            display:flex; flex-direction:column; justify-content:space-between; cursor:pointer }
+  .tabcell:hover{ border-color:var(--accent-soft) }
+  .tabcell.dashed{ border-style:dashed; align-items:center; justify-content:center;
+                   color:var(--text-faint); font-size:20px }
+  .tabcell .tt{ display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim) }
+  .tabcell .tt .x{ color:var(--text-faint); cursor:pointer; padding:0 2px }
+  .tabcell .tt .x:hover{ color:var(--accent) }
+  .tabcell .tb{ height:4px; background:var(--surface-2); border-radius:2px }
+  .tabcell .tb+.tb{ margin-top:4px; width:72% }
+  .tabcell.priv{ border-color:var(--accent-soft) }
+  .tabcell .badge{ font-family:var(--mono); font-size:8px; color:var(--accent); letter-spacing:.05em }
+
+  /* permission modal */
+  .perm{ flex:1; position:relative; padding:14px; overflow:hidden }
+  .perm-modal{ position:absolute; left:12px; right:12px; bottom:12px; background:var(--surface-2);
+               border:1px solid var(--border); border-radius:10px; padding:13px }
+  .perm-modal .site{ font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-bottom:3px }
+  .perm-modal .ask{ font-size:12.5px; margin-bottom:12px; line-height:1.4 }
+  .perm-actions{ display:flex; gap:8px }
+  .perm-actions .btn{ flex:1; padding:9px 0; font-size:12px }
+
+  /* clear data */
+  .cd{ display:flex; align-items:center; gap:9px; padding:12px 14px; font-size:13px; cursor:pointer }
+  .cd:hover{ background:var(--surface-2) }
+  .cdbox{ width:17px; height:17px; border:1px solid var(--accent-soft); border-radius:4px;
+          position:relative; flex-shrink:0; cursor:pointer }
+  .cdbox.on{ background:var(--accent); border-color:var(--accent) }
+  .cdbox.on::after{ content:''; position:absolute; left:5px; top:2px; width:4px; height:9px;
+                    border-right:2px solid var(--accent-ink); border-bottom:2px solid var(--accent-ink);
+                    transform:rotate(42deg) }
+  .cd-actions{ display:flex; gap:8px; padding:16px 14px; margin-top:auto }
+
+  /* downloads */
+  .dl{ padding:12px 14px; border-bottom:1px solid var(--border-soft) }
+  .dl:last-child{ border-bottom:none }
+  .dl-top{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px }
+  .dl-top .size{ font-family:var(--mono); color:var(--text-faint); font-size:11px }
+  .dl-bar{ height:4px; background:var(--surface-2); border-radius:2px; overflow:hidden }
+  .dl-bar i{ display:block; height:100%; background:var(--accent) }
+  .dl-status{ font-family:var(--mono); font-size:10px; color:var(--text-faint); margin-top:5px }
+  .dl-status.ok{ color:var(--blocked) }
+
+  .footnote{ text-align:center; font-family:var(--mono); font-size:10px; color:var(--text-faint);
+             line-height:1.7; max-width:420px; margin-top:26px }
+
+  /* menu sheet */
+  .sheet{ position:absolute; inset:0; background:rgba(0,0,0,.45); display:none;
+          align-items:flex-end; z-index:20 }
+  .sheet.open{ display:flex }
+  .sheet-panel{ width:100%; background:var(--surface); border-top:1px solid var(--border);
+                border-radius:18px 18px 0 0; padding:10px 14px 22px; animation:up .18s ease }
+  @keyframes up{ from{transform:translateY(100%)} to{transform:none} }
+  .sheet-panel .hdr{ font-family:var(--mono); font-size:10px; color:var(--text-faint);
+                      text-transform:uppercase; letter-spacing:.1em; padding:10px 4px 6px }
+  .sheet-panel .row{ border-radius:8px }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="mast">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 64 64" fill="none">
+        <path d="M18 30 L24 15 C26 20 30 21 32 12 C34 21 38 20 40 15 L46 30 Z" fill="var(--text)"/>
+        <rect x="14" y="30" width="36" height="3" rx="1.5" fill="var(--text)"/>
+        <circle cx="24" cy="42" r="7" stroke="var(--text)" stroke-width="2.4" fill="none"/>
+        <circle cx="40" cy="42" r="7" stroke="var(--text)" stroke-width="2.4" fill="none"/>
+        <line x1="31" y1="42" x2="33" y2="42" stroke="var(--text)" stroke-width="2.4"/>
+      </svg>
+      <div class="wordmark">Mr Nobody</div>
+    </div>
+    <div class="tagline">Nobody's watching.</div>
+    <p class="lede">Interactive <b>v1 UI prototype</b> — 8 screens, wired exactly as the flow
+      diagram specifies. Tap through the real navigation path.</p>
+  </div>
+
+  <div class="toolbar-top">
+    <button class="btn ghost" id="themeBtn" style="width:auto;padding:7px 14px;font-size:11px">☾ dark / ☀ light</button>
+    <button class="btn ghost" id="resetBtn" style="width:auto;padding:7px 14px;font-size:11px">↺ reset to launch</button>
+  </div>
+
+  <div class="phone" id="phone">
+    <div class="statusbar"><span>Mr&nbsp;Nobody</span><span>12:00</span></div>
+
+    <!-- S1 -->
+    <div class="screen active" id="s1">
+      <div class="fl">
+        <svg width="44" height="44" viewBox="0 0 64 64" fill="none">
+          <path d="M18 30 L24 15 C26 20 30 21 32 12 C34 21 38 20 40 15 L46 30 Z" fill="var(--text-dim)"/>
+          <rect x="14" y="30" width="36" height="3" rx="1.5" fill="var(--text-dim)"/>
+          <circle cx="24" cy="42" r="6" stroke="var(--text-dim)" stroke-width="2" fill="none"/>
+          <circle cx="40" cy="42" r="6" stroke="var(--text-dim)" stroke-width="2" fill="none"/>
+          <line x1="31" y1="42" x2="33" y2="42" stroke="var(--text-dim)" stroke-width="2"/>
+        </svg>
+        <div class="fl-title">PRIVATE BROWSER</div>
+        <div class="fl-sub">Browse without built-in tracking.</div>
+        <div class="checks">
+          <div><span class="tick">✓</span> Ads blocked</div>
+          <div><span class="tick">✓</span> Trackers blocked</div>
+          <div><span class="tick">✓</span> History is OFF</div>
+        </div>
+        <div class="btn primary" data-go="s2">Start Browsing</div>
+        <div class="link" data-go="s5">Privacy Settings</div>
+      </div>
+    </div>
+
+    <!-- S2 -->
+    <div class="screen" id="s2">
+      <div class="addr">
+        <svg class="lock" data-go="s4" viewBox="0 0 24 24" fill="none">
+          <rect x="6" y="11" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="2"/>
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        <span id="addrText">example.com</span>
+        <span class="dots" data-menu="main">⋮</span>
+      </div>
+      <div class="webview">
+        <div class="skel" style="width:70%"></div>
+        <div class="skel" style="width:90%"></div>
+        <div class="skel" style="width:40%;height:26px;border-radius:5px;margin-top:12px"></div>
+        <div class="skel" style="width:85%;margin-top:12px"></div>
+        <div class="skel" style="width:55%"></div>
+        <div class="skel" style="width:75%;margin-top:14px"></div>
+        <div class="skel" style="width:45%"></div>
+      </div>
+      <div class="bottom">
+        <span class="dim" title="back">←</span>
+        <span title="new tab" data-go="s3">+</span>
+        <span title="tabs" data-go="s3">□</span>
+        <span title="menu" data-menu="main">⋮</span>
+      </div>
+    </div>
+
+    <!-- S3 -->
+    <div class="screen" id="s3">
+      <div class="ptitle"><span class="backbtn" data-go="s2">‹</span> Tabs · <span id="tabCount">3</span> open</div>
+      <div class="tabsgrid" id="tabsgrid">
+        <div class="tabcell" data-tab="Docs">
+          <div class="tt"><span>Docs</span><span class="x" data-close>×</span></div>
+          <div class="tb"></div><div class="tb"></div>
+        </div>
+        <div class="tabcell" data-tab="Mail">
+          <div class="tt"><span>Mail</span><span class="x" data-close>×</span></div>
+          <div class="tb"></div><div class="tb"></div>
+        </div>
+        <div class="tabcell priv" data-tab="News">
+          <div class="tt"><span>News</span><span class="x" data-close>×</span></div>
+          <div class="badge">PRIVATE</div>
+        </div>
+        <div class="tabcell dashed" id="newtab">+</div>
+      </div>
+      <div class="bottom">
+        <span class="dim">←</span><span data-go="s2">+</span><span>▦</span><span data-menu="main">⋮</span>
+      </div>
+    </div>
+
+    <!-- S4 -->
+    <div class="screen" id="s4">
+      <div class="ptitle"><span class="backbtn" data-go="s2">‹</span> Privacy</div>
+      <div class="lbl">This page</div>
+      <div class="row"><span>Ads blocked</span><span class="v hit" id="adsBlocked">8</span></div>
+      <div class="row"><span>Trackers blocked</span><span class="v hit" id="trackersBlocked">4</span></div>
+      <div class="lbl">History</div>
+      <div class="row"><span>Saved locally</span><span class="v" id="histState">OFF</span></div>
+      <div class="lbl">Cookies</div>
+      <div class="row"><span>Third-party</span><span class="v">Blocked</span></div>
+      <div style="flex:1"></div>
+      <div class="footnote" style="margin:0 auto 20px">all counts stay on-device</div>
+    </div>
+
+    <!-- S5 -->
+    <div class="screen" id="s5">
+      <div class="ptitle"><span class="backbtn" data-go="s2">‹</span> Settings</div>
+      <div class="row"><span>Save browsing history</span><span class="toggle" id="tHistory"></span></div>
+      <div class="row"><span>JavaScript</span><span class="toggle on" id="tJs"></span></div>
+      <div class="row"><span>Search suggestions</span><span class="toggle" id="tSuggest"></span></div>
+      <div class="lbl">Privacy &amp; data</div>
+      <div class="row" data-go="s6"><span>Permissions</span><span class="chev">›</span></div>
+      <div class="row" data-go="s7"><span>Clear browsing data</span><span class="chev">›</span></div>
+      <div class="row" data-go="s8"><span>Downloads</span><span class="chev">›</span></div>
+      <div class="row"><span>About</span><span class="chev">›</span></div>
+    </div>
+
+    <!-- S6 -->
+    <div class="screen" id="s6">
+      <div class="ptitle"><span class="backbtn" data-go="s5">‹</span> Permissions</div>
+      <div class="addr" style="margin-top:8px">
+        <svg class="lock" viewBox="0 0 24 24" fill="none" style="width:9px;height:9px">
+          <rect x="6" y="11" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="2"/>
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        <span>example.com</span>
+      </div>
+      <div class="perm">
+        <div class="skel" style="width:80%"></div>
+        <div class="skel" style="width:60%"></div>
+        <div class="skel" style="width:90%"></div>
+        <div class="perm-modal">
+          <div class="site">example.com</div>
+          <div class="ask">wants to access your camera</div>
+          <div class="perm-actions">
+            <div class="btn ghost" data-go="s5">Block</div>
+            <div class="btn primary" data-go="s5">Allow</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- S7 -->
+    <div class="screen" id="s7">
+      <div class="ptitle"><span class="backbtn" data-go="s5">‹</span> Clear browsing data</div>
+      <div class="cd"><span class="cdbox on"></span> History</div>
+      <div class="cd"><span class="cdbox on"></span> Cookies</div>
+      <div class="cd"><span class="cdbox on"></span> Cache</div>
+      <div class="cd"><span class="cdbox"></span> Site data</div>
+      <div class="cd-actions">
+        <div class="btn ghost" data-go="s5">Cancel</div>
+        <div class="btn primary" id="clearBtn">Clear data</div>
+      </div>
+    </div>
+
+    <!-- S8 -->
+    <div class="screen" id="s8">
+      <div class="ptitle"><span class="backbtn" data-go="s5">‹</span> Downloads</div>
+      <div class="dl">
+        <div class="dl-top"><span>report.pdf</span><span class="size">2.1 MB</span></div>
+        <div class="dl-bar"><i style="width:62%"></i></div>
+        <div class="dl-status">downloading…</div>
+      </div>
+      <div class="dl">
+        <div class="dl-top"><span>image.jpg</span><span class="size">480 KB</span></div>
+        <div class="dl-bar"><i style="width:100%"></i></div>
+        <div class="dl-status ok">✓ done · tap to open</div>
+      </div>
+      <div class="dl">
+        <div class="dl-top"><span>archive.zip</span><span class="size">—</span></div>
+        <div class="dl-bar"><i style="width:20%;background:var(--text-faint)"></i></div>
+        <div class="dl-status">failed · retry</div>
+      </div>
+    </div>
+
+    <!-- menu sheet -->
+    <div class="sheet" id="sheet">
+      <div class="sheet-panel">
+        <div class="hdr">Menu</div>
+        <div class="row" data-go="s5">Settings<span class="chev">›</span></div>
+        <div class="row" data-go="s4">Privacy dashboard<span class="chev">›</span></div>
+        <div class="row" data-go="s8">Downloads<span class="chev">›</span></div>
+        <div class="row" data-go="s3">Tabs<span class="chev">›</span></div>
+        <div class="row" id="closeMenu">Close<span class="chev">×</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-legend">
+    <b>S1</b> First launch → <b>S2</b> Main browser → <b>S3</b> Tabs · <b>S4</b> Privacy ·
+    <b>S5</b> Settings → <b>S6</b> Permissions · <b>S7</b> Clear data · <b>S8</b> Downloads
+  </div>
+  <div class="footnote">local filtering only · no account · no browsing data ever leaves the device</div>
+</div>
+
+<script>
+  (function(){
+    var current = 's1';
+    var openTabs = 3;
+
+    function show(id){
+      var el = document.getElementById(id);
+      if(!el) return;
+      document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active','fade'); });
+      el.classList.add('active','fade');
+      current = id;
+      var sheet = document.getElementById('sheet');
+      sheet.classList.remove('open');
+    }
+
+    // delegate clicks
+    document.addEventListener('click', function(e){
+      var t = e.target.closest('[data-go]');
+      if(t){ show(t.getAttribute('data-go')); return; }
+
+      var m = e.target.closest('[data-menu]');
+      if(m){ document.getElementById('sheet').classList.add('open'); return; }
+
+      if(e.target.id === 'closeMenu'){ document.getElementById('sheet').classList.remove('open'); return; }
+
+      // close a tab
+      var c = e.target.closest('[data-close]');
+      if(c){
+        var cell = c.closest('.tabcell');
+        if(cell){ cell.remove(); openTabs--; refreshTabs(); }
+        return;
+      }
+      // open a tab from grid
+      var cell = e.target.closest('.tabcell:not(.dashed)');
+      if(cell && current === 's3'){ document.getElementById('addrText').textContent = cell.getAttribute('data-tab').toLowerCase() + '.com'; show('s2'); return; }
+      // new tab (dashed)
+      if(e.target.closest('#newtab')){ openTabs++; refreshTabs(); }
+
+      // settings toggles
+      if(e.target.closest('#tHistory')){ toggle('tHistory','histState'); }
+      if(e.target.closest('#tJs')){ document.getElementById('tJs').classList.toggle('on'); }
+      if(e.target.closest('#tSuggest')){ document.getElementById('tSuggest').classList.toggle('on'); }
+
+      // clear data checkboxes
+      var cb = e.target.closest('.cdbox');
+      if(cb){ cb.classList.toggle('on'); }
+
+      if(e.target.id === 'clearBtn'){
+        document.querySelectorAll('.cdbox').forEach(function(b){ b.classList.remove('on'); });
+        show('s2');
+      }
+    });
+
+    function toggle(id, mirrorId){
+      var el = document.getElementById(id);
+      el.classList.toggle('on');
+      var m = document.getElementById(mirrorId);
+      if(m){ m.textContent = el.classList.contains('on') ? 'ON' : 'OFF'; }
+    }
+
+    function refreshTabs(){
+      var grid = document.getElementById('tabsgrid');
+      var cells = grid.querySelectorAll('.tabcell:not(.dashed)');
+      document.getElementById('tabCount').textContent = cells.length;
+      // ensure there's always a dashed new-tab cell at the end
+      var d = document.getElementById('newtab');
+      grid.appendChild(d);
+    }
+
+    document.getElementById('themeBtn').addEventListener('click', function(){
+      document.body.classList.toggle('light');
+    });
+    document.getElementById('resetBtn').addEventListener('click', function(){ show('s1'); });
+
+    // small fake "blocked counter" drift to make the dashboard feel alive
+    var n = 8;
+    setInterval(function(){
+      if(current === 's2' && Math.random() < 0.3){
+        n++;
+        var a = document.getElementById('adsBlocked');
+        if(a) a.textContent = n;
+      }
+    }, 4000);
+  })();
+</script>
+</body>
+</html>

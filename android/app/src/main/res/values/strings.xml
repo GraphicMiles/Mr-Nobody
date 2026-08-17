@@ -1,0 +1,71 @@
+<resources>
+    <string name="app_name">Mr Nobody</string>
+    <string name="tagline">Nobody\'s watching.</string>
+
+    <!-- Address bar -->
+    <string name="addr_hint">Search or enter address</string>
+    <string name="lock_secure">Secure connection</string>
+    <string name="lock_insecure">Connection not encrypted</string>
+
+    <!-- First launch -->
+    <string name="fl_title">PRIVATE BROWSER</string>
+    <string name="fl_sub">Browse without built-in tracking.</string>
+    <string name="fl_ads">✓  Ads blocked</string>
+    <string name="fl_trackers">✓  Trackers blocked</string>
+    <string name="fl_history">✓  History is OFF</string>
+    <string name="fl_start">Start Browsing</string>
+    <string name="fl_privacy_settings">Privacy Settings</string>
+
+    <!-- Toolbar -->
+    <string name="toolbar_back">Back</string>
+    <string name="toolbar_new_tab">New tab</string>
+    <string name="toolbar_tabs">Tabs</string>
+    <string name="toolbar_menu">Menu</string>
+
+    <!-- Privacy dashboard -->
+    <string name="privacy_title">Privacy</string>
+    <string name="privacy_this_page">This page</string>
+    <string name="privacy_ads_blocked">Ads blocked</string>
+    <string name="privacy_trackers_blocked">Trackers blocked</string>
+    <string name="privacy_history">History</string>
+    <string name="privacy_history_saved">Saved locally</string>
+    <string name="privacy_cookies">Cookies</string>
+    <string name="privacy_third_party">Third-party</string>
+    <string name="privacy_cookies_blocked">Blocked</string>
+    <string name="privacy_stays_local">All counts stay on-device</string>
+    <string name="on_state">ON</string>
+    <string name="off_state">OFF</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_history">Save browsing history</string>
+    <string name="settings_js">JavaScript</string>
+    <string name="settings_suggest">Search suggestions</string>
+    <string name="settings_privacy_section">Privacy &amp; data</string>
+    <string name="settings_permissions">Permissions</string>
+    <string name="settings_clear_data">Clear browsing data</string>
+    <string name="settings_downloads">Downloads</string>
+    <string name="settings_about">About</string>
+    <string name="settings_search_engine">Search engine</string>
+
+    <!-- Clear data -->
+    <string name="clear_title">Clear browsing data</string>
+    <string name="clear_history">History</string>
+    <string name="clear_cookies">Cookies</string>
+    <string name="clear_cache">Cache</string>
+    <string name="clear_site_data">Site data</string>
+    <string name="clear_cancel">Cancel</string>
+    <string name="clear_action">Clear data</string>
+
+    <!-- Downloads -->
+    <string name="downloads_title">Downloads</string>
+
+    <!-- Permissions -->
+    <string name="perm_block">Block</string>
+    <string name="perm_allow">Allow</string>
+    <string name="perm_wants">%1$s wants to access your %2$s</string>
+
+    <!-- Menu -->
+    <string name="menu_new_private">New private tab</string>
+    <string name="menu_close_all">Close all tabs</string>
+</resources>

@@ -1,0 +1,17 @@
+<resources>
+    <!-- Brand palette (dark-first). The night variant lives in values-night/.
+         Accent = gold; blocked = muted green; surfaces are warm near-black. -->
+    <color name="bg">#0e0e10</color>
+    <color name="surface">#17171a</color>
+    <color name="surface_2">#1f1f23</color>
+    <color name="border">#2b2b30</color>
+    <color name="border_soft">#212125</color>
+    <color name="text">#e9e9ea</color>
+    <color name="text_dim">#8a8a90</color>
+    <color name="text_faint">#5c5c62</color>
+    <color name="accent">#c9a237</color>
+    <color name="accent_soft">#8a722a</color>
+    <color name="accent_ink">#151208</color>
+    <color name="blocked">#7f9c78</color>
+    <color name="ic_launcher_background">#0e0e10</color>
+</resources>

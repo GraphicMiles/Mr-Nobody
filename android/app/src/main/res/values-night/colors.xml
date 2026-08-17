@@ -1,0 +1,16 @@
+<resources>
+    <!-- Light variant of the brand palette (DayNight + manual toggle). -->
+    <color name="bg">#f4f4f5</color>
+    <color name="surface">#ffffff</color>
+    <color name="surface_2">#ececee</color>
+    <color name="border">#d6d6da</color>
+    <color name="border_soft">#e4e4e7</color>
+    <color name="text">#1a1a1d</color>
+    <color name="text_dim">#5a5a60</color>
+    <color name="text_faint">#9a9aa0</color>
+    <color name="accent">#c9a237</color>
+    <color name="accent_soft">#8a722a</color>
+    <color name="accent_ink">#151208</color>
+    <color name="blocked">#4e7a44</color>
+    <color name="ic_launcher_background">#0e0e10</color>
+</resources>
