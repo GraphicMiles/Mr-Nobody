@@ -7,6 +7,7 @@ import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.core.Tool;
+import com.mrnobody.agent.core.ToolPipeline;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.tools.HttpTool;
@@ -51,6 +52,9 @@ public final class DeterministicEngine implements AgentEngine {
 
     private final Map<String, Tool> tools = new LinkedHashMap<>();
 
+    /** Every tool call goes through this — see {@link ToolPipeline}. */
+    private final ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
+
     public DeterministicEngine() {
         tools.put("search", new SearchTool());
         tools.put("http", new HttpTool());
@@ -82,7 +86,8 @@ public final class DeterministicEngine implements AgentEngine {
 
         // 1. Search — returns parsed results, never a page scrape.
         task.setCurrentStep("Search");
-        ToolResult search = callTool(context, "search", ToolRequest.of("search", "q", instruction));
+        ToolResult search = callTool(context, "search",
+                ToolRequest.of("search", "q", instruction), cancellation);
         if (!search.isSuccess()) {
             fail(task, search);
             return;
@@ -95,7 +100,8 @@ public final class DeterministicEngine implements AgentEngine {
         String contextText = search.result();
         if (namedUrl != null) {
             task.setCurrentStep("Open page");
-            ToolResult page = callTool(context, "browser", ToolRequest.of("fetch", "url", namedUrl));
+            ToolResult page = callTool(context, "browser",
+                    ToolRequest.of("fetch", "url", namedUrl), cancellation);
             if (page.isSuccess() && page.result().trim().length() > 0) {
                 contextText = contextText + "\n\nPage (" + namedUrl + "):\n"
                         + truncate(page.result(), 2000);
@@ -121,20 +127,26 @@ public final class DeterministicEngine implements AgentEngine {
     }
 
     /**
-     * The single tool entry point (see {@link AgentEngine#callTool}). Today it
-     * resolves the tool and normalises a throw into a failed result; the
-     * guarded pipeline — parameter validation, policy, confirmation, timeout,
-     * audit record — is inserted here and nowhere else.
+     * The single tool entry point (see {@link AgentEngine#callTool}): resolve
+     * the tool, then hand the call to the pipeline, which owns validation,
+     * policy, guards, confirmation, timeouts, output checking and the record.
      */
     @Override
     public ToolResult callTool(Context context, String name, ToolRequest request) {
+        return callTool(context, name, request, Cancellation.NONE);
+    }
+
+    /** As above, but able to abandon a slow tool when the task is cancelled. */
+    public ToolResult callTool(Context context, String name, ToolRequest request,
+                               Cancellation cancellation) {
         Tool tool = tools.get(name);
         if (tool == null) return ToolResult.fail("no tool named " + name);
-        try {
-            return tool.execute(context, request);
-        } catch (Exception e) {
-            return ToolResult.fail(name + " threw: " + e.getMessage());
-        }
+        return pipeline.run(context, tool, request, cancellation);
+    }
+
+    /** The pipeline, so the host can attach a confirmer and a recorder to it. */
+    public ToolPipeline pipeline() {
+        return pipeline;
     }
 
     /** Mark the task cancelled and stop, if a cancel request is outstanding. */

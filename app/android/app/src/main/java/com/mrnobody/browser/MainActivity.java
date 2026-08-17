@@ -138,6 +138,9 @@ public class MainActivity extends FlutterActivity {
                                         ToolRequest.of("search", "q", query));
                                 Map<String, Object> m = new HashMap<>();
                                 m.put("success", r.isSuccess());
+                                // Both audiences: the structured value for the
+                                // UI, the rendered projection for a model.
+                                m.put("value", r.value());
                                 m.put("text", r.isSuccess() ? r.result() : r.error());
                                 runOnUiThread(() -> result.success(m));
                             });

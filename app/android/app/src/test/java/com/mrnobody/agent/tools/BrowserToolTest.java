@@ -44,7 +44,11 @@ public class BrowserToolTest {
         ToolResult r = tool.execute(null,
                 com.mrnobody.agent.core.ToolRequest.of("fetch", "url", "https://example.com"));
         assertTrue(r.isSuccess());
-        assertEquals("body of https://example.com", r.result());
+        // The canonical value carries the page text under a declared key; the
+        // model-facing string is the pipeline's projection of it, not the
+        // tool's prose.
+        assertEquals("fetch", r.value().get("action"));
+        assertEquals("body of https://example.com", r.value().get("text"));
     }
 
     @Test
@@ -69,6 +73,7 @@ public class BrowserToolTest {
                 com.mrnobody.agent.core.ToolRequest.of("click", "selector", "#submit"));
         assertTrue(r.isSuccess());
         assertEquals("#submit", engine.lastClicked);
+        assertEquals("click", r.value().get("action"));
     }
 
     @Test
@@ -88,5 +93,35 @@ public class BrowserToolTest {
         ToolResult r = tool.execute(null, new com.mrnobody.agent.core.ToolRequest("type", params));
         assertTrue(r.isSuccess());
         assertEquals("#q:hello", engine.lastTyped);
+        assertEquals("type", r.value().get("action"));
+    }
+
+    /** Reading a page must not need the permission that clicking one does. */
+    @org.junit.Test
+    public void readActionsAreReadTierAndInteractionsAreWrite() {
+        BrowserTool tool = new BrowserTool(new FakeEngine());
+        assertEquals(com.mrnobody.agent.core.Tier.READ,
+                tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("fetch", "url", "https://x.com")));
+        assertEquals(com.mrnobody.agent.core.Tier.READ,
+                tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("extract")));
+        assertEquals(com.mrnobody.agent.core.Tier.WRITE,
+                tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("click", "selector", "#a")));
+        assertEquals(com.mrnobody.agent.core.Tier.WRITE,
+                tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("type", "selector", "#a")));
+    }
+
+    /** Through the pipeline, the model sees the rendered projection. */
+    @org.junit.Test
+    public void thePipelineRendersTheFetchedText() {
+        BrowserTool tool = new BrowserTool(new FakeEngine());
+        com.mrnobody.agent.core.ToolPipeline pipeline =
+                new com.mrnobody.agent.core.ToolPipeline(
+                        new com.mrnobody.agent.core.ToolPipeline.TierApproval());
+
+        ToolResult r = pipeline.run(null, tool,
+                com.mrnobody.agent.core.ToolRequest.of("fetch", "url", "https://example.com"));
+
+        assertTrue(r.isSuccess());
+        assertEquals("body of https://example.com", r.result());
     }
 }
