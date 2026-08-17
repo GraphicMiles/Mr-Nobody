@@ -58,10 +58,17 @@ public final class IntentRouter {
 
     private static boolean looksLikeDomain(String s) {
         if (s.contains(" ")) return false;
-        int dot = s.indexOf('.');
-        if (dot <= 0 || dot == s.length() - 1) return false;
-        // no spaces, has a dot, and a plausible TLD
-        String tld = s.substring(s.lastIndexOf('.') + 1);
+        // isolate the host: strip any path, then any port
+        String host = s;
+        int slash = host.indexOf('/');
+        if (slash >= 0) host = host.substring(0, slash);
+        int colon = host.indexOf(':');
+        if (colon >= 0) host = host.substring(0, colon);
+
+        int dot = host.indexOf('.');
+        if (dot <= 0 || dot == host.length() - 1) return false;
+        // has a dot and a plausible TLD (letters only, no spaces)
+        String tld = host.substring(host.lastIndexOf('.') + 1);
         return tld.matches("[a-zA-Z]{2,}");
     }
 }
