@@ -90,6 +90,11 @@ public class MainActivity extends AppCompatActivity {
     private TextView dashAds, dashTrackers, dashHistory;
     private TextView dashScore, dashTodayAds, dashTodayTrackers;
 
+    // Agent Home (S2) overlay — the "new tab" landing: logo, search, tasks, shortcuts.
+    private View homePanel;
+    private EditText homeInput;
+    private LinearLayout homeTasks, homeShortcuts;
+
     // Native Sessions (S3) and Tasks (S5) overlay screens.
     private View sessionsPanel, tasksPanel;
     private LinearLayout sessionsList, tasksList;
@@ -162,6 +167,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Build the Sessions and Tasks screens (native overlays).
         buildPanels();
+        buildHomePanel();
 
         // Debug overlay: floating circle with an error-count badge, expandable
         // on tap. Testers use it to surface failures instantly. Added last so it
@@ -318,8 +324,8 @@ public class MainActivity extends AppCompatActivity {
     // ------------------------------------------------------------------ tabs
 
     private void openInitialTab() {
-        newTab(false);
-        loadUrl("https://example.com");
+        // The "new tab" landing is the Agent Home, not a hardcoded URL.
+        showHome();
     }
 
     private void newTab(boolean isPrivate) {
@@ -385,10 +391,7 @@ public class MainActivity extends AppCompatActivity {
         bar.setLayoutParams(barLp);
         container.addView(bar);
 
-        addNavItem(bar, "⌂", "Home", v -> {
-            hideAllPanels();
-            if (tabs.getActive() == null) newTab(false);
-        });
+        addNavItem(bar, "⌂", "Home", v -> showHome());
         addNavItem(bar, "▦", "Tabs", v -> showSessions());
 
         // center spacer reserves room for the raised "+"
@@ -398,7 +401,7 @@ public class MainActivity extends AppCompatActivity {
         addNavItem(bar, "☑", "Tasks", v -> showTasks());
         addNavItem(bar, "⚙", "Settings", v -> startActivity(new Intent(this, SettingsActivity.class)));
 
-        // raised circular "+"
+        // raised circular "+" — opens the Agent Home (a fresh "new tab")
         TextView plus = new TextView(this);
         plus.setText("+");
         plus.setTextSize(22);
@@ -409,7 +412,7 @@ public class MainActivity extends AppCompatActivity {
                 Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         plusLp.topMargin = -dp(24);
         plus.setLayoutParams(plusLp);
-        plus.setOnClickListener(v -> newTab(false));
+        plus.setOnClickListener(v -> showHome());
         container.addView(plus);
     }
 
@@ -833,6 +836,223 @@ public class MainActivity extends AppCompatActivity {
         return row;
     }
 
+    // ------------------------------------------------------------- Agent Home
+
+    /** Build the Agent Home overlay: big logo, unified search, active tasks, shortcuts. */
+    private void buildHomePanel() {
+        FrameLayout root = (FrameLayout) findViewById(android.R.id.content);
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackgroundColor(color(com.mrnobody.browser.R.color.bg));
+        panel.setVisibility(View.GONE);
+        homePanel = panel;
+
+        // safe-area top spacing
+        panel.setPadding(0, dp(48), 0, 0);
+
+        // big centered logo mark
+        TextView logo = new TextView(this);
+        logo.setText("MR NOBODY");
+        logo.setTextSize(26);
+        logo.setTypeface(Typeface.DEFAULT_BOLD);
+        logo.setTextColor(color(com.mrnobody.browser.R.color.text));
+        logo.setGravity(Gravity.CENTER);
+        logo.setLetterSpacing(0.1f);
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        logoLp.topMargin = dp(28);
+        logoLp.bottomMargin = dp(20);
+        panel.addView(logo, logoLp);
+
+        // unified search pill
+        LinearLayout pill = new LinearLayout(this);
+        pill.setOrientation(LinearLayout.HORIZONTAL);
+        pill.setGravity(Gravity.CENTER_VERTICAL);
+        pill.setBackground(pillBackground());
+        pill.setPadding(dp(16), dp(6), dp(6), dp(6));
+        LinearLayout.LayoutParams pillLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
+        pillLp.leftMargin = dp(16);
+        pillLp.rightMargin = dp(16);
+        pill.setLayoutParams(pillLp);
+
+        homeInput = new EditText(this);
+        homeInput.setHint("Ask Mr Nobody or enter URL…");
+        homeInput.setTextColor(color(com.mrnobody.browser.R.color.text));
+        homeInput.setHintTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        homeInput.setTextSize(14);
+        homeInput.setSingleLine(true);
+        homeInput.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        homeInput.setPadding(0, 0, dp(8), 0);
+        homeInput.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
+        homeInput.setOnEditorActionListener((v, actionId, event) -> {
+            navigateFromHome(homeInput.getText().toString());
+            return true;
+        });
+        pill.addView(homeInput, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+
+        TextView go = new TextView(this);
+        go.setText("→");
+        go.setTextSize(16);
+        go.setGravity(Gravity.CENTER);
+        go.setTextColor(color(com.mrnobody.browser.R.color.accent_ink));
+        go.setBackground(circleDrawable(color(com.mrnobody.browser.R.color.accent)));
+        go.setOnClickListener(v -> navigateFromHome(homeInput.getText().toString()));
+        pill.addView(go, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        panel.addView(pill);
+
+        // scrollable body: active tasks + shortcuts
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(0, 0, 0, dp(24));
+        scroll.addView(body);
+
+        body.addView(sectionLabel("Active tasks"));
+        homeTasks = new LinearLayout(this);
+        homeTasks.setOrientation(LinearLayout.VERTICAL);
+        homeTasks.setBackground(cardBackground());
+        LinearLayout.LayoutParams tasksLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        tasksLp.leftMargin = dp(16);
+        tasksLp.rightMargin = dp(16);
+        homeTasks.setLayoutParams(tasksLp);
+        body.addView(homeTasks);
+
+        body.addView(sectionLabel("Shortcuts"));
+        homeShortcuts = new LinearLayout(this);
+        homeShortcuts.setOrientation(LinearLayout.VERTICAL);
+        homeShortcuts.setBackground(cardBackground());
+        LinearLayout.LayoutParams scLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        scLp.leftMargin = dp(16);
+        scLp.rightMargin = dp(16);
+        homeShortcuts.setLayoutParams(scLp);
+        body.addView(homeShortcuts);
+
+        panel.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        root.addView(panel);
+    }
+
+    private void showHome() {
+        renderHome();
+        hideAllPanels();
+        homePanel.setVisibility(View.VISIBLE);
+        browserLayout.setVisibility(View.GONE);
+        homeInput.setText("");
+        homeInput.requestFocus();
+    }
+
+    private void hideHome() {
+        homePanel.setVisibility(View.GONE);
+        browserLayout.setVisibility(View.VISIBLE);
+        setToolbarCollapsed(false);
+    }
+
+    /** Home's unified input creates a fresh tab, then routes like the address bar. */
+    private void navigateFromHome(String input) {
+        if (input == null || input.trim().isEmpty()) return;
+        newTab(false);
+        hideHome();
+        navigate(input.trim());
+    }
+
+    private void renderHome() {
+        // active (running) tasks
+        homeTasks.removeAllViews();
+        List<Task> tasks = MrNobodyApp.tasks().recent(20);
+        List<Task> live = new ArrayList<>();
+        for (Task t : tasks) {
+            if (t.status() == Task.Status.RUNNING || t.status() == Task.Status.QUEUED
+                    || t.status() == Task.Status.WAITING) {
+                live.add(t);
+            }
+        }
+        if (live.isEmpty()) {
+            homeTasks.addView(emptyRow("No active tasks"));
+        } else {
+            for (Task t : live) {
+                homeTasks.addView(homeTaskRow(t));
+            }
+        }
+
+        // shortcuts
+        homeShortcuts.removeAllViews();
+        homeShortcuts.addView(homeShortcutRow("▦", "Tabs", v -> showSessions()));
+        homeShortcuts.addView(homeShortcutRow("☑", "Tasks", v -> showTasks()));
+        homeShortcuts.addView(homeShortcutRow("↓", "Downloads", v -> openSystemDownloads()));
+        homeShortcuts.addView(homeShortcutRow("⚙", "Settings",
+                v -> startActivity(new Intent(this, SettingsActivity.class))));
+    }
+
+    private View homeTaskRow(Task task) {
+        LinearLayout row = baseRow();
+        row.setOnClickListener(v -> showTaskDetail(task));
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        TextView name = new TextView(this);
+        name.setText(task.instruction());
+        name.setTextColor(color(com.mrnobody.browser.R.color.text));
+        name.setTextSize(13);
+        name.setMaxLines(1);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        col.addView(name);
+        TextView meta = new TextView(this);
+        meta.setText(task.currentStep() == null ? "" : task.currentStep());
+        meta.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        meta.setTextSize(10);
+        meta.setTypeface(Typeface.MONOSPACE);
+        col.addView(meta);
+        row.addView(col, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView chip = new TextView(this);
+        chip.setText("RUNNING");
+        chip.setTextSize(9);
+        chip.setTypeface(Typeface.MONOSPACE);
+        chip.setPadding(dp(8), dp(3), dp(8), dp(3));
+        chip.setTextColor(color(com.mrnobody.browser.R.color.accent_ink));
+        chip.setBackground(pillBackground());
+        row.addView(chip);
+        return row;
+    }
+
+    private View homeShortcutRow(String glyph, String label, View.OnClickListener onClick) {
+        LinearLayout row = baseRow();
+        row.setOnClickListener(onClick);
+        TextView g = new TextView(this);
+        g.setText(glyph);
+        g.setTextSize(15);
+        g.setTextColor(color(com.mrnobody.browser.R.color.text_dim));
+        g.setGravity(Gravity.CENTER);
+        row.addView(g, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        TextView t = new TextView(this);
+        t.setText(label);
+        t.setTextColor(color(com.mrnobody.browser.R.color.text));
+        t.setTextSize(13);
+        t.setPadding(dp(12), 0, 0, 0);
+        row.addView(t);
+        return row;
+    }
+
+    private android.graphics.drawable.GradientDrawable cardBackground() {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setColor(color(com.mrnobody.browser.R.color.surface));
+        d.setCornerRadius(dp(16));
+        d.setStroke(dp(1), color(com.mrnobody.browser.R.color.border_soft));
+        return d;
+    }
+
+    private android.graphics.drawable.GradientDrawable pillBackground() {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setColor(color(com.mrnobody.browser.R.color.surface));
+        d.setCornerRadius(dp(24));
+        d.setStroke(dp(1), color(com.mrnobody.browser.R.color.border_soft));
+        return d;
+    }
+
     // -------------------------------------------------------------- Sessions
 
     private void showSessions() {
@@ -852,21 +1072,33 @@ public class MainActivity extends AppCompatActivity {
         List<Tab> all = tabs.all();
         Tab active = tabs.getActive();
 
+        // ---- open tabs as a 2-column card grid (with thumbnail previews) ----
+        sessionsList.addView(sectionLabel(getString(R.string.sessions_tabs_section)));
+
         if (all.isEmpty()) {
             sessionsList.addView(emptyRow(getString(R.string.sessions_empty)));
         } else {
-            sessionsList.addView(sectionLabel(getString(R.string.sessions_tabs_section)));
+            android.widget.GridLayout grid = new android.widget.GridLayout(this);
+            grid.setColumnCount(2);
+            grid.setPadding(dp(16), 0, dp(16), dp(8));
             for (int i = 0; i < all.size(); i++) {
                 final int index = i;
                 Tab tab = all.get(i);
                 boolean isActive = (tab == active);
-                sessionsList.addView(tabRow(tab, isActive, () -> {
+                grid.addView(tabCard(tab, isActive, () -> {
                     switchToTab(index);
                     hideSessions();
                 }));
             }
+            // "+ new tab" dashed card
+            grid.addView(newTabCard(() -> {
+                newTab(false);
+                hideSessions();
+            }));
+            sessionsList.addView(grid);
         }
 
+        // ---- live task sessions ----
         sessionsList.addView(sectionLabel(getString(R.string.sessions_tasks_section)));
         List<Task> tasks = MrNobodyApp.tasks().recent(20);
         List<Task> live = new ArrayList<>();
@@ -884,10 +1116,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        sessionsList.addView(actionRow(getString(R.string.sessions_new_tab), () -> {
-            newTab(false);
-            hideSessions();
-        }));
+        // ---- actions ----
         sessionsList.addView(actionRow(getString(R.string.sessions_new_private), () -> {
             newTab(true);
             hideSessions();
@@ -900,44 +1129,117 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private View tabRow(Tab tab, boolean isActive, Runnable onClick) {
-        LinearLayout row = baseRow();
-        row.setOnClickListener(v -> onClick.run());
+    /** A tab card with a thumbnail area, title, close affordance and PRIVATE badge. */
+    private View tabCard(Tab tab, boolean isActive, Runnable onClick) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(cardBackground());
+        card.setClickable(true);
+        card.setFocusable(true);
+        if (isActive) {
+            android.graphics.drawable.GradientDrawable d = cardBackground();
+            d.setStroke(dp(2), color(com.mrnobody.browser.R.color.accent));
+            card.setBackground(d);
+        }
+        card.setOnClickListener(v -> onClick.run());
 
-        LinearLayout textCol = new LinearLayout(this);
-        textCol.setOrientation(LinearLayout.VERTICAL);
+        android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
+        lp.width = 0;
+        lp.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
+        lp.setMargins(0, 0, dp(6), dp(6));
+        card.setLayoutParams(lp);
+
+        // header: title + close
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setPadding(dp(10), dp(9), dp(10), dp(7));
         TextView title = new TextView(this);
-        title.setText((isActive ? "● " : "") + tab.label());
-        title.setTextColor(isActive ? color(com.mrnobody.browser.R.color.accent)
-                : color(com.mrnobody.browser.R.color.text));
-        title.setTextSize(14);
+        title.setText(tab.label());
+        title.setTextColor(color(com.mrnobody.browser.R.color.text));
+        title.setTextSize(12);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setMaxLines(1);
         title.setEllipsize(TextUtils.TruncateAt.END);
-        textCol.addView(title);
-        if (tab.isPrivate()) {
-            TextView badge = new TextView(this);
-            badge.setText(getString(R.string.tab_private_badge));
-            badge.setTextColor(color(com.mrnobody.browser.R.color.accent_soft));
-            badge.setTextSize(9);
-            badge.setTypeface(Typeface.MONOSPACE);
-            textCol.addView(badge);
-        }
-        row.addView(textCol, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
+        head.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         TextView close = new TextView(this);
         close.setText("×");
         close.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
-        close.setTextSize(18);
+        close.setTextSize(14);
         close.setGravity(Gravity.CENTER);
-        close.setPadding(dp(14), dp(4), dp(4), dp(4));
+        close.setPadding(dp(6), 0, 0, 0);
         close.setOnClickListener(v -> {
             tabs.close(tabs.indexOf(tab));
             persistTabs();
             renderSessions();
         });
-        row.addView(close);
-        return row;
+        head.addView(close);
+        card.addView(head);
+
+        // thumbnail
+        FrameLayout thumb = new FrameLayout(this);
+        thumb.setBackgroundColor(color(com.mrnobody.browser.R.color.surface_2));
+        LinearLayout.LayoutParams thumbLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(84));
+        thumbLp.leftMargin = dp(8);
+        thumbLp.rightMargin = dp(8);
+        thumbLp.bottomMargin = dp(8);
+        thumb.setLayoutParams(thumbLp);
+        // mock content lines
+        LinearLayout lines = new LinearLayout(this);
+        lines.setOrientation(LinearLayout.VERTICAL);
+        lines.setPadding(dp(8), dp(10), dp(8), 0);
+        View l1 = new View(this);
+        l1.setBackgroundColor(color(com.mrnobody.browser.R.color.border));
+        lines.addView(l1, new LinearLayout.LayoutParams((int) (dp(120) * 0.7), dp(4)));
+        View l2 = new View(this);
+        l2.setBackgroundColor(color(com.mrnobody.browser.R.color.border));
+        LinearLayout.LayoutParams l2p = new LinearLayout.LayoutParams((int) (dp(120) * 0.5), dp(4));
+        l2p.topMargin = dp(8);
+        lines.addView(l2, l2p);
+        thumb.addView(lines);
+        card.addView(thumb);
+
+        // PRIVATE badge overlay
+        if (tab.isPrivate()) {
+            TextView badge = new TextView(this);
+            badge.setText(getString(R.string.tab_private_badge));
+            badge.setTextColor(color(com.mrnobody.browser.R.color.accent_ink));
+            badge.setTextSize(8);
+            badge.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+            badge.setPadding(dp(6), dp(3), dp(6), dp(3));
+            badge.setBackground(pillBackground());
+            FrameLayout.LayoutParams badgeLp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP | Gravity.END);
+            badgeLp.topMargin = dp(6);
+            badgeLp.rightMargin = dp(6);
+            badge.setLayoutParams(badgeLp);
+            thumb.addView(badge);
+        }
+        return card;
+    }
+
+    private View newTabCard(Runnable onClick) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setBackground(cardBackground());
+        card.setClickable(true);
+        card.setFocusable(true);
+        card.setOnClickListener(v -> onClick.run());
+        android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
+        lp.width = 0;
+        lp.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
+        lp.setMargins(0, 0, dp(6), dp(6));
+        card.setLayoutParams(lp);
+        TextView plus = new TextView(this);
+        plus.setText("+");
+        plus.setTextSize(26);
+        plus.setTextColor(color(com.mrnobody.browser.R.color.text_faint));
+        plus.setGravity(Gravity.CENTER);
+        card.addView(plus);
+        return card;
     }
 
     // ----------------------------------------------------------------- Tasks
@@ -1101,6 +1403,7 @@ public class MainActivity extends AppCompatActivity {
         firstLaunch.setVisibility(View.GONE);
         sessionsPanel.setVisibility(View.GONE);
         tasksPanel.setVisibility(View.GONE);
+        if (homePanel != null) homePanel.setVisibility(View.GONE);
         browserLayout.setVisibility(View.VISIBLE);
     }
 
@@ -1354,6 +1657,10 @@ public class MainActivity extends AppCompatActivity {
             hideTasks();
         } else if (privacyPanel.getVisibility() == View.VISIBLE) {
             hidePrivacyPanel();
+        } else if (homePanel != null && homePanel.getVisibility() == View.VISIBLE) {
+            // Back from Agent Home → return to the active tab, or exit.
+            if (tabs.getActive() != null) hideHome();
+            else super.onBackPressed();
         } else if (firstLaunch.getVisibility() == View.VISIBLE) {
             super.onBackPressed();
         } else if (t != null && t.canGoBack()) {
