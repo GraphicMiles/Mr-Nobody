@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
+import '../bridge/native_bridge.dart';
+import 'privacy_screen.dart';
+import 'downloads_screen.dart';
+import 'clear_data_screen.dart';
 
-/// Settings (S6) — toggles + value rows with anchored popup menus.
+/// Settings (S6) — toggles persisted to the core, value rows with anchored
+/// bottom-sheet menus, and navigation to the Clear-data/Downloads/Privacy screens.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -16,6 +21,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool suggest = false;
   String profile = 'Balanced';
   String provider = 'Local';
+  String engine = 'DuckDuckGo';
+
+  @override
+  void initState() {
+    super.initState();
+    NativeBridge.isHistoryEnabled().then((v) { if (mounted) setState(() => history = v); }).catchError((_) {});
+  }
 
   void _pick(String title, List<String> options, String current, ValueChanged<String> onPick) {
     showModalBottomSheet(
@@ -33,10 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             for (final o in options)
               ListTile(
                 title: Text(o, style: AppTheme.sans(size: 14, color: o == current ? AppColors.accent : AppColors.text, w: o == current ? FontWeight.w700 : FontWeight.w400)),
-                onTap: () {
-                  onPick(o);
-                  Navigator.pop(c);
-                },
+                onTap: () { onPick(o); Navigator.pop(c); },
               ),
             const SizedBox(height: 8),
           ],
@@ -64,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               const SectionLabel('Browsing'),
               _card([
-                _toggle('Save browsing history', history, (v) => setState(() => history = v)),
+                _toggle('Save browsing history', history, (v) { setState(() => history = v); NativeBridge.setHistoryEnabled(v); }),
                 const Divider(),
                 _toggle('JavaScript', js, (v) => setState(() => js = v)),
                 const Divider(),
@@ -76,24 +85,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(),
                 _value('AI provider', provider, () => _pick('AI provider', ['Local (on-device)', 'Gemini', 'Groq', 'OpenAI-compatible'], provider, (v) => setState(() => provider = v))),
                 const Divider(),
-                _value('Terminal', 'off', () {}),
+                _value('Terminal', 'off', () => _pick('Terminal', ['Off', 'On (sandboxed)'], 'Off', (_) {})),
               ]),
               const SectionLabel('Data & controls'),
               _card([
-                _nav('Search engine', () {}),
+                _value('Search engine', engine, () => _pick('Search engine', ['DuckDuckGo', 'Startpage', 'Bing'], engine, (v) => setState(() => engine = v))),
                 const Divider(),
-                _nav('Bookmarks', () {}),
+                _nav('Bookmarks', () => _info('Bookmarks', 'No bookmarks yet')),
                 const Divider(),
-                _nav('Clear browsing data', () {}),
+                _nav('Clear browsing data', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ClearDataScreen()))),
                 const Divider(),
-                _nav('Downloads', () {}),
+                _nav('Downloads', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DownloadsScreen()))),
                 const Divider(),
-                _nav('About', () {}),
+                _nav('Privacy dashboard', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyScreen()))),
+                const Divider(),
+                _nav('About', () => _info('Mr Nobody', 'A tiny native privacy browser.\nNo ads, no trackers, no history by default.')),
               ]),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  void _info(String title, String msg) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(title, style: AppTheme.sans(size: 16, w: FontWeight.w700)),
+        content: Text(msg, style: AppTheme.sans(size: 13, color: AppColors.textDim)),
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('OK', style: TextStyle(color: AppColors.accent)))],
+      ),
     );
   }
 

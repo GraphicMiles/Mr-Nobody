@@ -39,11 +39,11 @@ class _ClearDataScreenState extends State<ClearDataScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                ActionButton('Cancel', solid: false, onTap: () => Navigator.of(context).pop()),
+                Expanded(child: ActionButton('Cancel', solid: false, onTap: () => Navigator.of(context).pop())),
                 const SizedBox(width: 8),
-                ActionButton('Clear data', solid: true, onTap: () {
+                Expanded(child: ActionButton('Clear data', solid: true, onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data cleared'), duration: Duration(seconds: 1)));
-                }),
+                })),
               ],
             ),
           ),
