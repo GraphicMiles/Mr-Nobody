@@ -12,8 +12,6 @@ dependencies:
   # Bundled engine rendering (Android System WebView via Platform Views) — the
   # visible browser page stays native; Flutter is the chrome around it.
   webview_flutter: ^4.8.0
-  # Inter + JetBrains Mono, matching the approved wireframe. Bundled offline.
-  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -22,3 +20,31 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Inter (UI) + JetBrains Mono (values/labels), matching the approved
+  # wireframe. Bundled as subset static instances (latin, ~620 KB total) so the
+  # app NEVER fetches a font at runtime — a remote font request would leak an
+  # IP address on every cold start, which this product does not do.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-400.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-500.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-600.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-700.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-800.ttf
+          weight: 800
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-400.ttf
+          weight: 400
+        - asset: assets/fonts/JetBrainsMono-500.ttf
+          weight: 500
+        - asset: assets/fonts/JetBrainsMono-600.ttf
+          weight: 600
+        - asset: assets/fonts/JetBrainsMono-700.ttf
+          weight: 700

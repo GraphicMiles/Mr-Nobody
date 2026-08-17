@@ -24,6 +24,7 @@ public final class Settings {
     public static final String KEY_PROFILE = "privacy_profile";
     public static final String KEY_PARAM_STRIPPING = "param_stripping";
     public static final String KEY_FINGERPRINT_PROTECTION = "fingerprint_protection";
+    public static final String KEY_TERMINAL_ENABLED = "terminal_enabled";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -182,6 +183,18 @@ public final class Settings {
             default:
                 return "";
         }
+    }
+
+    /**
+     * Sandboxed terminal tool. OFF by default: the agent may not run shell
+     * commands unless the user explicitly turns this on (spec §policy gate).
+     */
+    public boolean isTerminalEnabled() {
+        return prefs.getBoolean(KEY_TERMINAL_ENABLED, false);
+    }
+
+    public void setTerminalEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_TERMINAL_ENABLED, enabled).apply();
     }
 
     public String activeAiProvider() {
