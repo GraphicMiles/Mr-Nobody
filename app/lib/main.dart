@@ -12,6 +12,7 @@ import 'screens/settings_screen.dart';
 import 'screens/launch_screen.dart';
 import 'screens/browser_screen.dart';
 import 'screens/task_detail_screen.dart';
+import 'screens/privacy_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -147,10 +148,19 @@ class _AppShellState extends State<AppShell> {
       return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.accent)));
     }
     if (_launched == false) {
-      return LaunchScreen(onStart: () {
-        NativeBridge.setFirstLaunchDone();
-        setState(() => _launched = true);
-      });
+      return LaunchScreen(
+        onStart: () {
+          NativeBridge.setFirstLaunchDone();
+          setState(() => _launched = true);
+        },
+        onPrivacy: () {
+          NativeBridge.setFirstLaunchDone();
+          setState(() => _launched = true);
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+          );
+        },
+      );
     }
     return Scaffold(
       body: SafeArea(

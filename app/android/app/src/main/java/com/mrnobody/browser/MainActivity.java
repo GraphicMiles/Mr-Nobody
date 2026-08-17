@@ -10,10 +10,15 @@ import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.tools.SearchTool;
+import com.mrnobody.browser.core.BookmarksStore;
+import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.deeplink.DeepLinkHandler;
 
 import android.app.DownloadManager;
 import android.database.Cursor;
+import android.webkit.CookieManager;
+import android.webkit.WebStorage;
+import android.webkit.WebView;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -156,6 +161,100 @@ public class MainActivity extends FlutterActivity {
                             result.success(out);
                             return;
                         }
+                        case "getSettings": {
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("history", MrNobodyApp.settings().isHistoryEnabled());
+                            m.put("js", MrNobodyApp.settings().isJsEnabled());
+                            m.put("suggestions", MrNobodyApp.settings().areSuggestionsEnabled());
+                            m.put("terminal", MrNobodyApp.settings().isTerminalEnabled());
+                            m.put("profile", MrNobodyApp.settings().getProfile().name());
+                            m.put("searchEngine", MrNobodyApp.settings().getSearchEngine());
+                            m.put("provider", MrNobodyApp.settings().activeAiProvider());
+                            result.success(m);
+                            return;
+                        }
+                        case "setSetting": {
+                            String key = call.argument("key");
+                            Object value = call.argument("value");
+                            if (key == null) {
+                                result.error("bad_arg", "key required", null);
+                                return;
+                            }
+                            applySetting(key, value);
+                            result.success(null);
+                            return;
+                        }
+                        case "providerConfig": {
+                            String id = call.argument("id");
+                            if (id == null) id = "local";
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("id", id);
+                            m.put("base", MrNobodyApp.settings().apiBase(id));
+                            m.put("model", MrNobodyApp.settings().apiModel(id));
+                            // The key itself never crosses the channel — only whether one exists.
+                            m.put("hasKey", !MrNobodyApp.settings().apiKey(id).isEmpty());
+                            result.success(m);
+                            return;
+                        }
+                        case "saveProvider": {
+                            String id = call.argument("id");
+                            if (id == null || id.trim().isEmpty()) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            String key = call.argument("key");
+                            String base = call.argument("base");
+                            String model = call.argument("model");
+                            if (key != null && !key.isEmpty()) MrNobodyApp.settings().setApiKey(id, key);
+                            if (base != null) MrNobodyApp.settings().setApiBase(id, base);
+                            if (model != null) MrNobodyApp.settings().setApiModel(id, model);
+                            Boolean makeActive = call.argument("active");
+                            if (makeActive != null && makeActive) MrNobodyApp.setActiveAiProviderId(id);
+                            result.success(null);
+                            return;
+                        }
+                        case "task": {
+                            Number idArg = call.argument("id");
+                            if (idArg == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            Task t = MrNobodyApp.tasks().get(idArg.longValue());
+                            if (t == null) {
+                                result.success(null);
+                                return;
+                            }
+                            result.success(taskMap(t));
+                            return;
+                        }
+                        case "bookmarks": {
+                            List<Map<String, Object>> out = new ArrayList<>();
+                            for (BookmarksStore.Bookmark b : MrNobodyApp.bookmarks().all()) {
+                                Map<String, Object> m = new HashMap<>();
+                                m.put("id", b.id);
+                                m.put("title", b.title);
+                                m.put("url", b.url);
+                                out.add(m);
+                            }
+                            result.success(out);
+                            return;
+                        }
+                        case "addBookmark": {
+                            String url = call.argument("url");
+                            String title = call.argument("title");
+                            if (url == null || url.trim().isEmpty()) {
+                                result.error("bad_arg", "url required", null);
+                                return;
+                            }
+                            MrNobodyApp.bookmarks().add(title == null ? url : title, url, "");
+                            result.success(null);
+                            return;
+                        }
+                        case "clearData": {
+                            List<String> buckets = call.argument("buckets");
+                            result.success(clearData(buckets));
+                            return;
+                        }
                         default:
                             result.notImplemented();
                     }
@@ -166,8 +265,114 @@ public class MainActivity extends FlutterActivity {
                 flutterEngine.getDartExecutor().getBinaryMessenger(), DEEPLINK);
     }
 
-    /** Forward a deep link (mrnobody:// or a shared http(s) URL) to Dart. */
-    private void dispatchDeepLink(Intent intent) {
+    /** Persist a single settings key coming from the Flutter Settings screen. */
+    private void applySetting(String key, Object value) {
+        switch (key) {
+            case "history": {
+                boolean v = Boolean.TRUE.equals(value);
+                MrNobodyApp.settings().setHistoryEnabled(v);
+                MrNobodyApp.history().setEnabled(v);
+                break;
+            }
+            case "js":
+                MrNobodyApp.settings().setJsEnabled(Boolean.TRUE.equals(value));
+                break;
+            case "suggestions":
+                MrNobodyApp.settings().setSuggestionsEnabled(Boolean.TRUE.equals(value));
+                break;
+            case "terminal":
+                MrNobodyApp.settings().setTerminalEnabled(Boolean.TRUE.equals(value));
+                break;
+            case "profile":
+                MrNobodyApp.settings().setProfile(
+                        PrivacyProfile.fromName(String.valueOf(value)));
+                break;
+            case "searchEngine":
+                MrNobodyApp.settings().setSearchEngine(String.valueOf(value));
+                break;
+            case "provider":
+                MrNobodyApp.setActiveAiProviderId(String.valueOf(value));
+                break;
+            default:
+                // Unknown keys are ignored on purpose: the UI never writes
+                // settings the core does not own.
+                break;
+        }
+    }
+
+    private static Map<String, Object> taskMap(Task t) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("id", t.id());
+        m.put("instruction", t.instruction());
+        m.put("status", t.status().name());
+        m.put("step", t.currentStep() == null ? "" : t.currentStep());
+        m.put("progress", t.progress());
+        m.put("result", t.result() == null ? "" : t.result());
+        m.put("error", t.error() == null ? "" : t.error());
+        m.put("worker", t.worker() == null ? "local" : t.worker());
+        return m;
+    }
+
+    /**
+     * Clear the buckets the user ticked on the Clear-data screen. Everything is
+     * local, so this is a straight delete — nothing is reported anywhere.
+     */
+    private Map<String, Object> clearData(@Nullable List<String> buckets) {
+        Map<String, Object> cleared = new HashMap<>();
+        if (buckets == null) return cleared;
+        for (String bucket : buckets) {
+            try {
+                switch (bucket) {
+                    case "history":
+                        MrNobodyApp.history().clear();
+                        cleared.put("history", true);
+                        break;
+                    case "cookies":
+                        CookieManager.getInstance().removeAllCookies(null);
+                        CookieManager.getInstance().flush();
+                        cleared.put("cookies", true);
+                        break;
+                    case "cache":
+                        deleteRecursive(getCacheDir());
+                        new WebView(this).clearCache(true);
+                        cleared.put("cache", true);
+                        break;
+                    case "sitedata":
+                        WebStorage.getInstance().deleteAllData();
+                        cleared.put("sitedata", true);
+                        break;
+                    case "taskstate":
+                        MrNobodyApp.tasks().clear();
+                        cleared.put("taskstate", true);
+                        break;
+                    case "workspace":
+                        deleteRecursive(new java.io.File(getFilesDir(), "workspace"));
+                        cleared.put("workspace", true);
+                        break;
+                    default:
+                        break;
+                }
+            } catch (Exception e) {
+                cleared.put(bucket, false);
+            }
+        }
+        return cleared;
+    }
+
+    private static void deleteRecursive(@Nullable java.io.File file) {
+        if (file == null || !file.exists()) return;
+        java.io.File[] children = file.listFiles();
+        if (children != null) {
+            for (java.io.File child : children) deleteRecursive(child);
+        }
+        // Keep the directory itself; only its contents are user data.
+        if (file.isFile()) {
+            //noinspection ResultOfMethodCallIgnored
+            file.delete();
+        }
+    }
+
+    /** Forward a deep link (mrnobody:// or a shared http(s) URL) to Dart. */    private void dispatchDeepLink(Intent intent) {
         if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
         Uri data = intent.getData();
         if (data == null) return;

@@ -1,0 +1,39 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!--
+      Mr Nobody mark: hat + brim + glasses. Same geometry as the 64x64 design
+      grid used by the wireframe and by app/lib/widgets/brand_logo.dart,
+      scaled 1.3838x and centred so the whole mark sits inside the 66dp
+      adaptive-icon safe circle.
+    -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.82"
+        android:scaleY="0.82">
+        <path
+            android:fillColor="#FAFAFA"
+            android:pathData="M30.4,50.6 L40.6,25.3 C43.9,33.7 50.6,35.4 54,20.2 C57.4,35.4 64.1,33.7 67.4,25.3 L77.6,50.6 Z" />
+        <path
+            android:fillColor="#FAFAFA"
+            android:pathData="M23.6,50.6 h60.7 a3.4,3.4 0 0,1 0,6.7 h-60.7 a3.4,3.4 0 0,1 0,-6.7 Z" />
+        <path
+            android:strokeColor="#FAFAFA"
+            android:strokeWidth="5.1"
+            android:fillColor="#00000000"
+            android:pathData="M40.6,70.9 m-11.8,0 a11.8,11.8 0 1,1 23.6,0 a11.8,11.8 0 1,1 -23.6,0" />
+        <path
+            android:strokeColor="#FAFAFA"
+            android:strokeWidth="5.1"
+            android:fillColor="#00000000"
+            android:pathData="M67.4,70.9 m-11.8,0 a11.8,11.8 0 1,1 23.6,0 a11.8,11.8 0 1,1 -23.6,0" />
+        <path
+            android:strokeColor="#FAFAFA"
+            android:strokeWidth="5.1"
+            android:strokeLineCap="round"
+            android:pathData="M52.4,70.9 L55.6,70.9" />
+    </group>
+</vector>
