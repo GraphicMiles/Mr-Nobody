@@ -1,132 +1,120 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
-import '../bridge/native_bridge.dart';
+import 'home_screen.dart' show taskIcon;
 
-/// Tasks (S5) — the real task list from the Java core via NativeBridge.
+/// Tasks (S5) — every task the core knows about, newest first. Live rows show
+/// the current step; finished rows show a muted DONE chip. Matches `#v-tasks`.
 class TasksScreen extends StatefulWidget {
-  final ValueChanged<String> onOpenTask;
-  const TasksScreen({super.key, required this.onOpenTask});
+  final void Function(Map<String, dynamic> task) onOpenTask;
+  final ScrollController? scrollController;
+
+  const TasksScreen({super.key, required this.onOpenTask, this.scrollController});
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  List<Map<String, dynamic>> _tasks = [];
+  List<Map<String, dynamic>> _tasks = const [];
   bool _loaded = false;
+  Timer? _poll;
+
+  static const _live = {'RUNNING', 'QUEUED', 'WAITING', 'VERIFYING'};
 
   @override
   void initState() {
     super.initState();
     _load();
+    _poll = Timer.periodic(const Duration(seconds: 3), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
-    try {
-      final tasks = await NativeBridge.recentTasks();
-      if (!mounted) return;
-      setState(() { _tasks = tasks; _loaded = true; });
-    } catch (_) {
-      if (mounted) setState(() => _loaded = true);
-    }
+    final tasks = await NativeBridge.guard(
+      NativeBridge.recentTasks,
+      const <Map<String, dynamic>>[],
+      'tasks unavailable',
+    );
+    if (!mounted) return;
+    setState(() {
+      _tasks = tasks;
+      _loaded = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          color: AppColors.surface,
-          padding: EdgeInsets.only(left: 8, top: 8 + MediaQuery.of(context).padding.top, right: 12, bottom: 8),
-          child: Row(
-            children: [
-              IconButton(onPressed: () {}, icon: const Icon(Icons.chevron_left, color: AppColors.textDim, size: 26)),
-              Text('Tasks', style: AppTheme.sans(size: 16, w: FontWeight.w700)),
-            ],
-          ),
-        ),
-        const SectionLabel('All tasks'),
+        const SafeArea(bottom: false, child: SizedBox(height: 8)),
         Expanded(
-          child: !_loaded
-              ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-              : _tasks.isEmpty
-                  ? const Center(child: Text('No tasks yet', style: TextStyle(color: AppColors.textFaint)))
-                  : ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      children: [
-                        AppCard(
-                          child: Column(
-                            children: [
-                              for (var i = 0; i < _tasks.length; i++) ...[
-                                _TaskRow(
-                                  task: _tasks[i],
-                                  onTap: () => widget.onOpenTask(_tasks[i]['instruction'] as String),
-                                ),
-                                if (i != _tasks.length - 1) const Divider(),
-                              ],
-                            ],
+          child: ListView(
+            controller: widget.scrollController,
+            padding: const EdgeInsets.only(bottom: 120),
+            children: [
+              const SectionLabel('All tasks'),
+              AppCard(
+                child: !_loaded
+                    ? const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
                           ),
                         ),
-                      ],
-                    ),
+                      )
+                    : _tasks.isEmpty
+                        ? const EmptyNote('No tasks yet — type "find …" in the bar.')
+                        : Column(
+                            children: withDividers([
+                              for (final t in _tasks) _row(t),
+                            ]),
+                          ),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
-}
 
-class _TaskRow extends StatelessWidget {
-  final Map<String, dynamic> task;
-  final VoidCallback onTap;
-  const _TaskRow({required this.task, required this.onTap});
+  /// Wireframe chip vocabulary: a finished task reads DONE, not COMPLETED.
+  static String _chipLabel(String status) {
+    switch (status) {
+      case 'COMPLETED':
+        return 'DONE';
+      case 'VERIFYING':
+        return 'RUNNING';
+      default:
+        return status;
+    }
+  }
 
-  static const _icons = {
-    'COMPLETED': Icons.check_circle_outline,
-    'FAILED': Icons.error_outline,
-    'WAITING': Icons.pause_circle_outline,
-    'QUEUED': Icons.schedule,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final status = task['status'] as String? ?? 'RUNNING';
-    final done = status == 'COMPLETED';
-    final icon = _icons[status] ?? Icons.auto_awesome;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(9)),
-              child: Icon(icon, size: 15, color: AppColors.textDim),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(task['instruction'] as String, style: AppTheme.sans(size: 13, w: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if ((task['step'] as String? ?? '').isNotEmpty)
-                    Text(task['step'] as String, style: AppTheme.mono(size: 10, color: AppColors.textFaint)),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(
-                color: done ? AppColors.surface3 : AppColors.accent,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(status, style: AppTheme.mono(size: 9, color: done ? AppColors.textDim : AppColors.accentInk, w: FontWeight.w600)),
-            ),
-          ],
-        ),
+  Widget _row(Map<String, dynamic> task) {
+    final status = task['status'] as String? ?? 'QUEUED';
+    final running = _live.contains(status);
+    final step = task['step'] as String? ?? '';
+    return ListRow(
+      icon: taskIcon(task['instruction'] as String? ?? ''),
+      title: task['instruction'] as String? ?? 'Task',
+      subtitle: running && step.isNotEmpty ? 'on-device · $step' : 'on-device',
+      trailing: StatusChip(
+        _chipLabel(status),
+        tone: running ? ChipTone.running : ChipTone.done,
       ),
+      onTap: () => widget.onOpenTask(task),
     );
   }
 }

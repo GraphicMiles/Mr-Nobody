@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
-import '../bridge/native_bridge.dart';
+import '../widgets/debug_fab.dart';
 
-/// Privacy dashboard (S4) — real counters from the Java filter engine.
+/// Privacy dashboard (S4) — real counters from the Java filter engine, split
+/// into this page / today / cookies / history, with the on-device promise at
+/// the bottom. Matches `#v-privacy`.
 class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({super.key});
 
@@ -22,59 +25,72 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
   }
 
   Future<void> _load() async {
-    try {
-      final stats = await NativeBridge.privacyStats();
-      final history = await NativeBridge.isHistoryEnabled();
-      if (!mounted) return;
-      setState(() { _stats = stats; _history = history; });
-    } catch (_) {}
+    final stats = await NativeBridge.guard(
+      NativeBridge.privacyStats,
+      const <String, dynamic>{},
+      'privacy stats unavailable',
+    );
+    final history = await NativeBridge.guard(
+      NativeBridge.isHistoryEnabled,
+      false,
+      'history flag unavailable',
+    );
+    if (!mounted) return;
+    setState(() {
+      _stats = stats.isEmpty ? null : stats;
+      _history = history;
+    });
+  }
+
+  String _v(String key, {String suffix = ''}) {
+    final s = _stats;
+    if (s == null || s[key] == null) return '—';
+    return '${s[key]}$suffix';
   }
 
   @override
   Widget build(BuildContext context) {
-    final s = _stats;
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: PanelShell(
         title: 'Privacy',
         onBack: () => Navigator.of(context).pop(),
+        overlay: const DebugOverlay(bottomInset: 20),
         children: [
           const SectionLabel('This page'),
-          _Card([
-            MetricRow('Privacy score', s == null ? '—' : '${s['score']} / 100'),
-            const Divider(),
-            MetricRow('Ads blocked', s == null ? '—' : '${s['pageAds']}'),
-            const Divider(),
-            MetricRow('Trackers blocked', s == null ? '—' : '${s['pageTrackers']}'),
-          ]),
+          AppCard(
+            child: Column(
+              children: withDividers([
+                MetricRow('Privacy score', _v('score', suffix: ' / 100')),
+                MetricRow('Ads blocked', _v('pageAds')),
+                MetricRow('Trackers blocked', _v('pageTrackers')),
+              ]),
+            ),
+          ),
           const SectionLabel('Today'),
-          _Card([
-            MetricRow('Ads blocked', s == null ? '—' : '${s['todayAds']}'),
-            const Divider(),
-            MetricRow('Trackers blocked', s == null ? '—' : '${s['todayTrackers']}'),
-          ]),
+          AppCard(
+            child: Column(
+              children: withDividers([
+                MetricRow('Ads blocked', _v('todayAds')),
+                MetricRow('Trackers blocked', _v('todayTrackers')),
+              ]),
+            ),
+          ),
           const SectionLabel('Cookies'),
-          const _Card([MetricRow('Third-party', 'Blocked', dim: true)]),
+          const AppCard(child: MetricRow('Third-party', 'Blocked', dim: true)),
           const SectionLabel('History'),
-          _Card([MetricRow('Saved locally', _history ? 'ON' : 'OFF', dim: true)]),
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Center(child: Text('all counts stay on-device', style: TextStyle(fontSize: 10.5, color: AppColors.textFaint))),
+          AppCard(child: MetricRow('Saved locally', _history ? 'ON' : 'OFF', dim: true)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+            child: Center(
+              child: Text(
+                'all counts stay on-device',
+                style: AppTheme.mono(size: 10.5, color: AppColors.textMuted, height: 1.5),
+              ),
+            ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Card extends StatelessWidget {
-  final List<Widget> children;
-  const _Card(this.children);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: AppCard(child: Column(children: children)),
     );
   }
 }

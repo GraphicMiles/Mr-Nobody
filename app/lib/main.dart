@@ -1,21 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'bridge/native_bridge.dart';
+import 'browser/tab_manager.dart';
+import 'router/intent_router.dart';
+import 'screens/browser_screen.dart';
+import 'screens/clear_data_screen.dart';
+import 'screens/downloads_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/launch_screen.dart';
+import 'screens/privacy_screen.dart';
+import 'screens/settings_screen.dart';
+import 'screens/tabs_screen.dart';
+import 'screens/task_detail_screen.dart';
+import 'screens/tasks_screen.dart';
+import 'state/app_state.dart';
+import 'state/error_log.dart';
 import 'theme/app_theme.dart';
 import 'widgets/bottom_nav.dart';
-import 'browser/tab_manager.dart';
-import 'bridge/native_bridge.dart';
-import 'router/intent_router.dart';
-import 'screens/home_screen.dart';
-import 'screens/tabs_screen.dart';
-import 'screens/tasks_screen.dart';
-import 'screens/settings_screen.dart';
-import 'screens/launch_screen.dart';
-import 'screens/browser_screen.dart';
-import 'screens/task_detail_screen.dart';
-import 'screens/privacy_screen.dart';
+import 'widgets/debug_fab.dart';
+import 'widgets/toast.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Framework errors land in the in-app debug overlay: this app has no crash
+  // reporter, so the user's own copy button is the only report channel.
+  final previous = FlutterError.onError;
+  FlutterError.onError = (details) {
+    ErrorLog.instance.add(details.exceptionAsString());
+    previous?.call(details);
+  };
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: AppColors.bg,
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
   runApp(const MrNobodyApp());
 }
 
@@ -33,7 +53,10 @@ class MrNobodyApp extends StatelessWidget {
   }
 }
 
-/// The shell owns the bottom nav, the shared [TabManager], and the routing of
+/// Destinations of the bottom nav, in bar order.
+enum ShellTab { home, tabs, tasks, settings }
+
+/// The shell owns the bottom nav, the shared [TabManager] and the routing of
 /// the unified input + deep links. Drill-in screens are pushed routes.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -44,33 +67,60 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   final TabManager _tabs = TabManager();
-  int _selected = 0;
-  bool? _launched; // null = loading, false = show launch, true = shell
+  final GlobalKey<HomeScreenState> _homeKey = GlobalKey<HomeScreenState>();
+  final Map<ShellTab, ScrollController> _scrollControllers = {
+    for (final t in ShellTab.values) t: ScrollController(),
+  };
+
+  ShellTab _tab = ShellTab.home;
+  bool? _launched; // null = still asking the core
+  bool _navVisible = true;
+  double _lastScrollOffset = 0;
 
   @override
   void initState() {
     super.initState();
     _listenForDeepLinks();
     _checkFirstLaunch();
-  }
-
-  Future<void> _checkFirstLaunch() async {
-    try {
-      final done = await NativeBridge.isFirstLaunchDone();
-      if (!mounted) return;
-      setState(() => _launched = done);
-    } catch (_) {
-      if (mounted) setState(() => _launched = true); // core unavailable → proceed
+    AppState.instance.load();
+    for (final entry in _scrollControllers.entries) {
+      entry.value.addListener(() => _onScroll(entry.value));
     }
   }
 
   @override
   void dispose() {
+    for (final c in _scrollControllers.values) {
+      c.dispose();
+    }
     _tabs.dispose();
     super.dispose();
   }
 
-  /// Java forwards mrnobody:// and shared http(s) URLs to Dart here.
+  Future<void> _checkFirstLaunch() async {
+    final done = await NativeBridge.guard(
+      NativeBridge.isFirstLaunchDone,
+      true, // core unavailable → don't block the user behind the welcome screen
+      'first-launch flag unavailable',
+    );
+    if (!mounted) return;
+    setState(() => _launched = done);
+  }
+
+  /// Hide the bar while the user scrolls down, bring it back on the way up —
+  /// `.bottombar.nav-hidden` in the wireframe.
+  void _onScroll(ScrollController controller) {
+    if (!controller.hasClients) return;
+    final offset = controller.offset;
+    final delta = offset - _lastScrollOffset;
+    if (delta.abs() < 12) return;
+    _lastScrollOffset = offset;
+    final shouldShow = delta < 0 || offset <= 0;
+    if (shouldShow != _navVisible) setState(() => _navVisible = shouldShow);
+  }
+
+  // ----------------------------------------------------------- deep linking
+
   void _listenForDeepLinks() {
     const ch = MethodChannel('mrnobody/deeplink');
     ch.setMethodCallHandler((call) async {
@@ -81,37 +131,57 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _handleDeepLink(String uri) {
-    if (uri.startsWith('mrnobody://')) {
-      final body = uri.substring('mrnobody://'.length);
-      final parts = body.split('?');
-      final path = parts[0];
-      final q = parts.length > 1 ? Uri.splitQueryString(parts[1]) : <String, String>{};
-      switch (path) {
-        case 'search':
-          _openBrowser(IntentRouter.toUrl(q['q'] ?? ''));
-          break;
-        case 'open':
-          _openBrowser(q['url'] ?? '');
-          break;
-        case 'task':
-          if ((q['instruction'] ?? '').isNotEmpty) _runTask(q['instruction']!);
-          break;
-        case 'tabs':
-          setState(() => _selected = 1);
-          break;
-        case 'tasks':
-          setState(() => _selected = 2);
-          break;
-        case 'settings':
-          setState(() => _selected = 3);
-          break;
-      }
-    } else if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    if (uri.startsWith('http://') || uri.startsWith('https://')) {
       _openBrowser(uri);
+      return;
+    }
+    if (!uri.startsWith('mrnobody://')) return;
+
+    final body = uri.substring('mrnobody://'.length);
+    final parts = body.split('?');
+    final path = parts.first;
+    final q = parts.length > 1 ? Uri.splitQueryString(parts[1]) : const <String, String>{};
+
+    switch (path) {
+      case 'open':
+        final url = q['url'] ?? '';
+        if (url.isNotEmpty) _openBrowser(IntentRouter.toUrl(url));
+        break;
+      case 'search':
+        final query = q['q'] ?? '';
+        if (query.isNotEmpty) _openBrowser(IntentRouter.toUrl(query));
+        break;
+      case 'task':
+        final instruction = q['instruction'] ?? '';
+        if (instruction.isNotEmpty) _runTask(instruction);
+        break;
+      case 'tabs':
+        _select(ShellTab.tabs);
+        break;
+      case 'tasks':
+        _select(ShellTab.tasks);
+        break;
+      case 'settings':
+        _select(ShellTab.settings);
+        break;
+      case 'privacy':
+        _push(const PrivacyScreen());
+        break;
+      case 'downloads':
+        _push(const DownloadsScreen());
+        break;
+      case 'clear':
+        _push(const ClearDataScreen());
+        break;
+      default:
+        ErrorLog.instance.add('unknown deep link: $uri');
     }
   }
 
-  /// Route a unified-input line: URL/search → browser, task → agent core.
+  // -------------------------------------------------------------- routing
+
+  /// Route a unified-input line: URL/search → visible browser, instruction →
+  /// the agent core (V1 §5).
   void _route(String input) {
     final type = IntentRouter.route(input);
     if (type == IntentType.task) {
@@ -121,74 +191,163 @@ class _AppShellState extends State<AppShell> {
     _openBrowser(IntentRouter.toUrl(input));
   }
 
-  void _runTask(String instruction) {
-    NativeBridge.runTask(instruction).then((r) {
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => TaskDetailScreen(title: instruction)),
-      );
-    }).catchError((e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Task failed: $e')));
-      }
-    });
+  Future<void> _runTask(String instruction) async {
+    final result = await NativeBridge.guard(
+      () => NativeBridge.runTask(instruction),
+      const <String, dynamic>{},
+      'could not start task',
+    );
+    if (!mounted) return;
+    final id = (result['id'] as num?)?.toInt();
+    if (id == null) {
+      AppToast.show(context, 'Agent core unavailable');
+      return;
+    }
+    AppToast.show(context, 'Task started');
+    _homeKey.currentState?.refresh();
+    _push(TaskDetailScreen(taskId: id, title: instruction));
   }
 
   void _openBrowser(String url) {
     final tab = _tabs.active ?? _tabs.newTab();
     if (url.isNotEmpty) tab.engine.loadUrl(url);
+    _pushBrowser();
+  }
+
+  void _pushBrowser() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => BrowserScreen(tabs: _tabs)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'browser'),
+        builder: (_) => BrowserScreen(
+          tabs: _tabs,
+          onShowTabs: () {
+            Navigator.of(context).popUntil((r) => r.isFirst);
+            _select(ShellTab.tabs);
+          },
+          onOpenDestination: (dest) {
+            switch (dest) {
+              case BrowserDestination.privacy:
+                _push(const PrivacyScreen());
+                break;
+              case BrowserDestination.settings:
+                _push(const SettingsScreen());
+                break;
+              case BrowserDestination.downloads:
+                _push(const DownloadsScreen());
+                break;
+            }
+          },
+        ),
+      ),
     );
   }
+
+  /// Open the browser without stacking a second copy of it.
+  void _showBrowser() {
+    final route = ModalRoute.of(context);
+    if (route?.settings.name == 'browser') return;
+    _pushBrowser();
+  }
+
+  void _push(Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+
+  void _select(ShellTab tab) {
+    setState(() {
+      _tab = tab;
+      _navVisible = true;
+    });
+  }
+
+  void _openTask(Map<String, dynamic> task) {
+    _push(TaskDetailScreen(
+      taskId: (task['id'] as num?)?.toInt(),
+      title: task['instruction'] as String? ?? 'Task',
+      initialStatus: task['status'] as String? ?? 'QUEUED',
+      initialStep: task['step'] as String? ?? '',
+      initialProgress: ((task['progress'] as num?) ?? 0).toInt(),
+    ));
+  }
+
+  // ---------------------------------------------------------------- build
 
   @override
   Widget build(BuildContext context) {
     if (_launched == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.accent)));
+      return const Scaffold(
+        backgroundColor: AppColors.bg,
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+      );
     }
     if (_launched == false) {
       return LaunchScreen(
         onStart: () {
-          NativeBridge.setFirstLaunchDone();
+          NativeBridge.guard(NativeBridge.setFirstLaunchDone, null, 'first-launch flag');
           setState(() => _launched = true);
         },
         onPrivacy: () {
-          NativeBridge.setFirstLaunchDone();
+          NativeBridge.guard(NativeBridge.setFirstLaunchDone, null, 'first-launch flag');
           setState(() => _launched = true);
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const PrivacyScreen()),
-          );
+          WidgetsBinding.instance.addPostFrameCallback((_) => _push(const PrivacyScreen()));
         },
       );
     }
+
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: IndexedStack(
-          index: _selected,
-          children: [
-            HomeScreen(onSubmit: _route),
-            TabsScreen(tabs: _tabs, onOpenTab: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => BrowserScreen(tabs: _tabs)),
-            )),
-            TasksScreen(onOpenTask: (t) => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => TaskDetailScreen(title: t)),
-            )),
-            const SettingsScreen(),
-          ],
-        ),
+      backgroundColor: AppColors.bg,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: IndexedStack(
+              index: _tab.index,
+              children: [
+                HomeScreen(
+                  key: _homeKey,
+                  scrollController: _scrollControllers[ShellTab.home],
+                  onSubmit: _route,
+                  onOpenTask: _openTask,
+                  onShortcut: (s) {
+                    switch (s) {
+                      case HomeShortcut.tabs:
+                        _select(ShellTab.tabs);
+                        break;
+                      case HomeShortcut.tasks:
+                        _select(ShellTab.tasks);
+                        break;
+                      case HomeShortcut.downloads:
+                        _push(const DownloadsScreen());
+                        break;
+                      case HomeShortcut.settings:
+                        _select(ShellTab.settings);
+                        break;
+                    }
+                  },
+                ),
+                TabsScreen(tabs: _tabs, onOpenTab: _showBrowser),
+                TasksScreen(
+                  scrollController: _scrollControllers[ShellTab.tasks],
+                  onOpenTask: _openTask,
+                ),
+                SettingsScreen(
+                  scrollController: _scrollControllers[ShellTab.settings],
+                  onBack: () => _select(ShellTab.home),
+                ),
+              ],
+            ),
+          ),
+          // The ⓘ overlay rides above every destination, as in the wireframe.
+          const Positioned.fill(child: DebugOverlay()),
+        ],
       ),
       bottomNavigationBar: BottomNav(
-        selected: _selected,
-        onSelect: (i) {
-          if (i == 4) {
-            // raised "+" → new tab → browser
-            _tabs.newTab();
-            _openBrowser('');
-          } else {
-            setState(() => _selected = i);
-          }
+        selected: _tab.index,
+        visible: _navVisible,
+        onSelect: (i) => _select(ShellTab.values[i]),
+        onNew: () {
+          _tabs.newTab();
+          AppToast.show(context, 'New tab');
+          _showBrowser();
         },
       ),
     );

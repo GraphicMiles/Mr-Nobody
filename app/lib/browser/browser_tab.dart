@@ -15,5 +15,21 @@ class BrowserTab {
     engine.onTitleChanged = (t) => title = t;
   }
 
-  String get label => title.isNotEmpty ? title : (url.isNotEmpty ? url : 'New tab');
+  /// What the tab grid shows: page title, else the bare host, else "New tab".
+  String get label {
+    if (title.isNotEmpty) return title;
+    if (url.isEmpty) return 'New tab';
+    return host.isEmpty ? url : host;
+  }
+
+  /// Host without scheme or path — also used by the address bar's lock row.
+  String get host {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) {
+      return url.replaceFirst(RegExp(r'^https?://'), '').split('/').first;
+    }
+    return uri.host;
+  }
+
+  bool get isSecure => url.startsWith('https://');
 }

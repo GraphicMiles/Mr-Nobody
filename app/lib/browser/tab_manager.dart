@@ -38,6 +38,18 @@ class TabManager extends ChangeNotifier {
     }
   }
 
+  /// Explicitly switch to a tab by its stable id.
+  void selectById(int id) {
+    final i = _tabs.indexWhere((t) => t.id == id);
+    if (i >= 0) select(i);
+  }
+
+  /// Close a tab by its stable id (grid cards hold ids, not positions).
+  void closeById(int id) {
+    final i = _tabs.indexWhere((t) => t.id == id);
+    if (i >= 0) close(i);
+  }
+
   void close(int index) {
     if (index < 0 || index >= _tabs.length) return;
     final wasActive = index == _activeIndex;

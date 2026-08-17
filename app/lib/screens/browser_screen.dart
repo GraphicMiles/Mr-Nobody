@@ -1,17 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+
 import '../browser/browser_tab.dart';
 import '../browser/tab_manager.dart';
 import '../router/intent_router.dart';
+import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
+import '../widgets/debug_fab.dart';
+import '../widgets/menu_sheet.dart';
+import '../widgets/bottom_nav.dart';
+import '../widgets/toast.dart';
 
-/// The visible browser (S2 · browser state): address bar, rendered WebView,
-/// loading/error states, back/forward, and a kebab menu. Tabs are owned by the
-/// shared [TabManager] so switching preserves each tab's engine/state.
+/// Drill-in screens the browser's ⋮ menu can ask the shell to open.
+enum BrowserDestination { privacy, settings, downloads }
+
+/// The visible browser (S2 · browser state): address bar with the lock, the
+/// rendered page, and the Back / Forward / + / Tabs / Menu bar. Tabs are owned
+/// by the shared [TabManager], so switching preserves each tab's engine state.
+///
+/// This is the human path. The agent's headless path never renders here.
 class BrowserScreen extends StatefulWidget {
   final TabManager tabs;
-  const BrowserScreen({super.key, required this.tabs});
+
+  /// Jump to the Tabs destination in the shell.
+  final VoidCallback onShowTabs;
+
+  /// Open a drill-in screen from the ⋮ menu.
+  final ValueChanged<BrowserDestination> onOpenDestination;
+
+  const BrowserScreen({
+    super.key,
+    required this.tabs,
+    required this.onShowTabs,
+    required this.onOpenDestination,
+  });
 
   @override
   State<BrowserScreen> createState() => _BrowserScreenState();
@@ -19,10 +42,14 @@ class BrowserScreen extends StatefulWidget {
 
 class _BrowserScreenState extends State<BrowserScreen> {
   final _address = TextEditingController();
+  final _addressFocus = FocusNode();
   bool _loading = false;
+  bool _canBack = false;
+  bool _canForward = false;
   String? _error;
+  int? _boundTabId;
 
-  BrowserTab get _tab => widget.tabs.active!;
+  BrowserTab? get _tab => widget.tabs.active;
 
   @override
   void initState() {
@@ -35,6 +62,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   void dispose() {
     widget.tabs.removeListener(_onTabsChanged);
     _address.dispose();
+    _addressFocus.dispose();
     super.dispose();
   }
 
@@ -43,105 +71,182 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (mounted) setState(() {});
   }
 
-  /// Attach this screen to the active tab's engine state callbacks.
+  /// Attach to the active tab's engine callbacks (once per tab).
   void _bindTab() {
     final tab = widget.tabs.active;
-    if (tab == null) return;
-    tab.engine.onLoadingChanged = (l) { if (mounted) setState(() => _loading = l); };
-    tab.engine.onUrlChanged = (u) { if (mounted) setState(() => _address.text = u); };
-    tab.engine.onTitleChanged = (_) { if (mounted) setState(() {}); };
-    tab.engine.onError = (e) { if (mounted) setState(() => _error = e); };
+    if (tab == null || tab.id == _boundTabId) return;
+    _boundTabId = tab.id;
+    tab.engine
+      ..onLoadingChanged = (l) {
+        if (!mounted) return;
+        setState(() => _loading = l);
+        if (!l) _refreshHistoryButtons();
+      }
+      ..onUrlChanged = (u) {
+        if (!mounted) return;
+        setState(() {
+          if (!_addressFocus.hasFocus) _address.text = u;
+          _error = null;
+        });
+      }
+      ..onTitleChanged = (_) {
+        if (mounted) setState(() {});
+      }
+      ..onError = (e) {
+        if (mounted) setState(() => _error = e);
+      };
     _address.text = tab.url;
+    _refreshHistoryButtons();
+  }
+
+  Future<void> _refreshHistoryButtons() async {
+    final tab = _tab;
+    if (tab == null || !tab.engine.isAvailable) return;
+    final back = await tab.engine.canGoBack();
+    final forward = await tab.engine.canGoForward();
+    if (!mounted) return;
+    setState(() {
+      _canBack = back;
+      _canForward = forward;
+    });
   }
 
   void _navigate(String input) {
-    if (input.trim().isEmpty) return;
+    final tab = _tab;
+    if (tab == null || input.trim().isEmpty) return;
     setState(() => _error = null);
-    final type = IntentRouter.route(input);
-    switch (type) {
-      case IntentType.url:
-        _tab.engine.loadUrl(IntentRouter.toUrl(input));
-        break;
-      case IntentType.search:
-        _tab.engine.loadUrl(IntentRouter.toUrl(input)); // rendered results page
-        break;
-      case IntentType.task:
-        // Instructions are handled by the agent core (via the home input);
-        // from the address bar, fall back to a rendered search.
-        _tab.engine.loadUrl(IntentRouter.toUrl(input));
-        break;
-    }
+    _addressFocus.unfocus();
+    // From the address bar even an instruction-shaped line is browsed, not
+    // dispatched to the agent: the agent is driven from Home, so the address
+    // bar never surprises the user with a background task.
+    tab.engine.loadUrl(IntentRouter.toUrl(input));
   }
 
   @override
   Widget build(BuildContext context) {
-    final tab = widget.tabs.active;
-    if (tab == null) return const SizedBox.shrink();
+    final tab = _tab;
+    if (tab == null) return const Scaffold(backgroundColor: AppColors.bg);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: Column(
         children: [
-          _addressBar(context),
+          SafeArea(bottom: false, child: _addressBar(tab)),
           Expanded(
             child: Stack(
               children: [
-                // rendered webpage — never raw HTML source
-                WebViewWidget(controller: tab.engine.controller),
-                if (_loading) const LinearProgressIndicator(color: AppColors.accent, backgroundColor: AppColors.surface2, minHeight: 2),
-                if (_error != null && !_loading) _errorView(context),
+                Positioned.fill(child: _pageSurface(tab)),
+                if (_loading)
+                  const Align(
+                    alignment: Alignment.topCenter,
+                    child: LinearProgressIndicator(
+                      minHeight: 2,
+                      color: AppColors.accent,
+                      backgroundColor: AppColors.surface2,
+                    ),
+                  ),
+                if (_error != null && !_loading) Positioned.fill(child: _errorView(tab)),
+                const Positioned.fill(child: DebugOverlay(bottomInset: 16)),
               ],
             ),
           ),
-          _browserBar(context),
+          BrowserNav(
+            canGoBack: _canBack,
+            canGoForward: _canForward,
+            onBack: () => tab.engine.goBack(),
+            onForward: () => tab.engine.goForward(),
+            onNewTab: () {
+              widget.tabs.newTab();
+              AppToast.show(context, 'New tab');
+            },
+            onTabs: widget.onShowTabs,
+            onMenu: _openMenu,
+          ),
         ],
       ),
     );
   }
 
-  Widget _addressBar(BuildContext context) {
+  /// The page itself. On Android this is the platform WebView; where no WebView
+  /// platform exists (design preview, widget tests) we show a neutral
+  /// placeholder rather than taking the screen down.
+  Widget _pageSurface(BrowserTab tab) {
+    if (!tab.engine.isAvailable) {
+      return Container(
+        color: AppColors.bg,
+        alignment: Alignment.center,
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Text(
+            tab.url.isEmpty
+                ? 'New tab'
+                : 'Page rendering uses the Android System WebView.\n\n${tab.url}',
+            textAlign: TextAlign.center,
+            style: AppTheme.mono(size: 11.5, color: AppColors.textMuted, height: 1.6),
+          ),
+        ),
+      );
+    }
+    return WebViewWidget(controller: tab.engine.controller);
+  }
+
+  Widget _addressBar(BrowserTab tab) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-      padding: const EdgeInsets.only(left: 12, right: 6),
+      height: 42,
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+      padding: const EdgeInsets.only(left: 12, right: 4),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.line),
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            Icon(_isSecure ? Icons.lock_outline : Icons.lock_open, size: 15, color: _isSecure ? AppColors.text : AppColors.textFaint),
-            const SizedBox(width: 6),
-            Expanded(
-              child: TextField(
-                controller: _address,
-                style: AppTheme.mono(size: 12.5, color: AppColors.textDim),
-                decoration: InputDecoration(
-                  hintText: 'Search or enter address',
-                  hintStyle: AppTheme.mono(size: 12.5, color: AppColors.textFaint),
-                  border: InputBorder.none,
-                  isDense: true,
-                ),
-                keyboardType: TextInputType.url,
-                textInputAction: TextInputAction.go,
-                onSubmitted: _navigate,
+      child: Row(
+        children: [
+          Icon(
+            tab.isSecure ? Icons.lock_outline : Icons.lock_open,
+            size: 14,
+            color: tab.isSecure ? AppColors.text : AppColors.textFaint,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _address,
+              focusNode: _addressFocus,
+              style: AppTheme.mono(size: 12.5, color: AppColors.textDim),
+              cursorColor: AppColors.accent,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Search or enter address',
+                hintStyle: AppTheme.mono(size: 12.5, color: AppColors.textFaint),
               ),
+              keyboardType: TextInputType.url,
+              textInputAction: TextInputAction.go,
+              onSubmitted: _navigate,
             ),
-            IconButton(
-              onPressed: _openMenu,
-              icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textDim),
+          ),
+          GestureDetector(
+            onTap: () => tab.engine.reload(),
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6),
+              child: Icon(Icons.refresh, size: 15, color: AppColors.textFaint),
             ),
-          ],
-        ),
+          ),
+          GestureDetector(
+            onTap: _openMenu,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.more_vert, size: 16, color: AppColors.textDim),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  bool get _isSecure => _tab.url.startsWith('https://');
-
-  Widget _errorView(BuildContext context) {
+  Widget _errorView(BrowserTab tab) {
     return Container(
       color: AppColors.bg,
       alignment: Alignment.center,
@@ -149,111 +254,87 @@ class _BrowserScreenState extends State<BrowserScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.wifi_off, size: 32, color: AppColors.textFaint),
+          const Icon(Icons.wifi_off, size: 30, color: AppColors.textFaint),
           const SizedBox(height: 12),
-          Text('Couldn\'t load this page', style: AppTheme.sans(size: 14, w: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(_error ?? 'Network error', textAlign: TextAlign.center, style: AppTheme.sans(size: 12, color: AppColors.textFaint)),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: ActionButton('Retry', solid: true, onTap: () { setState(() => _error = null); _tab.engine.reload(); }),
+          Text("Couldn't load this page", style: AppTheme.sans(size: 14, w: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text(
+            _error ?? 'Network error',
+            textAlign: TextAlign.center,
+            style: AppTheme.sans(size: 12, color: AppColors.textFaint),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: 180,
+            child: ActionButton(
+              'Retry',
+              solid: true,
+              onTap: () {
+                setState(() => _error = null);
+                tab.engine.reload();
+              },
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _browserBar(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.line)),
-      ),
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _navBtn(Icons.arrow_back, 'Back', () => _tab.engine.goBack()),
-          _navBtn(Icons.arrow_forward, 'Forward', () => _tab.engine.goForward()),
-          _raisedPlus(),
-          _navBtn(Icons.layers_rounded, 'Tabs', () => Navigator.of(context).pop()), // back to shell → tabs
-          _navBtn(Icons.more_horiz, 'Menu', _openMenu),
-        ],
-      ),
-    );
-  }
-
-  Widget _navBtn(IconData icon, String label, VoidCallback onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 20, color: AppColors.textDim),
-              const SizedBox(height: 3),
-              Text(label, style: AppTheme.mono(size: 9, color: AppColors.textFaint)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _raisedPlus() {
-    return GestureDetector(
-      onTap: () {
-        widget.tabs.newTab();
-      },
-      child: Container(
-        width: 48,
-        height: 48,
-        margin: const EdgeInsets.only(bottom: 18),
-        decoration: BoxDecoration(
-          color: AppColors.accent,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.bg, width: 4),
-        ),
-        child: const Icon(Icons.add, size: 24, color: AppColors.accentInk),
       ),
     );
   }
 
   void _openMenu() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (c) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _menuItem(Icons.visibility_off, 'New private tab', () { widget.tabs.newTab(isPrivate: true); Navigator.pop(c); }),
-            _menuItem(Icons.bookmark_outline, 'Bookmark this page', () { _bookmark(); Navigator.pop(c); }),
-            _menuItem(Icons.shield_outlined, 'Privacy report', () { Navigator.pop(c); }),
-            _menuItem(Icons.close, 'Close all tabs', () { widget.tabs.closeAll(); widget.tabs.newTab(); Navigator.pop(c); }),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    final tab = _tab;
+    if (tab == null) return;
+    showMenuSheet(context, [
+      SheetItem(Icons.visibility_off_outlined, 'New private tab', () {
+        widget.tabs.newTab(isPrivate: true);
+        AppToast.show(context, 'Private tab opened');
+      }),
+      SheetItem(Icons.bookmark_outline, 'Bookmark this page', () async {
+        if (tab.url.isEmpty) {
+          AppToast.show(context, 'Nothing to bookmark');
+          return;
+        }
+        await NativeBridge.guard(
+          () => NativeBridge.addBookmark(tab.url, tab.label),
+          null,
+          'bookmark failed',
+        );
+        if (mounted) AppToast.show(context, 'Bookmarked');
+      }),
+      SheetItem(Icons.bookmarks_outlined, 'Bookmarks', () async {
+        final marks = await NativeBridge.guard(
+          NativeBridge.bookmarks,
+          const <Map<String, dynamic>>[],
+          'bookmarks unavailable',
+        );
+        if (!mounted) return;
+        if (marks.isEmpty) {
+          AppToast.show(context, 'No bookmarks');
+          return;
+        }
+        _showBookmarks(marks);
+      }),
+      SheetItem(Icons.shield_outlined, 'Privacy report',
+          () => widget.onOpenDestination(BrowserDestination.privacy)),
+      SheetItem(Icons.settings_rounded, 'Settings',
+          () => widget.onOpenDestination(BrowserDestination.settings)),
+      SheetItem(Icons.download_rounded, 'Downloads',
+          () => widget.onOpenDestination(BrowserDestination.downloads)),
+      SheetItem(Icons.close, 'Close all tabs', () {
+        widget.tabs.closeAll();
+        AppToast.show(context, 'All tabs closed');
+        widget.onShowTabs();
+      }),
+    ]);
   }
 
-  Widget _menuItem(IconData icon, String label, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, size: 20, color: AppColors.textDim),
-      title: Text(label, style: AppTheme.sans(size: 14)),
-      onTap: onTap,
-    );
-  }
-
-  void _bookmark() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Bookmarked "${_tab.label}"'), duration: const Duration(seconds: 1)),
-    );
+  void _showBookmarks(List<Map<String, dynamic>> marks) {
+    showMenuSheet(context, [
+      for (final m in marks.take(8))
+        SheetItem(Icons.link, m['title'] as String? ?? m['url'] as String? ?? '', () {
+          final url = m['url'] as String? ?? '';
+          if (url.isNotEmpty) _tab?.engine.loadUrl(url);
+        }),
+    ]);
   }
 }
+

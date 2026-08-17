@@ -144,11 +144,13 @@ public class MainActivity extends FlutterActivity {
                                     if (c != null) {
                                         int iTitle = c.getColumnIndex(DownloadManager.COLUMN_TITLE);
                                         int iSize = c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
+                                        int iSoFar = c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
                                         int iStatus = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
                                         while (c.moveToNext()) {
                                             Map<String, Object> m = new HashMap<>();
                                             m.put("name", c.getString(iTitle));
                                             m.put("size", c.getLong(iSize));
+                                            m.put("downloaded", iSoFar >= 0 ? c.getLong(iSoFar) : 0L);
                                             m.put("status", c.getInt(iStatus));
                                             out.add(m);
                                         }
