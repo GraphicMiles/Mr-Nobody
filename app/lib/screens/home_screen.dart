@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
+import '../bridge/native_bridge.dart';
 
-/// Agent Home (S2) — the "new tab" landing: logo, unified search, active tasks,
-/// shortcuts. The unified bar routes URL → browser, search → results, task → agent.
+/// Agent Home (S2) — logo, unified search, active tasks, shortcuts. Submitting
+/// the bar routes through [onSubmit] (URL/search → browser, task → agent core).
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final ValueChanged<String> onSubmit;
+  const HomeScreen({super.key, required this.onSubmit});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -13,6 +15,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _input = TextEditingController();
+  List<Map<String, dynamic>> _tasks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
 
   @override
   void dispose() {
@@ -20,13 +29,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  Future<void> _loadTasks() async {
+    try {
+      final tasks = await NativeBridge.recentTasks();
+      if (!mounted) return;
+      setState(() => _tasks = tasks.where((t) => t['status'] == 'RUNNING' || t['status'] == 'QUEUED' || t['status'] == 'WAITING').toList());
+    } catch (_) {
+      // Core unavailable — leave empty rather than show fake data.
+    }
+  }
+
   void _submit(String text) {
     final t = text.trim();
     if (t.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Routing: "$t"'), duration: const Duration(seconds: 1)),
-    );
     _input.clear();
+    widget.onSubmit(t);
   }
 
   @override
@@ -34,16 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 24, 0, 24),
       children: [
-        // big centered logo mark
         Padding(
           padding: const EdgeInsets.only(top: 20, bottom: 20),
-          child: Text(
-            'MR NOBODY',
-            textAlign: TextAlign.center,
-            style: AppTheme.sans(size: 26, w: FontWeight.w800),
-          ),
+          child: Text('MR NOBODY', textAlign: TextAlign.center, style: AppTheme.sans(size: 26, w: FontWeight.w800)),
         ),
-        // unified search pill
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Container(
@@ -77,10 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Container(
                     width: 36,
                     height: 36,
-                    decoration: const BoxDecoration(
-                      color: AppColors.accent,
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
                     child: const Icon(Icons.arrow_forward, size: 18, color: AppColors.accentInk),
                   ),
                 ),
@@ -89,18 +97,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SectionLabel('Active tasks'),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: AppCard(
-            child: Column(
-              children: [
-                _TaskLine(icon: Icons.laptop_mac, title: 'Find laptop under ₦500,000', sub: 'on-device · searching'),
-                Divider(),
-                _TaskLine(icon: Icons.download, title: 'Download report.pdf', sub: '72%'),
-                Divider(),
-                _TaskLine(icon: Icons.balance, title: 'Compare phones', sub: ''),
-              ],
-            ),
+            child: _tasks.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: Text('No active tasks', style: TextStyle(color: AppColors.textFaint))),
+                  )
+                : Column(
+                    children: [
+                      for (var i = 0; i < _tasks.length; i++) ...[
+                        _TaskLine(title: _tasks[i]['instruction'] as String, sub: _tasks[i]['step'] as String? ?? ''),
+                        if (i != _tasks.length - 1) const Divider(),
+                      ],
+                    ],
+                  ),
           ),
         ),
         const SectionLabel('Shortcuts'),
@@ -126,10 +138,9 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _TaskLine extends StatelessWidget {
-  final IconData icon;
   final String title;
   final String sub;
-  const _TaskLine({required this.icon, required this.title, required this.sub});
+  const _TaskLine({required this.title, required this.sub});
 
   @override
   Widget build(BuildContext context) {
@@ -140,11 +151,8 @@ class _TaskLine extends StatelessWidget {
           Container(
             width: 28,
             height: 28,
-            decoration: BoxDecoration(
-              color: AppColors.surface2,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Icon(icon, size: 15, color: AppColors.textDim),
+            decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(9)),
+            child: const Icon(Icons.laptop_mac, size: 15, color: AppColors.textDim),
           ),
           const SizedBox(width: 11),
           Expanded(
@@ -158,10 +166,7 @@ class _TaskLine extends StatelessWidget {
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(999),
-            ),
+            decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(999)),
             child: Text('RUNNING', style: AppTheme.mono(size: 9, color: AppColors.accentInk, w: FontWeight.w600)),
           ),
         ],

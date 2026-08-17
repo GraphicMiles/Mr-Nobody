@@ -112,7 +112,8 @@ class PanelShell extends StatelessWidget {
   }
 }
 
-/// A rounded action button (ghost or solid).
+/// A rounded action button (ghost or solid). Self-sized; wrap in Expanded/SizedBox
+/// at the call site for full-width or equal-split layouts.
 class ActionButton extends StatelessWidget {
   final String label;
   final bool solid;
@@ -121,24 +122,23 @@ class ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 44,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: solid ? AppColors.accent : AppColors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.lineStrong),
-          ),
-          child: Text(
-            label,
-            style: AppTheme.sans(
-              size: 13,
-              w: FontWeight.w700,
-              color: solid ? AppColors.accentInk : AppColors.textDim,
-            ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: solid ? AppColors.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppColors.lineStrong),
+        ),
+        child: Text(
+          label,
+          style: AppTheme.sans(
+            size: 13,
+            w: FontWeight.w700,
+            color: solid ? AppColors.accentInk : AppColors.textDim,
           ),
         ),
       ),

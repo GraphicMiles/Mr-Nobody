@@ -1,19 +1,36 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
-import 'task_detail_screen.dart';
+import '../bridge/native_bridge.dart';
 
-/// Tasks (S5) — all tasks with status chips. Tapping opens Task detail.
-class TasksScreen extends StatelessWidget {
-  const TasksScreen({super.key});
+/// Tasks (S5) — the real task list from the Java core via NativeBridge.
+class TasksScreen extends StatefulWidget {
+  final ValueChanged<String> onOpenTask;
+  const TasksScreen({super.key, required this.onOpenTask});
 
-  static const _tasks = [
-    ('Find laptop under ₦500,000', Icons.laptop_mac, 'RUNNING', 'on-device · searching'),
-    ('Download report.pdf', Icons.download, 'WAITING', 'needs your approval'),
-    ('Price watch · daily 08:00', Icons.trending_up, 'SCHEDULED', 'remote · scheduled'),
-    ('Compare phones', Icons.balance, 'DONE', ''),
-    ('Scrape reviews', Icons.star_outline, 'FAILED', ''),
-  ];
+  @override
+  State<TasksScreen> createState() => _TasksScreenState();
+}
+
+class _TasksScreenState extends State<TasksScreen> {
+  List<Map<String, dynamic>> _tasks = [];
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final tasks = await NativeBridge.recentTasks();
+      if (!mounted) return;
+      setState(() { _tasks = tasks; _loaded = true; });
+    } catch (_) {
+      if (mounted) setState(() => _loaded = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,29 +48,28 @@ class TasksScreen extends StatelessWidget {
         ),
         const SectionLabel('All tasks'),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              AppCard(
-                child: Column(
-                  children: [
-                    for (final (title, icon, status, sub) in _tasks) ...[
-                      _TaskRow(
-                        icon: icon,
-                        title: title,
-                        sub: sub,
-                        status: status,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => TaskDetailScreen(title: title)),
+          child: !_loaded
+              ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+              : _tasks.isEmpty
+                  ? const Center(child: Text('No tasks yet', style: TextStyle(color: AppColors.textFaint)))
+                  : ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        AppCard(
+                          child: Column(
+                            children: [
+                              for (var i = 0; i < _tasks.length; i++) ...[
+                                _TaskRow(
+                                  task: _tasks[i],
+                                  onTap: () => widget.onOpenTask(_tasks[i]['instruction'] as String),
+                                ),
+                                if (i != _tasks.length - 1) const Divider(),
+                              ],
+                            ],
+                          ),
                         ),
-                      ),
-                      if (title != _tasks.last.$1) const Divider(),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
+                      ],
+                    ),
         ),
       ],
     );
@@ -61,16 +77,22 @@ class TasksScreen extends StatelessWidget {
 }
 
 class _TaskRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String sub;
-  final String status;
+  final Map<String, dynamic> task;
   final VoidCallback onTap;
-  const _TaskRow({required this.icon, required this.title, required this.sub, required this.status, required this.onTap});
+  const _TaskRow({required this.task, required this.onTap});
+
+  static const _icons = {
+    'COMPLETED': Icons.check_circle_outline,
+    'FAILED': Icons.error_outline,
+    'WAITING': Icons.pause_circle_outline,
+    'QUEUED': Icons.schedule,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final done = status == 'DONE';
+    final status = task['status'] as String? ?? 'RUNNING';
+    final done = status == 'COMPLETED';
+    final icon = _icons[status] ?? Icons.auto_awesome;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -88,8 +110,9 @@ class _TaskRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: AppTheme.sans(size: 13, w: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if (sub.isNotEmpty) Text(sub, style: AppTheme.mono(size: 10, color: AppColors.textFaint)),
+                  Text(task['instruction'] as String, style: AppTheme.sans(size: 13, w: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if ((task['step'] as String? ?? '').isNotEmpty)
+                    Text(task['step'] as String, style: AppTheme.mono(size: 10, color: AppColors.textFaint)),
                 ],
               ),
             ),
@@ -99,10 +122,7 @@ class _TaskRow extends StatelessWidget {
                 color: done ? AppColors.surface3 : AppColors.accent,
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Text(
-                status,
-                style: AppTheme.mono(size: 9, color: done ? AppColors.textDim : AppColors.accentInk, w: FontWeight.w600),
-              ),
+              child: Text(status, style: AppTheme.mono(size: 9, color: done ? AppColors.textDim : AppColors.accentInk, w: FontWeight.w600)),
             ),
           ],
         ),
