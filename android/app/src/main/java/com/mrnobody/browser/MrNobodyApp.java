@@ -14,7 +14,7 @@ import com.mrnobody.agent.dispatcher.RemoteWorker;
 import com.mrnobody.agent.dispatcher.TaskDispatcher;
 import com.mrnobody.agent.planner.DeterministicEngine;
 import com.mrnobody.agent.tasks.TaskStore;
-import com.mrnobody.blocking.FilterEngine;
+import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PerSiteSettings;
 import com.mrnobody.browser.core.PermissionStore;
