@@ -1,0 +1,24 @@
+name: mrnobody
+description: "Mr Nobody — a small, private, agentic browser."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Bundled engine rendering (Android System WebView via Platform Views) — the
+  # visible browser page stays native; Flutter is the chrome around it.
+  webview_flutter: ^4.8.0
+  # Inter + JetBrains Mono, matching the approved wireframe. Bundled offline.
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
