@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mr Nobody — Screens, Flow &amp; Execution (locked rev 2)</title>
+<style>
+  :root{
+    --bg:#0a0b0d;
+    --grid-line:rgba(201,162,55,0.05);
+    --surface:#141519; --surface-2:#1b1c21;
+    --border:#2a2c33; --border-soft:#1f2025;
+    --text:#e9e9ea; --text-dim:#8d8d94; --text-faint:#57585f;
+    --accent:#c9a237; --accent-soft:#8a722a; --accent-glow:rgba(201,162,55,0.18);
+    --allow:#7f9c78; --confirm:#c9a237; --deny:#b6564f; --debug:#5aa8e0;
+    --sans:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;} html,body{margin:0;padding:0;}
+  body{background:
+      linear-gradient(var(--grid-line) 1px,transparent 1px) 0 0/34px 34px,
+      linear-gradient(90deg,var(--grid-line) 1px,transparent 1px) 0 0/34px 34px,var(--bg);
+    color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  ::selection{background:var(--accent-glow);color:var(--text);} a{color:inherit;}
+
+  .masthead{padding:52px 24px 26px;display:flex;flex-direction:column;align-items:center;text-align:center;border-bottom:1px solid var(--border-soft);}
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+  .eyebrow::before,.eyebrow::after{content:'';width:20px;height:1px;background:var(--accent-soft);}
+  .h1{font-size:25px;font-weight:600;letter-spacing:-.01em;line-height:1.3;max-width:660px;margin:0 0 10px;}
+  .h1 em{font-style:normal;color:var(--accent);}
+  .lede{max-width:580px;font-size:13.5px;line-height:1.65;color:var(--text-dim);margin:0 0 22px;}
+  .tier-switch{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:20px;padding:3px;background:var(--surface);margin-bottom:10px;}
+  .tier-btn{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:7px 18px;border-radius:16px;cursor:pointer;color:var(--text-dim);background:transparent;border:none;transition:color .15s ease,background .15s ease;}
+  .tier-btn.active{background:var(--accent);color:#141108;font-weight:600;}
+  .proto-note{font-family:var(--mono);font-size:9px;color:var(--text-faint);margin-bottom:4px;letter-spacing:.02em;}
+  .tier-note{font-family:var(--mono);font-size:10px;color:var(--text-faint);max-width:440px;line-height:1.55;}
+  .tier-note b{color:var(--text-dim);font-weight:500;}
+  .meta-row{display:flex;gap:22px;font-family:var(--mono);font-size:9.5px;color:var(--text-faint);letter-spacing:.04em;text-transform:uppercase;margin-top:20px;flex-wrap:wrap;justify-content:center;}
+  .meta-row b{color:var(--text-dim);font-weight:500;}
+
+  .legend{display:flex;flex-wrap:wrap;justify-content:center;gap:18px;padding:14px 24px;border-bottom:1px solid var(--border-soft);font-family:var(--mono);font-size:9.5px;color:var(--text-faint);}
+  .legend-item{display:flex;align-items:center;gap:6px;}
+  .swatch{width:9px;height:9px;border:1px solid var(--border);flex-shrink:0;}
+  .swatch.hub{background:var(--accent-glow);border-color:var(--accent);}
+  .swatch.state{border-color:var(--accent-soft);background:rgba(138,114,42,.15);}
+  .swatch.depth{border-color:var(--accent-soft);background:repeating-linear-gradient(45deg,transparent,transparent 2px,var(--accent-soft) 2px,var(--accent-soft) 3px);opacity:.7;}
+  .swatch.remote{border-color:var(--debug);background:rgba(90,168,224,.15);}
+
+  .section-head{max-width:660px;margin:56px auto 6px;padding:0 24px;text-align:center;}
+  .section-tag{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;}
+  .section-title{font-size:17px;font-weight:600;margin:0 0 6px;}
+  .section-sub{font-size:12.5px;color:var(--text-dim);line-height:1.6;margin:0;}
+
+  .spine-wrap{overflow-x:auto;padding:26px 24px 4px;}
+  .spine{display:flex;align-items:center;gap:0;min-width:980px;justify-content:center;}
+  .spine-item{display:flex;flex-direction:column;align-items:center;padding:0 6px;}
+  .spine-chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--text-dim);border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:5px 13px;white-space:nowrap;}
+  .spine-chip.hub{border-color:var(--accent);color:var(--accent);background:var(--accent-glow);}
+  .spine-arrow{color:var(--text-faint);font-family:var(--mono);font-size:11px;padding:0 2px;}
+  .spine-lbl{font-family:var(--mono);font-size:8px;color:var(--text-faint);margin-top:5px;letter-spacing:.04em;}
+
+  .chart-wrap{overflow-x:auto;padding:44px 30px 60px;}
+  .chart-inner{min-width:2060px;display:flex;justify-content:center;}
+  .tree,.tree ul,.tree li{list-style:none;margin:0;padding:0;position:relative;}
+  .tree{display:flex;} .tree ul{display:flex;padding-top:34px;position:relative;}
+  .tree li{display:flex;flex-direction:column;align-items:center;padding:0 13px;position:relative;}
+  .tree ul::before{content:'';position:absolute;top:0;left:50%;border-left:1px solid var(--border);height:34px;}
+  .tree li::before,.tree li::after{content:'';position:absolute;top:-34px;right:50%;border-top:1px solid var(--border);width:50%;height:34px;}
+  .tree li::after{right:auto;left:50%;border-left:1px solid var(--border);}
+  .tree li:only-child::before,.tree li:only-child::after{display:none;}
+  .tree li:first-child::before{border:0 none;} .tree li:last-child::after{border:0 none;}
+  .tree li:last-child::before{border-right:1px solid var(--border);border-radius:0 3px 0 0;}
+  .tree li:first-child::after{border-radius:3px 0 0 0;}
+  .tree > li{padding-top:0;} .tree > li::before,.tree > li::after{display:none;}
+  .tree ul.dashed::before,.tree ul.dashed li::before,.tree ul.dashed li::after{border-style:dashed;}
+
+  .card{display:flex;flex-direction:column;align-items:center;width:196px;}
+  .card-head{display:flex;align-items:center;gap:7px;margin-bottom:10px;}
+  .sid{font-family:var(--mono);font-size:9px;color:var(--accent);border:1px solid var(--accent-soft);border-radius:3px;padding:1px 5px;letter-spacing:.03em;}
+  .sid.state{color:var(--accent-soft);border-color:var(--accent-soft);border-style:dashed;}
+  .cname{font-size:12.5px;font-weight:500;letter-spacing:.01em;}
+  .caption{font-family:var(--mono);font-size:9px;line-height:1.55;color:var(--text-faint);text-align:center;margin:10px 2px 0;}
+  .caption b{color:var(--text-dim);font-weight:500;}
+
+  .phone{width:190px;height:352px;background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .15s ease;position:relative;}
+  .card:hover .phone{border-color:var(--accent-soft);}
+  .card.hub .phone{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft),0 0 28px -6px var(--accent-glow);}
+  .card.hub:hover .phone{border-color:var(--accent);}
+
+  /* depth badge (V1 present, V2 expanded) — not "V2 only" */
+  .depth-badge{position:absolute;top:-7px;right:-5px;z-index:5;font-family:var(--mono);font-size:6.5px;letter-spacing:.05em;padding:1.5px 4px;border:1px solid var(--accent-soft);border-radius:2px;background:var(--bg);color:var(--accent-soft);white-space:nowrap;}
+  body[data-tier="v1"] .depth-only{opacity:.5;filter:grayscale(.35);}
+
+  /* ===== DEBUG FAB (floating circle + error badge) ===== */
+  .debug-fab{position:absolute;right:7px;bottom:36px;width:22px;height:22px;border-radius:50%;background:var(--surface-2);border:1px solid var(--debug);z-index:9;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;color:var(--debug);cursor:pointer;transition:transform .15s ease;}
+  .debug-fab:hover{transform:scale(1.12);}
+  .debug-fab .badge{position:absolute;top:-5px;right:-5px;min-width:11px;height:11px;border-radius:6px;background:var(--deny);color:#fff;font-size:6.5px;display:flex;align-items:center;justify-content:center;padding:0 2px;font-weight:600;}
+  .debug-fab.clean .badge{background:var(--allow);}
+  .debug-panel{position:absolute;left:8px;right:8px;bottom:62px;background:var(--surface-2);border:1px solid var(--debug);border-radius:8px;padding:8px;z-index:8;font-family:var(--mono);}
+  .debug-panel .dp-head{font-size:7px;color:var(--debug);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:flex;justify-content:space-between;}
+  .debug-panel .dp-log{font-size:7px;line-height:1.6;color:var(--text-dim);}
+  .debug-panel .dp-log .err{color:var(--deny);} .debug-panel .dp-log .ok{color:var(--allow);}
+
+  .p-title{height:28px;flex-shrink:0;display:flex;align-items:center;padding:0 10px;font-size:10.5px;font-weight:500;border-bottom:1px solid var(--border-soft);}
+  .addr{height:26px;flex-shrink:0;display:flex;align-items:center;gap:5px;margin:6px 8px 4px;padding:0 8px;border:1px solid var(--border);border-radius:13px;font-family:var(--mono);font-size:8px;color:var(--text-dim);}
+  .lock{width:7px;height:7px;flex-shrink:0;}
+  .body-scroll{flex:1;overflow:hidden;padding:2px 0;}
+  .section-lbl{font-size:7px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);padding:8px 10px 3px;}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;font-size:8.5px;border-bottom:1px solid var(--border-soft);}
+  .row:last-child{border-bottom:none;} .row .k{color:var(--text);} .row .v{font-family:var(--mono);color:var(--text-dim);}
+  .row .v.hit{color:var(--accent);font-weight:500;} .row .v.on{color:var(--allow);} .row .chev{color:var(--text-faint);}
+  .toggle{width:20px;height:11px;border:1px solid var(--border);border-radius:6px;position:relative;flex-shrink:0;}
+  .toggle::after{content:'';position:absolute;top:1px;left:1px;width:7px;height:7px;border-radius:50%;background:var(--text-faint);}
+  .toggle.on{border-color:var(--accent-soft);} .toggle.on::after{left:auto;right:1px;background:var(--accent);}
+  .btn{font-family:var(--sans);font-size:9px;font-weight:500;text-align:center;border-radius:5px;padding:6px 0;border:1px solid var(--border);}
+  .btn.primary{background:var(--accent);color:#151208;border-color:var(--accent);} .btn.ghost{color:var(--text-dim);}
+  .btn.tiny{padding:4px 9px;font-size:8px;border-radius:4px;display:inline-block;}
+  .skel{margin:8px 10px;height:4px;border-radius:2px;background:var(--surface-2);}
+  .toolbar{height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--border-soft);font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+
+  .unibar{flex-shrink:0;margin:8px 8px 4px;height:30px;border:1px solid var(--accent-soft);border-radius:15px;display:flex;align-items:center;padding:0 6px 0 10px;gap:6px;background:var(--surface-2);}
+  .unibar .placeholder{font-family:var(--mono);font-size:8px;color:var(--text-faint);flex:1;}
+  .unibar .send{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#151208;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;}
+
+  .chip{font-family:var(--mono);font-size:6.5px;letter-spacing:.05em;padding:1.5px 5px;border-radius:8px;border:1px solid;white-space:nowrap;}
+  .chip.run{color:var(--accent);border-color:var(--accent-soft);} .chip.done{color:var(--allow);border-color:var(--allow);}
+  .chip.wait{color:var(--deny);border-color:var(--deny);} .chip.remote{color:var(--debug);border-color:var(--debug);}
+
+  .task-row{padding:7px 10px;border-bottom:1px solid var(--border-soft);}
+  .task-row .t-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .task-row .t-name{font-size:8.5px;color:var(--text);}
+  .task-row .t-sub{font-family:var(--mono);font-size:7px;color:var(--text-faint);margin-top:2px;}
+  .tbar{height:3px;background:var(--surface-2);border-radius:2px;overflow:hidden;} .tbar i{display:block;height:100%;background:var(--accent);}
+
+  .plan{padding:6px 10px;} .step{display:flex;align-items:center;gap:6px;font-size:8px;padding:3px 0;color:var(--text-dim);}
+  .step .mark{font-family:var(--mono);width:10px;color:var(--text-faint);}
+  .step.done .mark{color:var(--allow);} .step.done{color:var(--text);}
+  .step.cur{color:var(--accent);font-weight:500;} .step.cur .mark{color:var(--accent);}
+
+  .gate-modal{position:absolute;left:8px;right:8px;bottom:10px;background:var(--surface-2);border:1px solid var(--confirm);border-radius:8px;padding:9px;z-index:4;}
+  .gate-modal .g-site{font-family:var(--mono);font-size:7.5px;color:var(--text-dim);margin-bottom:2px;}
+  .gate-modal .g-ask{font-size:8.5px;margin-bottom:8px;line-height:1.4;}
+  .gate-actions{display:flex;gap:5px;} .gate-actions .btn{flex:1;}
+
+  .tabgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px;}
+  .tabcell{border:1px solid var(--border);border-radius:6px;padding:5px;height:52px;display:flex;flex-direction:column;justify-content:space-between;position:relative;}
+  .tabcell.dashed{border-style:dashed;align-items:center;justify-content:center;color:var(--text-faint);font-size:14px;}
+  .tabcell .tt{display:flex;justify-content:space-between;font-size:6.5px;color:var(--text-dim);}
+  .tabcell .tb{height:3px;background:var(--surface-2);border-radius:2px;} .tabcell .tb+.tb{margin-top:3px;width:70%;}
+  .tabcell.session{border-color:var(--accent-soft);} .tabcell.session .tt{color:var(--accent-soft);}
+
+  .dl{padding:8px 10px;border-bottom:1px solid var(--border-soft);} .dl:last-child{border-bottom:none;}
+  .dl-top{display:flex;justify-content:space-between;font-size:8px;margin-bottom:5px;}
+  .dl-top .name{color:var(--text);} .dl-top .size{font-family:var(--mono);color:var(--text-faint);}
+  .dl-bar{height:3px;background:var(--surface-2);border-radius:2px;overflow:hidden;} .dl-bar i{display:block;height:100%;background:var(--accent);}
+  .dl-status{font-family:var(--mono);font-size:7px;color:var(--text-faint);margin-top:4px;} .dl-status.ok{color:var(--allow);}
+
+  .cd-check{display:flex;align-items:center;gap:7px;padding:6px 10px;font-size:8.5px;}
+  .cd-box{width:10px;height:10px;border:1px solid var(--accent-soft);border-radius:2px;flex-shrink:0;position:relative;}
+  .cd-box.on{background:var(--accent);border-color:var(--accent);}
+  .cd-box.on::after{content:'';position:absolute;left:2.5px;top:0;width:3px;height:6px;border-right:1.3px solid #151208;border-bottom:1.3px solid #151208;transform:rotate(40deg);}
+  .cd-actions{display:flex;gap:6px;padding:9px 10px;margin-top:auto;} .cd-actions .btn{flex:1;}
+
+  .fl-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 14px;text-align:center;}
+  .fl-icon{margin-bottom:8px;opacity:.9;}
+  .fl-title{font-family:var(--mono);font-size:9px;letter-spacing:.12em;margin-bottom:5px;}
+  .fl-sub{font-size:8px;color:var(--text-dim);line-height:1.5;margin-bottom:12px;}
+  .fl-checks{width:100%;margin-bottom:12px;}
+  .fl-checks div{display:flex;align-items:center;gap:5px;font-size:8px;color:var(--text-dim);padding:2px 4px;text-align:left;}
+  .fl-checks span.tick{color:var(--allow);font-family:var(--mono);}
+  .fl-cta{width:100%;margin-bottom:8px;}
+  .fl-link{font-size:8px;color:var(--accent);text-decoration:underline;text-underline-offset:2px;}
+
+  /* execution location strip */
+  .exec-wrap{max-width:640px;margin:26px auto 0;padding:0 24px;}
+  .exec{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+  .exec-card{flex:1;min-width:240px;max-width:300px;border:1px solid var(--border);background:var(--surface);padding:14px 16px;}
+  .exec-card.local{border-top:2px solid var(--allow);}
+  .exec-card.remote{border-top:2px solid var(--debug);}
+  .exec-card .ex-title{font-size:12px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:7px;}
+  .exec-card .ex-title .dot{width:7px;height:7px;border-radius:50%;}
+  .exec-card.local .ex-title .dot{background:var(--allow);}
+  .exec-card.remote .ex-title .dot{background:var(--debug);}
+  .exec-card .ex-sub{font-family:var(--mono);font-size:9px;color:var(--text-dim);line-height:1.6;}
+  .exec-card .ex-tag{font-family:var(--mono);font-size:7.5px;letter-spacing:.04em;color:var(--text-faint);margin-top:8px;}
+
+  .footnote{text-align:center;font-family:var(--mono);font-size:10px;color:var(--text-faint);line-height:1.7;padding:0 24px 60px;}
+  .footnote b{color:var(--text-dim);font-weight:500;}
+  .note{border-top:1px solid var(--border-soft);margin-top:56px;padding-top:44px;}
+  @media(max-width:720px){.masthead{padding:36px 18px 24px;}.lede{font-size:12.5px;}}
+</style>
+</head>
+<body data-tier="v2">
+
+<header class="masthead">
+  <div class="eyebrow">Screens · Flow · Execution — rev 2</div>
+  <h1 class="h1">One input. An agent that <em>uses the web</em>.<br>Local-first, remote only on request.</h1>
+  <p class="lede">S2 Agent Home is the hub. A single unified bar routes a URL → browser state, a question → results state, an instruction → task state. Tasks run on-device by default; a remote worker is opt-in only.</p>
+
+  <div class="tier-switch" role="group" aria-label="Capability depth">
+    <button class="tier-btn" data-tier-btn="v1">V1 — minimal</button>
+    <button class="tier-btn active" data-tier-btn="v2">V2 — deep</button>
+  </div>
+  <div class="proto-note">prototype-only switch — not a user-facing feature</div>
+  <p class="tier-note" id="tierNote"><b>V2 depth</b> — richer autonomy. The same components exist in V1 at minimal depth: AI provider (optional), terminal (restricted), deterministic planner, basic scheduler, one tested engine.</p>
+
+  <div class="meta-row">
+    <span><b>Hub</b> Agent Home</span>
+    <span><b>States</b> browser · results · task</span>
+    <span><b>Execution</b> local-first</span>
+    <span><b>Debug</b> always-on FAB</span>
+  </div>
+</header>
+
+<div class="legend">
+  <div class="legend-item"><span class="swatch hub"></span>agent home (hub)</div>
+  <div class="legend-item"><span class="swatch state"></span>state / route of S2</div>
+  <div class="legend-item"><span class="swatch"></span>destination screen</div>
+  <div class="legend-item"><span class="swatch depth"></span>V1 present · V2 deeper</div>
+  <div class="legend-item"><span class="swatch remote"></span>remote worker (opt-in)</div>
+</div>
+
+<div class="section-head">
+  <div class="section-tag">00 — Overview</div>
+  <h2 class="section-title">The spine</h2>
+  <p class="section-sub">S2 is the hub; the three content views are its states, not separate destinations.</p>
+</div>
+
+<div class="spine-wrap">
+  <div class="spine">
+    <div class="spine-item"><span class="spine-chip">S1 First Launch</span><span class="spine-lbl">onboard</span></div>
+    <div class="spine-arrow">→</div>
+    <div class="spine-item"><span class="spine-chip hub">S2 Agent Home</span><span class="spine-lbl">hub</span></div>
+    <div class="spine-arrow">→</div>
+    <div class="spine-item"><span class="spine-chip">S3 Sessions</span><span class="spine-lbl">tabs + agent</span></div>
+    <div class="spine-arrow">→</div>
+    <div class="spine-item"><span class="spine-chip">S4 Privacy</span><span class="spine-lbl">dashboard</span></div>
+    <div class="spine-arrow">→</div>
+    <div class="spine-item"><span class="spine-chip">S5 Tasks</span><span class="spine-lbl">history</span></div>
+    <div class="spine-arrow">→</div>
+    <div class="spine-item"><span class="spine-chip">S6 Settings</span><span class="spine-lbl">control</span></div>
+    <div class="spine-arrow">→</div>
+    <div class="spine-item"><span class="spine-chip">S7 Clear Data</span><span class="spine-lbl">wipe</span></div>
+    <div class="spine-arrow">→</div>
+    <div class="spine-item"><span class="spine-chip">S8 Downloads</span><span class="spine-lbl">files</span></div>
+  </div>
+</div>
+
+<div class="section-head">
+  <div class="section-tag">01 — Full flow</div>
+  <h2 class="section-title">How a person moves through it</h2>
+  <p class="section-sub">Every screen carries a debug FAB (bottom-right circle) with an error-count badge — tap to expand a mini log. S2a/b/c are <b>states</b> of S2, not screens.</p>
+</div>
+
+<div class="chart-wrap">
+  <div class="chart-inner">
+    <ul class="tree">
+      <li>
+        <!-- S1 -->
+        <div class="card">
+          <div class="card-head"><span class="sid">S1</span><span class="cname">First Launch</span></div>
+          <div class="phone">
+            <div class="fl-body">
+              <svg class="fl-icon" width="26" height="26" viewBox="0 0 64 64" fill="none"><path d="M18 30 L24 15 C26 20 30 21 32 12 C34 21 38 20 40 15 L46 30 Z" fill="#8a8a90"/><rect x="14" y="30" width="36" height="3" rx="1.5" fill="#8a8a90"/><circle cx="24" cy="42" r="6" stroke="#8a8a90" stroke-width="2" fill="none"/><circle cx="40" cy="42" r="6" stroke="#8a8a90" stroke-width="2" fill="none"/><line x1="31" y1="42" x2="33" y2="42" stroke="#8a8a90" stroke-width="2"/></svg>
+              <div class="fl-title">MR NOBODY</div>
+              <div class="fl-sub">Tell Mr Nobody what you want from the web.</div>
+              <div class="fl-checks">
+                <div><span class="tick">✓</span> No ads</div>
+                <div><span class="tick">✓</span> No tracking</div>
+                <div><span class="tick">✓</span> History is OFF</div>
+              </div>
+              <div class="fl-cta"><div class="btn primary">Start</div></div>
+              <div class="fl-link">Privacy Settings</div>
+            </div>
+            <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+          </div>
+          <p class="caption"><b>no account · no carousel</b><br>tap Start → Agent Home</p>
+        </div>
+
+        <ul>
+          <li>
+            <!-- S2 -->
+            <div class="card hub">
+              <div class="card-head"><span class="sid">S2</span><span class="cname">Agent Home</span></div>
+              <div class="phone">
+                <div class="unibar"><span class="placeholder">Ask Mr Nobody or enter URL…</span><span class="send">➤</span></div>
+                <div class="section-lbl">Active tasks</div>
+                <div class="task-row"><div class="t-top"><span class="t-name">◌ Find laptop under ₦500k</span><span class="chip run">RUNNING</span></div><div class="t-sub">on-device · Searching…</div></div>
+                <div class="task-row"><div class="t-top"><span class="t-name">↓ Download report</span><span class="chip run">RUNNING</span></div><div class="tbar"><i style="width:72%"></i></div><div class="t-sub">72% · on-device</div></div>
+                <div class="section-lbl">Recent</div>
+                <div class="task-row"><div class="t-top"><span class="t-name">✓ Compare phones</span><span class="chip done">DONE</span></div></div>
+                <div class="task-row"><div class="t-top"><span class="t-name">✓ Find article</span><span class="chip done">DONE</span></div></div>
+                <div class="toolbar"><span>←</span><span>+</span><span>▦</span><span>⋮</span></div>
+                <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+              </div>
+              <p class="caption"><b>the hub</b><br>one input · URL / search / task<br>active + recent work</p>
+            </div>
+
+            <ul>
+              <!-- S2 state: browser -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid state">S2·b</span><span class="cname">Browser <em style="font-style:normal;color:var(--text-faint)">state</em></span></div>
+                  <div class="phone">
+                    <div class="addr"><svg class="lock" viewBox="0 0 24 24" fill="none"><rect x="6" y="11" width="12" height="9" rx="1.5" stroke="#8a8a90" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#8a8a90" stroke-width="2"/></svg><span>example.com</span></div>
+                    <div class="body-scroll"><div class="skel" style="width:70%"></div><div class="skel" style="width:90%"></div><div class="skel" style="width:40%;height:24px;border-radius:4px;margin-top:10px"></div><div class="skel" style="width:85%;margin-top:10px"></div><div class="skel" style="width:55%"></div></div>
+                    <div class="toolbar"><span>←</span><span>+</span><span>▦</span><span>⋮</span></div>
+                    <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                  </div>
+                  <p class="caption"><b>URL → WebView</b><br>human browsing · direct, no proxy</p>
+                </div>
+              </li>
+
+              <!-- S2 state: results -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid state">S2·r</span><span class="cname">Results <em style="font-style:normal;color:var(--text-faint)">state</em></span></div>
+                  <div class="phone">
+                    <div class="addr"><span style="color:var(--accent)">"latest Arsenal result"</span></div>
+                    <div class="body-scroll"><div class="skel" style="height:8px;width:70%"></div><div class="skel" style="width:88%;margin-top:2px"></div><div class="skel" style="width:60%"></div><div class="skel" style="height:8px;width:50%;margin-top:12px"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:40%"></div></div>
+                    <div class="toolbar"><span>←</span><span>+</span><span>▦</span><span>⋮</span></div>
+                    <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                  </div>
+                  <p class="caption"><b>question → results</b><br>lightest tool first (search/HTTP)</p>
+                </div>
+              </li>
+
+              <!-- S2 state: task detail -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid state">S2·t</span><span class="cname">Task <em style="font-style:normal;color:var(--text-faint)">state</em></span></div>
+                  <div class="phone">
+                    <div class="p-title"><span style="margin-right:5px">Find 5 laptops &lt; ₦500k</span><span class="chip run">RUNNING</span></div>
+                    <div class="section-lbl">Plan</div>
+                    <div class="plan">
+                      <div class="step done"><span class="mark">✓</span>Search</div>
+                      <div class="step done"><span class="mark">✓</span>Open candidates</div>
+                      <div class="step cur"><span class="mark">◌</span>Extract prices</div>
+                      <div class="step"><span class="mark">○</span>Verify</div>
+                      <div class="step"><span class="mark">○</span>Compare</div>
+                    </div>
+                    <div class="section-lbl">Progress</div>
+                    <div style="padding:0 10px"><div class="tbar"><i style="width:58%"></i></div></div>
+                    <div class="section-lbl">Runs</div>
+                    <div class="row"><span class="k">Execution</span><span class="v">this device</span></div>
+                    <div class="debug-fab">ⓘ<span class="badge">2</span></div>
+                    <div class="debug-panel">
+                      <div class="dp-head"><span>debug</span><span class="ok">2 errors</span></div>
+                      <div class="dp-log"><span class="err">✗</span> price extract: selector not found<br><span class="err">✗</span> retry #1 failed (timeout)</div>
+                    </div>
+                  </div>
+                  <p class="caption"><b>task → live plan + progress</b><br>debug FAB shows 2 errors · tap to expand</p>
+                </div>
+              </li>
+
+              <!-- S3 -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid">S3</span><span class="cname">Sessions / Tabs</span></div>
+                  <div class="phone">
+                    <div class="p-title">Sessions · 4 open</div>
+                    <div class="tabgrid">
+                      <div class="tabcell"><div class="tt"><span>Docs</span><span>×</span></div><div class="tb"></div><div class="tb"></div></div>
+                      <div class="tabcell"><div class="tt"><span>Mail</span><span>×</span></div><div class="tb"></div><div class="tb"></div></div>
+                      <div class="tabcell session"><div class="tt"><span>Agent · laptops</span></div><div class="chip run" style="align-self:flex-start">RUNNING</div></div>
+                      <div class="tabcell dashed">+</div>
+                    </div>
+                    <div class="toolbar"><span>←</span><span>+</span><span>▦</span><span>⋮</span></div>
+                    <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                  </div>
+                  <p class="caption">tabs + task sessions together</p>
+                </div>
+              </li>
+
+              <!-- S4 -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid">S4</span><span class="cname">Privacy</span></div>
+                  <div class="phone">
+                    <div class="p-title">Privacy</div>
+                    <div class="section-lbl">This page</div>
+                    <div class="row"><span class="k">Ads blocked</span><span class="v hit">8</span></div>
+                    <div class="row"><span class="k">Trackers blocked</span><span class="v hit">4</span></div>
+                    <div class="section-lbl">Where work runs</div>
+                    <div class="row"><span class="k">Tasks</span><span class="v on">on-device</span></div>
+                    <div class="row"><span class="k">Remote worker</span><span class="v">off · opt-in</span></div>
+                    <div class="section-lbl">History</div>
+                    <div class="row"><span class="k">Saved locally</span><span class="v">OFF</span></div>
+                    <div class="section-lbl">Cookies</div>
+                    <div class="row"><span class="k">Third-party</span><span class="v">Blocked</span></div>
+                    <div class="toolbar" style="justify-content:center"><span style="font-size:8px;letter-spacing:.05em">shows what leaves the device</span></div>
+                    <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                  </div>
+                  <p class="caption">lock icon → dashboard<br>shows local vs remote execution</p>
+                </div>
+              </li>
+
+              <!-- S5 -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid">S5</span><span class="cname">Tasks</span></div>
+                  <div class="phone">
+                    <div class="p-title">Tasks</div>
+                    <div class="task-row"><div class="t-top"><span class="t-name">Find laptop under ₦500k</span><span class="chip run">RUNNING</span></div><div class="tbar"><i style="width:58%"></i></div><div class="t-sub">on-device</div></div>
+                    <div class="task-row"><div class="t-top"><span class="t-name">Download report</span><span class="chip wait">WAITING</span></div><div class="t-sub">needs your approval</div></div>
+                    <div class="task-row"><div class="t-top"><span class="t-name">Price watch · daily 08:00</span><span class="chip remote">REMOTE</span></div><div class="t-sub">opt-in · remote worker</div></div>
+                    <div class="task-row"><div class="t-top"><span class="t-name">Compare phones</span><span class="chip done">DONE</span></div></div>
+                    <div class="task-row"><div class="t-top"><span class="t-name">Scrape reviews</span><span class="chip wait" style="color:var(--deny);border-color:var(--deny)">FAILED</span></div></div>
+                    <div class="debug-fab">ⓘ<span class="badge">1</span></div>
+                  </div>
+                  <p class="caption">all work, resumable · tap → Task state<br>remote tasks are clearly marked</p>
+                </div>
+              </li>
+
+              <!-- S6 -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid">S6</span><span class="cname">Settings</span></div>
+                  <div class="phone">
+                    <div class="p-title">Settings</div>
+                    <div class="row"><span class="k">Save browsing history</span><span class="toggle"></span></div>
+                    <div class="row"><span class="k">JavaScript</span><span class="toggle on"></span></div>
+                    <div class="row"><span class="k">Search suggestions</span><span class="toggle"></span></div>
+                    <div class="section-lbl">Agent</div>
+                    <div class="row"><span class="k">Privacy profile</span><span class="v">Balanced</span></div>
+                    <div class="row"><span class="k">AI provider</span><span class="v">Local</span><span class="chev">›</span></div>
+                    <div class="row"><span class="k">Terminal</span><span class="v">off</span><span class="chev">›</span></div>
+                    <div class="section-lbl">Data</div>
+                    <div class="row"><span class="k">Permissions</span><span class="chev">›</span></div>
+                    <div class="row"><span class="k">Clear browsing data</span><span class="chev">›</span></div>
+                    <div class="row"><span class="k">Downloads</span><span class="chev">›</span></div>
+                    <div class="row"><span class="k">About</span><span class="chev">›</span></div>
+                    <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                  </div>
+                  <p class="caption">⋮ → Settings · AI + Terminal are<br><b>subsections</b>, not destinations</p>
+                </div>
+
+                <ul class="dashed">
+                  <!-- S6 subsection: AI provider -->
+                  <li class="depth-only">
+                    <div class="card">
+                      <div class="card-head"><span class="sid state">S6·ai</span><span class="cname">AI Provider <em style="font-style:normal;color:var(--text-faint)">(section)</em></span><span class="depth-badge">V1→V2</span></div>
+                      <div class="phone">
+                        <div class="p-title">AI provider</div>
+                        <div class="row"><span class="k">Local (on-device)</span><span class="v on">✓</span></div>
+                        <div class="row"><span class="k">Gemini</span><span class="chev">›</span></div>
+                        <div class="row"><span class="k">Groq</span><span class="chev">›</span></div>
+                        <div class="row"><span class="k">OpenAI-compatible</span><span class="chev">›</span></div>
+                        <div class="section-lbl">Disclosure</div>
+                        <div class="row"><span class="k" style="font-size:7.5px;line-height:1.4">If a remote provider is enabled, task context may leave the device.</span></div>
+                        <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                      </div>
+                      <p class="caption">choose where <b>the brain</b> runs<br>Gemini · Groq · OpenAI-compatible</p>
+                    </div>
+                  </li>
+
+                  <!-- S6 subsection: terminal -->
+                  <li class="depth-only">
+                    <div class="card">
+                      <div class="card-head"><span class="sid state">S6·term</span><span class="cname">Terminal <em style="font-style:normal;color:var(--text-faint)">(section)</em></span><span class="depth-badge">V1→V2</span></div>
+                      <div class="phone">
+                        <div class="p-title">Terminal · sandboxed</div>
+                        <div class="plan">
+                          <div class="step done"><span class="mark">$</span>sha256sum report.pdf</div>
+                          <div class="step done"><span class="mark">✓</span>e3b0c442…8554</div>
+                          <div class="step cur"><span class="mark">$</span>unzip archive.zip</div>
+                        </div>
+                        <div class="section-lbl">Policy</div>
+                        <div class="row"><span class="k">hash / inspect</span><span class="chip done">ALLOW</span></div>
+                        <div class="row"><span class="k">delete files</span><span class="chip run">CONFIRM</span></div>
+                        <div class="row"><span class="k">system access</span><span class="chip wait">DENY</span></div>
+                        <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                      </div>
+                      <p class="caption">restricted tool, <b>not</b> a Linux PC</p>
+                    </div>
+                  </li>
+                </ul>
+              </li>
+
+              <!-- S7 -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid">S7</span><span class="cname">Clear Data</span></div>
+                  <div class="phone">
+                    <div class="p-title">Clear browsing data</div>
+                    <div class="cd-check"><span class="cd-box on"></span>History</div>
+                    <div class="cd-check"><span class="cd-box on"></span>Cookies</div>
+                    <div class="cd-check"><span class="cd-box on"></span>Cache</div>
+                    <div class="cd-check"><span class="cd-box"></span>Site data</div>
+                    <div class="cd-check"><span class="cd-box"></span>Task state</div>
+                    <div class="cd-check"><span class="cd-box"></span>Download workspace</div>
+                    <div class="cd-actions"><div class="btn ghost">Cancel</div><div class="btn primary">Clear data</div></div>
+                    <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                  </div>
+                  <p class="caption">wipes locally, incl. task + workspace state</p>
+                </div>
+              </li>
+
+              <!-- S8 -->
+              <li>
+                <div class="card">
+                  <div class="card-head"><span class="sid">S8</span><span class="cname">Downloads</span></div>
+                  <div class="phone">
+                    <div class="p-title">Downloads</div>
+                    <div class="dl"><div class="dl-top"><span class="name">report.pdf</span><span class="size">2.1 MB</span></div><div class="dl-bar"><i style="width:62%"></i></div><div class="dl-status">downloading…</div></div>
+                    <div class="dl"><div class="dl-top"><span class="name">image.jpg</span><span class="size">480 KB</span></div><div class="dl-bar"><i style="width:100%"></i></div><div class="dl-status ok">✓ done · tap to open</div></div>
+                    <div class="dl"><div class="dl-top"><span class="name">archive.zip</span><span class="size">—</span></div><div class="dl-bar"><i style="width:20%;background:var(--text-faint)"></i></div><div class="dl-status">failed · retry</div></div>
+                    <div class="debug-fab clean">ⓘ<span class="badge">0</span></div>
+                  </div>
+                  <p class="caption">opens with Android file handling<br>agent downloads land here</p>
+                </div>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ EXECUTION MODEL ============ -->
+<div class="section-head">
+  <div class="section-tag">02 — Execution</div>
+  <h2 class="section-title">Local-first, remote only on request</h2>
+  <p class="section-sub">The Task Dispatcher routes each task to a worker. V1 ships the LocalWorker only; the interfaces exist so RemoteWorker slots in without a rewrite.</p>
+</div>
+
+<div class="exec-wrap">
+  <div class="exec">
+    <div class="exec-card local">
+      <div class="ex-title"><span class="dot"></span>LocalWorker · default</div>
+      <div class="ex-sub">Task → Android app → Agent Core →<br>Search / HTTP / headless browser /<br>terminal / download → internet</div>
+      <div class="ex-tag">on-device · no server · background via Android scheduler</div>
+    </div>
+    <div class="exec-card remote">
+      <div class="ex-title"><span class="dot"></span>RemoteWorker · opt-in</div>
+      <div class="ex-sub">Task → encrypted session → user-<br>controlled / trusted worker → agent<br>runtime → headless browser → internet</div>
+      <div class="ex-tag">explicit consent · sensitive data never silently sent</div>
+    </div>
+  </div>
+</div>
+
+<div class="section-head">
+  <div class="section-tag">03 — Interfaces (build these first)</div>
+  <h2 class="section-title">V2-ready from day one</h2>
+  <p class="section-sub">V1 ships minimal implementations behind these interfaces; V2 deepens them. Nothing is rewritten.</p>
+</div>
+
+<div class="spine-wrap" style="padding-top:20px">
+  <div class="spine" style="flex-wrap:wrap;min-width:0;gap:6px">
+    <span class="spine-chip">AgentEngine</span><span class="spine-chip">Tool</span><span class="spine-chip">BrowserTool</span><span class="spine-chip">SearchTool</span><span class="spine-chip">HttpTool</span><span class="spine-chip">DownloadTool</span><span class="spine-chip">TerminalTool</span><span class="spine-chip">TaskStore</span><span class="spine-chip">TaskScheduler</span><span class="spine-chip">AiProvider</span><span class="spine-chip">PrivacyEngine</span><span class="spine-chip">BrowserEngine</span><span class="spine-chip hub">TaskDispatcher</span><span class="spine-chip">Worker</span><span class="spine-chip">LocalWorker</span><span class="spine-chip remote">RemoteWorker</span>
+  </div>
+</div>
+
+<div class="footnote note">
+  agent decides · tools execute · nothing reaches the web without a name<br>
+  <b>S2 is the agent's home — browser, results and task are its states.</b><br>
+  local-first · remote opt-in · debug FAB with error badge on every screen
+</div>
+
+<script>
+  const btns = document.querySelectorAll('[data-tier-btn]');
+  const note = document.getElementById('tierNote');
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tier = btn.dataset.tierBtn;
+      document.body.dataset.tier = tier;
+      btns.forEach(b => b.classList.toggle('active', b === btn));
+      note.innerHTML = tier === 'v1'
+        ? '<b>V1</b> — minimal working agent: deterministic routing, search/HTTP/browser tools, one headless engine, persistent tasks, optional AI provider, restricted terminal. All components exist; autonomy is shallow.'
+        : '<b>V2</b> — deeper autonomy on the same components: LLM planning, multi-step automation, richer terminal, human-approval gates, schedules, remote worker. Same interfaces, no rewrite.';
+    });
+  });
+</script>
+
+</body>
+</html>

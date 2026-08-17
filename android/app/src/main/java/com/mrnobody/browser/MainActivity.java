@@ -39,15 +39,28 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.mrnobody.agent.core.Task;
+import com.mrnobody.agent.planner.IntentRouter;
+import com.mrnobody.agent.planner.IntentType;
 import com.mrnobody.browser.blocking.FilterEngine;
+import com.mrnobody.browser.blocking.TrackingParams;
+import com.mrnobody.browser.core.BookmarksStore;
+import com.mrnobody.browser.core.PerSiteSettings;
+import com.mrnobody.browser.core.PermissionStore;
 import com.mrnobody.browser.core.Settings;
 import com.mrnobody.browser.ui.Tab;
 import com.mrnobody.browser.ui.TabManager;
+import com.mrnobody.debug.DebugOverlay;
+import com.mrnobody.debug.ErrorLog;
 
 import java.io.ByteArrayInputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * The browser. Native chrome (address bar, toolbar, privacy panel, tab
@@ -65,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageView secureIcon;
     private View browserLayout, privacyPanel, firstLaunch;
     private TextView dashAds, dashTrackers, dashHistory;
+    private TextView dashScore, dashTodayAds, dashTodayTrackers;
 
     // Pending web permission requests (camera/mic/location).
     private PermissionRequest pendingPermissionRequest;
@@ -72,6 +86,8 @@ public class MainActivity extends AppCompatActivity {
     private String pendingGeoOrigin;
 
     private ValueCallback<Uri[]> filePathCallback;
+
+    private final ExecutorService agentExecutor = Executors.newSingleThreadExecutor();
 
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -102,6 +118,18 @@ public class MainActivity extends AppCompatActivity {
         dashAds = findViewById(R.id.dash_ads);
         dashTrackers = findViewById(R.id.dash_trackers);
         dashHistory = findViewById(R.id.dash_history);
+        dashScore = findViewById(R.id.dash_score);
+        dashTodayAds = findViewById(R.id.dash_today_ads);
+        dashTodayTrackers = findViewById(R.id.dash_today_trackers);
+
+        // V2: feed the daily privacy report from the local filter engine.
+        MrNobodyApp.filters().setBlockListener(category -> {
+            if (category == FilterEngine.Category.AD) {
+                MrNobodyApp.report().increment("ads");
+            } else if (category == FilterEngine.Category.TRACKER) {
+                MrNobodyApp.report().increment("trackers");
+            }
+        });
 
         wireToolbar();
 
@@ -124,6 +152,10 @@ public class MainActivity extends AppCompatActivity {
             openInitialTab();
             loadUrl(intent.getData().toString());
         }
+
+        // Debug overlay: floating circle with an error-count badge, expandable
+        // on tap. Testers use it to surface failures instantly.
+        new DebugOverlay((FrameLayout) findViewById(android.R.id.content));
     }
 
     private void applyTheme() {
@@ -208,8 +240,49 @@ public class MainActivity extends AppCompatActivity {
         if (input == null) return;
         String query = input.trim();
         if (query.isEmpty()) return;
-        String url = toUrl(query);
-        loadUrl(url);
+
+        // Vertical slice: unified input → intent routing → dispatcher →
+        // tool selection → result → persistent task → UI.
+        IntentType type = IntentRouter.route(query);
+        switch (type) {
+            case URL:
+                loadUrl(toUrl(query));
+                break;
+            case SEARCH:
+            case TASK:
+            default:
+                runTask(query);
+                break;
+        }
+    }
+
+    /** Create a persistent task and dispatch it (local worker, background). */
+    private void runTask(String instruction) {
+        long id = MrNobodyApp.tasks().insert(instruction);
+        Task task = MrNobodyApp.tasks().get(id);
+        if (task == null) {
+            ErrorLog.record("failed to create task");
+            return;
+        }
+        Toast.makeText(this, "Task started: " + instruction, Toast.LENGTH_SHORT).show();
+        agentExecutor.execute(() -> {
+            MrNobodyApp.dispatcher().dispatch(getApplicationContext(), task);
+            MrNobodyApp.tasks().update(task);
+            if (task.status() == Task.Status.FAILED) {
+                ErrorLog.record("task failed: " + task.error());
+            }
+            runOnUiThread(() -> showTaskResult(task));
+        });
+    }
+
+    private void showTaskResult(Task task) {
+        String title = task.status() == Task.Status.COMPLETED ? "Task done" : "Task failed";
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(task.status() == Task.Status.COMPLETED
+                        ? task.result() : task.error())
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     private void loadUrl(String url) {
@@ -218,10 +291,54 @@ public class MainActivity extends AppCompatActivity {
             newTab(false);
             t = tabs.getActive();
         }
+        // V2: strip known tracking parameters before navigation (conservative,
+        // can be disabled in Settings).
+        if (MrNobodyApp.settings().isParamStrippingEnabled()) {
+            url = TrackingParams.strip(url);
+        }
         MrNobodyApp.filters().resetPageCounters();
+        MrNobodyApp.report().increment("pages");
+        applyPerSiteSettings(t, url);
         t.loadUrl(url);
         addressInput.setText(url);
         addressInput.clearFocus();
+    }
+
+    /**
+     * Apply per-site overrides (V2) for the host being navigated to. Falls back
+     * to global settings when no override is set. JavaScript and blocking are
+     * applied per-load; cookies are enforced on the WebView.
+     */
+    private void applyPerSiteSettings(Tab tab, String url) {
+        String host = hostOf(url);
+        if (host == null || tab == null) return;
+        WebView wv = tab.peekWebView();
+        if (wv == null) return;
+
+        Settings settings = MrNobodyApp.settings();
+        PerSiteSettings perSite = MrNobodyApp.perSite();
+
+        Boolean jsOverride = perSite.js(host);
+        wv.getSettings().setJavaScriptEnabled(jsOverride != null ? jsOverride : settings.isJsEnabled());
+
+        Boolean cookieOverride = perSite.cookies(host);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(wv, false);
+        if (cookieOverride != null) {
+            CookieManager.getInstance().setAcceptCookie(cookieOverride);
+        } else {
+            CookieManager.getInstance().setAcceptCookie(true);
+        }
+    }
+
+    /** Extract the host from a URL, or null if it has none. */
+    static String hostOf(String url) {
+        if (url == null) return null;
+        try {
+            String host = new URI(url).getHost();
+            return host == null ? null : host.toLowerCase();
+        } catch (URISyntaxException e) {
+            return null;
+        }
     }
 
     /** Turn raw address-bar input into a URL (or a search). */
@@ -254,8 +371,11 @@ public class MainActivity extends AppCompatActivity {
     // ---------------------------------------------------------------- privacy
 
     private void showPrivacyPanel() {
+        dashScore.setText(MrNobodyApp.filters().privacyScore() + " / 100");
         dashAds.setText(String.valueOf(MrNobodyApp.filters().getPageAdsBlocked()));
         dashTrackers.setText(String.valueOf(MrNobodyApp.filters().getPageTrackersBlocked()));
+        dashTodayAds.setText(String.valueOf(MrNobodyApp.report().adsBlocked()));
+        dashTodayTrackers.setText(String.valueOf(MrNobodyApp.report().trackersBlocked()));
         dashHistory.setText(MrNobodyApp.settings().isHistoryEnabled()
                 ? getString(R.string.on_state) : getString(R.string.off_state));
         browserLayout.setVisibility(View.GONE);
@@ -280,22 +400,130 @@ public class MainActivity extends AppCompatActivity {
     // ------------------------------------------------------------------ menu
 
     private void showMenu() {
-        String[] items = {
-                getString(R.string.menu_new_private),
-                getString(R.string.settings_title),
-                getString(R.string.downloads_title),
-                getString(R.string.menu_close_all)
-        };
+        Tab t = tabs.getActive();
+        String host = t != null ? hostOf(t.getUrl()) : null;
+        List<String> items = new ArrayList<>();
+        items.add(getString(R.string.menu_new_private));
+        items.add(getString(R.string.menu_bookmark_page));
+        items.add(getString(R.string.menu_bookmarks));
+        if (host != null) items.add(getString(R.string.menu_site_settings, host));
+        items.add(getString(R.string.menu_reports));
+        items.add(getString(R.string.settings_title));
+        items.add(getString(R.string.downloads_title));
+        items.add(getString(R.string.menu_close_all));
+
         new AlertDialog.Builder(this)
-                .setItems(items, (d, which) -> {
-                    switch (which) {
-                        case 0: newTab(true); break;
-                        case 1: startActivity(new Intent(this, SettingsActivity.class)); break;
-                        case 2: openSystemDownloads(); break;
-                        case 3: closeAllTabs(); break;
+                .setItems(items.toArray(new String[0]), (d, which) -> {
+                    String label = items.get(which);
+                    if (label.equals(getString(R.string.menu_new_private))) {
+                        newTab(true);
+                    } else if (label.equals(getString(R.string.menu_bookmark_page))) {
+                        bookmarkCurrentPage();
+                    } else if (label.equals(getString(R.string.menu_bookmarks))) {
+                        showBookmarks();
+                    } else if (label.equals(getString(R.string.menu_reports))) {
+                        showReportDialog();
+                    } else if (label.equals(getString(R.string.settings_title))) {
+                        startActivity(new Intent(this, SettingsActivity.class));
+                    } else if (label.equals(getString(R.string.downloads_title))) {
+                        openSystemDownloads();
+                    } else if (label.equals(getString(R.string.menu_close_all))) {
+                        closeAllTabs();
+                    } else {
+                        // Site privacy (for host)
+                        showSiteSettingsDialog(host);
                     }
                 })
                 .show();
+    }
+
+    private void bookmarkCurrentPage() {
+        Tab t = tabs.getActive();
+        if (t == null || t.getUrl().isEmpty()) {
+            Toast.makeText(this, "Nothing to bookmark", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        long id = MrNobodyApp.bookmarks().add(t.getTitle(), t.getUrl(), "");
+        Toast.makeText(this, id >= 0 ? "Bookmarked" : "Already bookmarked?",
+                Toast.LENGTH_SHORT).show();
+    }
+
+    private void showBookmarks() {
+        List<BookmarksStore.Bookmark> list = MrNobodyApp.bookmarks().all();
+        if (list.isEmpty()) {
+            Toast.makeText(this, R.string.bookmarks_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] labels = new String[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            labels[i] = list.get(i).title;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.bookmarks_title)
+                .setItems(labels, (d, which) -> loadUrl(list.get(which).url))
+                .show();
+    }
+
+    private void showReportDialog() {
+        long ads = MrNobodyApp.report().adsBlocked();
+        long trackers = MrNobodyApp.report().trackersBlocked();
+        long pages = MrNobodyApp.report().pagesLoaded();
+        String msg = getString(R.string.report_ads) + ": " + ads + "\n"
+                + getString(R.string.report_trackers) + ": " + trackers + "\n"
+                + getString(R.string.report_pages) + ": " + pages + "\n\n"
+                + getString(R.string.report_no_history_note);
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.report_today))
+                .setMessage(msg)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    private void showSiteSettingsDialog(String host) {
+        PerSiteSettings perSite = MrNobodyApp.perSite();
+        Settings global = MrNobodyApp.settings();
+
+        Boolean jsOverride = perSite.js(host);
+        boolean jsCurrent = jsOverride != null ? jsOverride : global.isJsEnabled();
+        Boolean blockOverride = perSite.blocking(host);
+        boolean blockCurrent = blockOverride != null ? blockOverride : global.isBlockingEnabled();
+        Boolean locOverride = perSite.location(host);
+        boolean locCurrent = locOverride != null ? locOverride : false;
+
+        String[] items = {
+                getString(R.string.site_blocking) + ": " + onOff(blockCurrent),
+                getString(R.string.site_js) + ": " + onOff(jsCurrent),
+                getString(R.string.site_location) + ": " + onOff(locCurrent),
+                getString(R.string.site_reset)
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.menu_site_settings, host))
+                .setItems(items, (d, which) -> {
+                    switch (which) {
+                        case 0: perSite.setBlocking(host, !blockCurrent);
+                                MrNobodyApp.filters().setEnabled(!blockCurrent); break;
+                        case 1: perSite.setJs(host, !jsCurrent);
+                                applyJsToActiveTab(!jsCurrent); break;
+                        case 2: perSite.setLocation(host, !locCurrent); break;
+                        case 3: perSite.clear(host);
+                                MrNobodyApp.filters().setEnabled(global.isBlockingEnabled());
+                                applyJsToActiveTab(global.isJsEnabled());
+                                break;
+                    }
+                    Toast.makeText(this, "Site setting updated", Toast.LENGTH_SHORT).show();
+                })
+                .show();
+    }
+
+    private void applyJsToActiveTab(boolean enabled) {
+        Tab t = tabs.getActive();
+        if (t != null && t.peekWebView() != null) {
+            t.peekWebView().getSettings().setJavaScriptEnabled(enabled);
+        }
+    }
+
+    private static String onOff(boolean b) {
+        return b ? "ON" : "OFF";
     }
 
     private void openSystemDownloads() {
@@ -442,6 +670,7 @@ public class MainActivity extends AppCompatActivity {
         pendingPermissionRequest = request;
         String origin = originOf(request.getOrigin());
         String what = describeResources(request.getResources());
+        String[] requested = request.getResources();
         new AlertDialog.Builder(this)
                 .setMessage(getString(R.string.perm_wants, origin, what))
                 .setNegativeButton(R.string.perm_block, (d, w) -> {
@@ -449,15 +678,26 @@ public class MainActivity extends AppCompatActivity {
                     pendingPermissionRequest = null;
                 })
                 .setPositiveButton(R.string.perm_allow, (d, w) -> {
-                    String[] perms = resourcesToRuntimePermissions(request.getResources());
+                    // V2: record the grant in the local permission dashboard.
+                    recordPermissionGrants(origin, requested);
+                    String[] perms = resourcesToRuntimePermissions(requested);
                     if (perms.length == 0) {
-                        request.grant(request.getResources());
+                        request.grant(requested);
                         pendingPermissionRequest = null;
                     } else {
                         ActivityCompat.requestPermissions(this, perms, REQ_PERMISSIONS);
                     }
                 })
                 .show();
+    }
+
+    private void recordPermissionGrants(String host, String[] resources) {
+        if (host == null || host.isEmpty() || host.equals("website")) return;
+        PermissionStore store = MrNobodyApp.permissions();
+        for (String r : resources) {
+            if (r.contains("VIDEO_CAPTURE")) store.grant(host, PermissionStore.CAMERA);
+            else if (r.contains("AUDIO_CAPTURE")) store.grant(host, PermissionStore.MICROPHONE);
+        }
     }
 
     private void showGeolocationDialog(String origin, GeolocationPermissions.Callback callback) {
@@ -490,6 +730,9 @@ public class MainActivity extends AppCompatActivity {
         }
         if (pendingGeoCallback != null) {
             pendingGeoCallback.invoke(pendingGeoOrigin, granted, false);
+            if (granted && pendingGeoOrigin != null && !pendingGeoOrigin.isEmpty()) {
+                MrNobodyApp.permissions().grant(pendingGeoOrigin, PermissionStore.LOCATION);
+            }
             pendingGeoCallback = null;
         }
     }

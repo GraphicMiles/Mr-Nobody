@@ -14,7 +14,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
 
+import com.mrnobody.browser.core.BookmarksStore;
+import com.mrnobody.browser.core.PerSiteSettings;
+import com.mrnobody.browser.core.PermissionStore;
+import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.core.Settings;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Settings screen. Every default favors privacy (history OFF, suggestions OFF).
@@ -53,7 +60,23 @@ public class SettingsActivity extends AppCompatActivity {
 
         section(getString(R.string.settings_privacy_section));
 
+        // V2: privacy profile presets
+        navRow(getString(R.string.profile_title), () -> showProfileDialog());
+        toggleRow(getString(R.string.settings_param_stripping),
+                settings.isParamStrippingEnabled(),
+                settings::setParamStrippingEnabled);
+        toggleRow(getString(R.string.settings_fingerprint),
+                settings.isFingerprintProtection(),
+                settings::setFingerprintProtection);
+
+        section("Data & controls");
+
         navRow(getString(R.string.settings_search_engine), () -> showSearchEngineDialog());
+        navRow(getString(R.string.settings_bookmarks), this::showBookmarksDialog);
+        navRow(getString(R.string.settings_privacy_report), this::showReportDialog);
+        navRow(getString(R.string.settings_permission_dashboard), this::showPermissionDashboard);
+        navRow(getString(R.string.settings_site_overrides), this::showSiteOverrides);
+        navRow(getString(R.string.settings_storage_dashboard), this::showStorageDashboard);
         navRow(getString(R.string.settings_clear_data), () -> showClearDataDialog());
         navRow(getString(R.string.settings_downloads), () ->
                 startActivity(new android.content.Intent(
@@ -183,6 +206,154 @@ public class SettingsActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void showProfileDialog() {
+        String[] labels = {PrivacyProfile.BALANCED.label(),
+                PrivacyProfile.STRICT.label(), PrivacyProfile.MAXIMUM.label()};
+        int current = settings.getProfile().ordinal();
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.profile_title))
+                .setSingleChoiceItems(labels, current, (d, which) -> {
+                    PrivacyProfile profile = PrivacyProfile.values()[which];
+                    settings.setProfile(profile);
+                    profile.apply(settings);
+                    MrNobodyApp.history().setEnabled(settings.isHistoryEnabled());
+                    MrNobodyApp.filters().setEnabled(settings.isBlockingEnabled());
+                    d.dismiss();
+                })
+                .show();
+    }
+
+    private void showBookmarksDialog() {
+        List<BookmarksStore.Bookmark> list = MrNobodyApp.bookmarks().all();
+        if (list.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.bookmarks_title)
+                    .setMessage(R.string.bookmarks_empty)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
+        String[] labels = new String[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            labels[i] = list.get(i).title + "\n" + list.get(i).url;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.bookmarks_title)
+                .setItems(labels, (d, which) ->
+                        new AlertDialog.Builder(this)
+                                .setTitle(list.get(which).title)
+                                .setItems(new String[]{"Open", "Delete"}, (d2, w2) -> {
+                                    if (w2 == 0) {
+                                        finish();
+                                    } else {
+                                        MrNobodyApp.bookmarks().remove(list.get(which).id);
+                                    }
+                                })
+                                .show())
+                .show();
+    }
+
+    private void showReportDialog() {
+        long ads = MrNobodyApp.report().adsBlocked();
+        long trackers = MrNobodyApp.report().trackersBlocked();
+        long pages = MrNobodyApp.report().pagesLoaded();
+        String msg = getString(R.string.report_ads) + ": " + ads + "\n"
+                + getString(R.string.report_trackers) + ": " + trackers + "\n"
+                + getString(R.string.report_pages) + ": " + pages + "\n\n"
+                + getString(R.string.report_no_history_note);
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.report_today))
+                .setMessage(msg)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    private void showPermissionDashboard() {
+        Map<String, List<String>> grants = MrNobodyApp.permissions().allGrants();
+        if (grants.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.perm_dash_title)
+                    .setMessage(R.string.perm_dash_empty)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, List<String>> e : grants.entrySet()) {
+            sb.append(e.getKey()).append(": ")
+              .append(joinPerms(e.getValue())).append("\n");
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.perm_dash_title)
+                .setMessage(sb.toString())
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    private void showSiteOverrides() {
+        Map<String, Map<String, String>> all = MrNobodyApp.perSite().allOverrides();
+        if (all.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.settings_site_overrides)
+                    .setMessage("No per-site overrides yet.")
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
+        List<String> hosts = new java.util.ArrayList<>(all.keySet());
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_site_overrides)
+                .setItems(hosts.toArray(new String[0]), (d, which) -> {
+                    String host = hosts.get(which);
+                    new AlertDialog.Builder(this)
+                            .setTitle(host)
+                            .setItems(new String[]{getString(R.string.site_reset)}, (d2, w2) -> {
+                                MrNobodyApp.perSite().clear(host);
+                            })
+                            .show();
+                })
+                .show();
+    }
+
+    private void showStorageDashboard() {
+        long cache = dirSize(getCacheDir());
+        String msg = getString(R.string.storage_cache) + ": " + humanBytes(cache);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.storage_title)
+                .setMessage(msg)
+                .setNeutralButton(android.R.string.ok, null)
+                .setPositiveButton(R.string.storage_clear_cache, (d, w) -> clearCache())
+                .show();
+    }
+
+    /** Recursively sum the bytes under a directory (best-effort). */
+    private static long dirSize(java.io.File dir) {
+        long total = 0;
+        if (dir == null || !dir.exists()) return total;
+        java.io.File[] files = dir.listFiles();
+        if (files == null) return total;
+        for (java.io.File f : files) {
+            if (f.isDirectory()) total += dirSize(f);
+            else total += f.length();
+        }
+        return total;
+    }
+
+    private static String joinPerms(List<String> perms) {
+        StringBuilder sb = new StringBuilder();
+        for (String p : perms) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(p);
+        }
+        return sb.toString();
+    }
+
+    private static String humanBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024) + " KB";
+        return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
     private void showThemeDialog() {
         String[] themes = {"System default", "Dark", "Light"};
         String[] values = {Settings.THEME_SYSTEM, Settings.THEME_DARK, Settings.THEME_LIGHT};
@@ -240,6 +411,8 @@ public class SettingsActivity extends AppCompatActivity {
                 .setTitle(getString(R.string.app_name))
                 .setMessage(getString(R.string.tagline) + "\n\n" +
                         "A tiny native privacy browser.\nNo ads, no trackers, no history by default.\n\n" +
+                        "Filter list version: " + MrNobodyApp.filters().getFilterVersion() + "\n" +
+                        "Profile: " + settings.getProfile().label() + "\n\n" +
                         "Privacy is not anonymity.")
                 .setPositiveButton(android.R.string.ok, null)
                 .show();

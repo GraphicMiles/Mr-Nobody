@@ -177,10 +177,18 @@
                 android:paddingBottom="24dp">
 
                 <TextView style="@style/SectionLabel" android:text="@string/privacy_this_page" />
+                <TextView style="@style/DashRow" android:text="@string/privacy_score" />
+                <TextView style="@style/DashRowValue" android:id="@+id/dash_score" />
                 <TextView style="@style/DashRow" android:text="@string/privacy_ads_blocked" />
                 <TextView style="@style/DashRowValue" android:id="@+id/dash_ads" />
                 <TextView style="@style/DashRow" android:text="@string/privacy_trackers_blocked" />
                 <TextView style="@style/DashRowValue" android:id="@+id/dash_trackers" />
+
+                <TextView style="@style/SectionLabel" android:text="@string/privacy_today" />
+                <TextView style="@style/DashRow" android:text="@string/privacy_ads_blocked" />
+                <TextView style="@style/DashRowValue" android:id="@+id/dash_today_ads" />
+                <TextView style="@style/DashRow" android:text="@string/privacy_trackers_blocked" />
+                <TextView style="@style/DashRowValue" android:id="@+id/dash_today_trackers" />
 
                 <TextView style="@style/SectionLabel" android:text="@string/privacy_history" />
                 <TextView style="@style/DashRow" android:text="@string/privacy_history_saved" />

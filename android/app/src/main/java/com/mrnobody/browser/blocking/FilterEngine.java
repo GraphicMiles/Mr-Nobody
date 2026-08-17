@@ -24,6 +24,9 @@ public final class FilterEngine {
 
     public enum Category { NONE, AD, TRACKER }
 
+    /** Bundled filter-list version. Bump when the blocklist changes. */
+    private static final String FILTER_VERSION = "1";
+
     private final Blocklist blocklist = new Blocklist();
     private volatile boolean loaded = false;
     private volatile boolean enabled = true;
@@ -35,6 +38,13 @@ public final class FilterEngine {
     private long totalTrackers = 0;
 
     private static final String PREFS = "mrnobody_filters";
+
+    /** Optional callback fired on each blocked request (used by the daily report). */
+    public interface BlockListener {
+        void onBlocked(Category category);
+    }
+
+    private volatile BlockListener blockListener;
 
     public void loadBundled(Context context) {
         try (InputStream in = context.getAssets().open("blocklist.txt")) {
@@ -111,6 +121,7 @@ public final class FilterEngine {
                 pageAds++;
                 totalAds++;
             }
+            notifyBlocked(Category.AD);
             return Category.AD;
         }
         if (matchesCategory(blocklist.trackers, host, path, target)) {
@@ -118,9 +129,19 @@ public final class FilterEngine {
                 pageTrackers++;
                 totalTrackers++;
             }
+            notifyBlocked(Category.TRACKER);
             return Category.TRACKER;
         }
         return Category.NONE;
+    }
+
+    private void notifyBlocked(Category category) {
+        BlockListener l = blockListener;
+        if (l != null) l.onBlocked(category);
+    }
+
+    public void setBlockListener(BlockListener listener) {
+        this.blockListener = listener;
     }
 
     private boolean matchesCategory(Blocklist.Category cat, String host, String path, String target) {
@@ -149,6 +170,21 @@ public final class FilterEngine {
 
     public long getTotalTrackersBlocked() {
         return totalTrackers;
+    }
+
+    /** Bundled filter-list version (integrity-lite; signed updates are V2.x). */
+    public String getFilterVersion() {
+        return FILTER_VERSION;
+    }
+
+    /**
+     * Local per-page privacy score (0–100, higher = cleaner page). Computed
+     * entirely on-device from blocked-request counts. A page that attempts no
+     * known tracking scores 100; each blocked tracker/ad lowers the score.
+     */
+    public int privacyScore() {
+        int penalty = pageTrackers * 5 + pageAds * 2;
+        return Math.max(0, 100 - penalty);
     }
 
     public void persist(Context context) {

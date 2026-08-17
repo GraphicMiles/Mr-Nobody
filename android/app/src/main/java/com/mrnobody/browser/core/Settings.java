@@ -20,6 +20,10 @@ public final class Settings {
     public static final String KEY_BLOCKING_ENABLED = "blocking_enabled";
     public static final String KEY_SEARCH_ENGINE = "search_engine";
     public static final String KEY_THEME = "theme";
+    // V2
+    public static final String KEY_PROFILE = "privacy_profile";
+    public static final String KEY_PARAM_STRIPPING = "param_stripping";
+    public static final String KEY_FINGERPRINT_PROTECTION = "fingerprint_protection";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -92,5 +96,51 @@ public final class Settings {
 
     public void setTheme(String theme) {
         prefs.edit().putString(KEY_THEME, theme).apply();
+    }
+
+    // ---------------------------------------------------------------- V2
+
+    public PrivacyProfile getProfile() {
+        return PrivacyProfile.fromName(prefs.getString(KEY_PROFILE, PrivacyProfile.BALANCED.name()));
+    }
+
+    public void setProfile(PrivacyProfile profile) {
+        prefs.edit().putString(KEY_PROFILE, profile.name()).apply();
+    }
+
+    /** Strip known tracking parameters (utm_*, gclid, fbclid, ...) from URLs. */
+    public boolean isParamStrippingEnabled() {
+        return prefs.getBoolean(KEY_PARAM_STRIPPING, true);
+    }
+
+    public void setParamStrippingEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_PARAM_STRIPPING, enabled).apply();
+    }
+
+    public boolean isFingerprintProtection() {
+        return prefs.getBoolean(KEY_FINGERPRINT_PROTECTION, false);
+    }
+
+    public void setFingerprintProtection(boolean enabled) {
+        prefs.edit().putBoolean(KEY_FINGERPRINT_PROTECTION, enabled).apply();
+    }
+
+    // ------------------------------------------------------- AI provider keys
+    // Stored locally; never used unless the user enables a remote provider.
+
+    public String apiKey(String provider) {
+        return prefs.getString("api_key_" + provider, "");
+    }
+
+    public void setApiKey(String provider, String key) {
+        prefs.edit().putString("api_key_" + provider, key).apply();
+    }
+
+    public String apiBase(String provider) {
+        return prefs.getString("api_base_" + provider, "");
+    }
+
+    public String apiModel(String provider) {
+        return prefs.getString("api_model_" + provider, "");
     }
 }

@@ -36,10 +36,17 @@ com.mrnobody.browser
 ├── MrNobodyApp       Application: boots singletons, loads filter list
 ├── MainActivity      Browser chrome, tabs, navigation, privacy panel, menu
 ├── SettingsActivity  Settings screen (toggles, clear data, about)
-├── core/Settings     SharedPreferences wrapper (single source of truth)
+├── core/
+│   ├── Settings           SharedPreferences wrapper (single source of truth)
+│   ├── PrivacyProfile     V2: Balanced/Strict/Maximum presets
+│   ├── PerSiteSettings    V2: per-host overrides (blocking/js/cookies/location)
+│   ├── BookmarksStore     V2: local bookmarks (SQLite)
+│   ├── PrivacyReport      V2: daily aggregate counters (no URLs/titles)
+│   └── PermissionStore    V2: per-site permission grants (dashboard)
 ├── blocking/
 │   ├── FilterEngine  Loads blocklist, matches URLs, counts blocked requests
-│   └── Blocklist     In-memory compiled blocklist (domain + ABP-subset rules)
+│   ├── Blocklist     In-memory compiled blocklist (domain + ABP-subset rules)
+│   └── TrackingParams  V2: conservative URL tracking-parameter stripping
 ├── history/HistoryStore  SQLite; records visits ONLY when history is enabled
 └── ui/
     ├── Tab           One tab = id, WebView, url, title, private flag

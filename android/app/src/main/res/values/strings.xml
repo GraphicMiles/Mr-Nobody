@@ -3,7 +3,7 @@
     <string name="tagline">Nobody\'s watching.</string>
 
     <!-- Address bar -->
-    <string name="addr_hint">Search or enter address</string>
+    <string name="addr_hint">Ask Mr Nobody or enter URL…</string>
     <string name="lock_secure">Secure connection</string>
     <string name="lock_insecure">Connection not encrypted</string>
 
@@ -25,6 +25,8 @@
     <!-- Privacy dashboard -->
     <string name="privacy_title">Privacy</string>
     <string name="privacy_this_page">This page</string>
+    <string name="privacy_score">Privacy score</string>
+    <string name="privacy_today">Today</string>
     <string name="privacy_ads_blocked">Ads blocked</string>
     <string name="privacy_trackers_blocked">Trackers blocked</string>
     <string name="privacy_history">History</string>
@@ -68,4 +70,51 @@
     <!-- Menu -->
     <string name="menu_new_private">New private tab</string>
     <string name="menu_close_all">Close all tabs</string>
+    <string name="menu_bookmark_page">Bookmark this page</string>
+    <string name="menu_bookmarks">Bookmarks</string>
+    <string name="menu_site_settings">Site privacy (for %1$s)</string>
+    <string name="menu_reports">Privacy report</string>
+
+    <!-- V2: profiles -->
+    <string name="profile_title">Privacy profile</string>
+    <string name="profile_balanced">Balanced</string>
+    <string name="profile_strict">Strict</string>
+    <string name="profile_maximum">Maximum</string>
+
+    <!-- V2: settings additions -->
+    <string name="settings_param_stripping">Strip tracking parameters</string>
+    <string name="settings_fingerprint">Fingerprint protection</string>
+    <string name="settings_bookmarks">Bookmarks</string>
+    <string name="settings_privacy_report">Privacy report</string>
+    <string name="settings_permission_dashboard">Permission dashboard</string>
+    <string name="settings_storage_dashboard">Storage dashboard</string>
+    <string name="settings_site_overrides">Site overrides</string>
+
+    <!-- V2: per-site -->
+    <string name="site_blocking">Block ads &amp; trackers</string>
+    <string name="site_js">JavaScript</string>
+    <string name="site_cookies">Cookies</string>
+    <string name="site_location">Location</string>
+    <string name="site_inherit">Inherit (global)</string>
+    <string name="site_reset">Reset this site</string>
+
+    <!-- V2: reports -->
+    <string name="report_today">Today</string>
+    <string name="report_ads">Ads blocked</string>
+    <string name="report_trackers">Trackers blocked</string>
+    <string name="report_pages">Pages loaded</string>
+    <string name="report_no_history_note">No URLs or titles are ever recorded.</string>
+
+    <!-- V2: bookmarks -->
+    <string name="bookmarks_title">Bookmarks</string>
+    <string name="bookmarks_empty">No bookmarks yet</string>
+
+    <!-- V2: permission dashboard -->
+    <string name="perm_dash_title">Permissions</string>
+    <string name="perm_dash_empty">No site permissions granted</string>
+
+    <!-- V2: storage dashboard -->
+    <string name="storage_title">Storage</string>
+    <string name="storage_cache">Cache</string>
+    <string name="storage_clear_cache">Clear cache</string>
 </resources>
