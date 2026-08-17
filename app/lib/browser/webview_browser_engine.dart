@@ -22,6 +22,8 @@ class WebViewBrowserEngine implements BrowserEngine {
   ValueChanged<String>? onTitleChanged;
   @override
   ValueChanged<String>? onError;
+  @override
+  ValueChanged<int>? onScroll;
 
   WebViewBrowserEngine({String initialUrl = ''}) {
     try {
@@ -48,6 +50,10 @@ class WebViewBrowserEngine implements BrowserEngine {
             }
           },
         ));
+      // Page scrolling drives the collapsing chrome.
+      _controller?.setOnScrollPositionChange(
+        (position) => onScroll?.call(position.y.round()),
+      );
     } catch (_) {
       _controller = null; // no WebView platform on this host
     }

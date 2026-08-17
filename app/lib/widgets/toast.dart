@@ -22,8 +22,13 @@ class AppToast {
         right: 16,
         bottom: bottomInset + 96,
         child: IgnorePointer(
-          child: Center(
-            child: _ToastPill(message: message),
+          // Overlay entries sit outside the app's Material tree. Text with no
+          // Material ancestor is painted by the framework with a yellow/black
+          // "missing Material" underline — which is exactly what showed up as
+          // a coloured line under every toast.
+          child: Material(
+            type: MaterialType.transparency,
+            child: Center(child: _ToastPill(message: message)),
           ),
         ),
       ),

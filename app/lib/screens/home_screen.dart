@@ -18,12 +18,17 @@ class HomeScreen extends StatefulWidget {
   final void Function(Map<String, dynamic> task) onOpenTask;
   final ScrollController? scrollController;
 
+  /// Whether this destination is the one on screen. Destinations live in an
+  /// IndexedStack, so without this they would keep polling in the background.
+  final bool isActive;
+
   const HomeScreen({
     super.key,
     required this.onSubmit,
     required this.onShortcut,
     required this.onOpenTask,
     this.scrollController,
+    this.isActive = true,
   });
 
   @override
@@ -44,7 +49,9 @@ class HomeScreenState extends State<HomeScreen> {
     refresh();
     // Tasks run in background workers, so Home polls for their progress while
     // it is on screen (cheap: one in-process call, no network).
-    _poll = Timer.periodic(const Duration(seconds: 3), (_) => refresh());
+    _poll = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (widget.isActive) refresh();
+    });
   }
 
   @override

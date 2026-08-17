@@ -75,7 +75,9 @@ class _AppShellState extends State<AppShell> {
   ShellTab _tab = ShellTab.home;
   bool? _launched; // null = still asking the core
   bool _navVisible = true;
-  double _lastScrollOffset = 0;
+  final Map<ShellTab, double> _lastScrollOffset = {
+    for (final t in ShellTab.values) t: 0,
+  };
 
   @override
   void initState() {
@@ -84,7 +86,7 @@ class _AppShellState extends State<AppShell> {
     _checkFirstLaunch();
     AppState.instance.load();
     for (final entry in _scrollControllers.entries) {
-      entry.value.addListener(() => _onScroll(entry.value));
+      entry.value.addListener(() => _onScroll(entry.key, entry.value));
     }
   }
 
@@ -109,12 +111,12 @@ class _AppShellState extends State<AppShell> {
 
   /// Hide the bar while the user scrolls down, bring it back on the way up —
   /// `.bottombar.nav-hidden` in the wireframe.
-  void _onScroll(ScrollController controller) {
-    if (!controller.hasClients) return;
+  void _onScroll(ShellTab tab, ScrollController controller) {
+    if (tab != _tab || !controller.hasClients) return;
     final offset = controller.offset;
-    final delta = offset - _lastScrollOffset;
+    final delta = offset - (_lastScrollOffset[tab] ?? 0);
     if (delta.abs() < 12) return;
-    _lastScrollOffset = offset;
+    _lastScrollOffset[tab] = offset;
     final shouldShow = delta < 0 || offset <= 0;
     if (shouldShow != _navVisible) setState(() => _navVisible = shouldShow);
   }
@@ -304,6 +306,7 @@ class _AppShellState extends State<AppShell> {
               children: [
                 HomeScreen(
                   key: _homeKey,
+                  isActive: _tab == ShellTab.home,
                   scrollController: _scrollControllers[ShellTab.home],
                   onSubmit: _route,
                   onOpenTask: _openTask,
@@ -326,6 +329,7 @@ class _AppShellState extends State<AppShell> {
                 ),
                 TabsScreen(tabs: _tabs, onOpenTab: _showBrowser),
                 TasksScreen(
+                  isActive: _tab == ShellTab.tasks,
                   scrollController: _scrollControllers[ShellTab.tasks],
                   onOpenTask: _openTask,
                 ),
@@ -337,7 +341,8 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
           // The ⓘ overlay rides above every destination, as in the wireframe.
-          const Positioned.fill(child: DebugOverlay()),
+          // The body already ends above the bar, so it only needs a small gap.
+          const Positioned.fill(child: DebugOverlay(bottomInset: 18)),
         ],
       ),
       bottomNavigationBar: BottomNav(

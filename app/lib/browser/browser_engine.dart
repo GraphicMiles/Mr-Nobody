@@ -30,5 +30,9 @@ abstract class BrowserEngine {
   /// Called when a resource fails to load (error state).
   ValueChanged<String>? onError;
 
+  /// Called with the page's vertical scroll offset, so the UI can collapse the
+  /// browser chrome while the user reads.
+  ValueChanged<int>? onScroll;
+
   void dispose();
 }

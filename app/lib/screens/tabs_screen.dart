@@ -66,17 +66,22 @@ class _TabsScreenState extends State<TabsScreen> {
                     );
                   }
                   final tab = visible[i];
-                  return _TabCard(
-                    tab: tab,
-                    active: tab.id == widget.tabs.active?.id,
-                    onTap: () {
-                      widget.tabs.selectById(tab.id);
-                      widget.onOpenTab();
-                    },
-                    onClose: () {
-                      widget.tabs.closeById(tab.id);
-                      AppToast.show(context, 'Tab closed');
-                    },
+                  // Listen to the tab itself so its card updates as the page
+                  // reports a real title instead of staying on "New tab".
+                  return AnimatedBuilder(
+                    animation: tab,
+                    builder: (context, __) => _TabCard(
+                      tab: tab,
+                      active: tab.id == widget.tabs.active?.id,
+                      onTap: () {
+                        widget.tabs.selectById(tab.id);
+                        widget.onOpenTab();
+                      },
+                      onClose: () {
+                        widget.tabs.closeById(tab.id);
+                        AppToast.show(context, 'Tab closed');
+                      },
+                    ),
                   );
                 },
               ),
@@ -92,17 +97,9 @@ class _TabsScreenState extends State<TabsScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
         children: [
-          _roundButton(
-            Icons.add,
-            accent: true,
-            tooltip: 'New tab',
-            onTap: () {
-              widget.tabs.newTab();
-              AppToast.show(context, 'New tab');
-              widget.onOpenTab();
-            },
-          ),
-          const SizedBox(width: 8),
+          // No "+" here: the bar's + and the dashed card in the grid already
+          // open tabs, and three identical affordances on one screen only
+          // makes the screen harder to read.
           _roundButton(
             Icons.visibility_off_outlined,
             tooltip: 'New private tab',
@@ -130,7 +127,7 @@ class _TabsScreenState extends State<TabsScreen> {
     );
   }
 
-  Widget _roundButton(IconData icon, {bool accent = false, VoidCallback? onTap, String? tooltip}) {
+  Widget _roundButton(IconData icon, {VoidCallback? onTap, String? tooltip}) {
     final button = GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -138,16 +135,13 @@ class _TabsScreenState extends State<TabsScreen> {
         width: 34,
         height: 34,
         decoration: BoxDecoration(
-          color: accent ? AppColors.accent : Colors.transparent,
           shape: BoxShape.circle,
-          border: Border.all(color: accent ? AppColors.accent : AppColors.line),
+          border: Border.all(color: AppColors.line),
         ),
         child: Icon(
           icon,
           size: 15,
-          color: accent
-              ? AppColors.accentInk
-              : (onTap == null ? AppColors.textMuted : AppColors.textDim),
+          color: onTap == null ? AppColors.textMuted : AppColors.textDim,
         ),
       ),
     );
