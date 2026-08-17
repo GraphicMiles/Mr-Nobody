@@ -816,9 +816,10 @@ public class MainActivity extends AppCompatActivity {
 
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(status)
-                .setMessage(body)
-                .setPositiveButton(android.R.string.ok, null)
-                .setNegativeButton(R.string.copy, (d, w) -> copyToClipboard(body));
+                .setMessage(body);
+        final String copyText = body;
+        b.setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(R.string.copy, (d, w) -> copyToClipboard(copyText));
         if (task.status() == Task.Status.FAILED) {
             b.setNeutralButton(getString(R.string.tasks_run_again), (d, w) ->
                     runTask(task.instruction()));
