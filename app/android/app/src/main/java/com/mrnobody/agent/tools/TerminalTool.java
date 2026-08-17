@@ -2,10 +2,17 @@ package com.mrnobody.agent.tools;
 
 import android.content.Context;
 
+import com.mrnobody.agent.core.OutputSpec;
+import com.mrnobody.agent.core.ParamSpec;
+import com.mrnobody.agent.core.Tier;
 import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.core.ToolSpec;
 import com.mrnobody.agent.policy.PolicyGate;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -24,14 +31,19 @@ public final class TerminalTool implements Tool {
         this.policy = policy;
     }
 
-    @Override
-    public String name() {
-        return "terminal";
-    }
+    private static final ToolSpec SPEC = ToolSpec.named("terminal")
+            .describedAs("Run a small set of approved local utilities (hash, inspect).")
+            // The only EXEC tool in the app: it runs commands, so it asks.
+            .tier(Tier.EXEC)
+            .param(ParamSpec.string("cmd", true, "The command to run, e.g. \"sha256 <path>\"."))
+            .returns(OutputSpec.of(
+                    value -> String.valueOf(value.get("output")), "command", "output"))
+            .timeout(10_000)
+            .build();
 
     @Override
-    public String description() {
-        return "Run a small set of approved local utilities (hash, inspect).";
+    public ToolSpec spec() {
+        return SPEC;
     }
 
     @Override
@@ -67,7 +79,10 @@ public final class TerminalTool implements Tool {
             }
             StringBuilder sb = new StringBuilder();
             for (byte b : md.digest()) sb.append(String.format("%02x", b));
-            return ToolResult.ok("sha256(" + f.getName() + ") = " + sb);
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("command", "sha256 " + f.getName());
+            value.put("output", "sha256(" + f.getName() + ") = " + sb);
+            return ToolResult.ok(value);
         } catch (Exception e) {
             return ToolResult.fail("hash failed: " + e.getMessage());
         }
