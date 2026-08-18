@@ -100,8 +100,12 @@ class NativeWebViewEngine implements BrowserEngine {
     // A rebuilt platform view means a new channel name; drop the old handler
     // so a destroyed view cannot answer for this tab.
     _channel?.setMethodCallHandler(null);
-    // Must match MrNobodyWebView's channel name: "mrnobody/webview_<viewId>".
-    final channel = MethodChannel('${viewType}_$id');
+    // Must match MrNobodyWebView's channel name. It is keyed by the stable
+    // tab id, not the ephemeral view id: a view-id-keyed channel goes stale
+    // whenever the platform view is rebuilt, which is why loadUrl and
+    // applySettings were firing on a channel with no handler.
+    final channel = MethodChannel(
+        tabId >= 0 ? '${viewType}_tab_$tabId' : '${viewType}_$id');
     channel.setMethodCallHandler(_handleEvent);
     _channel = channel;
     for (final call in _pending) {
