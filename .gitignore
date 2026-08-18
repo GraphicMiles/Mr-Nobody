@@ -1,9 +1,9 @@
 # Gradle / Android
-android/.gradle/
-android/build/
-android/app/build/
-android/local.properties
-android/captures/
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/local.properties
+app/android/captures/
 *.apk
 *.aab
 *.keystore

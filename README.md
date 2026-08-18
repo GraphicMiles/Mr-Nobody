@@ -47,7 +47,9 @@ used strictly as the rendering engine; the privacy layer is entirely our own.
 
 ```
 Mr-Nobody/
-├── android/            Native Android app (Java, System WebView + local filter engine)
+├── app/                Flutter UI + native Android app
+│   ├── lib/            Flutter screens (presentation only)
+│   └── android/        Java core: agent, tools, WebView, filter engine, downloads
 ├── prototype/          Interactive HTML/CSS/JS UI prototype (design source of truth)
 ├── tools/              Python development-only tooling (filter compile/validate, size check)
 ├── filters/bundled/    Bundled blocklist (ads + trackers)
