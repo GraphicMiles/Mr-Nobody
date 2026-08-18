@@ -185,6 +185,14 @@ class NativeBridge {
 
   /// The core's own error log — tool failures, AI errors, failed tasks. These
   /// never pass through a Dart try/catch, so the overlay has to ask for them.
+  /// The Phase 1 device benchmark: each subsystem reports pass/fail so a
+  /// real-device run is a list the user reads off. Failures also land in the
+  /// debug log so the ⓘ badge carries them.
+  static Future<List<Map<String, dynamic>>> diagnostics() async {
+    final r = await _ch.invokeMethod('diagnostics');
+    return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   static Future<List<String>> debugLog() async {
     final r = Map<String, dynamic>.from(await _ch.invokeMethod('debugLog') as Map);
     return (r['entries'] as List?)?.cast<String>() ?? const <String>[];

@@ -22,6 +22,7 @@ import com.mrnobody.agent.tasks.TaskStreamHub;
 import com.mrnobody.browser.net.EngineInfo;
 import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
+import com.mrnobody.debug.Diagnostics;
 import com.mrnobody.debug.ErrorLog;
 import com.mrnobody.browser.webview.MrNobodyWebViewFactory;
 
@@ -285,6 +286,15 @@ public class MainActivity extends FlutterActivity {
                             m.put("label", dest.label());
                             m.put("custom", false);
                             result.success(m);
+                            return;
+                        }
+                        case "diagnostics": {
+                            // The Phase 1 device benchmark: every subsystem
+                            // reports pass/fail so a real-device run is a list
+                            // the user reads off, not a guess. Failures land in
+                            // the report; the panel also records them to the
+                            // debug log so the ⓘ badge carries them.
+                            result.success(Diagnostics.runAsMaps(MainActivity.this));
                             return;
                         }
                         case "debugLog": {
