@@ -75,8 +75,35 @@ public final class ToolRouter {
         Route download = routeDownload(text, lower, available);
         if (download != null) return download;
 
+        Route terminal = routeTerminal(text, lower, available);
+        if (terminal != null) return terminal;
+
         return null; // research cascade
     }
+
+    /**
+     * A shell/toolchain intent — "pull my repo", "git clone X", "pip install Y" —
+     * routes to the terminal (when the user has it switched on) rather than
+     * silently falling to a web search and citing Google as if it had done the
+     * thing. The terminal then runs what it can on-device and reports git /
+     * python honestly as remote-worker work.
+     */
+    private static Route routeTerminal(String text, String lower, Collection<String> available) {
+        if (!has(available, "terminal")) return null;
+        for (String needle : TERMINAL_VERBS) {
+            if (lower.contains(needle)) {
+                return new Route("terminal", ToolRequest.of("terminal", "cmd", text),
+                        "the instruction asks for a shell/toolchain command");
+            }
+        }
+        return null;
+    }
+
+    /** Tokens that name shell/toolchain work rather than a web question. */
+    private static final String[] TERMINAL_VERBS = {
+            "git ", "clone", "repo", "commit", "checkout", "branch", "push to",
+            "pip ", "python", "npm ", "node ", "npx ", "yarn ", "curl ", "wget ",
+    };
 
     /**
      * True when the instruction asks to download/save/grab something, whether
