@@ -58,6 +58,21 @@ public class DownloadLinkResolverTest {
     }
 
     @Test
+    public void aHtmlPageNamedLikeAFileIsNotDownloadable() {
+        assertFalse(DownloadLinkResolver.isDownloadable(
+                "https://host.com/film.mkv.html"));
+    }
+
+    @Test
+    public void aMatchingFilenameBeatsAnUnrelatedFile() {
+        List<String> links = Arrays.asList(
+                "https://cdn.example/other.mkv",
+                "https://cdn.example/Avengers.Infinity.War.1080p.mkv");
+        assertEquals("https://cdn.example/Avengers.Infinity.War.1080p.mkv",
+                DownloadLinkResolver.resolve(links, null, "Infinity War"));
+    }
+
+    @Test
     public void skipsNonDownloadableLinksToFindTheFile() {
         List<String> links = Arrays.asList(
                 "https://example.com/login", "https://example.com/cart",

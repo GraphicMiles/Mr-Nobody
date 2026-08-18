@@ -204,6 +204,8 @@ void _mockCore() {
             'todayTrackers': 47,
             'score': 92,
           };
+        case 'listMonitors':
+          return <Map<String, Object>>[];
         case 'recentTasks':
           return [
             {

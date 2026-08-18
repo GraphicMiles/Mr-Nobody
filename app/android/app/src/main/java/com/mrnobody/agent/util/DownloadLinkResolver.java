@@ -42,6 +42,12 @@ public final class DownloadLinkResolver {
         if (q >= 0) lower = lower.substring(0, q);
         int h = lower.indexOf('#');
         if (h >= 0) lower = lower.substring(0, h);
+        // A download *page* named film.mkv.html is not a file. The watch-party
+        // resolver learned this the hard way: those URLs returned HTML.
+        if (lower.endsWith(".html") || lower.endsWith(".htm")
+                || lower.endsWith(".php") || lower.endsWith(".aspx")) {
+            return false;
+        }
         for (String ext : FILE_EXTENSIONS) {
             if (lower.endsWith(ext)) return true;
         }
@@ -57,17 +63,44 @@ public final class DownloadLinkResolver {
      * downloadable candidate in page order.
      */
     public static String resolve(List<String> candidates, String preferredHost) {
+        return resolve(candidates, preferredHost, null);
+    }
+
+    /**
+     * Best file among {@code candidates}. A named host still wins; among
+     * equals, a filename that matches {@code query} (the work the user
+     * asked for) beats a random other file on the same page.
+     */
+    public static String resolve(List<String> candidates, String preferredHost,
+                                 String query) {
         if (candidates == null) return null;
-        String first = null;
+        String best = null;
+        int bestScore = -1;
+        String wantHost = preferredHost == null ? "" : preferredHost.toLowerCase(Locale.ROOT);
+        if (wantHost.startsWith("www.")) wantHost = wantHost.substring(4);
         for (String c : candidates) {
             if (!isDownloadable(c)) continue;
-            if (first == null) first = c;
-            if (preferredHost != null && !preferredHost.isEmpty()
-                    && preferredHost.equals(hostOf(c))) {
-                return c;
+            int score = 10;
+            String host = hostOf(c);
+            if (!wantHost.isEmpty() && wantHost.equals(host)) score += 100;
+            if (query != null && !query.isEmpty()) {
+                score += TitleMatch.score(filenameOf(c), query);
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = c;
             }
         }
-        return first;
+        return best;
+    }
+
+    static String filenameOf(String url) {
+        if (url == null) return "";
+        String u = url;
+        int cut = u.indexOf('?');
+        if (cut >= 0) u = u.substring(0, cut);
+        int slash = u.lastIndexOf('/');
+        return slash >= 0 ? u.substring(slash + 1) : u;
     }
 
     /** The bare host of a URL, lower-cased with any {@code www.} removed. */

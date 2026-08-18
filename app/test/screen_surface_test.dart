@@ -151,6 +151,7 @@ void _mockCore() {
             'online': true,
           };
         case 'recentTasks':
+        case 'listMonitors':
         case 'bookmarks':
           return <Map<String, dynamic>>[];
         case 'providerConfig':
