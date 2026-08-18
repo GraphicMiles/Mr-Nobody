@@ -2,6 +2,7 @@ package com.mrnobody.debug;
 
 import android.content.Context;
 
+import com.mrnobody.agent.browser.HeadlessWebViewEngine;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.planner.DeterministicPlanner;
 import com.mrnobody.agent.planner.IntentRouter;
@@ -18,6 +19,10 @@ import com.mrnobody.browser.core.Settings;
 import com.mrnobody.browser.net.EngineInfo;
 import com.mrnobody.browser.net.FingerprintDefence;
 import com.mrnobody.browser.net.NetworkGate;
+import com.mrnobody.browser.net.NetworkRoute;
+import com.mrnobody.browser.net.OrbotTorRoute;
+import com.mrnobody.browser.net.PrivacyController;
+import com.mrnobody.browser.net.PrivacyMode;
 import com.mrnobody.browser.net.ProfileManager;
 import com.mrnobody.identity.AndroidKeyStoreIdentity;
 import com.mrnobody.identity.DeviceIdentity;
@@ -275,6 +280,61 @@ public final class Diagnostics {
                                     "insert + get round-trip, id=" + id)
                             : Result.fail("task.store", "Durable task store (SQLite)",
                                     "round-trip returned null or wrong instruction");
+                }));
+
+        // The headless browser: load a real page and extract its text, proving
+        // the engine the agent drives actually renders. Runs off the main
+        // thread (the caller awaits while the page finishes on main).
+        out.add(check("headless.browser", "Headless browser engine",
+                () -> {
+                    HeadlessWebViewEngine engine = new HeadlessWebViewEngine(context);
+                    try {
+                        String text = engine.loadAndExtract("https://example.com/", 12_000L);
+                        String clean = text == null ? "" : text.trim().replaceAll("\\s+", " ");
+                        if (clean.isEmpty()) {
+                            return Result.fail("headless.browser", "Headless browser engine",
+                                    "loaded nothing — no network, or the engine returned empty text");
+                        }
+                        String preview = clean.length() > 60 ? clean.substring(0, 60) + "…" : clean;
+                        return Result.pass("headless.browser", "Headless browser engine",
+                                "loaded + extracted " + clean.length() + " chars: \"" + preview + "\"");
+                    } finally {
+                        engine.close();
+                    }
+                }));
+
+        // Tor is the precondition for the manual NOBODY egress test. This only
+        // says whether Orbot's SOCKS port answers — it does not, and cannot,
+        // prove traffic actually routes through Tor from inside the process.
+        out.add(check("tor.orbot", "Tor route (Orbot) reachable",
+                () -> {
+                    OrbotTorRoute route = new OrbotTorRoute();
+                    route.refresh();
+                    return route.isAvailable()
+                            ? Result.pass("tor.orbot", "Tor route (Orbot) reachable",
+                                    "Orbot SOCKS on " + OrbotTorRoute.HOST + ":" + OrbotTorRoute.PORT)
+                            : Result.fail("tor.orbot", "Tor route (Orbot) reachable",
+                                    "Orbot not reachable on " + OrbotTorRoute.HOST + ":"
+                                            + OrbotTorRoute.PORT + " — start Orbot to test Tor routing");
+                }));
+
+        // The NOBODY invariant, checked without mutating state: the app must
+        // never sit in NOBODY while its route is down (fail-closed).
+        out.add(check("nobody.route", "NOBODY mode route state",
+                () -> {
+                    Settings settings = new Settings(context);
+                    NetworkRoute configured = PrivacyController.configuredRoute(settings);
+                    configured.refresh();
+                    PrivacyMode mode = PrivacyController.current();
+                    String detail = "configured=" + configured.label()
+                            + " (up=" + configured.isAvailable() + "), active="
+                            + NetworkGate.route().getClass().getSimpleName()
+                            + ", mode=" + mode.name();
+                    boolean consistent = mode != PrivacyMode.NOBODY || configured.isAvailable();
+                    return consistent
+                            ? Result.pass("nobody.route", "NOBODY mode route state", detail)
+                            : Result.fail("nobody.route", "NOBODY mode route state",
+                                    detail + " — in NOBODY while the route is down");
                 }));
 
         return out;

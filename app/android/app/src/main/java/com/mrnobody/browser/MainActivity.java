@@ -294,7 +294,15 @@ public class MainActivity extends FlutterActivity {
                             // the user reads off, not a guess. Failures land in
                             // the report; the panel also records them to the
                             // debug log so the ⓘ badge carries them.
-                            result.success(Diagnostics.runAsMaps(MainActivity.this));
+                            //
+                            // Runs off the UI thread: the headless-browser check
+                            // posts its load to main and awaits the result, so
+                            // running it on main would deadlock.
+                            executor.execute(() -> {
+                                List<Map<String, Object>> maps =
+                                        Diagnostics.runAsMaps(MainActivity.this);
+                                runOnUiThread(() -> result.success(maps));
+                            });
                             return;
                         }
                         case "debugLog": {

@@ -58,7 +58,7 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
     'manual.tabs': 'Tabs open / switch / close',
     'manual.private': 'Private tab isolates and clears',
     'manual.download': 'Download → pause → resume → complete',
-    'manual.tor': 'Nobody mode routes (proxy / Tor)',
+    'manual.tor': 'Observe egress IP change under NOBODY (Tor routes)',
     'manual.recover': 'Kill app mid-task → task recovers',
   };
 
