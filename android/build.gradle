@@ -1,5 +1,0 @@
-// Top-level build file. Plugin versions are declared here so the app module
-// stays simple; CI and local builds resolve the same versions.
-plugins {
-    id 'com.android.application' version '8.5.2' apply false
-}

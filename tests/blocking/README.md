@@ -1,7 +1,7 @@
 # Blocking Tests
 
 The filter engine is covered by JVM unit tests at
-`android/app/src/test/java/com/mrnobody/browser/blocking/BlocklistTest.java`,
+`app/android/app/src/test/java/com/mrnobody/browser/blocking/BlocklistTest.java`,
 run via `./gradlew testDebugUnitTest` (and in CI).
 
 Covered behaviors:

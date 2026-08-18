@@ -78,7 +78,7 @@ without a rewrite (`AgentEngine`, `Tool`, `Worker`, `TaskScheduler`,
 ### 3.1 Ad/tracker blocking was not applied to the visible browser — FIXED (`fbdb3e9`)
 
 The pre-Flutter Java UI intercepted every sub-resource request and asked the
-filter engine (`android/.../MainActivity.java:1854`). `webview_flutter` cannot
+filter engine (in the since-deleted `android/` tree). `webview_flutter` cannot
 express `shouldInterceptRequest`, so after the migration nothing was refusing
 ad or tracker requests, and the dashboard could only ever report 0/0.
 
@@ -154,13 +154,40 @@ the filter-engine gap below is still the real hole.
 
 - Behavioural tests for the filter engine on a real page (the static privacy
   audit runs in CI; request-level assertions do not exist yet).
-- The duplicate `android/` tree is dead code that no build references. It
-  should be deleted, but that is a separate commit — it is 152 files and would
-  bury the audit fix. Until then the audit covers both trees.
+- ~~The duplicate `android/` tree is dead code.~~ **Deleted** — see §3.7.
 - The CONFIRM half of the policy gate has no approval UI, so those commands are
   refused rather than queued (V2 §11).
 - Per-tab cookie isolation: `CookieManager` is process-wide, so a private tab
   clears on close rather than being truly isolated (V2 §10).
+
+### 3.7 The dead `android/` tree — DELETED
+
+99 tracked files, ~8,500 lines, removed. It was the pre-Flutter Java UI, last
+touched at `69f76e9`, referenced by no build: not `flutter.yml`, not either
+`settings.gradle`. Keeping it cost nothing in bytes and a great deal in
+trust — §3.5 exists precisely because tooling pointed at it and reported on a
+program nobody runs.
+
+Two dependencies had to be resolved first, and neither was obvious:
+
+1. **`tools/filter_compile.py` wrote the compiled blocklist into the dead
+   tree.** Recompiling filters therefore updated an asset that never shipped.
+   It now discovers modules the same way the audit does and writes to each. Had
+   the tree simply been deleted, the script would have recreated the directory
+   and gone on reporting success into an empty shell.
+
+2. **`app/android/` has no checked-in `gradlew`, yet CI runs `./gradlew`
+   there.** That looked like the deletion would remove the only wrapper in the
+   repo. It does not: `app/android/.gitignore` ignores `gradlew` and
+   `gradle-wrapper.jar` because Flutter generates them during
+   `flutter build apk`, which CI runs before the Gradle step. The wrapper in
+   `android/` was never the one being used.
+
+`tools/gen_icons.py` was already correctly pointed at `app/android`.
+
+Verified after deletion: the audit reports `audited: app/android/app` and exits
+0, its 9 self-tests pass, and `filter_compile.py` writes a byte-identical
+blocklist to the live tree.
 
 ## 4. The Java-vs-Flutter deviation
 

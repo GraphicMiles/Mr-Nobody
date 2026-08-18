@@ -1,7 +1,7 @@
 # Privacy Regression Tests — Specification
 
 These tests verify the product's privacy guarantees. The JVM-runnable unit tests
-(filter engine) live in `android/app/src/test/` and run in CI. The device-level
+(filter engine) live in `app/android/app/src/test/` and run in CI. The device-level
 tests below require an instrumented runner (emulator/device) and are specified
 here for implementation on the CI device matrix.
 
