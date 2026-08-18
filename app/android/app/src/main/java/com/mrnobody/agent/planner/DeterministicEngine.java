@@ -17,6 +17,7 @@ import com.mrnobody.agent.policy.RepeatCallGuard;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.agent.util.Hosts;
+import com.mrnobody.agent.tasks.Schedule;
 import com.mrnobody.browser.MrNobodyApp;
 
 import java.util.ArrayList;
@@ -233,6 +234,14 @@ public final class DeterministicEngine implements AgentEngine {
         if (provider.isRemote()) {
             AnswerVerifier.Report report = AnswerVerifier.check(answer, readUrls);
             String note = AnswerVerifier.note(report, readUrls);
+
+            // Citations and hostnames are the frame of an answer; the figures
+            // are usually the answer itself. Asked for the Bitcoin price the
+            // model once copied the 24h low and high correctly and invented
+            // the headline price, and every check here passed because the
+            // marker [1] was well-formed and the host had been read.
+            FigureCheck.Report figures = FigureCheck.check(answer, sources.toString());
+            String figureNote = FigureCheck.note(figures);
             // An attempted injection is something the reader is told about,
             // not something we quietly absorb.
             if (injectionNote != null) {
@@ -240,15 +249,67 @@ public final class DeterministicEngine implements AgentEngine {
                 com.mrnobody.debug.ErrorLog.record("task " + task.id()
                         + ": page content attempted to instruct the agent");
             }
+            if (!figureNote.isEmpty()) answer = answer + "\n\n" + figureNote;
             if (!note.isEmpty()) answer = answer + "\n\n" + note;
             if (report.hasProblems()) {
                 com.mrnobody.debug.ErrorLog.record("task " + task.id()
                         + ": answer could not be verified against its sources");
             }
+            if (figures.hasProblems()) {
+                com.mrnobody.debug.ErrorLog.record("task " + task.id()
+                        + ": " + figures.unsupported.size()
+                        + " figure(s) not found in the sources read");
+            }
+        }
+
+        // When the pages were read. A live figure with no read time is stale
+        // the instant it is shown and gives no way to tell: the Bitcoin answer
+        // looked equally authoritative an hour later, when it was wrong.
+        if (pagesRead) {
+            answer = answer + "\n\nRead at " + readTimeLabel() + ".";
+        }
+
+        // "Track the price" asks for something to be watched, not answered
+        // once. The schedule machinery already existed; nothing was noticing
+        // that the user had asked for it.
+        RecurrenceRequest.Request recurrence = RecurrenceRequest.parse(instruction);
+        if (recurrence.isRecurring()) {
+            String note = applyRecurrence(context, task, recurrence);
+            if (!note.isEmpty()) answer = answer + "\n\n" + note;
         }
 
         task.setResult(truncate(answer, 6000));
         task.setStatus(Task.Status.COMPLETED);
+    }
+
+    /** Local time, so "read at" means something to the person reading it. */
+    private static String readTimeLabel() {
+        return new java.text.SimpleDateFormat("HH:mm 'on' d MMM yyyy",
+                java.util.Locale.getDefault()).format(new java.util.Date());
+    }
+
+    /**
+     * Persist and enqueue a repeating schedule for this task.
+     *
+     * <p>Failure here must not fail the task: the user already has the answer
+     * they asked for, and losing it because a scheduler refused would be a
+     * worse outcome than not repeating. It is reported instead of thrown, so
+     * nobody is told work is scheduled when it is not.
+     */
+    private String applyRecurrence(Context context, Task task,
+                                   RecurrenceRequest.Request recurrence) {
+        try {
+            MrNobodyApp.tasks().setSchedule(task.id(), recurrence.repeat);
+            MrNobodyApp.scheduler().scheduleRepeating(context, task.id(),
+                    new Schedule(recurrence.repeat, System.currentTimeMillis()
+                            + recurrence.repeat.intervalMs()));
+            return recurrence.describe();
+        } catch (Throwable e) {
+            com.mrnobody.debug.ErrorLog.record("could not schedule repeat for task "
+                    + task.id() + ": " + e);
+            return "⚠︎ This looked like a request to keep checking, but the repeat "
+                    + "could not be scheduled, so this answer is a one-off.";
+        }
     }
 
     /**
