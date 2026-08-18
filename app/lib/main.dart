@@ -176,6 +176,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         if (query.isNotEmpty) _route(query);
         break;
       case 'task':
+        final idStr = q['id'] ?? '';
+        final id = int.tryParse(idStr);
+        if (id != null) {
+          _openWaitingTask(id);
+          break;
+        }
         final instruction = q['instruction'] ?? '';
         if (instruction.isNotEmpty) _runTask(instruction);
         break;

@@ -56,6 +56,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadDownloadCount();
     _loadDownloadFolder();
     _loadProxy();
+    _loadCaps();
+  }
+
+  Future<void> _loadCaps() async {
+    final info = await NativeBridge.guard(
+      NativeBridge.engineInfo,
+      const <String, dynamic>{},
+      'engine info unavailable',
+    );
+    if (!mounted || info.isEmpty) return;
+    setState(() => _multiProfile = info['multiProfile'] as bool?);
   }
 
   Future<void> _loadProxy() async {
