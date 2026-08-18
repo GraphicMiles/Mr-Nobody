@@ -25,6 +25,12 @@ public final class Settings {
     public static final String KEY_PARAM_STRIPPING = "param_stripping";
     public static final String KEY_FINGERPRINT_PROTECTION = "fingerprint_protection";
     public static final String KEY_TERMINAL_ENABLED = "terminal_enabled";
+    // Privacy mode + network route (V2). See browser/net/.
+    public static final String KEY_PRIVACY_MODE = "privacy_mode";
+    public static final String KEY_ROUTE = "network_route";
+    public static final String KEY_PROXY_KIND = "proxy_kind";
+    public static final String KEY_PROXY_HOST = "proxy_host";
+    public static final String KEY_PROXY_PORT = "proxy_port";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -191,6 +197,50 @@ public final class Settings {
 
     public void setTerminalEnabled(boolean enabled) {
         prefs.edit().putBoolean(KEY_TERMINAL_ENABLED, enabled).apply();
+    }
+
+    // ------------------------------------------------- privacy mode / route
+
+    /**
+     * The privacy mode. NORMAL by default: a browser that silently starts in a
+     * restricted mode is a browser people think is broken.
+     */
+    public String privacyMode() {
+        return prefs.getString(KEY_PRIVACY_MODE, "NORMAL");
+    }
+
+    public void setPrivacyMode(String mode) {
+        prefs.edit().putString(KEY_PRIVACY_MODE, mode).apply();
+    }
+
+    /** Which route NOBODY mode should use: "proxy" or "tor-orbot". */
+    public String routeId() {
+        return prefs.getString(KEY_ROUTE, "tor-orbot");
+    }
+
+    public void setRouteId(String id) {
+        prefs.edit().putString(KEY_ROUTE, id).apply();
+    }
+
+    /** "http" or "socks". */
+    public String proxyKind() {
+        return prefs.getString(KEY_PROXY_KIND, "http");
+    }
+
+    public String proxyHost() {
+        return prefs.getString(KEY_PROXY_HOST, "");
+    }
+
+    public int proxyPort() {
+        return prefs.getInt(KEY_PROXY_PORT, 0);
+    }
+
+    public void setProxy(String kind, String host, int port) {
+        prefs.edit()
+                .putString(KEY_PROXY_KIND, kind == null ? "http" : kind)
+                .putString(KEY_PROXY_HOST, host == null ? "" : host.trim())
+                .putInt(KEY_PROXY_PORT, port)
+                .apply();
     }
 
     public String activeAiProvider() {

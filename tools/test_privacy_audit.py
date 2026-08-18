@@ -151,6 +151,30 @@ class PrivacyAuditTest(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("Leak.kt", out)
 
+    # -------------------------------------------------- ungated network egress
+
+    def test_detects_ungated_openConnection(self):
+        """The leak the NetworkGate exists to prevent must fail the build."""
+        tree = make_tree(self.tmp, "android")
+        page = tree / "src" / "main" / "java" / "com" / "example" / "Page.java"
+        page.write_text(
+            "class Page { void go() throws Exception {"
+            " new java.net.URL(\"http://x\").openConnection(); } }")
+        code, out = run_audit(self.tmp)
+        self.assertEqual(code, 1, out)
+        self.assertIn("openConnection", out)
+        self.assertIn("NetworkGate", out)
+
+    def test_the_gate_itself_may_call_openConnection(self):
+        """NetworkGate is the one place allowed to open a socket."""
+        tree = make_tree(self.tmp, "android")
+        gate = tree / "src" / "main" / "java" / "com" / "example" / "NetworkGate.java"
+        gate.write_text(
+            "class NetworkGate { void go() throws Exception {"
+            " new java.net.URL(\"http://x\").openConnection(); } }")
+        code, out = run_audit(self.tmp)
+        self.assertEqual(code, 0, "the gate must not flag itself:\n" + out)
+
     # ---------------------------------------------------------------- hygiene
 
     def test_build_output_is_not_scanned(self):

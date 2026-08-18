@@ -10,12 +10,12 @@ import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
 import com.mrnobody.agent.util.HtmlText;
+import com.mrnobody.browser.net.NetworkGate;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -49,7 +49,7 @@ public final class HttpTool implements Tool {
     public ToolResult execute(Context context, ToolRequest request) {
         String url = request.param("url");
         try {
-            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            HttpURLConnection conn = NetworkGate.openHttp(url);
             conn.setConnectTimeout(10_000);
             conn.setReadTimeout(15_000);
             conn.setRequestProperty("User-Agent", "MrNobody/1.0");

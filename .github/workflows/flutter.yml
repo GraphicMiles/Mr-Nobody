@@ -66,12 +66,17 @@ jobs:
         working-directory: app/android
         run: ./gradlew :app:testDebugUnitTest --console=plain
 
-      - name: Report APK size
+      # The gate, not a report. This previously printed the size and never
+      # called the checker, so a size regression could not fail the build --
+      # which matters now that the budget is a ceiling we intend to spend
+      # against rather than a floor we sit well under.
+      - name: APK size gate
         working-directory: app
         run: |
           apk=build/app/outputs/flutter-apk/app-release.apk
           size=$(stat -c%s "$apk")
           echo "APK: $((size / 1024 / 1024)) MB ($size bytes)" >> "$GITHUB_STEP_SUMMARY"
+          python3 ../tools/apk_size_check.py "$apk" 70
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

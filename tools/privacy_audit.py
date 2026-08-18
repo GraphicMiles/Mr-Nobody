@@ -43,6 +43,15 @@ ALLOWED_PERMISSIONS = {
     "CAMERA", "RECORD_AUDIO", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION",
 }
 
+# Every outbound connection must go through browser/net/NetworkGate, which is
+# where fail-closed routing is enforced. A bare openConnection() anywhere else
+# bypasses the privacy route entirely: the browser would ride Tor while that
+# call went direct, under a UI telling the user they were protected. Five such
+# calls existed before the gate, so this is a regression guard, not a
+# hypothetical.
+GATE_FILE = "NetworkGate.java"
+UNGATED_CONNECT = "openConnection("
+
 
 SKIP_DIRS = {".git", "build", ".dart_tool", ".gradle", "node_modules", ".idea"}
 
@@ -119,6 +128,12 @@ def main() -> int:
             for pat in PROHIBITED_CODE:
                 if pat in stext:
                     problems.append(f"[{label}] prohibited pattern in {src.name}: {pat}")
+
+            # 3b. Ungated network egress.
+            if src.name != GATE_FILE and UNGATED_CONNECT in stext:
+                problems.append(
+                    f"[{label}] {src.name} calls openConnection() directly -- "
+                    f"route it through NetworkGate or a privacy route will leak")
 
     if problems:
         print("PRIVACY AUDIT — VIOLATIONS FOUND:")

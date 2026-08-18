@@ -1,5 +1,7 @@
 package com.mrnobody.agent.ai;
 
+import com.mrnobody.browser.net.NetworkGate;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -8,7 +10,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +75,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
             body.put("messages", messages);
             body.put("max_tokens", 1024);
 
-            HttpURLConnection conn = (HttpURLConnection) new URL(baseUrl + "/chat/completions").openConnection();
+            HttpURLConnection conn = NetworkGate.openHttp(baseUrl + "/chat/completions");
             conn.setRequestMethod("POST");
             conn.setConnectTimeout(15_000);
             conn.setReadTimeout(60_000);
@@ -111,7 +112,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
             }
             try {
                 HttpURLConnection conn =
-                        (HttpURLConnection) new URL(baseUrl + "/models").openConnection();
+                        NetworkGate.openHttp(baseUrl + "/models");
                 conn.setRequestMethod("GET");
                 conn.setConnectTimeout(15_000);
                 conn.setReadTimeout(20_000);
