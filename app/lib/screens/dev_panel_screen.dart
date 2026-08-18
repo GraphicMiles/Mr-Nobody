@@ -48,6 +48,12 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
   /// Manual observations, keyed by id: null = unanswered.
   final Map<String, bool?> _manual = {};
 
+  /// The Data Saver grade currently applied. Defaults to OFF (the product
+  /// never degrades a page by surprise).
+  String _dataSaver = 'OFF';
+
+  static const _dataSaverGrades = ['OFF', 'BALANCED', 'AGGRESSIVE', 'EXTREME'];
+
   /// Failure ids already written to the error log, so a re-run never stacks
   /// duplicates in the ⓘ panel.
   final Set<String> _recorded = {};
@@ -66,6 +72,31 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
   void initState() {
     super.initState();
     _run();
+    _loadDataSaver();
+  }
+
+  Future<void> _loadDataSaver() async {
+    final s = await NativeBridge.guard(
+      NativeBridge.getSettings,
+      const <String, dynamic>{},
+      'settings unavailable',
+    );
+    if (!mounted || s.isEmpty) return;
+    final grade = s['resourcePolicy'] as String?;
+    if (grade != null && grade.isNotEmpty) {
+      setState(() => _dataSaver = grade.toUpperCase());
+    }
+  }
+
+  Future<void> _setDataSaver(String grade) async {
+    await NativeBridge.guard(
+      () => NativeBridge.setSetting('resourcePolicy', grade),
+      null,
+      'could not set data saver',
+    );
+    if (!mounted) return;
+    setState(() => _dataSaver = grade);
+    AppToast.show(context, 'Data Saver: $grade');
   }
 
   Future<void> _run() async {
@@ -218,6 +249,31 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                     ]),
                   ),
                 ),
+                const SectionLabel('Data Saver'),
+                AppCard(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Restrict what pages may fetch. Takes effect on newly '
+                          'opened pages.',
+                          style: AppTheme.sans(size: 11.5, color: AppColors.textDim, height: 1.5),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final g in _dataSaverGrades)
+                              _gradePill(g, g == _dataSaver),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const SectionLabel('Needs your eyes'),
                 AppCard(
                   child: Column(
@@ -276,6 +332,30 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
           const SizedBox(width: 6),
           _pill(id, 'FAIL', v == false),
         ],
+      ),
+    );
+  }
+
+  Widget _gradePill(String grade, bool selected) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _setDataSaver(grade),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface2,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+              color: selected ? Colors.transparent : AppColors.lineStrong),
+        ),
+        child: Text(
+          grade,
+          style: AppTheme.mono(
+            size: 9.5,
+            w: FontWeight.w700,
+            color: selected ? AppColors.accentInk : AppColors.textDim,
+          ),
+        ),
       ),
     );
   }

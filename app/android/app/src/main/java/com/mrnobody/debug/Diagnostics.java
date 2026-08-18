@@ -2,6 +2,11 @@ package com.mrnobody.debug;
 
 import android.content.Context;
 
+import android.os.Handler;
+import android.os.Looper;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+
 import com.mrnobody.agent.browser.HeadlessWebViewEngine;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.planner.DeterministicPlanner;
@@ -24,6 +29,8 @@ import com.mrnobody.browser.net.OrbotTorRoute;
 import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
 import com.mrnobody.browser.net.ProfileManager;
+import com.mrnobody.browser.net.ResourceControls;
+import com.mrnobody.browser.net.ResourcePolicy;
 import com.mrnobody.identity.AndroidKeyStoreIdentity;
 import com.mrnobody.identity.DeviceIdentity;
 import com.mrnobody.identity.SignedRequest;
@@ -39,6 +46,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The Phase 1 device benchmark: a battery of checks that each exercise one
@@ -207,7 +216,44 @@ public final class Diagnostics {
                                     "route " + route + " is fail-closed and down");
                 }));
 
+        out.add(check("datasaver.policy", "Data Saver grades (OFF/BALANCED/AGGRESSIVE/EXTREME)",
+                () -> {
+                    ResourcePolicy[] all = ResourcePolicy.values();
+                    if (all.length != 4) {
+                        return Result.fail("datasaver.policy", "Data Saver grades",
+                                "expected 4 grades, found " + all.length);
+                    }
+                    // Every grade must differ from every other on at least one
+                    // lever, or the ladder is a lie.
+                    for (int i = 0; i < all.length; i++) {
+                        for (int j = i + 1; j < all.length; j++) {
+                            if (!differs(all[i], all[j])) {
+                                return Result.fail("datasaver.policy", "Data Saver grades",
+                                        all[i].label() + " and " + all[j].label()
+                                                + " do the same thing");
+                            }
+                        }
+                    }
+                    return Result.pass("datasaver.policy", "Data Saver grades",
+                            "4 distinct grades: " + labels(all));
+                }));
+
         return out;
+    }
+
+    private static boolean differs(ResourcePolicy a, ResourcePolicy b) {
+        return a.gatesAutoplay() != b.gatesAutoplay()
+                || a.disablesImages() != b.disablesImages()
+                || a.disablesCache() != b.disablesCache();
+    }
+
+    private static String labels(ResourcePolicy[] all) {
+        StringBuilder sb = new StringBuilder();
+        for (ResourcePolicy p : all) {
+            if (sb.length() > 0) sb.append(" / ");
+            sb.append(p.label());
+        }
+        return sb.toString();
     }
 
     // ----------------------------------------------------------------- device
@@ -316,6 +362,53 @@ public final class Diagnostics {
                             : Result.fail("tor.orbot", "Tor route (Orbot) reachable",
                                     "Orbot not reachable on " + OrbotTorRoute.HOST + ":"
                                             + OrbotTorRoute.PORT + " — start Orbot to test Tor routing");
+                }));
+
+        // Data Saver: apply the strictest grade and read the WebView settings
+        // straight back. This proves a grade is real behaviour, not a label.
+        out.add(check("datasaver.apply", "Data Saver applied to WebView",
+                () -> {
+                    // WebView must be created on the main thread.
+                    final Object[] holder = new Object[1];
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        WebView wv = null;
+                        try {
+                            wv = new WebView(context.getApplicationContext());
+                            ResourceControls.apply(wv, ResourcePolicy.EXTREME);
+                            WebSettings s = wv.getSettings();
+                            holder[0] = new Boolean[]{
+                                    !s.getLoadsImagesAutomatically(),           // images off
+                                    s.getMediaPlaybackRequiresUserGesture(),    // autoplay gated
+                                    s.getCacheMode() == WebSettings.LOAD_NO_CACHE // cache off
+                            };
+                        } catch (Throwable t) {
+                            holder[0] = t;
+                        } finally {
+                            if (wv != null) wv.destroy();
+                            latch.countDown();
+                        }
+                    });
+                    latch.await(5, TimeUnit.SECONDS);
+                    Object value = holder[0];
+                    if (value instanceof Throwable) {
+                        Throwable t = (Throwable) value;
+                        return Result.fail("datasaver.apply", "Data Saver applied to WebView",
+                                t.getClass().getSimpleName() + ": " + t.getMessage());
+                    }
+                    if (!(value instanceof Boolean[])) {
+                        return Result.fail("datasaver.apply", "Data Saver applied to WebView",
+                                "timed out creating the WebView");
+                    }
+                    Boolean[] got = (Boolean[]) value;
+                    boolean ok = got[0] && got[1] && got[2];
+                    return ok
+                            ? Result.pass("datasaver.apply", "Data Saver applied to WebView",
+                                    "EXTREME → images=" + got[0] + ", autoplay-gated=" + got[1]
+                                            + ", cache=" + got[2])
+                            : Result.fail("datasaver.apply", "Data Saver applied to WebView",
+                                    "EXTREME not honoured: images=" + got[0]
+                                            + ", autoplay-gated=" + got[1] + ", cache=" + got[2]);
                 }));
 
         // The NOBODY invariant, checked without mutating state: the app must

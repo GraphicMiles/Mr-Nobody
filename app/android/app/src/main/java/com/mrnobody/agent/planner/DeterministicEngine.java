@@ -241,7 +241,21 @@ public final class DeterministicEngine implements AgentEngine {
                 }
 
                 if ("http".equals(step.tool)) {
-                    readOne(r, step, result);
+                    // A read is best-effort: a blocked source (503, timeout,
+                    // bot challenge) must not fail the whole task. Escalate to
+                    // the headless browser, which renders JS and looks like a
+                    // real browser; if that fails too, skip this source and
+                    // move on — the answer step falls back to whatever was
+                    // actually read, plus the snippets.
+                    boolean read = readOne(r, step, result);
+                    if (!read) {
+                        ToolResult escalated = readViaBrowser(context, step, cancellation);
+                        if (escalated != null) {
+                            readOne(r, step, escalated);
+                        }
+                    }
+                    plan.advance();
+                    continue;
                 }
 
                 // A failed action step can be replanned: a model-backed planner
@@ -327,17 +341,30 @@ public final class DeterministicEngine implements AgentEngine {
     }
 
     /** Record one source that actually read, or skip it silently when it failed. */
-    private void readOne(Research r, Plan.Step step, ToolResult result) {
+    private boolean readOne(Research r, Plan.Step step, ToolResult result) {
         String url = step.request == null ? "" : step.request.param("url", "");
         if (url.isEmpty() || r.readUrls.contains(url) || r.readUrls.size() >= MAX_SOURCES_READ) {
-            return;
+            return false;
         }
         String text = result.isSuccess() ? result.result() : null;
-        if (text == null || text.trim().isEmpty()) return;
+        if (text == null || text.trim().isEmpty()) return false;
         r.readUrls.add(url);
         // An explicit http step (e.g. from an LLM plan) has no search-result
         // title; the URL itself is the honest label.
         appendSource(r.sources, r.readUrls.size(), url, r.titles.getOrDefault(url, url), text);
+        return true;
+    }
+
+    /**
+     * Fetch one source through the headless browser, for when the plain HTTP
+     * fetch was blocked. Returns null when there is no browser tool (so the
+     * caller skips the source rather than failing).
+     */
+    private ToolResult readViaBrowser(Context context, Plan.Step step, Cancellation cancellation) {
+        if (!tools.containsKey("browser")) return null;
+        String url = step.request == null ? "" : step.request.param("url", "");
+        if (url.isEmpty()) return null;
+        return callTool(context, "browser", ToolRequest.of("fetch", "url", url), cancellation);
     }
 
     /** Answer, strictly from the sources read; fall back to snippets when none read. */
