@@ -12,7 +12,7 @@ import org.junit.Test;
 public class UsageParsingTest {
 
     @Test
-    public void openAiUsageIsParsed() {
+    public void openAiUsageIsParsed() throws Exception {
         JSONObject root = new JSONObject()
                 .put("choices", new org.json.JSONArray())
                 .put("usage", new JSONObject()
@@ -24,12 +24,12 @@ public class UsageParsingTest {
     }
 
     @Test
-    public void openAiMissingUsageIsZero() {
+    public void openAiMissingUsageIsZero() throws Exception {
         assertEquals(0, OpenAiCompatibleProvider.usageOf(new JSONObject()).totalTokens());
     }
 
     @Test
-    public void geminiUsageMetadataIsParsed() {
+    public void geminiUsageMetadataIsParsed() throws Exception {
         JSONObject root = new JSONObject()
                 .put("usageMetadata", new JSONObject()
                         .put("promptTokenCount", 1500)
@@ -40,7 +40,7 @@ public class UsageParsingTest {
     }
 
     @Test
-    public void geminiMissingUsageIsZero() {
+    public void geminiMissingUsageIsZero() throws Exception {
         assertEquals(0, GeminiProvider.usageOf(new JSONObject()).totalTokens());
     }
 }
