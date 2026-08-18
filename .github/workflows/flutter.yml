@@ -41,6 +41,12 @@ jobs:
       - name: Privacy audit
         run: python3 tools/privacy_audit.py .
 
+      # The Android unit suite without Gradle. Gradle remains the gate below;
+      # this runs first because it needs no Android Gradle Plugin and reports a
+      # compile error in seconds rather than after a full configure phase.
+      - name: Android unit tests (JVM)
+        run: tools/jvm_test.sh
+
       # FilterEngine verifies the bundled blocklist against a pinned SHA-256
       # and fails closed on mismatch -- blocking silently switches off. Catch
       # a stale pin here, where the cause is obvious, rather than on a phone.

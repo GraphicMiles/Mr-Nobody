@@ -78,20 +78,8 @@ public final class FilterEngine {
                 return;
             }
 
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(new ByteArrayInputStream(raw), "UTF-8"));
-            Blocklist.Category current = blocklist.ads;
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String trimmed = line.trim();
-                if (trimmed.equalsIgnoreCase("[ADS]")) {
-                    current = blocklist.ads;
-                } else if (trimmed.equalsIgnoreCase("[TRACKERS]")) {
-                    current = blocklist.trackers;
-                } else {
-                    blocklist.addLine(trimmed, current);
-                }
-            }
+            parseInto(new BufferedReader(
+                    new InputStreamReader(new ByteArrayInputStream(raw), "UTF-8")));
             loaded = true;
             loadTotals(context);
         } catch (IOException e) {
@@ -220,6 +208,45 @@ public final class FilterEngine {
 
     public void persist(Context context) {
         persistTotals(context);
+    }
+
+    /**
+     * The one place blocklist text becomes rules.
+     *
+     * <p>Shared by the real asset load and the test seam so there is exactly
+     * one parser to be wrong.
+     */
+    private void parseInto(BufferedReader reader) throws IOException {
+        Blocklist.Category current = blocklist.ads;
+        String line;
+        while ((line = reader.readLine()) != null) {
+            String trimmed = line.trim();
+            if (trimmed.equalsIgnoreCase("[ADS]")) {
+                current = blocklist.ads;
+            } else if (trimmed.equalsIgnoreCase("[TRACKERS]")) {
+                current = blocklist.trackers;
+            } else {
+                blocklist.addLine(trimmed, current);
+            }
+        }
+    }
+
+    /**
+     * For tests: load rules from a stream instead of the APK's assets.
+     *
+     * <p>{@link #loadBundled} reads through {@code Context.getAssets()}, which
+     * does not exist on a JVM, so without this the only way to test the
+     * shipping request path off-device is to re-implement the parsing loop in
+     * the test -- which then tests the copy rather than the original, and
+     * passes happily while the real one is broken.
+     *
+     * <p>Deliberately shares {@link #parseInto} with {@code loadBundled} so a
+     * section header or rule the real parser mishandles is mishandled here
+     * too. Package-private: this is a seam for the tests beside it, not API.
+     */
+    void loadForTest(InputStream in) throws IOException {
+        parseInto(new BufferedReader(new InputStreamReader(in, "UTF-8")));
+        loaded = true;
     }
 
     /** For tests: reset in-memory state. */

@@ -26,7 +26,38 @@ Nothing new is built. This phase converts "the code looks right" into "we
 watched it work", and closes the honesty gaps that opened when features landed
 ahead of their UI.
 
-### A1. Build an APK and run the suite on a device
+### A1. Build an APK and run the suite on a device — ⚠️ PARTIALLY DONE
+
+**Done:** the whole module now compiles against the real Android SDK, and the
+whole test suite runs. `tools/jvm_test.sh` fetches `android.jar`, the androidx
+AARs, the Flutter embedding jar and real JUnit, generates the `R` class that
+AAPT would, and drives `javac` directly — **169 main classes, 0 errors, 382/382
+tests passing** in about 9 seconds from a cold cache.
+
+That closes a real gap. Before this, no session had ever compiled the Android
+half of the app: verification was a hand-written JUnit shim over the pure-Java
+classes, reaching 88 tests and compiling nothing that touched an Android type.
+Every claim about `TaskStore`, `DownloadService`, `MrNobodyWebView` or
+`ProfileManager` was inference from reading. Now they are compiled facts.
+
+Two things it caught that reading had not:
+
+- `android.jar` ships **stubs that throw** `RuntimeException: Stub!`. Two
+  `SearchProvidersTest` cases fail against it and pass against a real
+  `org.json`, so the script puts a real implementation ahead of `android.jar`
+  on the classpath. Without that, tests fail for reasons unrelated to the code.
+- Some tests read source files relative to the Gradle module directory and fail
+  spuriously from anywhere else. The script `cd`s there, as Gradle does.
+
+**Still not done, and not doable here:** no APK. That needs the Flutter SDK and
+a Gradle run; this machine has neither, has 1 GB of RAM, and `sdkmanager`
+requires a newer JDK than the Java 11 installed. So the 70 MB gate has still
+never been measured against a real artifact, and **nothing has run on a
+device.** Every runtime claim — the download notification fix, Orbot routing,
+multi-profile isolation — remains unverified in the only way that counts.
+
+Original scope, still outstanding: `flutter build apk --release`, record the
+size, install, exercise download → pause → resume → complete.
 The single highest-value item in this document. There are 88 pure-Java tests
 passing against a hand-written JUnit shim because no jars and no network are
 available here. Gradle `:app:testDebugUnitTest` has never run. Until an APK
@@ -38,7 +69,7 @@ real number, install, and exercise download → pause → resume → complete.
 **Done when:** an APK exists, its size is recorded, and the two download bugs
 fixed in `3fd6020` are confirmed fixed *on hardware* rather than on a bench.
 
-### A2. Surface what the device actually supports
+### A2. Surface what the device actually supports — ✅ DONE
 `EngineInfo.describe()` exists and is reachable over the bridge at
 `MainActivity:375`. No Dart screen reads it.
 
@@ -48,23 +79,64 @@ version. Right now a user on an old WebView gets silently weaker protection
 than a user on a new one, and both see identical UI. That is the same failure
 mode as the retracted private-tabs claim, one layer down.
 
-**Done when:** the privacy screen shows WebView provider, version, and which
-of the three capabilities are actually available on *this* device.
+**Done:** `NativeBridge.engineInfo()` now calls the `engineInfo` channel that
+already existed on the native side and was never invoked from Dart. The privacy
+screen gained a **Web engine** section showing the engine name and version plus
+multi-profile, document-start-script and proxy-override support, each read from
+`WebViewFeature` rather than inferred. Where something is unavailable, an
+explanatory note says it depends on the installed Android System WebView and
+not on Mr Nobody.
 
-### A3. Make the settings toggles match reality
-`Settings.isFingerprintProtection()` exists; `FingerprintDefence.apply` is
-called unconditionally with a fixed seed. So the toggle reads a value nothing
-consults. Either wire it or remove it — a toggle that enforces nothing is worse
-than no toggle, which was roadmap item 1.1 and is still open.
+Unknown renders as `—`, never as "unavailable": failing to ask and being told
+no are different, and only one is a fact.
 
-### A4. Behavioural filter tests
+### A3. Make the settings toggles match reality — ✅ DONE (and the diagnosis was wrong)
+**The earlier diagnosis in this document was wrong.** `FingerprintDefence.apply`
+is *not* called unconditionally — `MrNobodyWebView:113` guards it with
+`settings().isFingerprintProtection()`, and `PrivacyProfile` sets that true for
+STRICT and MAXIMUM. The plumbing is complete.
+
+The real problem was subtler and worse: the setting **defaults to false**, and
+the only thing that changes it is the privacy profile. So on a default install
+fingerprint defence is *off*, and nothing anywhere said so. A user reading
+"Fingerprint defence: Available" would reasonably conclude it was running.
+
+Fixed by reporting both facts: the privacy screen now distinguishes
+`Not on this device` (the WebView cannot), `Off — raise privacy profile` (it
+can, and is not switched on) and `On`. Supported and enabled are different
+claims and now look different.
+
+### A4. Behavioural filter tests — ✅ DONE
 Roadmap 1.5, untouched. The only filter testing is unit-level plus a static
 grep. There is no assertion that a real request to a real tracker domain is
 actually blocked. `BlocklistTest` tests the matcher; nothing tests the wiring
 between the matcher and `shouldInterceptRequest`.
 
-**Why here and not later:** it needs no new infrastructure, and it is the test
-that would catch a privacy regression introduced by the 70 MB work.
+**Done:** `FilterEngineBehaviourTest` — 16 tests that parse the blocklist the
+APK actually ships and assert on `FilterEngine.shouldBlock` with URLs in the
+form a page requests them. Covers real ad hosts blocked, ordinary sites not
+blocked, subdomains, lookalike domains (`notdoubleclick.net`), ports, malformed
+input that must not throw on the request path, the enable switch, and the
+counters the dashboard reports.
+
+`FilterEngine` gained a package-private `loadForTest(InputStream)` and the
+parse loop was extracted into a shared `parseInto`, so the test drives the
+*same* parser as `loadBundled` rather than a copy of it. A test that
+re-implements the loop tests the copy and passes while the original is broken.
+
+**Verified by sabotage**, because a test that has never failed has not been
+shown to work:
+
+| Injected bug | Caught? |
+|---|---|
+| `[TRACKERS]` header made case-sensitive → trackers never load | ✅ 3 tests fail |
+| `isBlocking()` ignores the enable switch | ✅ 1 test fails |
+| host lowercasing removed from `shouldBlock` | ❌ **not caught** |
+
+The third is recorded in the test file rather than quietly fixed: lowercasing
+happens twice, so removing one is invisible. That assertion is a
+characterisation test, not a guard, and it now says so. A suite that looks
+stronger than it is causes worse decisions than a small one.
 
 ---
 
@@ -163,7 +235,22 @@ purchase, not discovered afterwards.
 
 ---
 
-## Where to start
+## Status
 
-**A1.** Build the APK. Everything else in this document is inference until
-something has run on hardware once, and two of the three phases assume it.
+**A2, A3 and A4 are done. A1 is half done** — the code compiles and the full
+suite runs (382 tests), but no APK exists and nothing has touched a device.
+
+Phase A's purpose was to convert "this looks right" into "we watched it work".
+It did that for everything reachable from a JVM, and it found three things
+reading had missed: the `org.json` stubs, the wrong A3 diagnosis, and a weak
+assertion in a test written this same session.
+
+**What Phase A cannot close, and no amount of further work here will:** the
+APK, the 70 MB measurement, and device behaviour. That needs a machine with the
+Flutter SDK, a current JDK and more than 1 GB of RAM. Until then Tor routing,
+proxy support, fingerprint defence, DNS protection and multi-profile isolation
+stay 🔴 — they are now *compiled and tested* 🔴 rather than *unverified* 🔴,
+which is progress but is not the same as working.
+
+**Next:** either provision a build machine to finish A1, or start Phase B,
+which is JVM-testable throughout except for its own device verification.
