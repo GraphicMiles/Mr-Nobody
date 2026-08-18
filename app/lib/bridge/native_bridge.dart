@@ -104,6 +104,18 @@ class NativeBridge {
     return await _ch.invokeMethod('releaseTab', {'id': id}) as bool? ?? false;
   }
 
+  /// The append-only event log for one task: every tool call, its result or
+  /// refusal, and each step change, with timings.
+  ///
+  /// This is what the chat transcript is built from. The sequence is
+  /// contiguous per task, so a gap means an event was lost rather than that
+  /// nothing happened — which is why the trace can be trusted to show the
+  /// whole of what the agent did.
+  static Future<List<Map<String, dynamic>>> taskEvents(int id) async {
+    final r = await _ch.invokeMethod('taskEvents', {'id': id});
+    return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   /// Which web engine is installed, and which privacy capabilities it actually
   /// supports on this device.
   ///

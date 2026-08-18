@@ -12,7 +12,7 @@ import 'screens/launch_screen.dart';
 import 'screens/privacy_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/tabs_screen.dart';
-import 'screens/task_detail_screen.dart';
+import 'screens/task_chat_screen.dart';
 import 'screens/tasks_screen.dart';
 import 'state/app_state.dart';
 import 'state/error_log.dart';
@@ -211,9 +211,15 @@ class _AppShellState extends State<AppShell> {
       AppToast.show(context, 'Agent core unavailable');
       return;
     }
-    AppToast.show(context, 'Task started');
     _homeKey.currentState?.refresh();
-    _push(TaskDetailScreen(taskId: id, title: instruction));
+    // Straight into the conversation. The toast that used to fire here said
+    // "Task started" and then left the user on Home with nothing to look at;
+    // the thread itself is the confirmation, and it shows the work arriving.
+    _push(TaskChatScreen(
+      taskId: id,
+      title: instruction,
+      instruction: instruction,
+    ));
   }
 
   void _openBrowser(String url) {
@@ -268,13 +274,19 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Open a task as a conversation.
+  ///
+  /// Both entry points land here: tapping a row in Tasks, and submitting a
+  /// prompt from the address bar. The old detail screen drew a five-step plan
+  /// that was hardcoded and identical for every task, so a download reported
+  /// "Extract prices"; the chat shows the event log instead, which can only
+  /// contain work that happened.
   void _openTask(Map<String, dynamic> task) {
-    _push(TaskDetailScreen(
+    final instruction = task['instruction'] as String? ?? 'Task';
+    _push(TaskChatScreen(
       taskId: (task['id'] as num?)?.toInt(),
-      title: task['instruction'] as String? ?? 'Task',
-      initialStatus: task['status'] as String? ?? 'QUEUED',
-      initialStep: task['step'] as String? ?? '',
-      initialProgress: ((task['progress'] as num?) ?? 0).toInt(),
+      title: instruction,
+      instruction: instruction,
     ));
   }
 
