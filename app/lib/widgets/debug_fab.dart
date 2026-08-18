@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../bridge/native_bridge.dart';
 import '../screens/dev_panel_screen.dart';
+import '../screens/memory_screen.dart';
 import '../state/error_log.dart';
 import '../theme/app_theme.dart';
 import 'toast.dart';
@@ -153,6 +154,26 @@ class _DebugOverlayState extends State<DebugOverlay> {
               Text('$count ${count == 1 ? 'error' : 'errors'}',
                   style: AppTheme.mono(size: 9.5, color: AppColors.textFaint, w: FontWeight.w600)),
               const Spacer(),
+              GestureDetector(
+                onTap: () {
+                  // The agent's memory: what it remembers, visibly, with a
+                  // forget button. On-device only.
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const MemoryScreen()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface3,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppColors.lineStrong),
+                  ),
+                  child: Text('MEM',
+                      style: AppTheme.mono(size: 8.5, w: FontWeight.w700, color: AppColors.accent)),
+                ),
+              ),
               GestureDetector(
                 onTap: () {
                   // Dev mode: the Phase 1 device benchmark. Same channel as the

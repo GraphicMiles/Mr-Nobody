@@ -119,6 +119,8 @@ public final class MrNobodyApp extends Application {
         // answers a plain fetch with a challenge page.
         engine.registerTool(new com.mrnobody.agent.tools.SearchTool(headlessEngine));
         engine.registerTool(new DownloadTool());
+        // The agent's own memory: it can recall past tasks, on-device only.
+        engine.registerTool(new com.mrnobody.agent.tools.MemoryTool());
         agentEngine = engine;
         applyTerminalSetting();
 

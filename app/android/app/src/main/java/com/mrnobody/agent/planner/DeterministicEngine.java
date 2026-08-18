@@ -18,6 +18,7 @@ import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.agent.util.DownloadLinkResolver;
 import com.mrnobody.agent.util.Hosts;
+import com.mrnobody.agent.memory.MemoryDigest;
 import com.mrnobody.agent.tasks.ChangeDetector;
 import com.mrnobody.agent.tasks.Schedule;
 import com.mrnobody.agent.tasks.TaskStreamHub;
@@ -482,9 +483,19 @@ public final class DeterministicEngine implements AgentEngine {
             String nonce = UntrustedContent.newNonce();
             UntrustedContent.Report fenced = UntrustedContent.fence(r.sources.toString(), nonce);
             r.injectionNote = fenced.note();
-            r.answer = askProvider(r.provider,
-                    GroundedPrompt.build(task.instruction(), fenced.fenced, r.pagesRead, nonce),
-                    cancellation, task.id());
+            String prompt = GroundedPrompt.build(
+                    task.instruction(), fenced.fenced, r.pagesRead, nonce);
+            // Auto-injected memory: what the agent already did, as context only.
+            // It is not a citable source — the verifier still checks every
+            // citation against the pages actually read — but it gives the
+            // answer continuity without the user repeating themselves.
+            String memory = MemoryDigest.digest(
+                    MrNobodyApp.tasks().recent(50), task.instruction());
+            if (!memory.isEmpty()) {
+                prompt = "Context — your recent work on this device (for continuity "
+                        + "only; do not cite it as a source):\n" + memory + "\n\n" + prompt;
+            }
+            r.answer = askProvider(r.provider, prompt, cancellation, task.id());
         } else if (r.search != null) {
             r.answer = r.search.result();
         } else {

@@ -172,4 +172,13 @@ public final class TaskEventStore extends SQLiteOpenHelper {
             return 0;
         }
     }
+
+    /** Drop every event. Used when the user forgets all memory. */
+    public void clearAll() {
+        try {
+            getWritableDatabase().delete(T, null, null);
+        } catch (Exception e) {
+            // Nothing to do: the memory is already gone.
+        }
+    }
 }
