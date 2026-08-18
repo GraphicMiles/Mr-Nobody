@@ -15,6 +15,12 @@ class NativeBridge {
     return Map<String, dynamic>.from(await _ch.invokeMethod('runTask', {'instruction': instruction}));
   }
 
+  /// Re-run an existing task in place — a "check again" follow-up. Returns true
+  /// when the task was reset and re-enqueued.
+  static Future<bool> rerunTask(int id) async {
+    return await _ch.invokeMethod('rerunTask', {'id': id}) as bool? ?? false;
+  }
+
   /// Recent task list for the Tasks / Agent Home screens.
   static Future<List<Map<String, dynamic>>> recentTasks() async {
     final r = await _ch.invokeMethod('recentTasks');

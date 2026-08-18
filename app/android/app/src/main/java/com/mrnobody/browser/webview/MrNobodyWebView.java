@@ -86,6 +86,49 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     private static final java.util.Map<Integer, MrNobodyWebView> ACTIVE =
             new java.util.HashMap<>();
 
+    /**
+     * The MethodChannel per tab. Registered once and kept for the tab's whole
+     * life: its handler delegates to whatever {@link #ACTIVE} instance holds
+     * the tab right now. Clearing the handler when a view is detached is what
+     * made Dart's applySettings/loadUrl throw MissingPluginException — Dart
+     * holds the tab's channel for the tab's lifetime, so the handler must too.
+     */
+    private static final java.util.Map<Integer, MethodChannel> CHANNELS =
+            new java.util.HashMap<>();
+
+    /** The channel for a tab, registered lazily and never cleared until release. */
+    private static MethodChannel channelFor(BinaryMessenger messenger, int tabId) {
+        synchronized (CHANNELS) {
+            MethodChannel ch = CHANNELS.get(tabId);
+            if (ch == null) {
+                ch = new MethodChannel(messenger, "mrnobody/webview_tab_" + tabId);
+                ch.setMethodCallHandler((call, result) -> {
+                    MrNobodyWebView v = ACTIVE.get(tabId);
+                    if (v == null || v.destroyed) {
+                        result.notImplemented();
+                        return;
+                    }
+                    v.onMethodCall(call, result);
+                });
+                CHANNELS.put(tabId, ch);
+            }
+            return ch;
+        }
+    }
+
+    /**
+     * The tab is closed for good: drop its channel and mark the live view dead
+     * so no late call can reach a destroyed WebView.
+     */
+    public static void releaseChannel(int tabId) {
+        synchronized (CHANNELS) {
+            MethodChannel ch = CHANNELS.remove(tabId);
+            if (ch != null) ch.setMethodCallHandler(null);
+        }
+        MrNobodyWebView v = ACTIVE.remove(tabId);
+        if (v != null) v.destroyed = true;
+    }
+
     /** True when this tab genuinely has its own cookie/storage jar. */
     private final boolean isolated;
 
@@ -128,15 +171,17 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         // The channel is keyed by the stable tab id, not the ephemeral view id.
         // Flutter assigns a fresh view id to every platform-view rebuild, so a
         // view-id-keyed channel goes stale the moment the user leaves and
-        // returns to the browser — Dart then invokes loadUrl/applySettings on a
-        // channel whose handler was cleared, and the tab breaks. A tab owns its
-        // page; the channel must match that lifetime, not the view's.
-        String channelName = tabId >= 0
-                ? "mrnobody/webview_tab_" + tabId
-                : "mrnobody/webview_" + viewId;
-        this.channel = new MethodChannel(messenger, channelName);
-        this.channel.setMethodCallHandler(this);
-        if (tabId >= 0) ACTIVE.put(tabId, this);
+        // returns to the browser. A tab owns its page and its channel: the
+        // channel is registered once per tab (see channelFor) and lives until
+        // the tab is actually closed, so commands keep working across
+        // detach/reattach.
+        if (tabId >= 0) {
+            this.channel = channelFor(messenger, tabId);
+            ACTIVE.put(tabId, this);
+        } else {
+            this.channel = new MethodChannel(messenger, "mrnobody/webview_" + viewId);
+            this.channel.setMethodCallHandler(this);
+        }
 
         applySettings();
         applyCookiePolicy();
@@ -527,23 +572,21 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      */
     @Override
     public void dispose() {
-        destroyed = true;
-        // Clear the channel handler only if this instance is still the tab's
-        // current view. On a rebuild the new view has already re-registered
-        // under the same tab key; clearing it here would tear down the new
-        // view's handler and break the very tab we are handing over to it.
-        if (tabId < 0 || ACTIVE.get(tabId) == this) {
-            if (tabId >= 0) ACTIVE.remove(tabId);
-            channel.setMethodCallHandler(null);
-        }
-        webView.setWebChromeClient(null);
-        webView.setOnScrollChangeListener(null);
-        container.removeAllViews();
         if (tabId < 0) {
             // No tab identity to retain against: this view owned its page.
+            destroyed = true;
+            channel.setMethodCallHandler(null);
             webView.stopLoading();
             webView.loadUrl("about:blank");
             webView.destroy();
+            return;
         }
+        // The tab lives on. Detach the container only. The channel, the clients
+        // and the retained WebView all outlive this view instance and are
+        // adopted by the next view for this tab. Clearing the handler here is
+        // exactly the MissingPluginException that broke applySettings/loadUrl:
+        // Dart holds the tab's channel for the tab's lifetime, so the handler
+        // must too (it is cleared only in releaseChannel, when the tab closes).
+        container.removeAllViews();
     }
 }

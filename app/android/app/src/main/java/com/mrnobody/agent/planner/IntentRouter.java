@@ -22,6 +22,25 @@ public final class IntentRouter {
             "search for", "open and", "every", "watch", "scrape", "send",
             "buy", "order", "look up", "lookup");
 
+    // Question openers: a natural-language question is an agent task, not a raw
+    // search. "What is X's age" must not land on a results page.
+    private static final List<String> QUESTIONS = Arrays.asList(
+            "what is", "what's", "what are", "what was", "what were", "what about",
+            "who is", "who's", "who are", "who was",
+            "how old", "how much", "how many", "how to", "how do", "how does",
+            "how is", "how are", "how long", "how tall",
+            "when is", "when was", "when did", "when does", "when will",
+            "where is", "where can", "where do", "where are",
+            "why is", "why does", "why are", "why do",
+            "which is", "which one", "which are",
+            "tell me", "explain", "define", "is", "are", "does", "did", "can you");
+
+    // Trailing fact-words: "hrithik roshan age", "bitcoin price today".
+    private static final List<String> FACT_WORDS = Arrays.asList(
+            "age", "height", "birthday", "birthdate", "net worth", "worth", "price",
+            "salary", "girlfriend", "wife", "husband", "nationality", "religion",
+            "instagram", "twitter", "meaning", "definition", "capital", "population");
+
     private static final Pattern IP = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}(:\\d+)?$");
     private static final Pattern LOCALHOST = Pattern.compile("^localhost(:\\d+)?$");
     // Any scheme, e.g. https://, http://, mailto:, intent:// — pure Java so the
@@ -51,6 +70,17 @@ public final class IntentRouter {
         }
         // "open <url> and download" style compound instructions
         if (lower.contains(" and ")) return IntentType.TASK;
+
+        // a question → task
+        for (String q : QUESTIONS) {
+            if (lower.equals(q) || lower.startsWith(q + " ")) return IntentType.TASK;
+        }
+
+        // a vague/partial fact lookup ("hrithik roshan age") → task
+        String[] words = lower.split("\\s+");
+        if (words.length >= 2 && FACT_WORDS.contains(words[words.length - 1])) {
+            return IntentType.TASK;
+        }
 
         // otherwise a search
         return IntentType.SEARCH;

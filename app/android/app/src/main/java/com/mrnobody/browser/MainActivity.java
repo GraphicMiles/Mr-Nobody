@@ -97,6 +97,31 @@ public class MainActivity extends FlutterActivity {
                             result.success(Map.of("id", id));
                             return;
                         }
+                        case "rerunTask": {
+                            // A follow-up like "check again" re-runs the SAME
+                            // task rather than spawning a new one — so a
+                            // recurring monitor keeps its one schedule, and the
+                            // conversation continues in place instead of
+                            // forking. Reset and re-enqueue the existing id.
+                            Number rerunId = call.argument("id");
+                            if (rerunId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            Task t = MrNobodyApp.tasks().get(rerunId.longValue());
+                            if (t == null) {
+                                result.success(false);
+                                return;
+                            }
+                            t.setStatus(Task.Status.QUEUED);
+                            t.setCurrentStep("");
+                            t.setResult("");
+                            t.setError("");
+                            MrNobodyApp.tasks().update(t);
+                            MrNobodyApp.scheduler().schedule(getApplicationContext(), t.id());
+                            result.success(true);
+                            return;
+                        }
                         case "recentTasks": {
                             List<Task> tasks = MrNobodyApp.tasks().recent(100);
                             List<Map<String, Object>> out = new ArrayList<>();
