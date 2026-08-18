@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -57,42 +58,31 @@ public final class GeminiProvider implements AiProvider {
         new Thread(() -> doComplete(systemPrompt, userMessage, callback)).start();
     }
 
-    private void doComplete(String system, String user, CompletionCallback callback) {
+    @Override
+    public void stream(String systemPrompt, String userMessage, StreamCallback callback) {
+        new Thread(() -> doStream(systemPrompt, userMessage, callback)).start();
+    }
+
+    /** Why a completion cannot even start, or null when it can. */
+    private String configProblem() {
         if (model.isEmpty()) {
-            callback.onError("No model chosen for Gemini. Open Settings → AI provider, "
-                    + "refresh the model list and pick one.");
-            return;
+            return "No model chosen for Gemini. Open Settings → AI provider, "
+                    + "refresh the model list and pick one.";
         }
         if (apiKey == null || apiKey.trim().isEmpty()) {
-            callback.onError("No API key for Gemini.");
+            return "No API key for Gemini.";
+        }
+        return null;
+    }
+
+    private void doComplete(String system, String user, CompletionCallback callback) {
+        String problem = configProblem();
+        if (problem != null) {
+            callback.onError(problem);
             return;
         }
         try {
-            String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
-
-            JSONObject contents = new JSONObject();
-            JSONArray parts = new JSONArray();
-            if (system != null && !system.isEmpty()) {
-                parts.put(new JSONObject().put("text", system + "\n\n" + user));
-            } else {
-                parts.put(new JSONObject().put("text", user));
-            }
-            contents.put("parts", parts);
-
-            JSONObject body = new JSONObject();
-            body.put("contents", new JSONArray().put(contents));
-
-            HttpURLConnection conn = NetworkGate.openHttp(url);
-            conn.setRequestMethod("POST");
-            conn.setConnectTimeout(15_000);
-            conn.setReadTimeout(60_000);
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "application/json");
-
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
-            }
-
+            HttpURLConnection conn = post(system, user, false);
             int code = conn.getResponseCode();
             InputStream in = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
             String response = readAll(in);
@@ -107,6 +97,85 @@ public final class GeminiProvider implements AiProvider {
             callback.onResult(text);
         } catch (Exception e) {
             callback.onError(e.getMessage());
+        }
+    }
+
+    private void doStream(String system, String user, StreamCallback callback) {
+        String problem = configProblem();
+        if (problem != null) {
+            callback.onError(problem);
+            return;
+        }
+        try {
+            HttpURLConnection conn = post(system, user, true);
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                callback.onError(explain(code, readAll(conn.getErrorStream())));
+                return;
+            }
+            final StringBuilder acc = new StringBuilder();
+            try (InputStream in = conn.getInputStream();
+                 Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+                SseFrames.read(reader, json -> {
+                    String text = candidateText(json);
+                    if (text.isEmpty()) return;
+                    acc.append(text);
+                    callback.onToken(text);
+                });
+            }
+            callback.onDone(acc.toString());
+        } catch (Exception e) {
+            callback.onError(e.getMessage());
+        }
+    }
+
+    /** POST the generateContent request and return the connection, body written. */
+    private HttpURLConnection post(String system, String user, boolean stream) throws Exception {
+        // Streaming goes through streamGenerateContent; the one-shot path
+        // through generateContent. Both accept the same body.
+        String action = stream ? ":streamGenerateContent?alt=sse&key=" : ":generateContent?key=";
+        String url = baseUrl + "/models/" + model + action + apiKey;
+
+        JSONObject contents = new JSONObject();
+        JSONArray parts = new JSONArray();
+        if (system != null && !system.isEmpty()) {
+            parts.put(new JSONObject().put("text", system + "\n\n" + user));
+        } else {
+            parts.put(new JSONObject().put("text", user));
+        }
+        contents.put("parts", parts);
+
+        JSONObject body = new JSONObject();
+        body.put("contents", new JSONArray().put(contents));
+
+        HttpURLConnection conn = NetworkGate.openHttp(url);
+        conn.setRequestMethod("POST");
+        conn.setConnectTimeout(15_000);
+        conn.setReadTimeout(60_000);
+        conn.setDoOutput(true);
+        conn.setRequestProperty("Content-Type", "application/json");
+
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        }
+        return conn;
+    }
+
+    /**
+     * The text in one SSE frame's JSON, or "" when the frame carries none.
+     * Package-private for tests.
+     */
+    static String candidateText(String json) {
+        try {
+            JSONObject obj = new JSONObject(json);
+            JSONArray candidates = obj.optJSONArray("candidates");
+            if (candidates == null || candidates.length() == 0) return "";
+            JSONArray parts = candidates.getJSONObject(0)
+                    .optJSONObject("content").optJSONArray("parts");
+            if (parts == null || parts.length() == 0) return "";
+            return parts.getJSONObject(0).optString("text", "");
+        } catch (Exception e) {
+            return "";
         }
     }
 
