@@ -105,6 +105,15 @@ public final class TaskStore extends SQLiteOpenHelper {
     }
 
     /**
+     * Delete one task row. Exists so a caller that creates a task it does not
+     * mean to keep (a diagnostic probe) can remove it again instead of leaving
+     * a permanent "Queued" entry in the user's task list.
+     */
+    public void delete(long id) {
+        getWritableDatabase().delete(T, C_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /**
      * Record that the user asked for this task to stop. Durable on purpose: the
      * worker may be in another process, or not running yet, and the request has
      * to survive until something observes it.
