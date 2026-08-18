@@ -1,5 +1,7 @@
 package com.mrnobody.agent.planner;
 
+import com.mrnobody.agent.core.ToolRequest;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,15 +31,28 @@ public final class Plan {
         public final String tool;
         public final String reason;
 
+        /** The arguments for a tool step; null for an internal step. */
+        public final ToolRequest request;
+
         public Step(String label, String tool, String reason) {
+            this(label, tool, reason, null);
+        }
+
+        public Step(String label, String tool, String reason, ToolRequest request) {
             this.label = label;
             this.tool = tool;
             this.reason = reason == null ? "" : reason;
+            this.request = request;
         }
 
         /** A step the planner runs itself rather than delegating to a tool. */
         public static Step internal(String label) {
             return new Step(label, null, "");
+        }
+
+        /** A step that runs a named tool with the given arguments. */
+        public static Step tool(String label, String tool, ToolRequest request, String reason) {
+            return new Step(label, tool, reason, request);
         }
 
         public boolean isToolStep() {
