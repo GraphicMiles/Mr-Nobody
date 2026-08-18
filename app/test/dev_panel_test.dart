@@ -8,6 +8,18 @@ import 'package:mrnobody/state/error_log.dart';
 /// The Phase 1 benchmark panel: shows every check's pass/fail and records
 /// failures to the error log, so a device run is a list the user reads off.
 void main() {
+  Future<void> pumpPanel(WidgetTester tester) async {
+    // A tall phone viewport so the whole panel (results + the manual section)
+    // renders without the lazy sliver culling anything off-screen.
+    tester.view.physicalSize = const Size(390 * 3, 1200 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: DevPanelScreen()));
+    await tester.pump();
+    await tester.pump();
+  }
+
   testWidgets('renders every result and records failures to the log',
       (tester) async {
     ErrorLog.instance.clear();
@@ -22,9 +34,7 @@ void main() {
       return null;
     });
 
-    await tester.pumpWidget(const MaterialApp(home: DevPanelScreen()));
-    await tester.pump();
-    await tester.pump();
+    await pumpPanel(tester);
 
     // The Java battery plus the two Dart checks (input.route, bridge).
     expect(find.text('A passes'), findsOneWidget);
@@ -39,9 +49,7 @@ void main() {
       reason: 'a failed benchmark must be recorded, not just shown',
     );
 
-    // The manual section is present for what code cannot observe. It sits
-    // below the results, so scroll it into the lazy ListView's viewport.
-    await tester.scrollUntilVisible(find.text('Needs your eyes'), 300);
+    // The manual section is present for what code cannot observe.
     expect(find.text('Needs your eyes'), findsOneWidget);
     expect(find.text('PASS'), findsWidgets);
   });
@@ -54,9 +62,7 @@ void main() {
       return null;
     });
 
-    await tester.pumpWidget(const MaterialApp(home: DevPanelScreen()));
-    await tester.pump();
-    await tester.pump();
+    await pumpPanel(tester);
 
     await tester.tap(find.text('PASS').first);
     await tester.pump();
