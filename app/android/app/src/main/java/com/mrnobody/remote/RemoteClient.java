@@ -99,8 +99,12 @@ public final class RemoteClient {
                 if (cancellation != null && cancellation.isCancelled()) {
                     throw new IOException("cancelled");
                 }
-                JSONObject ev = new JSONObject(json);
-                listener.onEvent(ev.optString("type", ""), ev.optString("text", ""));
+                try {
+                    JSONObject ev = new JSONObject(json);
+                    listener.onEvent(ev.optString("type", ""), ev.optString("text", ""));
+                } catch (org.json.JSONException e) {
+                    // A malformed frame is skipped, not fatal to the stream.
+                }
             });
         }
     }
