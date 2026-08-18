@@ -31,10 +31,13 @@ import java.util.stream.Stream;
  */
 public class ToolCallPathTest {
 
-    /** Files allowed to call {@code execute} on a tool. */
+    /**
+     * The only file allowed to call {@code execute} on a tool: the pipeline
+     * that validates, permits, times and records the call. Not even the engine
+     * may do it — the engine resolves the name and hands the call over.
+     */
     private static final List<String> ALLOWED = List.of(
-            // The single entry point itself.
-            "agent/planner/DeterministicEngine.java"
+            "agent/core/ToolPipeline.java"
     );
 
     /** {@code something.execute(context, ...)} — the shape of a direct tool call. */
@@ -96,6 +99,13 @@ public class ToolCallPathTest {
     public void theEntryPointExists() throws IOException {
         String engine = read(sourceRoot().resolve("agent/core/AgentEngine.java"));
         assertTrue("AgentEngine must declare callTool()", engine.contains("callTool("));
+    }
+
+    @Test
+    public void theEngineDelegatesToThePipelineRatherThanRunningToolsItself() throws IOException {
+        String engine = read(sourceRoot().resolve("agent/planner/DeterministicEngine.java"));
+        assertTrue("callTool must hand the call to the pipeline",
+                engine.contains("pipeline.run("));
     }
 
     // ------------------------------------------------------------- helpers
