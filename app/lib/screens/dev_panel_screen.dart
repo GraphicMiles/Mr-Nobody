@@ -202,7 +202,8 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
               onBack: () => Navigator.of(context).pop(),
               trailing: TextButton(
                 onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: _report()));
+                  final text = _report();
+                  await Clipboard.setData(ClipboardData(text: text));
                   if (!mounted) return;
                   AppToast.show(context, 'Report copied');
                 },
