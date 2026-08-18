@@ -139,6 +139,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
   Widget _row(Map<String, dynamic> t) {
     final status = t['status'] as String? ?? '';
     final done = status == 'COMPLETED';
+    final result = (t['result'] as String?) ?? '';
     final color = done
         ? const Color(0xFF3DDC84)
         : status == 'FAILED'
@@ -158,7 +159,6 @@ class _MemoryScreenState extends State<MemoryScreen> {
               children: [
                 Text(t['instruction'] as String? ?? '',
                     style: AppTheme.sans(size: 13, w: FontWeight.w600)),
-                final result = (t['result'] as String?) ?? '';
                 if (result.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
