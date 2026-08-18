@@ -641,6 +641,11 @@ public final class DeterministicEngine implements AgentEngine {
                     r.answer = refusal;
                 } else {
                     r.answer = askProvider(r.provider, prompt, cancellation, task.id(), r);
+                    if (r.providerError != null) {
+                        // No answer to verify or schedule — leave r.answer null
+                        // and let verifyStep fail the task cleanly.
+                        return;
+                    }
                 }
             }
         } else if (r.search != null) {
@@ -655,13 +660,22 @@ public final class DeterministicEngine implements AgentEngine {
 
         // The download is an action the engine took, not a claim the model
         // paraphrases: append it verbatim so the user gets the fact.
-        if (r.downloadNote != null && !r.downloadNote.isEmpty()) {
+        if (r.answer != null && r.downloadNote != null && !r.downloadNote.isEmpty()) {
             r.answer = r.answer + "\n\n" + r.downloadNote;
         }
     }
 
     /** Verify the answer against what was read, then close the task. */
     private void verifyStep(Context context, Task task, Cancellation cancellation, Research r) {
+        // The provider never produced an answer (DNS failure, timeout, bad key).
+        // Nothing to verify, and nothing to schedule: a task whose first run
+        // failed must not be marked complete with a fake "checking every hour".
+        if (r.providerError != null) {
+            task.setError(r.providerError);
+            task.setStatus(Task.Status.FAILED);
+            com.mrnobody.debug.ErrorLog.record("task " + task.id() + " failed: " + r.providerError);
+            return;
+        }
         task.setStatus(Task.Status.VERIFYING);
         task.setCurrentStep(Task.STEP_VERIFY);
         if (r.provider.isRemote()) {
@@ -756,6 +770,9 @@ public final class DeterministicEngine implements AgentEngine {
         /** The run's spend ceiling, and the reason it was reached (when it was). */
         com.mrnobody.agent.ai.SpendCap cap;
         String capReason;
+
+        /** The provider's error, when the answer could not be produced at all. */
+        String providerError;
     }
 
     /** Local time, so "read at" means something to the person reading it. */
@@ -877,7 +894,7 @@ public final class DeterministicEngine implements AgentEngine {
     private String askProvider(AiProvider provider, String prompt, Cancellation cancellation,
                                long taskId, Research r) {
         final CountDownLatch latch = new CountDownLatch(1);
-        final String[] out = {"(no AI response)"};
+        final String[] out = {null};
         try {
             // Stream, so the answer reaches the task chat as it is generated
             // rather than all at once at the end. The same callback path that
@@ -895,9 +912,13 @@ public final class DeterministicEngine implements AgentEngine {
                     latch.countDown();
                 }
                 @Override public void onError(String error) {
-                    out[0] = "AI error: " + error;
+                    // A provider failure is NOT an answer. Returning "AI error:
+                    // …" as the answer is how a DNS failure got verified as if it
+                    // were prose, flagged "api.groq.com" as an uncited source,
+                    // and then scheduled "checking every hour" anyway.
                     com.mrnobody.debug.ErrorLog.record("AI provider: " + error);
                     TaskStreamHub.instance().emitError(taskId, error);
+                    if (r != null) r.providerError = error;
                     latch.countDown();
                 }
                 @Override public void onUsage(com.mrnobody.agent.ai.TokenUsage usage) {
@@ -912,6 +933,11 @@ public final class DeterministicEngine implements AgentEngine {
                 if (latch.await(POLL_MS, TimeUnit.MILLISECONDS)) return out[0];
                 if (cancellation != null && cancellation.isCancelled()) return "(cancelled)";
             }
+            // Timed out waiting for the provider: same as an error, no answer.
+            if (r != null && r.providerError == null) {
+                r.providerError = "the AI provider timed out";
+            }
+            return null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

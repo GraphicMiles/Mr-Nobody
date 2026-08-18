@@ -70,6 +70,11 @@ public final class AutonomousPlanner {
         sb.append("You may call these tools: ").append(String.join(", ", availableTools)).append("\n");
         sb.append("search takes {q}; http takes {url}; browser takes {url,action}; ")
                 .append("download takes {url}; terminal takes {cmd}; memory takes {q}.\n\n");
+        sb.append("For research and monitoring, prefer the read-only tools — search, ")
+                .append("http, and browser (action fetch or open) — and say {done} once you ")
+                .append("have read enough. terminal and download are for when the user ")
+                .append("explicitly asks to run a command or fetch a file. Never call a ")
+                .append("privileged tool when a read would answer the question.\n\n");
         if (transcript != null && !transcript.isEmpty()) {
             sb.append("What you have done so far:\n");
             int n = 1;

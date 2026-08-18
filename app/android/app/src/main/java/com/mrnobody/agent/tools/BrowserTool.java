@@ -26,9 +26,17 @@ public final class BrowserTool implements Tool {
         this.engine = engine;
     }
 
-    /** Actions that only observe the page. Everything else changes it. */
+    /**
+     * Actions that only observe the page. Everything else changes it.
+     *
+     * <p>{@code open} is navigation, not mutation — loading a URL to read it is
+     * the same class of action as {@code fetch}, and charging it as a WRITE is
+     * what made a simple "watch twitter" task pop an approval prompt for a page
+     * the agent merely wanted to read. Reads must never ask permission, or the
+     * agent nags the user for doing its job.
+     */
     private static final java.util.Set<String> READ_ACTIONS =
-            java.util.Set.of("fetch", "extract", "title", "links");
+            java.util.Set.of("open", "fetch", "extract", "title", "links");
 
     /** The last URL this tool navigated to, for anchoring. */
     private volatile String lastKnownUrl = "";
