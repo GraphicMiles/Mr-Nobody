@@ -33,8 +33,8 @@ public class DiagnosticsTest {
         List<Diagnostics.Result> results = Diagnostics.runPure();
         Map<String, Diagnostics.Result> byId = byId(results);
 
-        // All nine pure checks are present and green.
-        assertEquals(9, results.size());
+        // All ten pure checks are present and green.
+        assertEquals(10, results.size());
         for (Diagnostics.Result r : results) {
             assertPass(r);
         }
@@ -43,7 +43,7 @@ public class DiagnosticsTest {
         for (String id : new String[]{
                 "input.route", "search.parse", "hosts.detect", "planner.plan",
                 "terminal.gate", "workspace.sandbox", "identity.sign", "network.route",
-                "datasaver.policy"}) {
+                "datasaver.policy", "memory.rank"}) {
             assertTrue("missing check " + id, byId.containsKey(id));
         }
     }

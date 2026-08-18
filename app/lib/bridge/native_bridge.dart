@@ -185,6 +185,16 @@ class NativeBridge {
 
   /// The core's own error log — tool failures, AI errors, failed tasks. These
   /// never pass through a Dart try/catch, so the overlay has to ask for them.
+  /// What the agent remembers: the on-device task history, newest first.
+  static Future<Map<String, dynamic>> memoryInfo() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('memoryInfo') as Map);
+  }
+
+  /// Erase everything the agent remembers (task history + event log).
+  static Future<void> forgetMemory() async {
+    await _ch.invokeMethod('forgetMemory');
+  }
+
   /// The Phase 1 device benchmark: each subsystem reports pass/fail so a
   /// real-device run is a list the user reads off. Failures also land in the
   /// debug log so the ⓘ badge carries them.

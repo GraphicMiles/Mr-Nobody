@@ -553,6 +553,34 @@ public class MainActivity extends FlutterActivity {
                             result.success(clearData(buckets));
                             return;
                         }
+                        case "memoryInfo": {
+                            // What the agent remembers: the on-device task
+                            // history, newest first. Never the network, never a
+                            // profile of the person — just past work.
+                            java.util.List<Task> tasks = MrNobodyApp.tasks().recent(100);
+                            java.util.List<Map<String, Object>> rows = new ArrayList<>();
+                            for (Task t : tasks) {
+                                Map<String, Object> m = new HashMap<>();
+                                m.put("id", t.id());
+                                m.put("instruction", t.instruction());
+                                m.put("status", t.status().name());
+                                m.put("result", t.result() == null ? "" : t.result());
+                                rows.add(m);
+                            }
+                            Map<String, Object> out = new HashMap<>();
+                            out.put("count", rows.size());
+                            out.put("tasks", rows);
+                            result.success(out);
+                            return;
+                        }
+                        case "forgetMemory": {
+                            // Erase everything the agent remembers. Local and
+                            // immediate; the only memory that exists is here.
+                            MrNobodyApp.tasks().clear();
+                            MrNobodyApp.taskEvents().clearAll();
+                            result.success(null);
+                            return;
+                        }
                         default:
                             result.notImplemented();
                     }

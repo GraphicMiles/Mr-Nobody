@@ -9,6 +9,8 @@ import android.webkit.WebView;
 
 import com.mrnobody.agent.browser.HeadlessWebViewEngine;
 import com.mrnobody.agent.core.Task;
+import com.mrnobody.agent.memory.MemoryDigest;
+import com.mrnobody.agent.memory.MemoryRank;
 import com.mrnobody.agent.planner.DeterministicPlanner;
 import com.mrnobody.agent.planner.IntentRouter;
 import com.mrnobody.agent.planner.IntentType;
@@ -238,6 +240,29 @@ public final class Diagnostics {
                             "4 distinct grades: " + labels(all));
                 }));
 
+        out.add(check("memory.rank", "Agent memory recall",
+                () -> {
+                    Task a = new Task(1, "find laptops under 500000");
+                    a.setStatus(Task.Status.COMPLETED);
+                    a.setResult("found three laptops");
+                    Task b = new Task(2, "what is the capital of ghana");
+                    b.setStatus(Task.Status.COMPLETED);
+                    b.setResult("Accra");
+                    java.util.List<MemoryRank.Hit> hits = MemoryRank.search(
+                            "laptop", java.util.Arrays.asList(a, b), 5);
+                    if (hits.size() != 1 || hits.get(0).id != 1) {
+                        return Result.fail("memory.rank", "Agent memory recall",
+                                "expected the laptop task, got " + hits.size() + " hit(s)");
+                    }
+                    String digest = MemoryDigest.digest(java.util.Arrays.asList(a, b), null);
+                    if (digest.isEmpty()) {
+                        return Result.fail("memory.rank", "Agent memory recall",
+                                "digest came back empty");
+                    }
+                    return Result.pass("memory.rank", "Agent memory recall",
+                            "recall found the right task; digest built");
+                }));
+
         return out;
     }
 
@@ -416,6 +441,35 @@ public final class Diagnostics {
                             : Result.fail("datasaver.apply", "Data Saver applied to WebView",
                                     "EXTREME not honoured: images=" + got[0]
                                             + ", autoplay-gated=" + got[1] + ", cache=" + got[2]);
+                }));
+
+        // Memory over the real store: insert two tasks, recall against them,
+        // then remove both — a probe must not linger in the user's history.
+        out.add(check("memory.store", "Memory over the task store",
+                () -> {
+                    TaskStore store = new TaskStore(context);
+                    long id1 = store.insert("benchmark laptops query");
+                    long id2 = store.insert("benchmark weather query");
+                    try {
+                        Task a = store.get(id1);
+                        a.setStatus(Task.Status.COMPLETED);
+                        a.setResult("three laptops under 500000");
+                        store.update(a);
+                        java.util.List<MemoryRank.Hit> hits = MemoryRank.search(
+                                "laptop", store.recent(20), 5);
+                        boolean found = false;
+                        for (MemoryRank.Hit h : hits) {
+                            if (h.id == id1) found = true;
+                        }
+                        return found
+                                ? Result.pass("memory.store", "Memory over the task store",
+                                        "recall found the persisted task")
+                                : Result.fail("memory.store", "Memory over the task store",
+                                        "recall did not find the persisted task");
+                    } finally {
+                        store.delete(id1);
+                        store.delete(id2);
+                    }
                 }));
 
         // The NOBODY invariant, checked without mutating state: the app must
