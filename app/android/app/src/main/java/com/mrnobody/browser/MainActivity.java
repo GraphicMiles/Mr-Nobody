@@ -16,6 +16,8 @@ import com.mrnobody.browser.deeplink.DeepLinkHandler;
 import com.mrnobody.browser.download.DownloadDestination;
 import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadRecord;
+import com.mrnobody.agent.policy.ApprovalMode;
+import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.browser.net.EngineInfo;
 import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
@@ -316,7 +318,25 @@ public class MainActivity extends FlutterActivity {
                             m.put("proxyKind", MrNobodyApp.settings().proxyKind());
                             m.put("proxyHost", MrNobodyApp.settings().proxyHost());
                             m.put("proxyPort", MrNobodyApp.settings().proxyPort());
+                            m.put("approvalMode", MrNobodyApp.settings().approvalMode());
                             result.success(m);
+                            return;
+                        }
+                        case "taskEvents": {
+                            Integer id = call.argument("id");
+                            List<Map<String, Object>> out = new ArrayList<>();
+                            if (id != null) {
+                                for (TaskEventStore.Event e
+                                        : MrNobodyApp.taskEvents().eventsFor(id)) {
+                                    Map<String, Object> row = new HashMap<>();
+                                    row.put("seq", e.seq);
+                                    row.put("type", e.type);
+                                    row.put("detail", e.detail);
+                                    row.put("at", e.at);
+                                    out.add(row);
+                                }
+                            }
+                            result.success(out);
                             return;
                         }
                         case "privacyMode": {
@@ -684,6 +704,11 @@ public class MainActivity extends FlutterActivity {
                 MrNobodyApp.settings().setProfile(
                         PrivacyProfile.fromName(String.valueOf(value)));
                 break;
+            case "approvalMode":
+                // Takes effect on the next call, not the next launch.
+                MrNobodyApp.setApprovalMode(
+                        ApprovalMode.fromName(String.valueOf(value)));
+                break;
             case "fingerprint":
                 // Was a dead toggle: read by the UI, enforced nowhere. The
                 // patches install before first page load, so this takes effect
@@ -795,5 +820,27 @@ public class MainActivity extends FlutterActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         dispatchDeepLink(intent);
+    }
+
+    // The approval prompt needs to know whether anyone is actually looking at
+    // the screen. With no foreground activity there is nobody to ask, and the
+    // pipeline refuses the call rather than queueing it out of sight.
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ApprovalPrompt.setHost(this);
+    }
+
+    @Override
+    protected void onPause() {
+        ApprovalPrompt.clearHost(this);
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        ApprovalPrompt.clearHost(this);
+        super.onDestroy();
     }
 }

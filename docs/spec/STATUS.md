@@ -20,8 +20,8 @@ and `docs/spec/ARCHITECTURE_EXPLAINED.md`. Every claim below points at code.
 | 9 | Basic agent routing | Done | `agent/planner/IntentRouter.java` (+ Dart mirror), unit-tested |
 | 10 | Search / fetch / extraction tools | Done | `SearchTool`, `HttpTool`, `util/HtmlText.java` |
 | 11 | Basic browser actions | Done | `HeadlessWebViewEngine.click/type/scroll` |
-| 12 | Downloads | **Browser: done. Agent: no.** | `MrNobodyWebView.setDownloadListener` → DownloadManager; Downloads screen reads them back. `DownloadTool` is registered but **the planner never calls it** — only `search` and `http` are invoked, so the agent cannot download. See `ROADMAP.md` §1.3 |
-| 13 | Sandboxed terminal, feature-flagged | Partial (V1 scope) | `TerminalTool` is registered **only while the Settings switch is on** (`MrNobodyApp.applyTerminalSetting`); `PolicyGate` runs ALLOW, refuses DENY. **CONFIRM is dead**: `ToolPipeline.setConfirmer` is never called, so the pipeline fail-closes and every CONFIRM is refused. See `ROADMAP.md` §1.2 |
+| 12 | Downloads | Done | `MrNobodyWebView.setDownloadListener` → DownloadManager; Downloads screen reads them back. `ToolRouter` now routes a named file URL to `DownloadTool`, so the agent path is reachable — gated by the approval prompt like any WRITE-tier call |
+| 13 | Sandboxed terminal, feature-flagged | Done (V1 scope) | `TerminalTool` is registered **only while the Settings switch is on**; `PolicyGate` runs ALLOW, refuses DENY, and CONFIRM now reaches `ApprovalPrompt` — the confirmer is attached in `MrNobodyApp`, so the middle tier is live rather than fail-closed by default |
 | 14 | Persistent task model | Done | `agent/tasks/TaskStore.java` (SQLite), `agent/core/Task.java` |
 | 15 | Basic background tasks | Done | `TaskWorker` + `WorkManagerTaskScheduler`, resumable after process death |
 | 16 | History OFF by default | Done | `browser/core/Settings.java` |
@@ -51,18 +51,18 @@ without a rewrite (`AgentEngine`, `Tool`, `Worker`, `TaskScheduler`,
 | Agent-first architecture | Done | Agent Home is the hub; the browser is a tool path |
 | Unified instruction bar | Done | |
 | Multi-step planning | **Not started** | `DeterministicEngine` runs a fixed cascade: search → optional page fetch → optional AI synthesis |
-| Tool router | **Not started** | tools are a `LinkedHashMap` keyed by name; no selection logic. This is why "…and download it" silently does nothing: `DownloadTool` is registered but no code path ever selects it — see §3.8 |
+| Tool router | **Started** | `planner/ToolRouter.java` selects a tool deterministically; one rule so far (named file URL → download), falling back to the research cascade. Selection is not permission: every routed call still clears `ToolPipeline` |
 | Search / HTTP / headless browser tools | Done | |
 | Browser session isolation | Not started | one shared headless engine, no task-scoped cookie jars |
 | Terminal sandbox | Partial | policy gate only |
 | Typed tool schemas | **Not started** | `ToolRequest` is a `Map<String,String>`; no JSON Schema, no validation |
-| Tool permission policy | Partial | `PolicyGate` classifies terminal commands only; no UI to answer CONFIRM |
+| Tool permission policy | Done | `policy/ApprovalPolicy` resolves per-tool rule → mode → tier. `RepeatCallGuard` breaks tool-call loops. Guards can only subtract permission, by construction |
 | Prompt-injection defenses | **Not started** | page text is concatenated into the prompt with no provenance boundary |
 | Persistent tasks / background execution | Done | |
 | Resumable tasks | Done | bounded retry in `TaskWorker` |
 | Scheduled tasks / monitoring | **Not started** | no `Schedule` model |
 | Notifications | Done | `browser/TaskNotifier.java` posts on COMPLETED/FAILED from `TaskWorker`, deep-links to Tasks; permission is requested when the user starts their first task |
-| Human confirmation gates | **Not started** | no review/approve UI |
+| Human confirmation gates | Done | `browser/ApprovalPrompt.java` implements `ToolPipeline.Confirmer`; blocking with a bounded wait, denies on timeout and when no activity is foregrounded. "Always allow" writes a per-tool rule the policy reads |
 | Downloads | Done | see V1 item 12 |
 | Local-first task data | Done | SQLite, on-device |
 | AI provider abstraction | Done | `AiProvider` + Gemini/Groq/OpenAI-compatible/Local, UI wired |

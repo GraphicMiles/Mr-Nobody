@@ -10,6 +10,9 @@ import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolPipeline;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.policy.ApprovalMode;
+import com.mrnobody.agent.policy.ApprovalPolicy;
+import com.mrnobody.agent.policy.RepeatCallGuard;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.agent.util.Hosts;
@@ -62,8 +65,20 @@ public final class DeterministicEngine implements AgentEngine {
 
     private final Map<String, Tool> tools = new LinkedHashMap<>();
 
-    /** Every tool call goes through this — see {@link ToolPipeline}. */
-    private final ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
+    /**
+     * Every tool call goes through this — see {@link ToolPipeline}.
+     *
+     * <p>The policy is tier x mode x per-tool override, and the repeat guard
+     * is attached from the start: a planner that cannot make progress will
+     * otherwise reissue the same failing call until the battery notices.
+     */
+    private final ApprovalPolicy policy =
+            new ApprovalPolicy(ApprovalMode.CAUTIOUS, ApprovalPolicy.Overrides.NONE);
+
+    private final RepeatCallGuard repeatGuard = new RepeatCallGuard();
+
+    private final ToolPipeline pipeline =
+            new ToolPipeline(policy).addGuard(repeatGuard);
 
     public DeterministicEngine() {
         tools.put("search", new SearchTool());
@@ -85,6 +100,16 @@ public final class DeterministicEngine implements AgentEngine {
         return tools.containsKey(name);
     }
 
+    /** The approval policy, so Settings can change the mode at runtime. */
+    public ApprovalPolicy policy() {
+        return policy;
+    }
+
+    /** Names of every registered tool. */
+    public java.util.Set<String> toolNames() {
+        return java.util.Collections.unmodifiableSet(tools.keySet());
+    }
+
     @Override
     public void run(Context context, Task task, Cancellation cancellation) {
         String instruction = task.instruction();
@@ -93,6 +118,17 @@ public final class DeterministicEngine implements AgentEngine {
         // Cancellation is observed between steps: the task stops in a state we
         // can describe, never halfway through one.
         if (stopped(task, cancellation)) return;
+
+        // 0. Does this instruction name an action rather than a question?
+        //    Until the router existed, the answer was always "no": the cascade
+        //    below ran regardless, so "...and download it" reached a model that
+        //    could only answer, never act. A routed call is still subject to
+        //    the pipeline, so choosing a tool is not the same as permitting it.
+        ToolRouter.Route route = ToolRouter.route(instruction, tools.keySet());
+        if (route != null) {
+            runRoutedAction(context, task, route, cancellation);
+            return;
+        }
 
         // 1. Search — parsed results, never a page scrape. A refusal is a
         //    failure: an answer with no sources is a guess with a citation.
@@ -182,6 +218,31 @@ public final class DeterministicEngine implements AgentEngine {
         }
 
         task.setResult(truncate(answer, 6000));
+        task.setStatus(Task.Status.COMPLETED);
+    }
+
+    /**
+     * Run a single routed tool call.
+     *
+     * <p>Deliberately not folded into the cascade. An action either happened or
+     * it did not, and dressing that up as a four-step research narrative would
+     * report progress the task is not making.
+     */
+    private void runRoutedAction(Context context, Task task, ToolRouter.Route route,
+                                 Cancellation cancellation) {
+        task.setCurrentStep(Task.STEP_ACT);
+        ToolResult result = callTool(context, route.tool, route.request, cancellation);
+        if (stopped(task, cancellation)) return;
+
+        if (!result.isSuccess()) {
+            fail(task, result);
+            return;
+        }
+
+        String rendered = result.result();
+        task.setResult(truncate(rendered == null || rendered.isEmpty()
+                ? route.tool + " finished."
+                : rendered, 6000));
         task.setStatus(Task.Status.COMPLETED);
     }
 

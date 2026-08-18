@@ -31,6 +31,8 @@ public final class Settings {
     public static final String KEY_PROXY_KIND = "proxy_kind";
     public static final String KEY_PROXY_HOST = "proxy_host";
     public static final String KEY_PROXY_PORT = "proxy_port";
+    /** How often the agent stops to ask before acting. */
+    public static final String KEY_APPROVAL_MODE = "approval_mode";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -233,6 +235,18 @@ public final class Settings {
 
     public int proxyPort() {
         return prefs.getInt(KEY_PROXY_PORT, 0);
+    }
+
+    /**
+     * Approval mode. CAUTIOUS by default: an agent that can download files and
+     * run commands on someone's phone should ask first until told otherwise.
+     */
+    public String approvalMode() {
+        return prefs.getString(KEY_APPROVAL_MODE, "CAUTIOUS");
+    }
+
+    public void setApprovalMode(String mode) {
+        prefs.edit().putString(KEY_APPROVAL_MODE, mode).apply();
     }
 
     public void setProxy(String kind, String host, int port) {

@@ -42,7 +42,7 @@ argument behind it, so it goes first.
 | 2 | **Kill or implement `isFingerprintProtection()`** | `Settings`, `SettingsActivity` | A toggle that enforces nothing is worse than no toggle. Hide it now, implement in 1.6. |
 | 3 | **Correct the private-tab wording** | UI + docs | "No history, cleared on close" until 1.4 lands. |
 
-### 1.2 CONFIRM approval UI — the fail-closed gap
+### 1.2 CONFIRM approval UI — the fail-closed gap ✅ DONE
 
 `ToolPipeline` already logs the call, runs the approval waterfall, and denies
 when no `Confirmer` is attached. The security design is right; there is simply
@@ -55,7 +55,7 @@ as the per-tool override the survey's priority 3 calls for.
 Closes: V1 §9, V2 §11, harness priority 3. Unblocks the terminal beyond
 `sha256`.
 
-### 1.3 Tool router — make "and download it" possible
+### 1.3 Tool router — make "and download it" possible ✅ DONE (first rule)
 
 The reported Reacher task could never have downloaded anything: `Task.PLAN` is
 fixed at Search → Read → Answer → Verify and the planner hard-codes two tool
@@ -114,7 +114,7 @@ untrusted pages. (V2 §24, harness priority 10)
 Ranked highest-risk of everything remaining: the agent reads attacker-controlled
 text and can now, after 1.3, call tools.
 
-### 2.3 Task event log
+### 2.3 Task event log ✅ DONE
 
 Append-only, contiguous sequence, status derived from events rather than
 overwritten. `ToolPipeline.Recorder` is the seam and nothing is attached to it.
@@ -200,15 +200,32 @@ under proxy, real ad-page blocking) cannot run without an emulator matrix.
 
 | Phase | Theme | Items | Gate |
 |-------|-------|-------|------|
-| **1** | Make true what we claim | 6 | Every product claim is code-backed and CI-enforced |
-| **2** | The agent grows up | 9 | V2 Definition of Done, minus deferrals |
+| **1** | Make true what we claim | 6 (**4 done**) | Every product claim is code-backed and CI-enforced |
+| **2** | The agent grows up | 9 (**2 done**) | V2 Definition of Done, minus deferrals |
 | **3** | Beyond V2 | 5 | Only after Phase 2 |
 
-Two dependencies determine the order: **1.3 (tool router) blocks most of Phase
-2**, and **1.2 (approval UI) blocks anything that runs a consequential tool**.
-Both are in Phase 1 for that reason, not only for honesty.
+### Done since this roadmap was written
 
-The single highest-risk remaining item is **2.2, prompt-injection defence** —
-because 1.3 gives the agent tools, and it reads attacker-controlled page text
-with no provenance boundary today. It sits in Phase 2 only because it needs the
-router to exist first; it should be the first thing built once it does.
+| Item | Commit |
+|------|--------|
+| 1.1 APK size gate enforced | `82074d6` |
+| 1.4 Real private tabs (`MULTI_PROFILE`) | `82074d6` |
+| 1.6 Fingerprint defence | `82074d6` |
+| 2.6 Proxy / Tor / DNS as one mode | `82074d6` |
+| 1.2 CONFIRM approval UI | this commit |
+| 1.3 Tool router (first rule) | this commit |
+| 2.3 Task event log | this commit |
+| 2.6b Approval tiers x mode x per-tool | this commit |
+| Loop breaker (harness priority 8) | this commit |
+
+Both ordering dependencies are now discharged: the tool router exists, and the
+approval UI exists to gate what it reaches.
+
+**That makes 2.2, prompt-injection defence, the next thing to build — not the
+seventh.** The reasoning has flipped from theoretical to live: page text still
+reaches the model with no provenance boundary, and as of this commit the model
+can reach a tool. It was survivable while the agent could only search and read.
+It is not now.
+
+Remaining in Phase 1: behavioural filter tests (1.5), and the fingerprint
+toggle's honest-ceiling wording review.

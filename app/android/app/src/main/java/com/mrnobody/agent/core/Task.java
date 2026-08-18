@@ -54,6 +54,9 @@ public final class Task {
     public static final String STEP_ANSWER = "Answer";
     public static final String STEP_VERIFY = "Verify";
 
+    /** A routed tool call, which is a whole plan on its own. */
+    public static final String STEP_ACT = "Act";
+
     /**
      * The V1 plan, in order — and the actual one. Progress is derived from how
      * far down this list the task has got, which is why the step label is
@@ -61,6 +64,16 @@ public final class Task {
      * of the task.
      */
     public static final String[] PLAN = {STEP_SEARCH, STEP_READ, STEP_ANSWER, STEP_VERIFY};
+
+    /**
+     * The plan for a routed action: one step, done or not.
+     *
+     * <p>Two plans rather than one variable-length list because progress is
+     * derived from a step's position, and a router that picks a single tool
+     * has no meaningful "25%". Reporting a one-step task against the
+     * four-step plan would have it sitting at 25% and then finishing.
+     */
+    public static final String[] ACTION_PLAN = {STEP_ACT};
 
     /** Progress 0..100, derived from the current step's position in {@link #PLAN}. */
     public int progress() {
@@ -74,6 +87,12 @@ public final class Task {
                 break;
         }
         if (currentStep == null || currentStep.isEmpty()) return 5; // queued/starting
+
+        // A routed action is one step, so it has no meaningful fraction: it is
+        // underway until it is done. Reporting it against the research plan
+        // would park it at 25% and then jump to 100.
+        if (STEP_ACT.equalsIgnoreCase(currentStep)) return 50;
+
         for (int i = 0; i < PLAN.length; i++) {
             if (PLAN[i].equalsIgnoreCase(currentStep)) {
                 // Never report 100 while running: the last step is still work.
