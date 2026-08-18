@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -54,39 +55,31 @@ public class OpenAiCompatibleProvider implements AiProvider {
         new Thread(() -> doComplete(systemPrompt, userMessage, callback)).start();
     }
 
-    private void doComplete(String system, String user, CompletionCallback callback) {
+    @Override
+    public void stream(String systemPrompt, String userMessage, StreamCallback callback) {
+        new Thread(() -> doStream(systemPrompt, userMessage, callback)).start();
+    }
+
+    /** Why a completion cannot even start, or null when it can. */
+    private String configProblem() {
         if (model == null || model.trim().isEmpty()) {
-            callback.onError("No model chosen for " + displayName
-                    + ". Open Settings → AI provider, refresh the model list and pick one.");
-            return;
+            return "No model chosen for " + displayName
+                    + ". Open Settings → AI provider, refresh the model list and pick one.";
         }
         if (apiKey == null || apiKey.trim().isEmpty()) {
-            callback.onError("No API key for " + displayName + ".");
+            return "No API key for " + displayName + ".";
+        }
+        return null;
+    }
+
+    private void doComplete(String system, String user, CompletionCallback callback) {
+        String problem = configProblem();
+        if (problem != null) {
+            callback.onError(problem);
             return;
         }
         try {
-            JSONObject body = new JSONObject();
-            body.put("model", model);
-            JSONArray messages = new JSONArray();
-            if (system != null && !system.isEmpty()) {
-                messages.put(new JSONObject().put("role", "system").put("content", system));
-            }
-            messages.put(new JSONObject().put("role", "user").put("content", user));
-            body.put("messages", messages);
-            body.put("max_tokens", 1024);
-
-            HttpURLConnection conn = NetworkGate.openHttp(baseUrl + "/chat/completions");
-            conn.setRequestMethod("POST");
-            conn.setConnectTimeout(15_000);
-            conn.setReadTimeout(60_000);
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + apiKey);
-
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
-            }
-
+            HttpURLConnection conn = post(system, user, false);
             int code = conn.getResponseCode();
             InputStream in = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
             String response = readAll(in);
@@ -100,6 +93,79 @@ public class OpenAiCompatibleProvider implements AiProvider {
             callback.onResult(text);
         } catch (Exception e) {
             callback.onError(e.getMessage());
+        }
+    }
+
+    private void doStream(String system, String user, StreamCallback callback) {
+        String problem = configProblem();
+        if (problem != null) {
+            callback.onError(problem);
+            return;
+        }
+        try {
+            HttpURLConnection conn = post(system, user, true);
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                callback.onError(explain(code, readAll(conn.getErrorStream())));
+                return;
+            }
+            final StringBuilder acc = new StringBuilder();
+            try (InputStream in = conn.getInputStream();
+                 Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+                SseFrames.read(reader, json -> {
+                    String delta = deltaContent(json);
+                    if (delta.isEmpty()) return;
+                    acc.append(delta);
+                    callback.onToken(delta);
+                });
+            }
+            callback.onDone(acc.toString());
+        } catch (Exception e) {
+            callback.onError(e.getMessage());
+        }
+    }
+
+    /** POST the chat request and return the connection with the body written. */
+    private HttpURLConnection post(String system, String user, boolean stream) throws Exception {
+        JSONObject body = new JSONObject();
+        body.put("model", model);
+        JSONArray messages = new JSONArray();
+        if (system != null && !system.isEmpty()) {
+            messages.put(new JSONObject().put("role", "system").put("content", system));
+        }
+        messages.put(new JSONObject().put("role", "user").put("content", user));
+        body.put("messages", messages);
+        body.put("max_tokens", 1024);
+        if (stream) body.put("stream", true);
+
+        HttpURLConnection conn = NetworkGate.openHttp(baseUrl + "/chat/completions");
+        conn.setRequestMethod("POST");
+        conn.setConnectTimeout(15_000);
+        conn.setReadTimeout(60_000);
+        conn.setDoOutput(true);
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        }
+        return conn;
+    }
+
+    /**
+     * The text delta in one SSE frame's JSON, or "" when the frame carries
+     * none (a role-only frame, a usage frame). Package-private for tests.
+     */
+    static String deltaContent(String json) {
+        try {
+            JSONObject obj = new JSONObject(json);
+            JSONArray choices = obj.optJSONArray("choices");
+            if (choices == null || choices.length() == 0) return "";
+            JSONObject delta = choices.getJSONObject(0).optJSONObject("delta");
+            if (delta == null) return "";
+            return delta.optString("content", "");
+        } catch (Exception e) {
+            return "";
         }
     }
 

@@ -26,6 +26,30 @@ public interface AiProvider {
     void complete(String systemPrompt, String userMessage, CompletionCallback callback);
 
     /**
+     * Produce a completion as a stream of tokens, emitted as they arrive.
+     *
+     * <p>This is the real-time counterpart of {@link #complete}: where
+     * complete() reads the whole response and returns it once, stream() emits
+     * each piece the moment the provider sends it. The default implementation
+     * is the honest fallback — it calls {@link #complete} and surfaces the
+     * finished text as a single token — so a provider that cannot stream still
+     * works through this interface and a caller never has to branch on
+     * capability. Implementations must run off the UI thread, as complete()
+     * does.
+     */
+    default void stream(String systemPrompt, String userMessage, StreamCallback callback) {
+        complete(systemPrompt, userMessage, new CompletionCallback() {
+            @Override public void onResult(String text) {
+                callback.onToken(text);
+                callback.onDone(text);
+            }
+            @Override public void onError(String error) {
+                callback.onError(error);
+            }
+        });
+    }
+
+    /**
      * Ask the provider which models the user's key can actually use.
      *
      * <p>Model names are the most perishable thing in this whole system —
@@ -39,6 +63,22 @@ public interface AiProvider {
 
     interface CompletionCallback {
         void onResult(String text);
+
+        void onError(String error);
+    }
+
+    /**
+     * Receives a streamed completion. {@link #onToken} is called once per
+     * piece (a word, a line, a fragment — whatever granularity the provider
+     * chose), then exactly one of {@link #onDone} or {@link #onError} closes
+     * the stream. {@code fullText} on {@code onDone} is the whole accumulated
+     * answer, so a caller that only wanted the finished string needs no other
+     * bookkeeping.
+     */
+    interface StreamCallback {
+        void onToken(String token);
+
+        void onDone(String fullText);
 
         void onError(String error);
     }
