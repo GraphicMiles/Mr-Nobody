@@ -104,4 +104,25 @@ public class ToolRouterTest {
                 Collections.emptySet()));
         assertNull(ToolRouter.route("download https://example.test/a.zip", null));
     }
+
+    // -------------------------------------------------------------- terminal
+
+    @Test
+    public void aShellIntentRoutesToTheTerminalWhenEnabled() {
+        ToolRouter.Route r = ToolRouter.route("pull my repo", ALL);
+        assertNotNull("a shell intent must reach the terminal, not a web search", r);
+        assertEquals("terminal", r.tool);
+        assertEquals("pull my repo", r.request.param("cmd"));
+
+        assertEquals("terminal", ToolRouter.route("git clone https://github.com/x/y", ALL).tool);
+        assertEquals("terminal", ToolRouter.route("pip install requests", ALL).tool);
+        assertEquals("terminal", ToolRouter.route("run python script.py", ALL).tool);
+    }
+
+    @Test
+    public void aShellIntentDoesNotRouteWhenTheTerminalIsOff() {
+        Set<String> noTerminal = new HashSet<>(Arrays.asList("search", "http", "download"));
+        assertNull(ToolRouter.route("pull my repo", noTerminal));
+        assertNull(ToolRouter.route("git clone https://github.com/x/y", noTerminal));
+    }
 }

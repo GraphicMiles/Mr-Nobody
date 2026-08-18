@@ -11,17 +11,24 @@ import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
 import com.mrnobody.agent.policy.PolicyGate;
 
+import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.security.MessageDigest;
-
 /**
  * A restricted local terminal. Not an unrestricted shell: every command is
- * classified by the {@link PolicyGate} as ALLOW / CONFIRM / DENY. V1 implements
- * a tiny safe subset (hash a file, list the app workspace); V2 expands it.
+ * classified by the {@link PolicyGate}, destructive commands are refused, and
+ * only the on-device subset actually runs — hashing, listing and reading files
+ * inside the app workspace, via {@link TerminalRuntime}.
+ *
+ * <p>Commands that need a toolchain the device does not ship (git, python,
+ * node) are reported honestly: they run on the remote worker, not here. That
+ * is the genuine limitation — Android has no such binaries, and bundling one
+ * is an explicit non-goal — not a gap the on-device tool can close.
+ *
+ * <p>Approval is the pipeline's job (EXEC tier reaches the confirmation
+ * prompt); this tool's internal gate is the final <em>safety</em> line, not a
+ * second approval. DENY always refuses; everything else is safe to attempt.
  */
 public final class TerminalTool implements Tool {
 
@@ -32,13 +39,13 @@ public final class TerminalTool implements Tool {
     }
 
     private static final ToolSpec SPEC = ToolSpec.named("terminal")
-            .describedAs("Run a small set of approved local utilities (hash, inspect).")
+            .describedAs("Run approved local utilities (hash, list, read) in the workspace.")
             // The only EXEC tool in the app: it runs commands, so it asks.
             .tier(Tier.EXEC)
             .param(ParamSpec.string("cmd", true, "The command to run, e.g. \"sha256 <path>\"."))
             .returns(OutputSpec.of(
                     value -> String.valueOf(value.get("output")), "command", "output"))
-            .timeout(10_000)
+            .timeout(15_000)
             .build();
 
     @Override
@@ -51,46 +58,27 @@ public final class TerminalTool implements Tool {
         String command = request.param("cmd");
         if (command == null || command.isEmpty()) return ToolResult.fail("terminal needs 'cmd'");
 
-        PolicyGate.Decision decision = policy.classify(command);
-        if (decision == PolicyGate.Decision.DENY) {
+        // Safety line, always on: destructive commands are refused no matter
+        // what the approval flow decided.
+        if (policy.classify(command) == PolicyGate.Decision.DENY) {
             return ToolResult.fail("command denied by policy: " + command);
         }
-        if (decision == PolicyGate.Decision.CONFIRM) {
-            // V1: confirmation requires the user; surface it instead of auto-running.
-            return ToolResult.fail("command needs confirmation: " + command);
+
+        // A toolchain the device does not ship. Honest, not a cryptic failure.
+        if (policy.requiresRemote(command)) {
+            return ToolResult.fail("This needs the remote worker — " + command
+                    + " uses a toolchain (git/python/node) that Android does not ship, "
+                    + "so it runs on Mr Nobody's servers, not on this device.");
         }
 
-        // Only ALLOW commands reach here. V1 supports a tiny, safe subset.
-        if (command.startsWith("sha256 ")) {
-            return sha256(command.substring("sha256 ".length()).trim(), context);
-        }
-        return ToolResult.fail("unknown command: " + command);
-    }
+        File workspace = new File(context.getFilesDir(), "workspace");
+        //noinspection ResultOfMethodCallIgnored
+        workspace.mkdirs();
+        TerminalRuntime.Result r = TerminalRuntime.run(workspace, command);
 
-    private ToolResult sha256(String path, Context context) {
-        try {
-            // The filesystem sandbox: the file must live inside the app's own
-            // workspace. The terminal is not a route to arbitrary user files,
-            // and an escape (absolute path elsewhere, .., symlink) is refused
-            // rather than followed.
-            File root = new File(context.getFilesDir(), "workspace");
-            File f = WorkspacePath.resolveWithin(root, path);
-            if (f == null) return ToolResult.fail("path is outside the workspace: " + path);
-            if (!f.exists() || !f.isFile()) return ToolResult.fail("file not found: " + path);
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            try (FileInputStream in = new FileInputStream(f)) {
-                byte[] buf = new byte[8192];
-                int n;
-                while ((n = in.read(buf)) != -1) md.update(buf, 0, n);
-            }
-            StringBuilder sb = new StringBuilder();
-            for (byte b : md.digest()) sb.append(String.format("%02x", b));
-            Map<String, Object> value = new LinkedHashMap<>();
-            value.put("command", "sha256 " + f.getName());
-            value.put("output", "sha256(" + f.getName() + ") = " + sb);
-            return ToolResult.ok(value);
-        } catch (Exception e) {
-            return ToolResult.fail("hash failed: " + e.getMessage());
-        }
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("command", command);
+        value.put("output", r.output);
+        return r.ok ? ToolResult.ok(value) : ToolResult.fail(r.output);
     }
 }
