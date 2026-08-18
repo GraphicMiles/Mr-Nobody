@@ -4,15 +4,21 @@ import android.content.Context;
 
 import androidx.work.Data;
 import androidx.work.ExistingWorkPolicy;
+import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.OneTimeWorkRequest;
+import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 
 import java.util.concurrent.TimeUnit;
 
 /**
- * {@link TaskScheduler} backed by Android's WorkManager. V1 runs one-shot,
- * resumable local work; V2 will add recurring schedules (PeriodicWorkRequest)
- * and monitoring behind this same interface.
+ * {@link TaskScheduler} backed by Android's WorkManager: one-shot resumable
+ * local work, plus recurring schedules via PeriodicWorkRequest.
+ *
+ * <p>Recurring work is deliberately coarse. WorkManager's floor is 15 minutes
+ * and the OS coalesces wakeups to save battery, so a schedule is a request for
+ * "about this often", never a guarantee of a moment. {@link Schedule} clamps
+ * to that floor rather than pretending finer granularity exists.
  */
 public final class WorkManagerTaskScheduler implements TaskScheduler {
 
@@ -34,7 +40,39 @@ public final class WorkManagerTaskScheduler implements TaskScheduler {
     }
 
     @Override
+    public void scheduleRepeating(Context context, long taskId, Schedule schedule) {
+        if (schedule == null || !schedule.isRecurring()) {
+            schedule(context, taskId);
+            return;
+        }
+
+        Data input = new Data.Builder()
+                .putLong(TaskWorker.KEY_TASK_ID, taskId)
+                .build();
+
+        long intervalMs = schedule.effectiveIntervalMs();
+        long delayMs = Math.max(0L, schedule.firstRunAt() - System.currentTimeMillis());
+
+        PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(
+                TaskWorker.class, intervalMs, TimeUnit.MILLISECONDS)
+                .setInputData(input)
+                .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+                .build();
+
+        // KEEP, not REPLACE: replacing a periodic request resets its interval,
+        // so an app that re-registers schedules on every start would push the
+        // next run forever into the future and the task would never fire.
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                repeatingName(taskId), ExistingPeriodicWorkPolicy.KEEP, request);
+    }
+
+    @Override
     public void cancel(Context context, long taskId) {
         WorkManager.getInstance(context).cancelUniqueWork("task-" + taskId);
+        WorkManager.getInstance(context).cancelUniqueWork(repeatingName(taskId));
+    }
+
+    private static String repeatingName(long taskId) {
+        return "task-repeat-" + taskId;
     }
 }

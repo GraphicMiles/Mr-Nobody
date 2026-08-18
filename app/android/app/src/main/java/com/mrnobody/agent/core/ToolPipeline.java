@@ -2,6 +2,7 @@ package com.mrnobody.agent.core;
 
 import android.content.Context;
 
+import com.mrnobody.agent.tasks.EventLogRecorder;
 import com.mrnobody.debug.ErrorLog;
 
 import java.util.ArrayList;
@@ -207,7 +208,23 @@ public final class ToolPipeline {
             ErrorLog.record("tool " + spec.name() + " broke its output contract: " + invalid);
             return ToolResult.fail(spec.name() + " returned an unusable result: " + invalid);
         }
-        return result.renderedAs(output.render(result.value()));
+        String rendered = output.render(result.value());
+
+        // Oversized output is previewed, not inlined. A megabyte of page text
+        // crowds out the instruction and, on a small context window, silently
+        // truncates the middle -- which is worse than refusing, because the
+        // model then answers confidently from half a document without knowing
+        // the other half existed.
+        if (OutputSpill.shouldSpill(rendered)) {
+            String locator = OutputSpill.locatorFor(
+                    spec.name(), EventLogRecorder.currentTask(), System.nanoTime());
+            OutputSpill.Decision decision = OutputSpill.decide(rendered, locator);
+            ErrorLog.record("tool " + spec.name() + " output spilled ("
+                    + decision.originalLength + " chars) -> " + locator);
+            return result.renderedAs(decision.inline);
+        }
+
+        return result.renderedAs(rendered);
     }
 
     private ToolResult finish(ToolCall call, ToolResult result, ApprovalDecision decision, long startedAt) {

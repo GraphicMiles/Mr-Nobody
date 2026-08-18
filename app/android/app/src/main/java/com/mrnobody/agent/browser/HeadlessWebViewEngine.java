@@ -6,6 +6,9 @@ import android.os.Looper;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import com.mrnobody.browser.net.ProfileManager;
+import com.mrnobody.debug.ErrorLog;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -19,22 +22,56 @@ import java.util.concurrent.atomic.AtomicReference;
  * WebView work is marshalled onto the main thread internally, so tools can call
  * it from any thread. Extraction is best-effort; a timeout yields whatever
  * (possibly empty) text is available rather than hanging the agent.
+ *
+ * <p>An engine belongs to a {@link SessionScope}. Where the device's WebView
+ * supports multi-profile, the scope becomes a real separate cookie and storage
+ * jar, so one task cannot inherit or leak another task's logins. Where it does
+ * not, the engine still works but shares the default jar -- {@link #isIsolated()}
+ * reports which, and no caller may claim isolation without asking.
  */
 public final class HeadlessWebViewEngine implements BrowserEngine {
 
     private final Context appContext;
+    private final SessionScope scope;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private WebView webView;
     private volatile String currentTitle = "";
+    private volatile boolean isolated = false;
 
+    /** An engine on the shared agent session. */
     public HeadlessWebViewEngine(Context context) {
+        this(context, SessionScope.shared());
+    }
+
+    public HeadlessWebViewEngine(Context context, SessionScope scope) {
         this.appContext = context.getApplicationContext();
+        this.scope = scope == null ? SessionScope.shared() : scope;
+    }
+
+    /** The session this engine's browsing belongs to. */
+    public SessionScope scope() {
+        return scope;
+    }
+
+    /**
+     * Whether this engine's storage is genuinely separate.
+     *
+     * <p>False until the WebView is created, and false forever on a device
+     * whose WebView lacks multi-profile. Callers that surface a privacy claim
+     * must read this rather than assuming the scope was honoured.
+     */
+    public boolean isIsolated() {
+        return isolated;
     }
 
     /** Lazily create the WebView on the main thread. */
     private WebView webView() {
         if (webView == null) {
             webView = new WebView(appContext);
+            // Before any navigation: setProfile throws once a WebView has
+            // loaded a page, so this is the only moment isolation can be
+            // established.
+            isolated = ProfileManager.applyProfile(webView, scope.profileName());
             webView.getSettings().setJavaScriptEnabled(true);
             webView.getSettings().setDomStorageEnabled(true);
         }
@@ -207,6 +244,16 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
                 webView.destroy();
                 webView = null;
             }
+            // Only after the WebView is destroyed: deleteProfile refuses while
+            // a live WebView still holds the profile, so doing this first
+            // would silently leave the session's data on disk.
+            if (isolated && scope.isEphemeral()) {
+                boolean gone = ProfileManager.destroyProfile(scope.profileName());
+                if (!gone) {
+                    ErrorLog.record("ephemeral session not deleted: " + scope.profileName());
+                }
+            }
+            isolated = false;
         });
     }
 

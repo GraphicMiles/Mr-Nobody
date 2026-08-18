@@ -99,7 +99,7 @@ is unsupported by code, and CI fails when one becomes so.
 
 Capabilities that need Phase 1's router and approval UI underneath them.
 
-### 2.1 Multi-step planning ✅ core done
+### 2.1 Multi-step planning ⚠︎ core done, not driving execution
 
 Replace the fixed four-step cascade with a plan that can branch, loop and
 replan. Requires 1.3. (V2 §5)
@@ -120,16 +120,28 @@ Append-only, contiguous sequence, status derived from events rather than
 overwritten. `ToolPipeline.Recorder` is the seam and nothing is attached to it.
 (V2 §14, harness priority 4)
 
-### 2.4 Scheduled tasks + monitoring ✅ model done
+### 2.4 Scheduled tasks + monitoring ✅ wired
 
 Add a `Schedule` model and extend `TaskScheduler` beyond one-shot to
 `PeriodicWorkRequest`. Then monitoring on top: price, availability, page
 change. (V2 §16, §17)
 
-### 2.5 Heartbeat and orphan recovery ✅ core done
+`Schedule` is wired: `TaskScheduler.scheduleRepeating` enqueues a
+`PeriodicWorkRequest` under a separate unique name with `KEEP` (not `REPLACE`,
+which would reset the interval on every app start and mean the task never
+fires), and `TaskStore` v3 persists `repeat_every` / `last_run_at`.
+**Monitoring itself — price, availability, page change — is still open.**
+
+### 2.5 Heartbeat and orphan recovery ✅ wired
 
 `TaskReconciler` handles stale tasks; there is no heartbeat and cancellation
 is not a persisted request. (V2 §14, harness priority 5)
+
+Wired: `TaskStore` v3 adds `last_beat_at`, `TaskWorker`'s existing ticker now
+writes both `touch()` and `beat()`, and `reconcileDead(Heartbeat.DEAD_AFTER_MS)`
+runs alongside the stale sweep. The two are kept separate deliberately — row
+age also advances for a healthy task inside a slow step, so only the beat can
+tell "dead" from "busy", and only that distinction can be swept aggressively.
 
 ### 2.6 Proxy + Tor + DNS
 
@@ -138,21 +150,40 @@ fail-closed. DNS follows free from proxy-side resolution. **Note: the proxy is
 process-wide**, so `NOBODY` is a whole-app mode, not a per-tab badge.
 (`PRIVACY_V2_OPTIONS.md` §2–4, V2 §20)
 
-### 2.7 Agent browser session isolation ✅ scope model done
+### 2.7 Agent browser session isolation ✅ wired
 
 One shared `HeadlessWebViewEngine` serves every task. Task-scoped profiles —
 the same `MULTI_PROFILE` mechanism as 1.4, applied to the headless side.
 (V2 §10)
 
-### 2.8 Oversized output spilling + anchored page actions ✅ core done
+### 2.8 Oversized output spilling + anchored page actions ✅ wired
 
 Spill large tool output to app-private storage and hand the model a locator;
 refuse a page action when the DOM has moved. (harness priorities 6, 7)
 
-### 2.9 Security regression tests + engine reporting
+Wired: spilling happens in `ToolPipeline.validate` *after* the output-contract
+check, so a tool that breaks its contract still fails loudly instead of being
+quietly spilled. Anchoring is **opt-in per call** via `anchorText`/`anchorUrl`
+on `BrowserTool` — without a prior read there is nothing to compare against,
+and refusing every unanchored action would break the visible-browser path.
 
-Injection-resistance and policy-bypass tests; report the WebView provider and
-version in the privacy dashboard so a hardened engine is visible.
+**Known limit:** `BrowserEngine` exposes no current-URL accessor, so the anchor
+compares against the last URL this tool navigated to. A page that redirects
+itself is not detected. Closing that needs `url()` on the engine interface.
+
+### 2.9 Security regression tests ✅ done — engine reporting open
+
+`SecurityRegressionTest` covers injection resistance, credential leakage,
+budget exhaustion, page-anchor bypass and session bleed — written as attacks
+rather than as API exercises, because the two come apart. It earned its place
+immediately: it found that `ghp_`-prefixed GitHub tokens were **not** refused
+by `MemoryPolicy`, because the credential rule was an allowlist of prefixes
+(`sk|pk|api|key|token|secret|bearer`) and a token whose prefix is not an
+English word sailed through. Fixed with vendor shapes plus a generic backstop,
+with benign strings (`android_15`, `user_id`) pinned as must-still-be-allowed.
+
+**Still open:** report the WebView provider and version in the privacy
+dashboard so a hardened engine is visible.
 
 **Phase 2 exit:** V2's Definition of Done is met except the items deliberately
 deferred below.
@@ -163,11 +194,21 @@ deferred below.
 
 Speculative or expensive. Nothing here should start before Phase 2 lands.
 
-### 3.1 Filter-list integrity ✅ DONE — distribution still open
+### 3.1 Filter-list integrity ✅ verified at load — distribution still open
 
 Signed filter lists with rollback protection, then the decentralised
-distribution experiment. Today the list is bundled and versioned with no
-signature. (V2 §22, §21)
+distribution experiment. (V2 §22, §21)
+
+`FilterEngine.loadBundled` now verifies the asset against a pinned SHA-256
+*before parsing* and **fails closed** — an unverifiable list disables blocking
+rather than being trusted. `tools/filter_digest_check.py` gates the pin in CI,
+because failing closed at runtime is correct but is a terrible way to discover
+a stale pin: the person who edits the list is not the person who notices ad
+blocking stopped three releases later.
+
+**Still open:** distribution. A digest proves integrity, not authorship, so it
+cannot authorise a *downloaded* list — that needs a signing key, rotation and
+revocation, which is the actual work.
 
 ### 3.2 Agent long-term memory ✅ policy done
 
@@ -225,6 +266,12 @@ under proxy, real ad-page blocking) cannot run without an emulator matrix.
 | 2.7 Session scope | this commit |
 | 2.8 Output spilling + page anchors | this commit |
 | 3.2 Memory policy | this commit |
+| 2.4 Schedule wired (`PeriodicWorkRequest`) | this commit |
+| 2.5 Heartbeat wired (`last_beat_at`, `reconcileDead`) | this commit |
+| 2.7 Session scope wired (per-task WebView profile) | this commit |
+| 2.8 Spilling + anchors wired into call sites | this commit |
+| 2.9 Security regression suite (found the `ghp_` hole) | this commit |
+| 3.1 Filter integrity verified at load + CI pin gate | this commit |
 | Budget guard (2nd monotonic guard) | this commit |
 
 Both ordering dependencies are now discharged: the tool router exists, and the

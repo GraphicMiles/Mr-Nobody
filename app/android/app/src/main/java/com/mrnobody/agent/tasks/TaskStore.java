@@ -18,8 +18,11 @@ import java.util.List;
 public final class TaskStore extends SQLiteOpenHelper {
 
     private static final String DB = "mrnobody_tasks.db";
-    /** v2 adds {@code cancel_requested}. Every bump needs a real onUpgrade. */
-    private static final int VERSION = 2;
+    /**
+     * v2 adds {@code cancel_requested}; v3 adds heartbeat and schedule.
+     * Every bump needs a real onUpgrade.
+     */
+    private static final int VERSION = 3;
 
     private static final String T = "tasks";
     private static final String C_ID = "_id";
@@ -33,6 +36,10 @@ public final class TaskStore extends SQLiteOpenHelper {
     private static final String C_RETRY = "retry_count";
     private static final String C_WORKER = "worker";
     private static final String C_CANCEL = "cancel_requested";
+    /** Last time a live worker reported in; distinguishes stuck from dead. */
+    private static final String C_BEAT = "last_beat_at";
+    private static final String C_REPEAT = "repeat_every";
+    private static final String C_LAST_RUN = "last_run_at";
 
     public TaskStore(Context context) {
         super(context, DB, null, VERSION);
@@ -51,7 +58,10 @@ public final class TaskStore extends SQLiteOpenHelper {
                 + C_UPDATED + " INTEGER NOT NULL, "
                 + C_RETRY + " INTEGER DEFAULT 0, "
                 + C_WORKER + " TEXT, "
-                + C_CANCEL + " INTEGER DEFAULT 0)");
+                + C_CANCEL + " INTEGER DEFAULT 0, "
+                + C_BEAT + " INTEGER DEFAULT 0, "
+                + C_REPEAT + " TEXT, "
+                + C_LAST_RUN + " INTEGER DEFAULT 0)");
     }
 
     @Override
@@ -62,6 +72,11 @@ public final class TaskStore extends SQLiteOpenHelper {
         // does not have.
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_CANCEL + " INTEGER DEFAULT 0");
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_BEAT + " INTEGER DEFAULT 0");
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_REPEAT + " TEXT");
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_LAST_RUN + " INTEGER DEFAULT 0");
         }
     }
 
@@ -125,6 +140,90 @@ public final class TaskStore extends SQLiteOpenHelper {
         ContentValues v = new ContentValues();
         v.put(C_UPDATED, System.currentTimeMillis());
         getWritableDatabase().update(T, v, C_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /**
+     * Record that a worker is still alive.
+     *
+     * <p>Separate from {@link #touch(long)} because they answer different
+     * questions. A touch says the task changed; a beat says the worker still
+     * exists. A task inside one long step never touches, which is exactly when
+     * we most need to know it is alive.
+     */
+    public void beat(long id) {
+        ContentValues v = new ContentValues();
+        v.put(C_BEAT, System.currentTimeMillis());
+        getWritableDatabase().update(T, v, C_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    /** When a worker last reported for this task, or 0. */
+    public long lastBeatAt(long id) {
+        try (Cursor c = getReadableDatabase().query(T, new String[]{C_BEAT},
+                C_ID + "=?", new String[]{String.valueOf(id)}, null, null, null)) {
+            return c.moveToFirst() ? c.getLong(0) : 0L;
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    /**
+     * Close out running tasks whose worker has gone silent.
+     *
+     * <p>Complements {@link #reconcileStale}: that one uses row age, which a
+     * healthy task inside a slow step also has. This one only fires when a
+     * task claims to be running and has stopped beating, so it can be far more
+     * aggressive without killing slow-but-live work.
+     *
+     * @return how many tasks were recovered
+     */
+    public int reconcileDead(long deadAfterMs) {
+        long now = System.currentTimeMillis();
+        ContentValues v = new ContentValues();
+        v.put(C_STATUS, Task.Status.FAILED.name());
+        v.put(C_ERROR, Heartbeat.recoveredReason());
+        v.put(C_STEP, "");
+        v.put(C_UPDATED, now);
+        return getWritableDatabase().update(
+                T, v,
+                C_STATUS + " IN (?,?) AND " + C_BEAT + " > 0 AND " + C_BEAT + " < ?",
+                new String[]{
+                        Task.Status.RUNNING.name(),
+                        Task.Status.VERIFYING.name(),
+                        String.valueOf(now - deadAfterMs)
+                });
+    }
+
+    /** Persist how often a task should repeat. */
+    public void setSchedule(long id, Schedule.Repeat repeat) {
+        ContentValues v = new ContentValues();
+        v.put(C_REPEAT, repeat == null ? null : repeat.name());
+        getWritableDatabase().update(T, v, C_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    public Schedule.Repeat scheduleOf(long id) {
+        try (Cursor c = getReadableDatabase().query(T, new String[]{C_REPEAT},
+                C_ID + "=?", new String[]{String.valueOf(id)}, null, null, null)) {
+            return c.moveToFirst()
+                    ? Schedule.Repeat.fromName(c.getString(0))
+                    : Schedule.Repeat.NEVER;
+        } catch (Exception e) {
+            return Schedule.Repeat.NEVER;
+        }
+    }
+
+    public void markRun(long id) {
+        ContentValues v = new ContentValues();
+        v.put(C_LAST_RUN, System.currentTimeMillis());
+        getWritableDatabase().update(T, v, C_ID + "=?", new String[]{String.valueOf(id)});
+    }
+
+    public long lastRunAt(long id) {
+        try (Cursor c = getReadableDatabase().query(T, new String[]{C_LAST_RUN},
+                C_ID + "=?", new String[]{String.valueOf(id)}, null, null, null)) {
+            return c.moveToFirst() ? c.getLong(0) : 0L;
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     /**

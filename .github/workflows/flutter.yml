@@ -41,6 +41,12 @@ jobs:
       - name: Privacy audit
         run: python3 tools/privacy_audit.py .
 
+      # FilterEngine verifies the bundled blocklist against a pinned SHA-256
+      # and fails closed on mismatch -- blocking silently switches off. Catch
+      # a stale pin here, where the cause is obvious, rather than on a phone.
+      - name: Filter digest pin
+        run: python3 tools/filter_digest_check.py .
+
       # Widget + golden tests. The goldens are the UI-parity gate against
       # prototype/interactive-wireframe.html: if a screen drifts, this fails.
       - name: Tests (widgets + screen goldens)

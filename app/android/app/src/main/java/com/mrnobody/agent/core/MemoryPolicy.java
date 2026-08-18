@@ -50,6 +50,23 @@ public final class MemoryPolicy {
             // the most common shape of all was slipping through.
             Pattern.compile("\\b(sk|pk|api|key|token|secret|bearer)[-_ ]?[A-Za-z0-9_-]{16,}",
                     Pattern.CASE_INSENSITIVE),
+            // Vendor shapes whose prefix is not a word like "key" or "token".
+            // The list above could only ever catch credentials that announce
+            // themselves; a GitHub token says "ghp_" and sailed straight
+            // through it.
+            Pattern.compile("\\b(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}"),
+            Pattern.compile("\\bAKIA[0-9A-Z]{16}\\b"),                         // AWS access key
+            // No trailing \\b and a range, not a fixed 35: the class ends in
+            // - and _, and a word boundary after a non-word character never
+            // matches. That is the exact bug that let sk_live_ through once.
+            Pattern.compile("\\bAIza[A-Za-z0-9_-]{30,}"),                      // Google API key
+            Pattern.compile("\\bxox[baprs]-[A-Za-z0-9-]{10,}"),                // Slack
+            // Generic backstop: a short prefix, an underscore, then a long
+            // run that mixes in at least one digit. The digit requirement is
+            // what separates a credential from an ordinary long_identifier,
+            // so this stays a floor rather than a nuisance that gets memory
+            // switched off entirely.
+            Pattern.compile("\\b[A-Za-z]{2,12}_(?=[A-Za-z0-9]*\\d)[A-Za-z0-9]{16,}\\b"),
             Pattern.compile("\\b(?:\\d[ -]?){13,19}\\b"),                       // card-like
             Pattern.compile("\\bpassword\\s*[:=]\\s*\\S+", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"), // email

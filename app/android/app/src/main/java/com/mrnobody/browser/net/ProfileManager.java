@@ -56,18 +56,56 @@ public final class ProfileManager {
      *         sharing the default jar and the UI must not claim otherwise.
      */
     public static boolean applyPrivate(WebView webView) {
+        return applyProfile(webView, PRIVATE_PROFILE);
+    }
+
+    /**
+     * Bind {@code webView} to a named profile.
+     *
+     * <p>Generalises {@link #applyPrivate} for callers that own their own
+     * session naming — agent tasks in particular, where each task wants its
+     * own jar so one task cannot inherit or leak another's logins.
+     *
+     * <p>Must be called before the WebView navigates.
+     *
+     * @return true when the WebView is genuinely isolated. False means it is
+     *         sharing the default jar and no caller may claim otherwise.
+     */
+    public static boolean applyProfile(WebView webView, String profileName) {
         if (webView == null) return false;
+        if (profileName == null || profileName.trim().isEmpty()) return false;
         if (!isSupported()) return false;
         try {
-            WebViewCompat.setProfile(webView, PRIVATE_PROFILE);
+            WebViewCompat.setProfile(webView, profileName);
             return true;
         } catch (IllegalStateException e) {
             // Already navigated — a programming error, and one that would
             // otherwise silently downgrade privacy.
-            ErrorLog.record("setProfile after navigation; tab NOT isolated: " + e);
+            ErrorLog.record("setProfile after navigation; NOT isolated: " + e);
             return false;
         } catch (Throwable t) {
-            ErrorLog.record("setProfile failed; tab NOT isolated: " + t);
+            ErrorLog.record("setProfile failed; NOT isolated: " + t);
+            return false;
+        }
+    }
+
+    /**
+     * Destroy a named profile and everything in it.
+     *
+     * <p>For ephemeral sessions this is what makes "ephemeral" true rather
+     * than aspirational; skipping it leaves the data on disk under a name
+     * nothing will ever reuse.
+     */
+    public static boolean destroyProfile(String profileName) {
+        if (profileName == null || profileName.trim().isEmpty()) return false;
+        if (!isSupported()) return false;
+        try {
+            return ProfileStore.getInstance().deleteProfile(profileName);
+        } catch (IllegalStateException e) {
+            ErrorLog.record("profile " + profileName + " still in use: " + e);
+            return false;
+        } catch (Throwable t) {
+            ErrorLog.record("deleteProfile failed: " + t);
             return false;
         }
     }
