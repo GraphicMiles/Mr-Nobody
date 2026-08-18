@@ -186,6 +186,31 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
 
   bool get _isLive => _live.contains(_task['status'] as String? ?? 'QUEUED');
 
+  /// Earlier answers and replies already in the event log, so a follow-up
+  /// does not erase the first turn.
+  List<Widget> _priorTurns() {
+    final out = <Widget>[];
+    final current = (_task['result'] as String?) ?? '';
+    final answers = _events.where((e) => e['type'] == 'agent.answer').toList();
+    for (final e in _events) {
+      final type = e['type'] as String? ?? '';
+      final detail = e['detail'] as String? ?? '';
+      if (detail.isEmpty) continue;
+      if (type == 'user.followup') {
+        out.add(UserTurn(text: detail, stamp: _stamp(e['at'])));
+        out.add(const SizedBox(height: AgentMetrics.turnGap));
+      } else if (type == 'agent.answer') {
+        final isLast = answers.isNotEmpty && identical(e, answers.last);
+        if (isLast && detail == current) continue;
+        out.add(AgentTurn(
+          child: Text(detail, style: AppTheme.sans(size: 13.5, height: 1.55)),
+        ));
+        out.add(const SizedBox(height: AgentMetrics.turnGap));
+      }
+    }
+    return out;
+  }
+
   /// WAITING is live (keep polling) but not working (no spinner).
   bool get _isWorking {
     final s = _task['status'] as String? ?? 'QUEUED';
