@@ -69,7 +69,13 @@ public final class TerminalTool implements Tool {
 
     private ToolResult sha256(String path, Context context) {
         try {
-            File f = new File(path);
+            // The filesystem sandbox: the file must live inside the app's own
+            // workspace. The terminal is not a route to arbitrary user files,
+            // and an escape (absolute path elsewhere, .., symlink) is refused
+            // rather than followed.
+            File root = new File(context.getFilesDir(), "workspace");
+            File f = WorkspacePath.resolveWithin(root, path);
+            if (f == null) return ToolResult.fail("path is outside the workspace: " + path);
             if (!f.exists() || !f.isFile()) return ToolResult.fail("file not found: " + path);
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             try (FileInputStream in = new FileInputStream(f)) {

@@ -20,16 +20,16 @@ import java.io.Reader;
  * against canned bytes without a network, which is how a malformed-frame bug
  * is caught in milliseconds instead of against a live, paying endpoint.
  */
-final class SseFrames {
+public final class SseFrames {
 
     /** The marker both providers use to say the stream is over. */
-    static final String DONE = "[DONE]";
+    public static final String DONE = "[DONE]";
 
     private SseFrames() {
     }
 
     /** Receives each payload in order. May throw {@link IOException} to abort. */
-    interface FrameHandler {
+    public interface FrameHandler {
         void onData(String json) throws IOException;
     }
 
@@ -37,7 +37,7 @@ final class SseFrames {
      * Read SSE frames from {@code in} until end of stream, calling
      * {@code handler.onData} for each non-empty {@code data:} payload.
      */
-    static void read(Reader in, FrameHandler handler) throws IOException {
+    public static void read(Reader in, FrameHandler handler) throws IOException {
         BufferedReader reader = new BufferedReader(in);
         String line;
         while ((line = reader.readLine()) != null) {
