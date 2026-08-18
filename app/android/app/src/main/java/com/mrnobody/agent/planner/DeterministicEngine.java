@@ -57,6 +57,15 @@ public final class DeterministicEngine implements AgentEngine {
     /** How many pages are worth reading before answering. */
     private static final int MAX_SOURCES_READ = 3;
 
+    /**
+     * The per-run spend ceiling for remote (provider-backed) runs. Deliberately
+     * generous — a hosted open-weight browsing task costs cents — but hard, so
+     * a misbehaving autonomous loop cannot silently burn the user's key. This
+     * is the local analogue of the remote credit system's CFO gate; it becomes
+     * a Settings/credit value once payments land.
+     */
+    private static final double MAX_RUN_USD = 1.00;
+
     /** How much of each page the model sees. */
     private static final int PER_SOURCE_CHARS = 2500;
 
@@ -328,6 +337,8 @@ public final class DeterministicEngine implements AgentEngine {
         Research r = new Research();
         r.namedUrl = findUrl(task.instruction());
         r.provider = provider;
+        r.cap = new com.mrnobody.agent.ai.SpendCap(MAX_RUN_USD,
+                com.mrnobody.agent.ai.ModelPricing.forModel(provider.modelId()));
 
         // One fence token for the whole run: page content fed back to the model
         // is wrapped with it, and the planner's system prompt explains the rule.
@@ -339,6 +350,13 @@ public final class DeterministicEngine implements AgentEngine {
 
         for (int taken = 0; taken < Plan.MAX_STEPS; taken++) {
             if (stopped(task, cancellation)) return;
+            // The CFO gate: refuse to make another planning call when the run's
+            // spend plus an estimate of this call would exceed the ceiling.
+            String refusal = r.cap.check(r.usage, estimateTranscriptChars(task.instruction(), transcript));
+            if (refusal != null) {
+                r.capReason = refusal;
+                break;
+            }
             Plan.Step step = planner.nextStep(task.instruction(), transcript, tools.keySet());
             if (step == null) break; // the model is done gathering
 
@@ -361,6 +379,17 @@ public final class DeterministicEngine implements AgentEngine {
         answerStep(context, task, cancellation, r);
         if (stopped(task, cancellation)) return;
         verifyStep(context, task, cancellation, r);
+    }
+
+    /** Rough prompt size for the planning call: instruction + transcript + fixed. */
+    private static long estimateTranscriptChars(String instruction,
+                                                java.util.List<String> transcript) {
+        long chars = 1500; // system prompt + tool schema, roughly constant
+        if (instruction != null) chars += instruction.length();
+        if (transcript != null) {
+            for (String line : transcript) chars += line.length() + 2;
+        }
+        return chars;
     }
 
     /**
@@ -602,7 +631,18 @@ public final class DeterministicEngine implements AgentEngine {
                 prompt = "Context — your recent work on this device (for continuity "
                         + "only; do not cite it as a source):\n" + memory + "\n\n" + prompt;
             }
-            r.answer = askProvider(r.provider, prompt, cancellation, task.id(), r);
+            if (r.capReason != null) {
+                // The ceiling was reached mid-run: report it rather than making
+                // yet another billed call to say so.
+                r.answer = r.capReason;
+            } else {
+                String refusal = r.cap.check(r.usage, prompt.length());
+                if (refusal != null) {
+                    r.answer = refusal;
+                } else {
+                    r.answer = askProvider(r.provider, prompt, cancellation, task.id(), r);
+                }
+            }
         } else if (r.search != null) {
             r.answer = r.search.result();
         } else {
@@ -712,6 +752,10 @@ public final class DeterministicEngine implements AgentEngine {
 
         /** Total tokens the provider reported across the run's AI calls. */
         com.mrnobody.agent.ai.TokenUsage usage = com.mrnobody.agent.ai.TokenUsage.ZERO;
+
+        /** The run's spend ceiling, and the reason it was reached (when it was). */
+        com.mrnobody.agent.ai.SpendCap cap;
+        String capReason;
     }
 
     /** Local time, so "read at" means something to the person reading it. */
