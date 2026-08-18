@@ -33,6 +33,7 @@ public final class Settings {
     public static final String KEY_PROXY_PORT = "proxy_port";
     /** How often the agent stops to ask before acting. */
     public static final String KEY_APPROVAL_MODE = "approval_mode";
+    public static final String KEY_REMOTE_SERVER = "remote_server";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -247,6 +248,15 @@ public final class Settings {
 
     public void setApprovalMode(String mode) {
         prefs.edit().putString(KEY_APPROVAL_MODE, mode).apply();
+    }
+
+    /** The remote worker's base URL. Empty until configured: remote is opt-in. */
+    public String remoteServer() {
+        return prefs.getString(KEY_REMOTE_SERVER, "");
+    }
+
+    public void setRemoteServer(String url) {
+        prefs.edit().putString(KEY_REMOTE_SERVER, url == null ? "" : url.trim()).apply();
     }
 
     public void setProxy(String kind, String host, int port) {

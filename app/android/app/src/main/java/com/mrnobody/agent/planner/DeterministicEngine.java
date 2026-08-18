@@ -91,12 +91,14 @@ public final class DeterministicEngine implements AgentEngine {
             new ToolPipeline(policy).addGuard(repeatGuard).addGuard(budgetGuard);
 
     /**
-     * Produces the plan for an instruction. V1 is {@link DeterministicPlanner}
-     * (the research cascade, or a one-step routed action); an LLM planner later
-     * returns the same shape through {@link Planner}, so this engine never
-     * learns which kind it is running.
+     * Produces the plan for an instruction. A local provider uses
+     * {@link DeterministicPlanner} (the research cascade, or a one-step routed
+     * action); a remote provider uses {@link LlmPlanner}, which asks the model
+     * for a multi-step plan and falls back to the deterministic cascade on any
+     * parse or validation failure. Chosen per run in {@link #run}, so the
+     * engine never learns which kind it is running.
      */
-    private final Planner planner = new DeterministicPlanner();
+    private Planner planner = new DeterministicPlanner();
 
     /**
      * How many source candidates the read phase will try. Larger than
@@ -152,8 +154,11 @@ public final class DeterministicEngine implements AgentEngine {
 
         // The plan comes from the planner, not from hard-coded control flow
         // here. A routed action is a one-step plan; a question is the research
-        // cascade. Choosing a tool is still not the same as permitting it —
-        // every tool step passes through the guarded pipeline.
+        // cascade; a remote provider proposes a multi-step plan and falls back
+        // to the cascade. Choosing a tool is still not the same as permitting
+        // it — every tool step passes through the guarded pipeline.
+        AiProvider provider = MrNobodyApp.activeProvider();
+        planner = provider.isRemote() ? new LlmPlanner(provider) : new DeterministicPlanner();
         Plan plan = planner.plan(task.instruction(), tools.keySet());
         if (plan.size() == 0 || plan.isAbandoned()) {
             fail(task, ToolResult.fail("No plan for this instruction."));
@@ -217,6 +222,9 @@ public final class DeterministicEngine implements AgentEngine {
                 task.setCurrentStep(step.label);
                 ToolResult result = callTool(context, step.tool, step.request, cancellation);
                 if ("search".equals(step.tool)) {
+                    // Search is the anchor: an answer with no sources is a
+                    // guess with a citation, so its failure ends the task
+                    // rather than being replanned around.
                     r.search = result;
                     if (!result.isSuccess()) {
                         fail(task, result);
@@ -228,8 +236,22 @@ public final class DeterministicEngine implements AgentEngine {
                                 + "there is nothing to answer from."));
                         return;
                     }
-                } else if ("http".equals(step.tool)) {
+                    plan.advance();
+                    continue;
+                }
+
+                if ("http".equals(step.tool)) {
                     readOne(r, step, result);
+                }
+
+                // A failed action step can be replanned: a model-backed planner
+                // proposes what to do instead; a deterministic one has nothing
+                // to offer and the task fails as before.
+                if (!result.isSuccess()) {
+                    if (!replanAfterFailure(context, task, plan, step, result, cancellation)) {
+                        fail(task, result);
+                        return;
+                    }
                 }
                 plan.advance();
                 continue;
@@ -252,6 +274,24 @@ public final class DeterministicEngine implements AgentEngine {
             }
             plan.advance();
         }
+    }
+
+    /**
+     * Ask the planner for replacement steps after a failed action. Returns true
+     * if replacement steps were added (the plan continues); false if the task
+     * should fail. The plan's own ceiling still applies, so a replan cannot
+     * make a task unbounded.
+     */
+    private boolean replanAfterFailure(Context context, Task task, Plan plan, Plan.Step step,
+                                       ToolResult result, Cancellation cancellation) {
+        Plan replan = planner.replan(plan, step, result.error(), tools.keySet());
+        if (replan == null || replan.size() == 0) return false;
+        // Insert in reverse so the replacement steps run next, in order.
+        List<Plan.Step> replacements = replan.steps();
+        for (int i = replacements.size() - 1; i >= 0; i--) {
+            if (!plan.insertNext(replacements.get(i))) return false;
+        }
+        return true;
     }
 
     /**
@@ -295,7 +335,9 @@ public final class DeterministicEngine implements AgentEngine {
         String text = result.isSuccess() ? result.result() : null;
         if (text == null || text.trim().isEmpty()) return;
         r.readUrls.add(url);
-        appendSource(r.sources, r.readUrls.size(), url, r.titles.getOrDefault(url, ""), text);
+        // An explicit http step (e.g. from an LLM plan) has no search-result
+        // title; the URL itself is the honest label.
+        appendSource(r.sources, r.readUrls.size(), url, r.titles.getOrDefault(url, url), text);
     }
 
     /** Answer, strictly from the sources read; fall back to snippets when none read. */
@@ -304,7 +346,7 @@ public final class DeterministicEngine implements AgentEngine {
         // before the fallback so "pages read" stays false when only snippets
         // exist and no read-time is claimed.
         r.pagesRead = !r.readUrls.isEmpty();
-        if (!r.pagesRead) {
+        if (!r.pagesRead && r.results != null) {
             for (Map<String, Object> result : r.results) {
                 if (r.readUrls.size() >= MAX_SOURCES_READ) break;
                 String url = String.valueOf(result.get("url"));
@@ -328,8 +370,14 @@ public final class DeterministicEngine implements AgentEngine {
             r.answer = askProvider(r.provider,
                     GroundedPrompt.build(task.instruction(), fenced.fenced, r.pagesRead, nonce),
                     cancellation, task.id());
-        } else {
+        } else if (r.search != null) {
             r.answer = r.search.result();
+        } else {
+            // No search step ran (an LLM plan that never searched). The sources
+            // that were read are the answer's substance.
+            r.answer = r.sources.length() == 0
+                    ? "(nothing to report)"
+                    : "Read:\n" + r.sources.toString();
         }
     }
 

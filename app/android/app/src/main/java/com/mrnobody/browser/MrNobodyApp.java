@@ -142,7 +142,9 @@ public final class MrNobodyApp extends Application {
         }
         taskDispatcher = new TaskDispatcher("local");
         taskDispatcher.register(new LocalWorker(agentEngine));
-        taskDispatcher.register(new RemoteWorker()); // no-op until V2 enables it
+        // Remote execution is opt-in: the worker fails honestly until a server
+        // URL is configured, and local remains the default.
+        taskDispatcher.register(new RemoteWorker(settings.remoteServer()));
         taskScheduler = new WorkManagerTaskScheduler();
 
         // Android can stop the process mid-task and nothing writes the ending,
