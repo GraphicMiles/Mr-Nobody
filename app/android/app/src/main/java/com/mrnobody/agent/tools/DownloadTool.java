@@ -48,11 +48,14 @@ public final class DownloadTool implements Tool {
             com.mrnobody.browser.download.DownloadRecord record =
                     com.mrnobody.browser.download.DownloadEngine.get(context)
                             .enqueue(url, name, null, null, null);
+            boolean customFolder =
+                    new com.mrnobody.browser.download.DownloadDestination(context).isCustom();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("url", url);
             value.put("id", record.id);
             value.put("name", record.fileName);
             value.put("folder", record.destLabel);
+            value.put("customFolder", customFolder);
             return ToolResult.ok(value);
         } catch (Exception e) {
             return ToolResult.fail("download failed: " + e.getMessage());

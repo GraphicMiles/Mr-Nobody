@@ -18,6 +18,7 @@ import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.agent.util.DownloadLinkResolver;
 import com.mrnobody.agent.util.Hosts;
+import com.mrnobody.agent.tasks.ChangeDetector;
 import com.mrnobody.agent.tasks.Schedule;
 import com.mrnobody.agent.tasks.TaskStreamHub;
 import com.mrnobody.browser.MrNobodyApp;
@@ -268,6 +269,14 @@ public final class DeterministicEngine implements AgentEngine {
                         Map<String, Object> v = result.value();
                         r.downloadNote = "Downloaded " + v.get("name")
                                 + " to " + v.get("folder") + ".";
+                        // The user has never picked a folder: the file went to
+                        // system Downloads. Tell them, and point at where to
+                        // choose, rather than silently using a location they
+                        // did not ask for.
+                        if (!Boolean.TRUE.equals(v.get("customFolder"))) {
+                            r.downloadNote += " No download folder is set — files go "
+                                    + "to system Downloads. Pick one in Settings → Downloads.";
+                        }
                     } else {
                         r.downloadNote = "Download failed: " + result.error() + ".";
                     }
@@ -542,6 +551,17 @@ public final class DeterministicEngine implements AgentEngine {
         if (recurrence.isRecurring()) {
             String note = applyRecurrence(context, task, recurrence);
             if (!note.isEmpty()) r.answer = r.answer + "\n\n" + note;
+
+            // A recurring run that produced the same answer as last time is
+            // not news — say so, or say what changed, rather than re-reading
+            // an identical figure as if it were fresh.
+            String previous = MrNobodyApp.tasks().previousResult(task.id());
+            if (!previous.isEmpty()) {
+                String change = ChangeDetector.unchanged(previous, r.answer)
+                        ? "No change since your last check."
+                        : "Changed since your last check.";
+                r.answer = r.answer + "\n\n" + change;
+            }
         }
 
         task.setResult(truncate(r.answer, 6000));

@@ -19,10 +19,11 @@ public final class TaskStore extends SQLiteOpenHelper {
 
     private static final String DB = "mrnobody_tasks.db";
     /**
-     * v2 adds {@code cancel_requested}; v3 adds heartbeat and schedule.
-     * Every bump needs a real onUpgrade.
+     * v2 adds {@code cancel_requested}; v3 adds heartbeat and schedule; v4 adds
+     * {@code prev_result} for recurring-task change detection. Every bump needs
+     * a real onUpgrade.
      */
-    private static final int VERSION = 3;
+    private static final int VERSION = 4;
 
     private static final String T = "tasks";
     private static final String C_ID = "_id";
@@ -40,6 +41,8 @@ public final class TaskStore extends SQLiteOpenHelper {
     private static final String C_BEAT = "last_beat_at";
     private static final String C_REPEAT = "repeat_every";
     private static final String C_LAST_RUN = "last_run_at";
+    /** The answer a recurring task produced last run, for change detection. */
+    private static final String C_PREV_RESULT = "prev_result";
 
     public TaskStore(Context context) {
         super(context, DB, null, VERSION);
@@ -61,7 +64,8 @@ public final class TaskStore extends SQLiteOpenHelper {
                 + C_CANCEL + " INTEGER DEFAULT 0, "
                 + C_BEAT + " INTEGER DEFAULT 0, "
                 + C_REPEAT + " TEXT, "
-                + C_LAST_RUN + " INTEGER DEFAULT 0)");
+                + C_LAST_RUN + " INTEGER DEFAULT 0, "
+                + C_PREV_RESULT + " TEXT)");
     }
 
     @Override
@@ -77,6 +81,9 @@ public final class TaskStore extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_BEAT + " INTEGER DEFAULT 0");
             db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_REPEAT + " TEXT");
             db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_LAST_RUN + " INTEGER DEFAULT 0");
+        }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_PREV_RESULT + " TEXT");
         }
     }
 
@@ -233,6 +240,24 @@ public final class TaskStore extends SQLiteOpenHelper {
         } catch (Exception e) {
             return 0L;
         }
+    }
+
+    /** The answer a recurring task produced last run, or "" when it is new. */
+    public String previousResult(long id) {
+        try (Cursor c = getReadableDatabase().query(T, new String[]{C_PREV_RESULT},
+                C_ID + "=?", new String[]{String.valueOf(id)}, null, null, null)) {
+            String v = c.moveToFirst() ? c.getString(0) : null;
+            return v == null ? "" : v;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** Remember what the task last answered, so the next run can say what changed. */
+    public void setPreviousResult(long id, String result) {
+        ContentValues v = new ContentValues();
+        v.put(C_PREV_RESULT, result == null ? "" : result);
+        getWritableDatabase().update(T, v, C_ID + "=?", new String[]{String.valueOf(id)});
     }
 
     /**
