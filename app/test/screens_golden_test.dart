@@ -13,7 +13,7 @@ import 'package:mrnobody/screens/launch_screen.dart';
 import 'package:mrnobody/screens/privacy_screen.dart';
 import 'package:mrnobody/screens/settings_screen.dart';
 import 'package:mrnobody/screens/tabs_screen.dart';
-import 'package:mrnobody/screens/task_detail_screen.dart';
+import 'package:mrnobody/screens/task_chat_screen.dart';
 import 'package:mrnobody/screens/tasks_screen.dart';
 import 'package:mrnobody/state/app_state.dart';
 import 'package:mrnobody/theme/app_theme.dart';
@@ -122,12 +122,10 @@ void main() {
   testWidgets('S5 task detail', (tester) async {
     await pumpScreen(
       tester,
-      const TaskDetailScreen(
+      const TaskChatScreen(
         taskId: 1,
         title: 'Find laptops under 500000',
-        initialStatus: 'RUNNING',
-        initialStep: 'Extracting prices',
-        initialProgress: 58,
+        instruction: 'Find laptops under 500000',
       ),
       's5_task_detail',
     );

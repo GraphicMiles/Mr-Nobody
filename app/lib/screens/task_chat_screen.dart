@@ -1,0 +1,547 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../bridge/native_bridge.dart';
+import '../theme/app_theme.dart';
+import '../widgets/agent_response.dart';
+import '../widgets/toast.dart';
+
+/// A task as a conversation.
+///
+/// Replaces the old task detail screen, which drew a five-step plan —
+/// Search, Open candidates, Extract prices, Verify, Compare — that was
+/// hardcoded in Dart and identical for every task. A download task displayed
+/// "Extract prices", and the progress bar was a fraction of that fiction.
+/// Everything here comes from the task record and the append-only event log,
+/// so the screen can only show work that actually happened.
+///
+/// Two ways in, both landing here: typing a prompt in the address bar, or
+/// tapping a row in Tasks.
+class TaskChatScreen extends StatefulWidget {
+  final int? taskId;
+  final String title;
+
+  /// The instruction, shown as the first user message. Falls back to [title].
+  final String? instruction;
+
+  const TaskChatScreen({
+    super.key,
+    required this.title,
+    this.taskId,
+    this.instruction,
+  });
+
+  @override
+  State<TaskChatScreen> createState() => _TaskChatScreenState();
+}
+
+class _TaskChatScreenState extends State<TaskChatScreen> {
+  static const _live = {'QUEUED', 'RUNNING', 'VERIFYING', 'WAITING'};
+
+  final _scroll = ScrollController();
+  final _input = TextEditingController();
+
+  Timer? _poll;
+  Timer? _reveal;
+
+  Map<String, dynamic> _task = const {};
+  List<Map<String, dynamic>> _events = const [];
+
+  /// When this run started, for the elapsed counter. Taken from the task's
+  /// own timestamp where there is one, so reopening a running task shows how
+  /// long it has actually been going rather than restarting from zero.
+  DateTime _startedAt = DateTime.now();
+
+  /// The finished answer, split for the word-by-word reveal.
+  List<StreamToken> _tokens = const [];
+
+  /// How much of [_tokens] has been revealed.
+  int _revealed = 0;
+
+  /// The result text the reveal was built from, so a poll that returns the
+  /// same answer does not restart the animation.
+  String _revealedFrom = '';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.taskId != null) {
+      _refresh();
+      _poll = Timer.periodic(const Duration(milliseconds: 600), (_) => _refresh());
+    }
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    _reveal?.cancel();
+    _scroll.dispose();
+    _input.dispose();
+    super.dispose();
+  }
+
+  // ------------------------------------------------------------------ data
+
+  Future<void> _refresh() async {
+    final id = widget.taskId;
+    if (id == null) return;
+
+    final task = await NativeBridge.guard(
+      () => NativeBridge.task(id),
+      null,
+      'task unavailable',
+    );
+    final events = await NativeBridge.guard(
+      () => NativeBridge.taskEvents(id),
+      const <Map<String, dynamic>>[],
+      'task events unavailable',
+    );
+    if (!mounted) return;
+
+    setState(() {
+      if (task != null) _task = task;
+      _events = events;
+      final created = (_task['createdAt'] as num?)?.toInt();
+      if (created != null && created > 0) {
+        _startedAt = DateTime.fromMillisecondsSinceEpoch(created);
+      }
+    });
+
+    final result = (_task['result'] as String?) ?? '';
+    if (result.isNotEmpty && result != _revealedFrom) _startReveal(result);
+
+    // Stop polling once nothing can change again.
+    if (!_isLive && _revealed >= _tokens.length) {
+      _poll?.cancel();
+      _poll = null;
+    }
+  }
+
+  bool get _isLive => _live.contains(_task['status'] as String? ?? 'QUEUED');
+
+  /// Reveal the answer word by word.
+  ///
+  /// The provider hands back one finished string — `AiProvider.complete`
+  /// returns a whole completion and both remote providers read the entire body
+  /// before returning — so this is a timed reveal of text that has already
+  /// arrived, not a live token feed. It is honest motion rather than a
+  /// pretence: the words appear at a readable rate and nothing claims they are
+  /// arriving from the network. When the provider gains real streaming, this
+  /// method is replaced by chunks from an EventChannel and no widget changes.
+  void _startReveal(String result) {
+    _reveal?.cancel();
+    _revealedFrom = result;
+    _tokens = _tokenise(result);
+
+    // A task restored from a previous session should not re-animate; only
+    // reveal progressively when the answer landed while we were watching.
+    final animate = _isLive || _revealed > 0;
+    if (!animate) {
+      setState(() => _revealed = _tokens.length);
+      return;
+    }
+
+    setState(() => _revealed = 0);
+    _reveal = Timer.periodic(const Duration(milliseconds: 55), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_revealed >= _tokens.length) {
+        t.cancel();
+        return;
+      }
+      setState(() => _revealed++);
+      _autoScroll();
+    });
+  }
+
+  /// Split an answer into words, turning bare URLs into citation chips.
+  List<StreamToken> _tokenise(String text) {
+    final out = <StreamToken>[];
+    for (final word in text.split(RegExp(r'\s+'))) {
+      if (word.isEmpty) continue;
+      final m = RegExp(r'https?://([^/\s)]+)').firstMatch(word);
+      if (m != null) {
+        final domain = m.group(1)!.replaceFirst(RegExp(r'^www\.'), '');
+        out.add(StreamToken('',
+            cite: AgentSource(
+                title: domain, domain: domain, url: m.group(0)!)));
+      } else {
+        out.add(StreamToken(word));
+      }
+    }
+    return out;
+  }
+
+  void _autoScroll() {
+    if (!_scroll.hasClients) return;
+    final max = _scroll.position.maxScrollExtent;
+    // Only follow if the reader is already near the bottom; yanking them back
+    // while they are reading earlier text is worse than not following.
+    if (max - _scroll.offset < 220) {
+      _scroll.jumpTo(max);
+    }
+  }
+
+  // ----------------------------------------------------------------- trace
+
+  /// The pipeline trace, built from the event log rather than a fixed plan.
+  List<TraceStep> get _steps {
+    final steps = <TraceStep>[];
+    final calls = <String, int>{};
+
+    for (final e in _events) {
+      final type = e['type'] as String? ?? '';
+      final detail = e['detail'] as String? ?? '';
+      switch (type) {
+        case 'tool.call':
+          calls[detail] = steps.length;
+          steps.add(TraceStep(
+            label: _verb(detail),
+            chip: _argument(detail),
+            mono: _looksMachine(detail),
+            running: true,
+          ));
+          break;
+        case 'tool.result':
+        case 'tool.denied':
+          // Close the most recent open step of this tool.
+          final i = steps.lastIndexWhere((s) => s.running);
+          if (i >= 0) {
+            steps[i] = TraceStep(
+              label: steps[i].label,
+              chip: steps[i].chip,
+              mono: steps[i].mono,
+              duration: _durationIn(detail),
+              detail: detail.isEmpty ? const [] : [detail],
+              detailMono: true,
+              denied: type == 'tool.denied',
+            );
+          }
+          break;
+        default:
+          break;
+      }
+    }
+    return steps;
+  }
+
+  /// `browser open https://…` → `Open`.
+  String _verb(String detail) {
+    final parts = detail.trim().split(RegExp(r'\s+'));
+    if (parts.length < 2) return parts.isEmpty ? 'Step' : _title(parts.first);
+    return _title(parts[1]);
+  }
+
+  /// The argument the verb acted on — a URL, a query, a filename.
+  String? _argument(String detail) {
+    final parts = detail.trim().split(RegExp(r'\s+'));
+    if (parts.length < 3) return null;
+    final rest = parts.sublist(2).join(' ');
+    final m = RegExp(r'https?://([^/\s]+)').firstMatch(rest);
+    return m != null ? m.group(1)!.replaceFirst(RegExp(r'^www\.'), '') : rest;
+  }
+
+  bool _looksMachine(String detail) =>
+      detail.contains('http') || detail.contains('.');
+
+  String? _durationIn(String detail) {
+    final m = RegExp(r'in (\d+)ms').firstMatch(detail);
+    if (m == null) return null;
+    final ms = int.parse(m.group(1)!);
+    return ms < 1000 ? '${ms}ms' : '${(ms / 1000).toStringAsFixed(1)}s';
+  }
+
+  static String _title(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+
+  /// `Thought for 4 seconds`, from the first and last event.
+  String get _doneLabel {
+    if (_events.length < 2) return 'Thought for a moment';
+    final first = (_events.first['at'] as num?)?.toInt() ?? 0;
+    final last = (_events.last['at'] as num?)?.toInt() ?? 0;
+    final s = (last - first) / 1000.0;
+    if (s <= 0) return 'Thought for a moment';
+    if (s < 1) return 'Thought for under a second';
+    if (s < 60) {
+      final n = s.round();
+      return 'Thought for $n second${n == 1 ? "" : "s"}';
+    }
+    return 'Thought for ${(s / 60).toStringAsFixed(1)} minutes';
+  }
+
+  /// What the agent is doing right now, for the shimmer label.
+  String get _activeLabel {
+    final step = _task['step'] as String? ?? '';
+    if (step.isNotEmpty) return step;
+    for (final e in _events.reversed) {
+      if (e['type'] == 'tool.call') {
+        final d = e['detail'] as String? ?? '';
+        final arg = _argument(d);
+        return arg == null ? _verb(d) : '${_verb(d)} $arg';
+      }
+    }
+    return 'Thinking';
+  }
+
+  /// Sources are the pages the agent actually opened.
+  List<AgentSource> get _sources {
+    final seen = <String, AgentSource>{};
+    for (final e in _events) {
+      if (e['type'] != 'tool.call') continue;
+      final m = RegExp(r'https?://([^/\s]+)')
+          .firstMatch(e['detail'] as String? ?? '');
+      if (m == null) continue;
+      final domain = m.group(1)!.replaceFirst(RegExp(r'^www\.'), '');
+      seen.putIfAbsent(
+          domain,
+          () => AgentSource(
+              title: domain, domain: domain, url: m.group(0)!));
+    }
+    return seen.values.toList();
+  }
+
+  // --------------------------------------------------------------- actions
+
+  Future<void> _send() async {
+    final text = _input.text.trim();
+    if (text.isEmpty) return;
+    _input.clear();
+
+    // Follow-ups start a new task today. Carrying the previous turns into the
+    // prompt is the "true context" work and is not built yet, so this must not
+    // pretend otherwise: it is a fresh run, and the thread groups them.
+    final started = await NativeBridge.guard(
+      () => NativeBridge.runTask(text),
+      const <String, dynamic>{},
+      'could not start that',
+    );
+    if (!mounted) return;
+    final id = (started['id'] as num?)?.toInt();
+    if (id == null) {
+      AppToast.show(context, 'Could not start that');
+      return;
+    }
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => TaskChatScreen(
+          taskId: id, title: text, instruction: text),
+    ));
+  }
+
+  Future<void> _stop() async {
+    final id = widget.taskId;
+    if (id == null) return;
+    final ok = await NativeBridge.guard(
+      () => NativeBridge.cancelTask(id),
+      false,
+      'could not stop this task',
+    );
+    if (!mounted) return;
+    AppToast.show(context, ok ? 'Stopping…' : 'Could not stop this task');
+    _refresh();
+  }
+
+  void _copy() {
+    final result = _task['result'] as String? ?? '';
+    if (result.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: result));
+    AppToast.show(context, 'Copied');
+  }
+
+  // ----------------------------------------------------------------- build
+
+  @override
+  Widget build(BuildContext context) {
+    final instruction =
+        widget.instruction ?? _task['instruction'] as String? ?? widget.title;
+    final result = _task['result'] as String? ?? '';
+    final error = _task['error'] as String? ?? '';
+    final steps = _steps;
+    final streaming = _revealed < _tokens.length;
+
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _topBar(instruction),
+            Expanded(
+              child: ListView(
+                controller: _scroll,
+                padding: const EdgeInsets.only(top: 4, bottom: 18),
+                children: [
+                  UserTurn(text: instruction, stamp: _stamp(_task['createdAt'])),
+                  const SizedBox(height: AgentMetrics.turnGap),
+
+                  AgentTurn(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Working: loader on top, trace filling beneath it.
+                        if (_isLive) ...[
+                          AgentWorkingLine(
+                              label: _activeLabel, since: _startedAt),
+                          if (steps.isNotEmpty) const SizedBox(height: 11),
+                        ],
+                        if (steps.isNotEmpty)
+                          AgentTrace(
+                            steps: steps,
+                            running: _isLive,
+                            activeLabel: 'Thinking',
+                            doneLabel: _doneLabel,
+                          ),
+                        if (_tokens.isNotEmpty) ...[
+                          const SizedBox(height: 7),
+                          StreamedAnswer(
+                            tokens: _tokens,
+                            visible: _revealed,
+                            caret: streaming,
+                            onSourceTap: (s) => AppToast.show(context, s.url),
+                          ),
+                        ],
+                        if (error.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(error,
+                              style: AppTheme.sans(
+                                  size: 12.5,
+                                  color: AppColors.textDim,
+                                  height: 1.55)),
+                        ],
+                        // The tail appears only once the answer has settled,
+                        // so controls never move under a reader's thumb.
+                        if (result.isNotEmpty && !streaming) ...[
+                          const SizedBox(height: 11),
+                          const Divider(
+                              height: 1, thickness: 1, color: AppColors.line),
+                          const SizedBox(height: 8),
+                          AgentActions(
+                            sources: _sources,
+                            onCopy: _copy,
+                            onSourceTap: (s) => AppToast.show(context, s.url),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (result.isNotEmpty && !streaming)
+                    AgentStamp(_stamp(_task['updatedAt'])),
+                ],
+              ),
+            ),
+            _composer(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _topBar(String instruction) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AgentMetrics.gutter, 6, AgentMetrics.gutter, 10),
+      child: Row(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              width: 31,
+              height: 31,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.line),
+              ),
+              child: const Icon(Icons.chevron_left,
+                  size: 17, color: AppColors.textDim),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              instruction,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(size: 13.5, w: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _composer() {
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.line)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(21),
+                border: Border.all(color: AppColors.lineStrong),
+              ),
+              padding: const EdgeInsets.only(left: 14, right: 7),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _input,
+                      onSubmitted: (_) => _send(),
+                      textInputAction: TextInputAction.send,
+                      style: AppTheme.sans(size: 12.5),
+                      cursorColor: AppColors.accent,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        hintText: 'Reply to this task…',
+                        hintStyle: AppTheme.sans(
+                            size: 12.5, color: AppColors.textMuted),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _isLive ? _stop : _send,
+                    child: Container(
+                      width: 29,
+                      height: 29,
+                      margin: const EdgeInsets.symmetric(vertical: 7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color:
+                            _isLive ? AppColors.surface3 : AppColors.accent,
+                      ),
+                      child: Icon(
+                        _isLive ? Icons.stop : Icons.arrow_upward,
+                        size: 15,
+                        color: _isLive
+                            ? AppColors.textDim
+                            : AppColors.accentInk,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _stamp(Object? millis) {
+    final ms = (millis as num?)?.toInt();
+    if (ms == null || ms == 0) return '';
+    final d = DateTime.fromMillisecondsSinceEpoch(ms);
+    return '${d.hour.toString().padLeft(2, "0")}:'
+        '${d.minute.toString().padLeft(2, "0")}';
+  }
+}

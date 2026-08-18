@@ -26,3 +26,10 @@ venv/
 
 # Logs
 *.log
+
+# Golden-test diff output. Regenerated on every failing run, and committing it
+# means a stale diff from someone else's machine looks like a real result.
+app/test/failures/
+
+# Local Flutter/Dart/Android SDKs fetched by tools/. Never committed.
+.toolchain/
