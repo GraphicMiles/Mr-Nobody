@@ -88,6 +88,59 @@ public class DownloadRecordTest {
         assertEquals("content://media/external/downloads/42", m.get("localUri"));
     }
 
+    /**
+     * The reported symptom, as arithmetic.
+     *
+     * <p>A 30 MB file 29 MB in must read as nearly finished. It read as 69%
+     * because the total had been inflated to 42 MB by adding a resume offset
+     * to a Content-Length that already covered the whole file. The percentage
+     * function was never wrong; it was being handed a wrong denominator, which
+     * is why this asserts on the pair rather than on percent() alone.
+     */
+    @Test
+    public void aFileNearlyFinishedReadsAsNearlyFinished() {
+        DownloadRecord r = film();
+        r.total = 31_457_280L;          // 30 MB, as Content-Range stated it
+        r.bytes = 30_408_704L;          // 29 MB written
+
+        assertEquals(96, r.percent());
+        assertTrue("a nearly-complete file must not read as half done",
+                r.percent() > 90);
+    }
+
+    /** The inflated-total case itself: if it ever returns, this fails. */
+    @Test
+    public void aTotalInflatedByDoubleCountingWouldBeVisibleHere() {
+        DownloadRecord inflated = film();
+        inflated.total = 12_582_912L + 31_457_280L;   // offset + whole file
+        inflated.bytes = 30_408_704L;
+        // 69%: what the user saw. Pinned so the fix cannot silently regress.
+        assertEquals(69, inflated.percent());
+
+        DownloadRecord correct = film();
+        correct.total = 31_457_280L;
+        correct.bytes = 30_408_704L;
+        assertTrue("the corrected total must report further along",
+                correct.percent() > inflated.percent());
+    }
+
+    /**
+     * A finished download reports a whole file, not the fraction it was at
+     * when the last progress tick happened to fire.
+     */
+    @Test
+    public void aCompletedDownloadIsAHundredPercent() {
+        DownloadRecord r = film();
+        r.total = 31_457_280L;
+        r.bytes = 31_457_280L;
+        r.status = DownloadRecord.Status.COMPLETED;
+
+        assertEquals(100, r.percent());
+        assertTrue(r.status.isTerminal());
+        assertFalse("a finished download is not still active", r.status.isActive());
+        assertEquals(100, r.toMap().get("percent"));
+    }
+
     @Test
     public void anUnreadableStatusOnDiskDoesNotCrashTheList() {
         // Forward compatibility: a row written by a newer build must not take

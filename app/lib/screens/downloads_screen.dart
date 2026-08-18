@@ -199,7 +199,10 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final paused = status == _paused || status == _waiting;
     final failed = status == _failed;
     final canResume = d['canResume'] as bool? ?? false;
-    final pct = (size > 0) ? (downloaded / size).clamp(0.0, 1.0) : 0.0;
+    // Null, not zero, when the server never said how big the file is: an
+    // indeterminate bar says "working, size unknown", while 0.0 says "nothing
+    // has arrived", and only one of those is true.
+    final pct = (size > 0) ? (downloaded / size).clamp(0.0, 1.0) : null;
     final speed = _speed[id] ?? 0;
 
     return GestureDetector(

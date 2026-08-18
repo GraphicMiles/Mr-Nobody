@@ -131,7 +131,15 @@ class StatusChip extends StatelessWidget {
 
 /// `.progress` — 3px track with an accent fill.
 class ProgressBar extends StatelessWidget {
-  final double value; // 0..1
+  /// 0..1, or null when the total is genuinely unknown.
+  ///
+  /// Null draws the indeterminate sweep. A server that never sends a length
+  /// used to produce `value: 0.0` here, which is a confident claim that no
+  /// progress has been made — so a download that was running perfectly well
+  /// showed an empty bar until the instant it finished. Not knowing the size
+  /// and having made no progress are different facts and must not share a
+  /// picture.
+  final double? value;
   const ProgressBar(this.value, {super.key});
 
   @override
@@ -139,7 +147,7 @@ class ProgressBar extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(2),
       child: LinearProgressIndicator(
-        value: value.clamp(0.0, 1.0),
+        value: value?.clamp(0.0, 1.0),
         minHeight: 3,
         backgroundColor: AppColors.surface2,
         valueColor: const AlwaysStoppedAnimation(AppColors.accent),
