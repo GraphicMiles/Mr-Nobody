@@ -9,38 +9,24 @@ import java.util.regex.Pattern;
 /**
  * Extracts an explicit interval from an instruction.
  *
- * <p>Whether a task should repeat is no longer this class's job. That is
- * an intent question and lives on {@link IntentClassifier}. This class
- * only reads structure: {@code every 6 hours}, {@code daily}. Those are
- * quantities and units, the same kind of fact as a hostname — not a
- * vocabulary of tracking verbs.
- *
- * <p>The phrase list that used to live here is gone. Adding another verb
- * was how the last bug was "fixed", and the next paraphrase missed again.
+ * <p>Whether a task should repeat is an intent question and lives on
+ * {@link IntentClassifier}. This class only reads structure: every 6 hours,
+ * daily. Those are quantities and units — not a vocabulary of tracking verbs.
  */
 public final class RecurrenceRequest {
 
-    /** "every 30 minutes", "each 2 hours", "every day". */
     private static final Pattern EXPLICIT_INTERVAL = Pattern.compile(
             "\\b(?:every|each)\\s+(?:(\\d{1,3})\\s*)?"
                     + "(minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks)\\b",
             Pattern.CASE_INSENSITIVE);
 
-    /** "hourly", "daily", "weekly". */
     private static final Pattern ADVERB_INTERVAL = Pattern.compile(
             "\\b(hourly|daily|weekly)\\b", Pattern.CASE_INSENSITIVE);
 
-    /**
-     * The default when the classifier said "monitor" and no interval was
-     * named. Hourly, not every fifteen minutes: a user who named no number
-     * expressed no urgency, and guessing too fast is paid in battery.
-     */
     private static final Schedule.Repeat DEFAULT_TRACKING = Schedule.Repeat.HOURLY;
 
-    /** What was asked for, and how to say so. */
     public static final class Request {
         public final Schedule.Repeat repeat;
-        /** True when the user named an interval rather than us assuming one. */
         public final boolean explicit;
 
         Request(Schedule.Repeat repeat, boolean explicit) {
@@ -52,13 +38,6 @@ public final class RecurrenceRequest {
             return repeat != null && repeat.isRecurring();
         }
 
-        /**
-         * A line telling the user what was set up.
-         *
-         * <p>Says it plainly, including when the interval was assumed and when
-         * it was rounded. Background work the user did not knowingly agree to
-         * is the kind of thing that gets an app uninstalled.
-         */
         public String describe() {
             if (!isRecurring()) return "";
             String base = "Checking " + repeat.label().toLowerCase(Locale.ROOT)
@@ -76,15 +55,10 @@ public final class RecurrenceRequest {
     private RecurrenceRequest() {
     }
 
-    /** A one-shot. */
     public static Request once() {
         return ONCE;
     }
 
-    /**
-     * The interval written in {@code instruction}, or a one-shot when none
-     * was. Does not infer tracking from verbs.
-     */
     public static Request parse(String instruction) {
         if (instruction == null || instruction.trim().isEmpty()) return ONCE;
         String text = instruction.toLowerCase(Locale.ROOT);
@@ -109,10 +83,6 @@ public final class RecurrenceRequest {
         return ONCE;
     }
 
-    /**
-     * The schedule to persist once the classifier has already decided this
-     * is a monitor: honour a named interval, otherwise the default.
-     */
     public static Request forMonitor(String instruction) {
         Request named = parse(instruction);
         if (named.isRecurring()) return named;
@@ -128,17 +98,6 @@ public final class RecurrenceRequest {
         }
     }
 
-    /**
-     * Map a unit and a count onto the coarsest schedule that is not faster
-     * than asked.
-     *
-     * <p>The buckets are coarse because Android's are: WorkManager will not go
-     * below fifteen minutes and coalesces wakeups regardless, so offering
-     * "every 5 minutes" would be a promise the platform does not keep.
-     * Rounding <em>down</em> in frequency — 90 minutes becomes six-hourly
-     * rather than hourly — would silently do less than asked, so the nearest
-     * bucket at or above the requested rate is chosen instead.
-     */
     private static Schedule.Repeat fromUnit(String unit, int count) {
         String u = unit.toLowerCase(Locale.ROOT);
         long minutes;

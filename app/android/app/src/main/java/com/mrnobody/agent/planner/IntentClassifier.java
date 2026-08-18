@@ -9,28 +9,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A dedicated reasoning step that runs <em>before</em> search, fetch or
- * schedule.
+ * A dedicated reasoning step that runs before search, fetch or schedule.
  *
  * <p>Taken from DeepSeek Harness's {@code agent/pre-step}: decide what the
- * turn is before the loop is allowed to spend tools. The previous version
- * of this decision was {@link RecurrenceRequest} scanning for "keep up" and
- * friends. That is the same bug at a longer list — the next paraphrase
- * ("ping me about X", "don't want to miss Y") would miss again.
- *
- * <p>This class asks a model for one of exactly three labels and otherwise
- * refuses to guess. Interval text and named sites are not this class's job;
- * they are structure, parsed by {@link RecurrenceRequest} and
- * {@link NamedSource}.
+ * turn is before the loop spends tools. The previous version scanned for
+ * "keep up" and friends. That is the same bug at a longer list.
  */
 public final class IntentClassifier {
 
     private static final long ASK_TIMEOUT_MS = 20_000L;
 
-    /**
-     * Meanings, not examples. Few-shot phrases here would be memorised by
-     * tests and by the model, and the next wording would miss again.
-     */
     static final String SYSTEM_PROMPT =
             "You classify a user's request for a privacy-respecting web assistant. "
                     + "You do not answer the request. You do not pick a tool. "
@@ -79,7 +67,6 @@ public final class IntentClassifier {
     private IntentClassifier() {
     }
 
-    /** What the classifier decided, and whether a model actually said so. */
     public static final class Decision {
         public final TaskIntent intent;
         public final boolean fromModel;
@@ -90,11 +77,6 @@ public final class IntentClassifier {
         }
     }
 
-    /**
-     * Classify {@code text}. A remote provider is asked; anything else —
-     * local echo, timeout, garbage — is {@link TaskIntent#ONE_TIME_ANSWER}.
-     * Background work is not scheduled on a coin flip.
-     */
     public static Decision classify(AiProvider provider, String text) {
         if (text == null || text.trim().isEmpty()) {
             return new Decision(TaskIntent.ONE_TIME_ANSWER, false);
@@ -108,13 +90,6 @@ public final class IntentClassifier {
         return new Decision(parsed, true);
     }
 
-    /**
-     * Whether a follow-up is asking to end an existing monitor.
-     *
-     * <p>Fail-closed: a missing model or an unreadable answer leaves the
-     * schedule running. Cancelling work the user still wants is worse than
-     * asking them to say it again.
-     */
     public static boolean wantsCancel(AiProvider provider, String text) {
         if (text == null || text.trim().isEmpty()) return false;
         if (provider == null || !provider.isRemote()) return false;
@@ -122,17 +97,14 @@ public final class IntentClassifier {
         return parseCancel(raw);
     }
 
-    /** Visible for tests: turn a model reply into a label, or null. */
     public static TaskIntent parseIntent(String raw) {
         if (raw == null) return null;
         String text = stripFences(raw);
         Matcher m = INTENT_JSON.matcher(text);
         if (m.find()) return TaskIntent.fromWire(m.group(1));
-        // A bare label is accepted so a terse model still counts.
         return TaskIntent.fromWire(text.trim());
     }
 
-    /** Visible for tests. */
     public static boolean parseCancel(String raw) {
         if (raw == null) return false;
         Matcher m = CANCEL_JSON.matcher(stripFences(raw));

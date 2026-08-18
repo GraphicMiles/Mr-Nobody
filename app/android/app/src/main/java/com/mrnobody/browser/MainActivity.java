@@ -178,6 +178,20 @@ public class MainActivity extends FlutterActivity {
                                 m.put("status", t.status().name());
                                 m.put("step", t.currentStep() == null ? "" : t.currentStep());
                                 m.put("progress", t.progress());
+                                m.put("schedule", MrNobodyApp.tasks().scheduleOf(t.id()).name());
+                                out.add(m);
+                            }
+                            result.success(out);
+                            return;
+                        }
+                        case "listMonitors": {
+                            List<Map<String, Object>> out = new ArrayList<>();
+                            for (Task t : MrNobodyApp.tasks().monitors()) {
+                                Map<String, Object> m = new HashMap<>();
+                                m.put("id", t.id());
+                                m.put("instruction", t.instruction());
+                                m.put("status", t.status().name());
+                                m.put("schedule", MrNobodyApp.tasks().scheduleOf(t.id()).name());
                                 out.add(m);
                             }
                             result.success(out);

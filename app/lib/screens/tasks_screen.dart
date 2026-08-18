@@ -119,13 +119,19 @@ class _TasksScreenState extends State<TasksScreen> {
     final status = task['status'] as String? ?? 'QUEUED';
     final running = _live.contains(status);
     final step = task['step'] as String? ?? '';
+    final schedule = task['schedule'] as String? ?? 'NEVER';
+    final watching = schedule != 'NEVER' && schedule.isNotEmpty;
     return ListRow(
       icon: taskIcon(task['instruction'] as String? ?? ''),
       title: task['instruction'] as String? ?? 'Task',
-      subtitle: running && step.isNotEmpty ? 'on-device · $step' : 'on-device',
+      subtitle: running && step.isNotEmpty
+          ? 'on-device · $step'
+          : watching
+              ? 'watching · ${schedule.toLowerCase()}'
+              : 'on-device',
       trailing: StatusChip(
-        _chipLabel(status),
-        tone: running ? ChipTone.running : ChipTone.done,
+        watching && !running ? 'WATCHING' : _chipLabel(status),
+        tone: running || watching ? ChipTone.running : ChipTone.done,
       ),
       onTap: () => widget.onOpenTask(task),
     );

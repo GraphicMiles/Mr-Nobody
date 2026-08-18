@@ -29,6 +29,15 @@ public interface BrowserEngine {
      */
     String loadAndEvaluate(String url, String script, long timeoutMs);
 
+    /**
+     * Evaluate {@code script} against the page that is already loaded.
+     * Default is empty: an engine that cannot talk to a live document
+     * still satisfies the interface.
+     */
+    default String evaluate(String script, long timeoutMs) {
+        return "";
+    }
+
     /** Extract the page title, or null. */
     String title();
 

@@ -229,6 +229,27 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
         }
     }
 
+    @Override
+    public String evaluate(String script, long timeoutMs) {
+        synchronized (loadLock) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<String> result = new AtomicReference<>("");
+            onMain(() -> {
+                WebView wv = webView();
+                wv.evaluateJavascript(script, value -> {
+                    result.set(unescapeJs(value));
+                    latch.countDown();
+                });
+            });
+            try {
+                latch.await(Math.max(500, timeoutMs), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return result.get() == null ? "" : result.get();
+        }
+    }
+
     /** Evaluate a JS expression that must return a boolean, on the main thread. */
     private boolean evalBool(String js) {
         synchronized (loadLock) {

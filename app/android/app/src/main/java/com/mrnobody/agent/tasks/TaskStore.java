@@ -324,6 +324,28 @@ public final class TaskStore extends SQLiteOpenHelper {
         return null;
     }
 
+    /**
+     * Tasks that have a live repeating schedule. DeepSeek's schedule_list
+     * is this, minus the session-log fold: the durable column is the source
+     * of truth.
+     */
+    public List<Task> monitors() {
+        List<Task> list = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().query(T, null,
+                C_REPEAT + " IS NOT NULL AND " + C_REPEAT + " != '' AND "
+                        + C_REPEAT + " != ?",
+                new String[]{Schedule.Repeat.NEVER.name()},
+                null, null, C_UPDATED + " DESC")) {
+            while (c.moveToNext()) {
+                Task t = fromCursor(c);
+                if (scheduleOf(t.id()).isRecurring()) list.add(t);
+            }
+        } catch (Exception ignored) {
+            // An older schema without the column: no monitors.
+        }
+        return list;
+    }
+
     public List<Task> recent(int limit) {
         List<Task> list = new ArrayList<>();
         SQLiteDatabase db = getReadableDatabase();

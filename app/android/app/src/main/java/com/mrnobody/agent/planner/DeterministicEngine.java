@@ -30,6 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * V1 agent brain — deterministic by default, with an optional AI synthesis step.
  *
@@ -71,6 +74,9 @@ public final class DeterministicEngine implements AgentEngine {
 
     /** How often that wait checks for a cancel request. */
     private static final long POLL_MS = 250L;
+
+    private static final Pattern URL_IN_TEXT =
+            Pattern.compile("(https?://[^\\s\"'<>]+)");
 
     private final Map<String, Tool> tools = new LinkedHashMap<>();
 
@@ -166,10 +172,6 @@ public final class DeterministicEngine implements AgentEngine {
         String asked = task.conversation();
 
         AiProvider provider = MrNobodyApp.activeProvider();
-
-        // Classify-before-act (DeepSeek Harness agent/pre-step). The label
-        // decides search vs monitor vs fetch-this-site; named sites and
-        // intervals are parsed as structure beside it, not instead of it.
         IntentClassifier.Decision classified = IntentClassifier.classify(provider, asked);
         if (stopIfAsked(context, task, provider)) return;
 
@@ -362,10 +364,10 @@ public final class DeterministicEngine implements AgentEngine {
         java.util.List<String> transcript = new java.util.ArrayList<>();
         long budget = com.mrnobody.agent.ai.TokenBudget.transcriptBudget(provider.modelId());
 
-        // A site the user named is not optional. The model used to search
-        // Prime Video instead of opening nkiri.ink; prefetch so the one page
-        // they asked for is always among the pages read.
-        if (r.namedUrl != null) {
+        // A site the user named is not optional. Opening the homepage is
+        // not enough: "Infinity War from nkiri.ink" has to hit that site's
+        // search, not Prime Video. Prefetch the skill's pages first.
+        if (r.namedUrl != null || !NamedSiteSkill.pagesToOpen(asked).isEmpty()) {
             task.setCurrentStep(Task.STEP_READ);
             fetchNamedSite(context, r, nonce, transcript, cancellation);
             if (stopped(task, cancellation) || parkIfNeeded(task, r.lastResult)) return;
@@ -414,12 +416,24 @@ public final class DeterministicEngine implements AgentEngine {
     /** Open the site the user named, before the model gets to pick substitutes. */
     private void fetchNamedSite(Context context, Research r, String nonce,
                                 java.util.List<String> transcript, Cancellation cancellation) {
-        Plan.Step step = readStep(r.namedUrl);
-        r.titles.put(r.namedUrl, "the page you named");
-        ToolResult result = callTool(context, "http", step.request, cancellation);
-        r.lastResult = result;
-        if (result != null && result.needsApproval()) return;
-        applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
+        String original = r.namedUrl;
+        java.util.List<String> pages = NamedSiteSkill.pagesToOpen(
+                r.asked != null ? r.asked : "");
+        if (pages.isEmpty() && original != null) pages.add(original);
+        for (String page : pages) {
+            Plan.Step step = readStep(page);
+            r.titles.put(page, page.equals(original) || original == null
+                    ? "the page you named" : "search on the site you named");
+            ToolResult result = callTool(context, "http", step.request, cancellation);
+            r.lastResult = result;
+            if (result != null && result.needsApproval()) return;
+            applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
+            if (result != null && result.isSuccess()
+                    && !NamedSiteSkill.looksLikeRoot(page)) {
+                break;
+            }
+        }
+        if (original != null) r.namedUrl = original;
     }
 
     /** Resolve and enqueue a download the model never called. */
@@ -527,9 +541,13 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private void planReads(Plan plan, Research r) {
         List<Plan.Step> reads = new ArrayList<>();
-        if (r.namedUrl != null) {
-            r.titles.put(r.namedUrl, "the page you named");
-            reads.add(readStep(r.namedUrl));
+        java.util.List<String> named = NamedSiteSkill.pagesToOpen(
+                r.asked != null ? r.asked : "");
+        if (named.isEmpty() && r.namedUrl != null) named.add(r.namedUrl);
+        for (String page : named) {
+            r.titles.put(page, page.equals(r.namedUrl)
+                    ? "the page you named" : "search on the site you named");
+            reads.add(readStep(page));
         }
         for (Map<String, Object> result : r.results) {
             if (reads.size() >= MAX_READ_CANDIDATES) break;
@@ -981,11 +999,6 @@ public final class DeterministicEngine implements AgentEngine {
         return NamedSource.fetchUrlIn(text);
     }
 
-    /**
-     * End a live monitor when the follow-up is asking to stop. Classification
-     * is a model call, not a phrase list — "that's enough" and "drop this"
-     * have to work the same as "stop tracking".
-     */
     private boolean stopIfAsked(Context context, Task task, AiProvider provider) {
         String extra = task.followUp();
         if (extra.isEmpty()) return false;
@@ -1012,14 +1025,6 @@ public final class DeterministicEngine implements AgentEngine {
         return true;
     }
 
-    /**
-     * The schedule this run should persist, if any.
-     *
-     * <p>A timer wake keeps the existing schedule even if the classifier
-     * flakes — otherwise a bad label would silently retire a monitor the
-     * user still wants. A first run or a follow-up honours the classifier,
-     * and an explicit interval (structure, not vocabulary) still counts.
-     */
     private RecurrenceRequest.Request resolveRecurrence(Task task, String asked,
                                                         TaskIntent intent) {
         boolean wake = false;
@@ -1028,7 +1033,6 @@ public final class DeterministicEngine implements AgentEngine {
             existing = MrNobodyApp.tasks().scheduleOf(task.id());
             wake = task.followUp().isEmpty() && existing.isRecurring();
         } catch (Throwable ignored) {
-            // Tests and a missing store: treat as a first run.
         }
         if (wake) return new RecurrenceRequest.Request(existing, true);
         if (intent == TaskIntent.RECURRING_MONITOR

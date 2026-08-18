@@ -32,6 +32,12 @@ class NativeBridge {
     return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
+  /// Recurring checks that are actually scheduled, not just completed once.
+  static Future<List<Map<String, dynamic>>> listMonitors() async {
+    final r = await _ch.invokeMethod('listMonitors');
+    return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   /// A single task by id (status, step, progress, result) for the detail screen.
   static Future<Map<String, dynamic>?> task(int id) async {
     final r = await _ch.invokeMethod('task', {'id': id});

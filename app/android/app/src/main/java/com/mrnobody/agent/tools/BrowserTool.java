@@ -59,6 +59,7 @@ public final class BrowserTool implements Tool {
             .tier(Tier.WRITE)
             .param(ParamSpec.enumOf("action", false, "What to do with the page.",
                     "open", "fetch", "back", "forward", "reload", "extract", "title", "links",
+                    "forms", "submit",
                     "click", "type", "scroll", "wait"))
             .param(ParamSpec.url("url", false, "Page to open or fetch."))
             .param(ParamSpec.string("selector", false, "CSS selector to click or type into."))
@@ -175,6 +176,42 @@ public final class BrowserTool implements Tool {
             }
             case "title":
                 return value("title", "title", engine.title());
+            case "forms": {
+                // Inventory of forms on the rendered page — the first step
+                // of walking a login or download form without Puppeteer.
+                String formUrl = request.param("url");
+                String json;
+                if (formUrl != null && !formUrl.isEmpty()) {
+                    json = engine.loadAndEvaluate(formUrl, FORMS_SCRIPT,
+                            parseLong(request.param("timeout"), 20_000));
+                    lastKnownUrl = formUrl;
+                } else {
+                    json = engine.evaluate(FORMS_SCRIPT, 5_000);
+                }
+                java.util.Map<String, Object> v = new java.util.LinkedHashMap<>();
+                v.put("action", "forms");
+                v.put("forms", json == null ? "[]" : json);
+                return ToolResult.ok(v);
+            }
+            case "submit": {
+                String sel = request.param("selector");
+                if (sel == null || sel.isEmpty()) {
+                    return ToolResult.fail("browser.submit needs 'selector'");
+                }
+                String stale = checkAnchor(request);
+                if (stale != null) return ToolResult.fail(stale);
+                boolean ok = engine.evaluate(
+                        "(function(){var e=document.querySelector(" + jsQuote(sel) + ");"
+                                + "if(!e)return false;"
+                                + "if(e.tagName==='FORM'){e.submit();return true;}"
+                                + "var f=e.form||e.closest('form');"
+                                + "if(f){f.submit();return true;}"
+                                + "e.click();return true})()",
+                        5_000).toLowerCase().contains("true");
+                return ok
+                        ? value("submit", "selector", sel, "status", "submitted")
+                        : ToolResult.fail("no form matched " + sel);
+            }
             case "click": {
                 String sel = request.param("selector");
                 if (sel == null || sel.isEmpty()) return ToolResult.fail("browser.click needs 'selector'");
@@ -241,6 +278,23 @@ public final class BrowserTool implements Tool {
      * Collect the page's anchors as absolute URLs. Bounded at 200 so a page
      * with tens of thousands of links cannot flood the result.
      */
+    private static final String FORMS_SCRIPT =
+            "(function(){try{var out=[];var fs=document.querySelectorAll('form');"
+            + "for(var i=0;i<fs.length&&out.length<20;i++){"
+            + "var f=fs[i];var fields=[];"
+            + "var ins=f.querySelectorAll('input[name],textarea[name],select[name]');"
+            + "for(var j=0;j<ins.length;j++){fields.push(ins[j].name);}"
+            + "out.push({action:f.action||'',method:(f.method||'get'),"
+            + "id:f.id||'',fields:fields});}"
+            + "return JSON.stringify(out);}catch(e){return '[]'}})()";
+
+    private static String jsQuote(String s) {
+        return "\"" + (s == null ? "" : s)
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n") + "\"";
+    }
+
     private static final String LINKS_SCRIPT =
             "(function(){try{var out=[],seen={};var as=document.querySelectorAll('a[href]');"
             + "for(var i=0;i<as.length;i++){var u=as[i].href;"
