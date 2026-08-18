@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../browser/browser_tab.dart';
 import '../browser/tab_manager.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common.dart';
 import '../widgets/toast.dart';
 
 /// Sessions / Tabs (S3) — the real tab list from the shared [TabManager]:
@@ -30,7 +31,9 @@ class _TabsScreenState extends State<TabsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ScreenSurface(child: _buildBody(context));
+
+  Widget _buildBody(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.tabs,
       builder: (context, _) {

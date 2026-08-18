@@ -11,7 +11,7 @@ import 'fake_browser_engine.dart';
 /// Regressions for state that the UI reads but nothing was updating.
 void main() {
   setUpAll(() {
-    BrowserTab.engineFactory = ({required String url, required bool isPrivate}) =>
+    BrowserTab.engineFactory = ({required int tabId, required String url, required bool isPrivate}) =>
         FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
   });
   tearDownAll(() => BrowserTab.engineFactory = null);

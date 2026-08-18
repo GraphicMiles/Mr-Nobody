@@ -86,7 +86,9 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ScreenSurface(child: _buildBody(context));
+
+  Widget _buildBody(BuildContext context) {
     return ListView(
       controller: widget.scrollController,
       padding: const EdgeInsets.only(bottom: 120),

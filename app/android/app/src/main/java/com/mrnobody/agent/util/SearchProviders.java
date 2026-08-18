@@ -116,7 +116,7 @@ public final class SearchProviders {
         return "ddg";
     }
 
-    static String encode(String query) {
+    public static String encode(String query) {
         try {
             return URLEncoder.encode(query == null ? "" : query, "UTF-8");
         } catch (UnsupportedEncodingException e) {

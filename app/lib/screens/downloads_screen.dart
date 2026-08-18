@@ -11,9 +11,10 @@ import '../widgets/toast.dart';
 /// Downloads (S8) — what is arriving, how fast, over what connection, and what
 /// you can do about it.
 ///
-/// A download is handed to Android's DownloadManager, which keeps going on its
-/// own; this screen is the only place inside the app where one can be
-/// inspected, opened, or stopped.
+/// Transfers belong to Mr Nobody, not to Android's DownloadManager. That is
+/// what makes pause and resume possible, puts the file in the folder the user
+/// chose rather than app-private staging, and means a download stops when the
+/// app is uninstalled instead of carrying on without it.
 class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
 
@@ -22,12 +23,14 @@ class DownloadsScreen extends StatefulWidget {
 }
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
-  // android.app.DownloadManager status constants.
-  static const _statusPending = 1;
-  static const _statusRunning = 2;
-  static const _statusPaused = 4;
-  static const _statusSuccessful = 8;
-  static const _statusFailed = 16;
+  // DownloadRecord.Status, as the engine names it.
+  static const _queued = 'QUEUED';
+  static const _running = 'RUNNING';
+  static const _paused = 'PAUSED';
+  static const _waiting = 'WAITING';
+  static const _completed = 'COMPLETED';
+  static const _failed = 'FAILED';
+  static const _cancelled = 'CANCELLED';
 
   List<Map<String, dynamic>> _items = const [];
   Map<String, dynamic> _network = const {};
@@ -99,14 +102,12 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     var bytes = 0;
     var active = 0;
     for (final d in _items) {
-      final status = _int(d['status']);
-      if (status == _statusSuccessful) {
+      final status = _status(d);
+      if (status == _completed) {
         done++;
         bytes += _int(d['size']);
       }
-      if (status == _statusRunning || status == _statusPending || status == _statusPaused) {
-        active++;
-      }
+      if (status == _running || status == _queued) active++;
     }
 
     return Scaffold(
@@ -155,8 +156,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
             child: Text(
-              'Downloads are handled by Android itself, so they continue when Mr Nobody '
-              'is closed. Stopping one here cancels it and deletes the partial file.',
+              'Mr Nobody downloads these itself, so they can be paused and resumed, they '
+              'go to the folder you chose, and they stop if you uninstall the app. '
+              'Cancelling deletes the partial file.',
               style: AppTheme.mono(size: 10.5, color: AppColors.textMuted, height: 1.5),
             ),
           ),
@@ -192,10 +194,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final name = d['name'] as String? ?? 'download';
     final size = _int(d['size']);
     final downloaded = _int(d['downloaded']);
-    final status = _int(d['status']);
-    final running = status == _statusRunning || status == _statusPending;
-    final paused = status == _statusPaused;
-    final failed = status == _statusFailed;
+    final status = _status(d);
+    final running = status == _running || status == _queued;
+    final paused = status == _paused || status == _waiting;
+    final failed = status == _failed;
+    final canResume = d['canResume'] as bool? ?? false;
     final pct = (size > 0) ? (downloaded / size).clamp(0.0, 1.0) : 0.0;
     final speed = _speed[id] ?? 0;
 
@@ -248,39 +251,90 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         Expanded(child: ProgressBar(pct)),
                         const SizedBox(width: 10),
                         Text(
-                          paused
-                              ? 'paused'
-                              : '${humanBytes(downloaded)} / ${size > 0 ? humanBytes(size) : '—'}'
-                                  '${speed > 0 ? ' · ${humanBytes(speed.round())}/s' : ''}',
+                          _progressLabel(status, downloaded, size, speed),
                           style: AppTheme.mono(size: 9.5, color: AppColors.textMuted),
                         ),
                       ],
                     )
                   else
                     Text(
-                      failed ? 'failed — tap for details' : '${humanBytes(size)} · tap to open',
+                      failed
+                          ? '${d['error'] ?? 'failed'} — tap for details'
+                          : status == _cancelled
+                              ? 'cancelled'
+                              : '${humanBytes(size)} · tap to open',
                       style: AppTheme.mono(size: 10, color: AppColors.textMuted),
                     ),
                 ],
               ),
             ),
-            const SizedBox(width: 6),
-            GestureDetector(
-              onTap: () => _details(d),
-              behavior: HitTestBehavior.opaque,
-              child: const Padding(
-                padding: EdgeInsets.all(6),
-                child: Icon(Icons.more_vert, size: 16, color: AppColors.textFaint),
-              ),
-            ),
+            const SizedBox(width: 2),
+            // Pause and resume sit on the row itself: they are the two things
+            // a person wants mid-download, and burying them in a sheet is why
+            // the app appeared to offer only stop and delete.
+            if (running)
+              _iconButton(Icons.pause, 'Pause', () => _pause(id, name))
+            else if (canResume)
+              _iconButton(Icons.play_arrow, 'Resume', () => _resume(id, name)),
+            _iconButton(Icons.more_vert, 'More', () => _details(d)),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _openOrExplain(int id, int status, String name) async {
-    if (status == _statusSuccessful) {
+  /// A small square tap target: the row is dense and a bare icon is a
+  /// 16-pixel target, which is not a button anyone can hit on a phone.
+  Widget _iconButton(IconData icon, String semantic, VoidCallback onTap) {
+    return Semantics(
+      button: true,
+      label: semantic,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+          child: Icon(icon, size: 17, color: AppColors.textDim),
+        ),
+      ),
+    );
+  }
+
+  static String _progressLabel(String status, int downloaded, int size, double speed) {
+    if (status == _paused) return 'paused · ${humanBytes(downloaded)}';
+    if (status == _waiting) return 'stopped · tap resume';
+    if (status == _queued) return 'waiting…';
+    final of = size > 0 ? humanBytes(size) : '—';
+    final rate = speed > 0 ? ' · ${humanBytes(speed.round())}/s' : '';
+    return '${humanBytes(downloaded)} / $of$rate';
+  }
+
+  static String _status(Map<String, dynamic> d) => d['status'] as String? ?? _queued;
+
+  Future<void> _pause(int id, String name) async {
+    final ok = await NativeBridge.guard(
+      () => NativeBridge.pauseDownload(id),
+      false,
+      'could not pause download',
+    );
+    if (!mounted) return;
+    if (ok) AppToast.show(context, 'Paused $name');
+    _load();
+  }
+
+  Future<void> _resume(int id, String name) async {
+    final ok = await NativeBridge.guard(
+      () => NativeBridge.resumeDownload(id),
+      false,
+      'could not resume download',
+    );
+    if (!mounted) return;
+    AppToast.show(context, ok ? 'Resuming $name' : 'Could not resume it');
+    _load();
+  }
+
+  Future<void> _openOrExplain(int id, String status, String name) async {
+    if (status == _completed) {
       final opened = await NativeBridge.guard(
         () => NativeBridge.openDownload(id),
         false,
@@ -290,8 +344,12 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       AppToast.show(context, opened ? 'Opening $name…' : 'No app can open this file');
       return;
     }
-    if (status == _statusFailed) {
+    if (status == _failed) {
       AppToast.show(context, 'This download failed');
+      return;
+    }
+    if (status == _paused || status == _waiting) {
+      AppToast.show(context, 'Paused — press play to continue');
       return;
     }
     AppToast.show(context, 'Still downloading…');
@@ -300,19 +358,36 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   void _details(Map<String, dynamic> d) {
     final id = _int(d['id']);
     final name = d['name'] as String? ?? 'download';
-    final status = _int(d['status']);
-    final finished = status == _statusSuccessful;
+    final status = _status(d);
+    final finished = status == _completed;
+    final running = status == _running || status == _queued;
+    final canResume = d['canResume'] as bool? ?? false;
 
     showMenuSheet(context, [
-      if (finished)
-        SheetItem(Icons.open_in_new, 'Open', () => _openOrExplain(id, status, name)),
+      if (finished) SheetItem(Icons.open_in_new, 'Open', () => _openOrExplain(id, status, name)),
+      if (running) SheetItem(Icons.pause, 'Pause', () => _pause(id, name)),
+      if (canResume) SheetItem(Icons.play_arrow, 'Resume', () => _resume(id, name)),
       SheetItem(Icons.info_outline, 'Details', () => _showDetails(d)),
+      // Cancel and remove are different things: one stops a transfer, the
+      // other clears the row. Collapsing them is what left the user with a
+      // single destructive button.
+      if (!finished && status != _cancelled)
+        SheetItem(Icons.stop_circle_outlined, 'Cancel download', () async {
+          final ok = await NativeBridge.guard(
+            () => NativeBridge.cancelDownload(id),
+            false,
+            'could not cancel download',
+          );
+          if (!mounted) return;
+          AppToast.show(context, ok ? 'Cancelled $name' : 'Could not cancel it');
+          _load();
+        }),
       SheetItem(
-        finished ? Icons.delete_outline : Icons.stop_circle_outlined,
-        finished ? 'Delete file' : 'Stop and delete',
+        Icons.delete_outline,
+        finished ? 'Delete file' : 'Remove from list',
         () async {
           final removed = await NativeBridge.guard(
-            () => NativeBridge.removeDownload(id),
+            () => NativeBridge.removeDownload(id, deleteFile: finished),
             false,
             'could not remove download',
           );
@@ -340,11 +415,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _detail('Type', _typeLabel(d['name'] as String? ?? '', d['mime'] as String?)),
-              _detail('Status', _statusLabel(_int(d['status']), _int(d['reason']))),
+              _detail('Status', _statusLabel(_status(d), d['error'] as String?)),
               _detail('Size', size > 0 ? humanBytes(size) : 'unknown'),
               if (downloaded > 0 && downloaded != size) _detail('Received', humanBytes(downloaded)),
               _detail('From', d['url'] as String? ?? '—'),
+              _detail('Folder', d['folder'] as String? ?? 'Downloads (system)'),
               _detail('Saved to', _location(d['localUri'] as String?)),
+              if (d['resumable'] == false && _status(d) != _completed)
+                _detail('Resumable', 'No — this server will not continue a part-file'),
             ],
           ),
         ),
@@ -377,21 +455,29 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   static String _location(String? localUri) {
     if (localUri == null || localUri.isEmpty) return 'not written yet';
-    return Uri.tryParse(localUri)?.toFilePath() ?? localUri;
+    final uri = Uri.tryParse(localUri);
+    if (uri == null) return localUri;
+    // A content:// URI is not a path and pretending otherwise throws.
+    if (uri.scheme == 'file') return uri.toFilePath();
+    return Uri.decodeFull(localUri);
   }
 
-  static String _statusLabel(int status, int reason) {
+  static String _statusLabel(String status, String? error) {
     switch (status) {
-      case _statusPending:
+      case _queued:
         return 'Waiting to start';
-      case _statusRunning:
+      case _running:
         return 'Downloading';
-      case _statusPaused:
-        return 'Paused (reason $reason)';
-      case _statusSuccessful:
+      case _paused:
+        return 'Paused';
+      case _waiting:
+        return 'Stopped${error == null ? '' : ' — $error'}';
+      case _completed:
         return 'Complete';
-      case _statusFailed:
-        return 'Failed (error $reason)';
+      case _failed:
+        return 'Failed${error == null ? '' : ' — $error'}';
+      case _cancelled:
+        return 'Cancelled';
       default:
         return 'Unknown';
     }

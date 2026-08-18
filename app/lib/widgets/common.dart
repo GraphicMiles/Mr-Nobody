@@ -467,3 +467,29 @@ List<Widget> withDividers(List<Widget> rows) {
   }
   return out;
 }
+
+/// A screen's own Material backing.
+///
+/// Every screen here is used two ways: as a page inside the shell's
+/// [Scaffold], and pushed on its own as a route. Only the first supplies a
+/// [Material] ancestor — and without one, `MaterialApp` styles every `Text`
+/// with its debug fallback, which is where the yellow-green double underlines
+/// all over pushed Settings came from. Giving each screen its own surface
+/// makes it correct in both positions and costs nothing in the shell, where
+/// this simply paints the same background again.
+class ScreenSurface extends StatelessWidget {
+  final Widget child;
+
+  const ScreenSurface({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.bg,
+      // The app draws its own typography everywhere; this is a surface, not a
+      // theme, so nothing here should tint or restyle what it wraps.
+      type: MaterialType.canvas,
+      child: child,
+    );
+  }
+}

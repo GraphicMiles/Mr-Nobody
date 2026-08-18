@@ -97,7 +97,14 @@ class NativeBridge {
     await _ch.invokeMethod('setFirstLaunchDone');
   }
 
-  /// Download list from the system DownloadManager (name, size, status).
+  /// Tell the native side a tab is closed for good, so the WebView it keeps
+  /// alive for that tab can be destroyed. Not called when a tab is merely
+  /// scrolled off screen or backgrounded — that page is deliberately retained.
+  static Future<bool> releaseTab(int id) async {
+    return await _ch.invokeMethod('releaseTab', {'id': id}) as bool? ?? false;
+  }
+
+  /// Download list from the app's own engine (name, size, status, folder).
   static Future<List<Map<String, dynamic>>> downloads() async {
     final r = await _ch.invokeMethod('downloads');
     return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -108,9 +115,29 @@ class NativeBridge {
     return await _ch.invokeMethod('openDownload', {'id': id}) as bool? ?? false;
   }
 
-  /// Cancel a running download (or delete a finished one) and remove its file.
-  static Future<bool> removeDownload(int id) async {
-    return await _ch.invokeMethod('removeDownload', {'id': id}) as bool? ?? false;
+  /// Stop a running download, keeping the bytes already written so it can be
+  /// continued. Only possible because the app performs the transfer itself.
+  static Future<bool> pauseDownload(int id) async {
+    return await _ch.invokeMethod('pauseDownload', {'id': id}) as bool? ?? false;
+  }
+
+  /// Continue a paused, stalled or failed download from where it stopped.
+  static Future<bool> resumeDownload(int id) async {
+    return await _ch.invokeMethod('resumeDownload', {'id': id}) as bool? ?? false;
+  }
+
+  /// Stop a download for good and delete the partial file, keeping the row so
+  /// the user can see what happened to it.
+  static Future<bool> cancelDownload(int id) async {
+    return await _ch.invokeMethod('cancelDownload', {'id': id}) as bool? ?? false;
+  }
+
+  /// Take a download off the list. Deletes the file too unless asked not to —
+  /// clearing a row and destroying someone's film are different intentions.
+  static Future<bool> removeDownload(int id, {bool deleteFile = true}) async {
+    return await _ch.invokeMethod(
+            'removeDownload', {'id': id, 'deleteFile': deleteFile}) as bool? ??
+        false;
   }
 
   /// Where finished downloads are put: a label and whether it is a folder the

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../bridge/native_bridge.dart';
 import '../state/error_log.dart';
 import '../theme/app_theme.dart';
 import 'browser_engine.dart';
@@ -22,6 +23,12 @@ class NativeWebViewEngine implements BrowserEngine {
 
   final String initialUrl;
   final bool isPrivate;
+
+  /// The tab this surface belongs to. The native side keeps one WebView per
+  /// tab id and re-attaches it when the platform view is rebuilt, so leaving
+  /// the browser and coming back shows the same page instead of a black
+  /// surface with nothing loaded.
+  final int tabId;
 
   MethodChannel? _channel;
   bool _disposed = false;
@@ -46,7 +53,7 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   ValueChanged<int>? onProgress;
 
-  NativeWebViewEngine({this.initialUrl = '', this.isPrivate = false});
+  NativeWebViewEngine({this.tabId = -1, this.initialUrl = '', this.isPrivate = false});
 
   @override
   bool get isAvailable => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -75,6 +82,7 @@ class NativeWebViewEngine implements BrowserEngine {
           creationParams: <String, Object>{
             'url': initialUrl,
             'private': isPrivate,
+            'tabId': tabId,
           },
           creationParamsCodec: const StandardMessageCodec(),
           onFocus: () => params.onFocusChanged(true),
@@ -89,6 +97,9 @@ class NativeWebViewEngine implements BrowserEngine {
 
   void _attach(int id) {
     if (_disposed) return;
+    // A rebuilt platform view means a new channel name; drop the old handler
+    // so a destroyed view cannot answer for this tab.
+    _channel?.setMethodCallHandler(null);
     // Must match MrNobodyWebView's channel name: "mrnobody/webview_<viewId>".
     final channel = MethodChannel('${viewType}_$id');
     channel.setMethodCallHandler(_handleEvent);
@@ -196,12 +207,22 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   Future<Uint8List?> captureThumbnail() => _invoke<Uint8List>('capture');
 
+  /// The tab is closed for good: let the native side destroy the page it has
+  /// been holding. Disposing the widget alone must not do this — that is the
+  /// whole point of retaining it.
   @override
   void dispose() {
     _disposed = true;
     _channel?.setMethodCallHandler(null);
     _channel = null;
     _pending.clear();
+    if (tabId >= 0 && isAvailable) {
+      NativeBridge.guard(
+        () => NativeBridge.releaseTab(tabId),
+        false,
+        'could not release tab $tabId',
+      );
+    }
   }
 }
 

@@ -14,10 +14,11 @@ import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.deeplink.DeepLinkHandler;
 import com.mrnobody.browser.download.DownloadDestination;
+import com.mrnobody.browser.download.DownloadEngine;
+import com.mrnobody.browser.download.DownloadRecord;
 import com.mrnobody.debug.ErrorLog;
 import com.mrnobody.browser.webview.MrNobodyWebViewFactory;
 
-import android.app.DownloadManager;
 import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -159,6 +160,20 @@ public class MainActivity extends FlutterActivity {
                             });
                             return;
                         }
+                        case "releaseTab": {
+                            // The tab is closed for good, so its retained page
+                            // can be destroyed. Anything short of this (leaving
+                            // the browser, switching tabs) keeps the page alive
+                            // deliberately.
+                            Number tabId = call.argument("id");
+                            if (tabId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            com.mrnobody.browser.webview.TabWebViews.release(tabId.intValue());
+                            result.success(true);
+                            return;
+                        }
                         case "downloads": {
                             result.success(listDownloads());
                             return;
@@ -172,22 +187,45 @@ public class MainActivity extends FlutterActivity {
                             result.success(openDownload(dlId.longValue()));
                             return;
                         }
+                        case "pauseDownload": {
+                            Number pId = call.argument("id");
+                            if (pId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            result.success(DownloadEngine.get(this).pause(pId.longValue()));
+                            return;
+                        }
+                        case "resumeDownload": {
+                            Number rId = call.argument("id");
+                            if (rId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            result.success(DownloadEngine.get(this).resume(rId.longValue()));
+                            return;
+                        }
+                        case "cancelDownload": {
+                            // Stops the transfer and deletes the partial file,
+                            // but keeps the row so the user can see what
+                            // happened to it.
+                            Number cId = call.argument("id");
+                            if (cId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            result.success(DownloadEngine.get(this).cancel(cId.longValue()));
+                            return;
+                        }
                         case "removeDownload": {
-                            // Cancels it if running, and deletes the file it
-                            // wrote — the only way to stop a system download
-                            // from inside the app.
                             Number rmId = call.argument("id");
                             if (rmId == null) {
                                 result.error("bad_arg", "id required", null);
                                 return;
                             }
-                            try {
-                                DownloadManager dm =
-                                        (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                                result.success(dm != null && dm.remove(rmId.longValue()) > 0);
-                            } catch (Exception e) {
-                                result.success(false);
-                            }
+                            Boolean deleteFile = call.argument("deleteFile");
+                            result.success(DownloadEngine.get(this)
+                                    .remove(rmId.longValue(), !Boolean.FALSE.equals(deleteFile)));
                             return;
                         }
                         case "downloadFolder": {
@@ -482,39 +520,16 @@ public class MainActivity extends FlutterActivity {
     /**
      * Everything the Downloads screen needs to describe a file: where it came
      * from, what it is, how far along it is, and where it landed.
+     *
+     * <p>Read from the app's own store rather than {@code DownloadManager}:
+     * the transfers are ours now, and so is the truth about them.
      */
     private List<Map<String, Object>> listDownloads() {
         List<Map<String, Object>> out = new ArrayList<>();
         try {
-            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-            if (dm == null) return out;
-            Cursor c = dm.query(new DownloadManager.Query());
-            if (c == null) return out;
-            int iId = c.getColumnIndex(DownloadManager.COLUMN_ID);
-            int iTitle = c.getColumnIndex(DownloadManager.COLUMN_TITLE);
-            int iSize = c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
-            int iSoFar = c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
-            int iStatus = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
-            int iReason = c.getColumnIndex(DownloadManager.COLUMN_REASON);
-            int iUri = c.getColumnIndex(DownloadManager.COLUMN_URI);
-            int iLocal = c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
-            int iMime = c.getColumnIndex(DownloadManager.COLUMN_MEDIA_TYPE);
-            int iWhen = c.getColumnIndex(DownloadManager.COLUMN_LAST_MODIFIED_TIMESTAMP);
-            while (c.moveToNext()) {
-                Map<String, Object> m = new HashMap<>();
-                m.put("id", iId >= 0 ? c.getLong(iId) : 0L);
-                m.put("name", iTitle >= 0 ? c.getString(iTitle) : "download");
-                m.put("size", iSize >= 0 ? c.getLong(iSize) : 0L);
-                m.put("downloaded", iSoFar >= 0 ? c.getLong(iSoFar) : 0L);
-                m.put("status", iStatus >= 0 ? c.getInt(iStatus) : 0);
-                m.put("reason", iReason >= 0 ? c.getInt(iReason) : 0);
-                m.put("url", iUri >= 0 ? c.getString(iUri) : null);
-                m.put("localUri", iLocal >= 0 ? c.getString(iLocal) : null);
-                m.put("mime", iMime >= 0 ? c.getString(iMime) : null);
-                m.put("updatedAt", iWhen >= 0 ? c.getLong(iWhen) : 0L);
-                out.add(m);
+            for (DownloadRecord record : DownloadEngine.get(this).store().all()) {
+                out.add(record.toMap());
             }
-            c.close();
         } catch (Exception e) {
             ErrorLog.record("downloads query failed: " + e);
         }
@@ -524,13 +539,11 @@ public class MainActivity extends FlutterActivity {
     /** Hand a finished download to whatever app knows how to open it. */
     private boolean openDownload(long id) {
         try {
-            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-            if (dm == null) return false;
-            Uri uri = dm.getUriForDownloadedFile(id);
-            if (uri == null) return false;
-            String mime = dm.getMimeTypeForDownloadedFile(id);
+            DownloadRecord record = DownloadEngine.get(this).store().find(id);
+            if (record == null || record.destUri == null) return false;
             Intent view = new Intent(Intent.ACTION_VIEW);
-            view.setDataAndType(uri, mime == null ? "*/*" : mime);
+            view.setDataAndType(Uri.parse(record.destUri),
+                    record.mime == null || record.mime.isEmpty() ? "*/*" : record.mime);
             view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(view);
             return true;

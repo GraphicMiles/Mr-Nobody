@@ -1,8 +1,6 @@
 package com.mrnobody.agent.tools;
 
-import android.app.DownloadManager;
 import android.content.Context;
-import android.net.Uri;
 
 import com.mrnobody.agent.core.OutputSpec;
 import com.mrnobody.agent.core.ParamSpec;
@@ -16,13 +14,18 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Enqueues a download with the system DownloadManager. Validates the URL and
+ * Enqueues a download with the app's own download engine. Validates the URL and
  * never bypasses DRM/paywalls/access controls.
+ *
+ * <p>Goes through the same engine as a download the user starts by tapping a
+ * link, so an agent download lands in the folder they chose, appears in the
+ * same list, and can be paused or cancelled the same way. An agent must not
+ * have a private back door to the filesystem.
  */
 public final class DownloadTool implements Tool {
 
     private static final ToolSpec SPEC = ToolSpec.named("download")
-            .describedAs("Download a file from a URL to the system Downloads directory.")
+            .describedAs("Download a file from a URL to the user's download folder.")
             // Writes to the device. Reading a page is not the same as leaving a
             // file on someone's phone.
             .tier(Tier.WRITE)
@@ -41,20 +44,15 @@ public final class DownloadTool implements Tool {
     public ToolResult execute(Context context, ToolRequest request) {
         String url = request.param("url");
         try {
-            DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-            if (dm == null) return ToolResult.fail("DownloadManager unavailable");
             String name = com.mrnobody.browser.download.DownloadNaming.fileName(url, null, null);
-            DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
-            req.setTitle(name);
-            req.setDescription("Downloaded by Mr Nobody");
-            req.setDestinationInExternalPublicDir(
-                    android.os.Environment.DIRECTORY_DOWNLOADS, name);
-            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            long id = dm.enqueue(req);
+            com.mrnobody.browser.download.DownloadRecord record =
+                    com.mrnobody.browser.download.DownloadEngine.get(context)
+                            .enqueue(url, name, null, null, null);
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("url", url);
-            value.put("id", id);
-            value.put("name", name);
+            value.put("id", record.id);
+            value.put("name", record.fileName);
+            value.put("folder", record.destLabel);
             return ToolResult.ok(value);
         } catch (Exception e) {
             return ToolResult.fail("download failed: " + e.getMessage());

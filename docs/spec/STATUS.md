@@ -146,3 +146,67 @@ V1 items 1–4 of the previous plan are done. What is left:
    much of that can be borrowed instead of invented — including wiring a
    user-run CowAgent instance into the `RemoteWorker` slot that V2 §9 already
    reserves.
+
+---
+
+## 6. Downloads are the app's own (2026-08-18)
+
+Downloads were handed to Android's `DownloadManager`. Four user-reported faults
+all trace to that one decision, so it was replaced rather than patched:
+
+| Report | Cause |
+| --- | --- |
+| "I chose a folder but it downloaded to `…/files/staging/`" | `DownloadManager` cannot write into a SAF tree, so the file was staged app-private and copied afterwards. The staging path *was* the design. |
+| "It used the native Android download manager" | It did. |
+| "No pause and resume, only stop and delete" | `DownloadManager` has no pause API. |
+| "The file kept downloading after I deleted the app" | The transfer belonged to the system, not to Mr Nobody. |
+
+The replacement is `browser/download/`:
+
+- `DownloadEngine` — the transfer, on our own threads and our own socket, so a
+  pause is an actual pause. Resume is an HTTP range request validated with
+  `If-Range`, so a file that changed on the server restarts instead of being
+  spliced together from two versions.
+- `DownloadSink` — writes **straight into the destination**: a document in the
+  folder the user granted, or a `MediaStore` entry in public Downloads. No
+  staging, no second copy of a four-gigabyte film.
+- `DownloadStore` — SQLite, because a paused download has to survive the
+  process being swept away.
+- `DownloadService` — a foreground service so a transfer survives the user
+  switching away, and — the point of the exercise — dies with the app.
+- `DownloadNotifications` — the app's own notification, with Pause / Resume /
+  Cancel on it.
+- `DownloadResume` — the correctness-critical decisions as pure functions
+  (16 tests), because a wrong resume produces a valid byte count and a corrupt
+  file.
+
+`DownloadMoveWorker`, `DownloadCompleteReceiver` and the staging half of
+`DownloadDestination` are deleted. The agent's `DownloadTool` goes through the
+same engine, so an agent download lands in the same folder and obeys the same
+controls — no private back door to the filesystem.
+
+### 6.1 Tabs keep their page
+
+Flutter destroys a platform view when its widget leaves the tree, so leaving the
+browser and returning destroyed the tab's `WebView`: it came back as a black
+surface with nothing loaded, and Reload was a no-op because there was no
+document to reload. `TabWebViews` now retains one `WebView` per tab id (capped
+at 6) and the platform view merely adopts it; the page is destroyed only when
+Dart reports the tab closed (`releaseTab`).
+
+### 6.2 Screens carry their own Material
+
+`SettingsScreen` is used both inside the shell's `Scaffold` and pushed as a
+route from the browser menu. Only the first supplies a `Material` ancestor, and
+without one `MaterialApp` styles every `Text` with its debug fallback — the
+yellow-green double underline the user saw all over Settings. Every screen now
+wraps in `ScreenSurface`, and `screen_surface_test.dart` fails on the cause
+rather than on a pixel.
+
+### 6.3 Not verified on a device
+
+Written and tested off-device only; the sandbox has no Android runtime:
+
+- SAF writes, `MediaStore` pending publish, pause/resume against a real server.
+- Notification actions and the foreground-service promotion.
+- WebView retention across tab switches, and the thumbnail capture it feeds.

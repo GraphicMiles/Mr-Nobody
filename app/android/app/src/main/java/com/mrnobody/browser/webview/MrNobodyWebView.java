@@ -1,17 +1,16 @@
 package com.mrnobody.browser.webview;
 
 import android.annotation.SuppressLint;
-import android.app.DownloadManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -27,8 +26,9 @@ import androidx.annotation.Nullable;
 import com.mrnobody.browser.MrNobodyApp;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.blocking.TrackingParams;
-import com.mrnobody.browser.download.DownloadDestination;
+import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadNaming;
+import com.mrnobody.browser.download.DownloadRecord;
 
 import java.io.ByteArrayInputStream;
 import java.util.HashMap;
@@ -62,9 +62,11 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
     private final Context context;
     private final WebView webView;
+    private final FrameLayout container;
     private final MethodChannel channel;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final boolean isPrivate;
+    private final int tabId;
 
     private int lastReportedScrollY;
     private boolean destroyed;
@@ -74,23 +76,60 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                     @NonNull Map<String, Object> params) {
         this.context = context;
         this.isPrivate = Boolean.TRUE.equals(params.get("private"));
-        this.webView = new WebView(context);
+        this.tabId = params.get("tabId") instanceof Number
+                ? ((Number) params.get("tabId")).intValue()
+                : -1;
+
+        // A tab's page outlives its platform view. Leaving the browser and
+        // coming back rebuilds the view; adopting the tab's existing WebView is
+        // what keeps the document, the history and the scroll position instead
+        // of handing the user a black rectangle with nothing loaded in it.
+        WebView retained = tabId >= 0 ? TabWebViews.get(tabId) : null;
+        boolean fresh = retained == null;
+        this.webView = fresh ? new WebView(context) : retained;
+        if (fresh && tabId >= 0) TabWebViews.put(tabId, webView, isPrivate);
+
         this.channel = new MethodChannel(messenger, "mrnobody/webview_" + viewId);
         this.channel.setMethodCallHandler(this);
 
         applySettings();
         applyCookiePolicy();
 
+        // Re-bound on every adoption: the clients close over *this* instance,
+        // so a retained page would otherwise keep reporting to a dead channel.
         webView.setBackgroundColor(0xFF000000);
         webView.setWebViewClient(client);
         webView.setWebChromeClient(chromeClient);
         webView.setDownloadListener(this::onDownloadRequested);
         webView.setOnScrollChangeListener((v, x, y, oldX, oldY) -> reportScroll(y));
 
+        // The view is hosted in a container we own, so detaching it on dispose
+        // cannot disturb whatever Flutter does with the platform view itself.
+        TabWebViews.detach(webView);
+        this.container = new FrameLayout(context);
+        this.container.addView(webView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
         Object url = params.get("url");
-        if (url instanceof String && !((String) url).isEmpty()) {
+        if (fresh && url instanceof String && !((String) url).isEmpty()) {
             webView.loadUrl((String) url);
+        } else if (!fresh) {
+            // Tell Dart what this tab is actually showing: the widget was
+            // rebuilt, so its url/title/loading state need restating.
+            main.post(this::reportCurrentState);
         }
+    }
+
+    /** Restate the adopted page's identity to a freshly attached Dart engine. */
+    private void reportCurrentState() {
+        if (destroyed) return;
+        Map<String, Object> data = new HashMap<>();
+        String url = webView.getUrl();
+        if (url != null && !url.isEmpty()) data.put("url", url);
+        String title = webView.getTitle();
+        if (title != null && !title.isEmpty()) data.put("title", title);
+        data.put("loading", false);
+        send("onNavigation", data);
     }
 
     /** User settings that the engine must honour on every page. */
@@ -238,9 +277,14 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     // ------------------------------------------------------------- downloads
 
     /**
-     * Hand a download to Android's own DownloadManager — the system handles the
-     * notification, the retry and the "open with" that the Downloads screen
-     * then reads back.
+     * Start a download in the app's own engine.
+     *
+     * <p>Not {@code DownloadManager}: that service cannot write into a folder
+     * chosen through the Storage Access Framework, cannot be paused, shows a
+     * notification we do not control, and keeps running after Mr Nobody is
+     * uninstalled because the transfer belongs to the system. All four were
+     * things the user ran into. {@link DownloadEngine} owns the socket, so the
+     * file goes where they asked and stops when they say stop.
      */
     private void onDownloadRequested(String url, String userAgent, String contentDisposition,
                                      String mimeType, long contentLength) {
@@ -254,40 +298,14 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
         // Not URLUtil.guessFileName: it answers "downloadfile.bin" whenever the
         // server says octet-stream, which is how an .mkv arrives unopenable.
+        // The engine refines this again from the response headers.
         String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
         try {
-            DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-            if (dm == null) {
-                data.put("error", "Downloads are unavailable on this device");
-                send("onDownload", data);
-                return;
-            }
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-            request.setTitle(name);
-            request.setDescription("Downloaded by Mr Nobody");
-            if (mimeType != null && !mimeType.trim().isEmpty()) request.setMimeType(mimeType);
-            request.addRequestHeader("User-Agent", userAgent);
-            request.setNotificationVisibility(
-                    DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-
-            // With a folder chosen, stage in app storage and move the finished
-            // file there: DownloadManager cannot write into a SAF tree, and a
-            // half-written file should never appear in the user's folder.
-            DownloadDestination destination = new DownloadDestination(context);
-            java.io.File staged = null;
-            if (destination.isCustom()) {
-                staged = DownloadDestination.stagingFile(context, name);
-                request.setDestinationUri(Uri.fromFile(staged));
-            } else {
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
-            }
-            long id = dm.enqueue(request);
-            if (staged != null) {
-                destination.rememberPending(id, staged.getAbsolutePath(), name, mimeType);
-            }
-            data.put("name", name);
-            data.put("id", id);
-            data.put("folder", destination.label());
+            DownloadRecord record = DownloadEngine.get(context)
+                    .enqueue(url, name, mimeType, userAgent, webView.getUrl());
+            data.put("name", record.fileName);
+            data.put("id", record.id);
+            data.put("folder", record.destLabel);
         } catch (Exception e) {
             data.put("error", "Could not start the download");
         }
@@ -318,7 +336,18 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 return;
             }
             case "reload":
-                webView.reload();
+                // A reload has to have something to reload. If the page was
+                // evicted (or never loaded), reload() is a silent no-op — which
+                // is exactly how the Reload button came to do nothing — so fall
+                // back to re-fetching the last known address.
+                if (webView.getUrl() == null || webView.getUrl().isEmpty()) {
+                    String last = webView.getOriginalUrl();
+                    if (last != null && !last.isEmpty() && !"about:blank".equals(last)) {
+                        webView.loadUrl(last);
+                    }
+                } else {
+                    webView.reload();
+                }
                 result.success(null);
                 return;
             case "stop":
@@ -427,23 +456,27 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     @NonNull
     @Override
     public View getView() {
-        return webView;
+        return container;
     }
 
+    /**
+     * The platform view is going away — but the tab may not be. Detach the page
+     * and leave it registered so the next view for this tab adopts it intact.
+     * The WebView is destroyed in {@link TabWebViews#release} when the tab is
+     * actually closed.
+     */
     @Override
     public void dispose() {
         destroyed = true;
         channel.setMethodCallHandler(null);
-        webView.setOnScrollChangeListener(null);
         webView.setWebChromeClient(null);
-        webView.stopLoading();
-        webView.loadUrl("about:blank");
-        if (isPrivate) {
-            // Best effort: a private tab leaves nothing cached behind it.
-            webView.clearCache(true);
-            webView.clearFormData();
-            webView.clearHistory();
+        webView.setOnScrollChangeListener(null);
+        container.removeAllViews();
+        if (tabId < 0) {
+            // No tab identity to retain against: this view owned its page.
+            webView.stopLoading();
+            webView.loadUrl("about:blank");
+            webView.destroy();
         }
-        webView.destroy();
     }
 }
