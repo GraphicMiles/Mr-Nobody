@@ -30,6 +30,12 @@ jobs:
         working-directory: app
         run: flutter analyze --no-fatal-infos
 
+      # The auditor is tested before it is trusted. It previously scanned a
+      # hardcoded path and reported CLEAN without ever reading the shipping
+      # app; these tests plant real violations and require it to fail.
+      - name: Privacy audit self-test
+        run: python3 tools/test_privacy_audit.py
+
       # The product's privacy claims are checked mechanically: prohibited
       # permissions, analytics/ad SDKs, JS bridges, cleartext traffic.
       - name: Privacy audit

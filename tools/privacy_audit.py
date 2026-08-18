@@ -44,37 +44,81 @@ ALLOWED_PERMISSIONS = {
 }
 
 
+SKIP_DIRS = {".git", "build", ".dart_tool", ".gradle", "node_modules", ".idea"}
+
+
+def _pruned_walk(base: Path):
+    """Yield files under base, skipping build/VCS noise."""
+    if not base.exists():
+        return
+    for path in base.rglob("*"):
+        if not path.is_file():
+            continue
+        if SKIP_DIRS.intersection(path.parts):
+            continue
+        yield path
+
+
+def find_android_trees(root: Path):
+    """Locate every Android source tree in the repo.
+
+    The audit must not hardcode a single path. This repository has carried more
+    than one Android tree at a time (a legacy `android/` and the live
+    `app/android/`), and an audit pointed at only one of them reports CLEAN
+    while the app that actually ships goes unchecked. Any directory holding an
+    AndroidManifest.xml under src/main is a tree we are responsible for.
+    """
+    trees = []
+    for manifest in _pruned_walk(root):
+        if manifest.name != "AndroidManifest.xml":
+            continue
+        if manifest.parent.name != "main":
+            continue
+        # .../<module>/src/main/AndroidManifest.xml  ->  .../<module>
+        module = manifest.parent.parent.parent
+        trees.append((module, manifest))
+    return sorted(set(trees))
+
+
 def main() -> int:
     root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     problems = []
 
-    # 1. Manifest permissions
-    manifest = root / "android" / "app" / "src" / "main" / "AndroidManifest.xml"
-    if manifest.exists():
+    trees = find_android_trees(root)
+    if not trees:
+        print("PRIVACY AUDIT — VIOLATIONS FOUND:")
+        print("  ✗ no AndroidManifest.xml found anywhere under " + str(root))
+        return 1
+
+    for module, manifest in trees:
+        label = module.relative_to(root) if module.is_relative_to(root) else module
+
+        # 1. Manifest permissions
         text = manifest.read_text(encoding="utf-8", errors="ignore")
         for perm in PROHIBITED_PERMISSIONS:
             if f'android.permission.{perm}' in text:
-                problems.append(f"prohibited permission: {perm}")
+                problems.append(f"[{label}] prohibited permission: {perm}")
         for m in PROHIBITED_CODE:
             if m in text:
-                problems.append(f"prohibited manifest/code pattern: {m}")
-    else:
-        problems.append("AndroidManifest.xml not found")
+                problems.append(f"[{label}] prohibited manifest/code pattern: {m}")
 
-    # 2. Dependencies
-    gradle_files = [g for g in (root / "android").rglob("*.gradle") if g.is_file()]
-    for g in gradle_files:
-        text = g.read_text(encoding="utf-8", errors="ignore")
-        for dep in PROHIBITED_DEPS:
-            if dep in text:
-                problems.append(f"prohibited dependency in {g.name}: {dep}")
+        # 2. Dependencies
+        for g in _pruned_walk(module):
+            if g.suffix != ".gradle" and g.name not in ("build.gradle.kts", "settings.gradle.kts"):
+                continue
+            gtext = g.read_text(encoding="utf-8", errors="ignore")
+            for dep in PROHIBITED_DEPS:
+                if dep in gtext:
+                    problems.append(f"[{label}] prohibited dependency in {g.name}: {dep}")
 
-    # 3. Source code patterns
-    for src in (root / "android" / "app" / "src" / "main" / "java").rglob("*.java"):
-        text = src.read_text(encoding="utf-8", errors="ignore")
-        for pat in PROHIBITED_CODE:
-            if pat in text:
-                problems.append(f"prohibited pattern in {src.name}: {pat}")
+        # 3. Source code patterns
+        for src in _pruned_walk(module / "src" / "main"):
+            if src.suffix not in (".java", ".kt"):
+                continue
+            stext = src.read_text(encoding="utf-8", errors="ignore")
+            for pat in PROHIBITED_CODE:
+                if pat in stext:
+                    problems.append(f"[{label}] prohibited pattern in {src.name}: {pat}")
 
     if problems:
         print("PRIVACY AUDIT — VIOLATIONS FOUND:")
@@ -83,6 +127,9 @@ def main() -> int:
         return 1
 
     print("PRIVACY AUDIT — CLEAN")
+    for module, _ in trees:
+        label = module.relative_to(root) if module.is_relative_to(root) else module
+        print(f"  audited: {label}")
     print("  no prohibited permissions, dependencies, or JS-bridge code detected")
     return 0
 
