@@ -125,6 +125,19 @@ void main() {
       expect(find.text('C'), findsOneWidget);
     });
 
+    testWidgets('an already-finished answer does not replay its last words',
+        (tester) async {
+      await tester.pumpWidget(host(
+        StreamedAnswer(tokens: tokens, visible: tokens.length, caret: false),
+      ));
+      await tester.pump();
+
+      expect(find.byType(TweenAnimationBuilder<double>), findsNothing,
+          reason: 'restored completions must be fully visible immediately');
+      expect(find.text(r'$64,282.19 '), findsOneWidget);
+      expect(find.text('coinmarketcap.com'), findsOneWidget);
+    });
+
     testWidgets('an empty answer renders nothing rather than a caret',
         (tester) async {
       await tester.pumpWidget(host(

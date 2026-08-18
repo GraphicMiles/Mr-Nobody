@@ -751,9 +751,11 @@ class StreamedAnswer extends StatelessWidget {
                 child: _CiteChip(
                   source: shown[i].cite!,
                   onTap: onSourceTap,
-                  // Only animate the newest few, or a long answer re-runs
-                  // every entrance on each rebuild.
-                  animate: i >= shown.length - 3,
+                  // Only animate while the parent says the reveal is still
+                  // active. A restored, already-complete answer must paint at
+                  // full opacity on its first frame (and in deterministic
+                  // golden tests), not replay the last three entrances.
+                  animate: caret && i >= shown.length - 3,
                 ),
               )
             else
@@ -762,7 +764,7 @@ class StreamedAnswer extends StatelessWidget {
                 baseline: TextBaseline.alphabetic,
                 child: _Word(
                   text: shown[i].text,
-                  animate: i >= shown.length - 3,
+                  animate: caret && i >= shown.length - 3,
                 ),
               ),
           if (caret)
