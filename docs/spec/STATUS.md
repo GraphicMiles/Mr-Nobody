@@ -66,7 +66,7 @@ without a rewrite (`AgentEngine`, `Tool`, `Worker`, `TaskScheduler`,
 | Downloads | Done | see V1 item 12 |
 | Local-first task data | Done | SQLite, on-device |
 | AI provider abstraction | Done | `AiProvider` + Gemini/Groq/OpenAI-compatible/Local, UI wired |
-| Advanced privacy controls | Partial | profiles + param stripping exist in `Settings`; not all enforced |
+| Advanced privacy controls | Partial | profiles + param stripping exist in `Settings`; not all enforced. `isFingerprintProtection()` is a **dead toggle** — it is read by the Settings UI but enforces nothing. Implement via `addDocumentStartJavaScript` or hide it; see `PRIVACY_V2_OPTIONS.md` §5 |
 | Filter-list integrity | Partial | bundled list, versioned; no signature/rollback |
 | Decentralized filter distribution | Not started | |
 | Security regression tests | Not started | |
@@ -157,8 +157,12 @@ the filter-engine gap below is still the real hole.
 - ~~The duplicate `android/` tree is dead code.~~ **Deleted** — see §3.7.
 - The CONFIRM half of the policy gate has no approval UI, so those commands are
   refused rather than queued (V2 §11).
-- Per-tab cookie isolation: `CookieManager` is process-wide, so a private tab
-  clears on close rather than being truly isolated (V2 §10).
+- Per-tab cookie isolation: the default `CookieManager` is process-wide, so a
+  private tab currently clears on close rather than being truly isolated
+  (V2 §10). **This is now fixable**: `androidx.webkit` 1.9.0's `MULTI_PROFILE`
+  gives each profile its own `CookieManager` and `WebStorage`. See
+  `docs/spec/PRIVACY_V2_OPTIONS.md` §1. Until it is built, the private-tab
+  claim must read "no history + cleared on close", not "isolated storage".
 
 ### 3.7 The dead `android/` tree — DELETED
 
