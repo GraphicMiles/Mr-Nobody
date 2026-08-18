@@ -113,6 +113,34 @@ class NativeBridge {
     return await _ch.invokeMethod('removeDownload', {'id': id}) as bool? ?? false;
   }
 
+  /// Where finished downloads are put: a label and whether it is a folder the
+  /// user chose (rather than the system Downloads directory).
+  static Future<Map<String, dynamic>> downloadFolder() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('downloadFolder') as Map);
+  }
+
+  /// Open Android's folder picker and keep lasting access to what is chosen.
+  /// Returns `{label, custom}`, or `{cancelled: true}`.
+  static Future<Map<String, dynamic>> pickDownloadFolder() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('pickDownloadFolder') as Map);
+  }
+
+  /// Go back to the system Downloads directory and release the folder grant.
+  static Future<Map<String, dynamic>> clearDownloadFolder() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('clearDownloadFolder') as Map);
+  }
+
+  /// The core's own error log — tool failures, AI errors, failed tasks. These
+  /// never pass through a Dart try/catch, so the overlay has to ask for them.
+  static Future<List<String>> debugLog() async {
+    final r = Map<String, dynamic>.from(await _ch.invokeMethod('debugLog') as Map);
+    return (r['entries'] as List?)?.cast<String>() ?? const <String>[];
+  }
+
+  static Future<void> clearDebugLog() async {
+    await _ch.invokeMethod('clearDebugLog');
+  }
+
   /// What the connection can do right now: transport, metered, link speeds.
   static Future<Map<String, dynamic>> networkStatus() async {
     return Map<String, dynamic>.from(await _ch.invokeMethod('networkStatus') as Map);
@@ -141,7 +169,9 @@ class NativeBridge {
     try {
       return await call();
     } catch (e) {
-      ErrorLog.instance.add('$label: $e');
+      // An empty label means the caller is the logging path itself; recording
+      // its failure would be a loop.
+      if (label.isNotEmpty) ErrorLog.instance.add('$label: $e');
       return fallback;
     }
   }

@@ -25,6 +25,7 @@ import androidx.annotation.Nullable;
 import com.mrnobody.browser.MrNobodyApp;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.blocking.TrackingParams;
+import com.mrnobody.browser.download.DownloadDestination;
 import com.mrnobody.browser.download.DownloadNaming;
 
 import java.io.ByteArrayInputStream;
@@ -263,10 +264,25 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             request.addRequestHeader("User-Agent", userAgent);
             request.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
+
+            // With a folder chosen, stage in app storage and move the finished
+            // file there: DownloadManager cannot write into a SAF tree, and a
+            // half-written file should never appear in the user's folder.
+            DownloadDestination destination = new DownloadDestination(context);
+            java.io.File staged = null;
+            if (destination.isCustom()) {
+                staged = DownloadDestination.stagingFile(context, name);
+                request.setDestinationUri(Uri.fromFile(staged));
+            } else {
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
+            }
             long id = dm.enqueue(request);
+            if (staged != null) {
+                destination.rememberPending(id, staged.getAbsolutePath(), name, mimeType);
+            }
             data.put("name", name);
             data.put("id", id);
+            data.put("folder", destination.label());
         } catch (Exception e) {
             data.put("error", "Could not start the download");
         }

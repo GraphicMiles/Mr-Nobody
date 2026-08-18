@@ -61,6 +61,16 @@
             </intent-filter>
         </activity>
 
+        <!-- A download outlives the app; this is how a file still reaches the
+             folder the user chose after Mr Nobody is closed. -->
+        <receiver
+            android:name="com.mrnobody.browser.download.DownloadCompleteReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

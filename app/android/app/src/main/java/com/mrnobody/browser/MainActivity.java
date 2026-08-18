@@ -13,6 +13,7 @@ import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.deeplink.DeepLinkHandler;
+import com.mrnobody.browser.download.DownloadDestination;
 import com.mrnobody.debug.ErrorLog;
 import com.mrnobody.browser.webview.MrNobodyWebViewFactory;
 
@@ -21,6 +22,7 @@ import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
+import android.provider.DocumentsContract;
 import android.webkit.CookieManager;
 import android.webkit.WebStorage;
 import android.webkit.WebView;
@@ -45,6 +47,12 @@ public class MainActivity extends FlutterActivity {
 
     private static final String CORE = "mrnobody/core";
     private static final String DEEPLINK = "mrnobody/deeplink";
+
+    private static final int REQUEST_PICK_FOLDER = 4301;
+
+    /** Held while the system folder picker is open. */
+    @Nullable
+    private MethodChannel.Result pendingFolderResult;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -180,6 +188,70 @@ public class MainActivity extends FlutterActivity {
                             } catch (Exception e) {
                                 result.success(false);
                             }
+                            return;
+                        }
+                        case "downloadFolder": {
+                            DownloadDestination dest = new DownloadDestination(this);
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("label", dest.label());
+                            m.put("custom", dest.isCustom());
+                            result.success(m);
+                            return;
+                        }
+                        case "pickDownloadFolder": {
+                            // The system picker is the only way to get write
+                            // access to a folder outside our own storage, and
+                            // the grant has to be taken persistably or it dies
+                            // with the process.
+                            if (pendingFolderResult != null) {
+                                pendingFolderResult.error("busy", "a folder picker is already open", null);
+                                return;
+                            }
+                            pendingFolderResult = result;
+                            try {
+                                Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                                pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                                startActivityForResult(pick, REQUEST_PICK_FOLDER);
+                            } catch (Exception e) {
+                                pendingFolderResult = null;
+                                result.error("no_picker", "No folder picker on this device", null);
+                            }
+                            return;
+                        }
+                        case "clearDownloadFolder": {
+                            DownloadDestination dest = new DownloadDestination(this);
+                            Uri previous = dest.treeUri();
+                            if (previous != null) {
+                                try {
+                                    getContentResolver().releasePersistableUriPermission(previous,
+                                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                                } catch (Exception ignored) {
+                                    // The grant may already be gone; clearing is still correct.
+                                }
+                            }
+                            dest.clearTree();
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("label", dest.label());
+                            m.put("custom", false);
+                            result.success(m);
+                            return;
+                        }
+                        case "debugLog": {
+                            // The overlay's badge counts what the CORE has seen
+                            // as well as what Dart has: an AI 404 or a failed
+                            // tool happens entirely on this side.
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("entries", ErrorLog.tail(50));
+                            m.put("count", ErrorLog.count());
+                            result.success(m);
+                            return;
+                        }
+                        case "clearDebugLog": {
+                            ErrorLog.clear();
+                            result.success(null);
                             return;
                         }
                         case "networkStatus": {
@@ -351,6 +423,60 @@ public class MainActivity extends FlutterActivity {
         // Deep-link channel: forward incoming intents to Dart.
         deeplinkChannel = new MethodChannel(
                 flutterEngine.getDartExecutor().getBinaryMessenger(), DEEPLINK);
+    }
+
+    /** Result of the system folder picker; see "pickDownloadFolder". */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_PICK_FOLDER) return;
+        MethodChannel.Result pending = pendingFolderResult;
+        pendingFolderResult = null;
+        if (pending == null) return;
+
+        Uri tree = (resultCode == RESULT_OK && data != null) ? data.getData() : null;
+        if (tree == null) {
+            Map<String, Object> m = new HashMap<>();
+            m.put("cancelled", true);
+            pending.success(m);
+            return;
+        }
+        try {
+            getContentResolver().takePersistableUriPermission(tree,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        } catch (Exception e) {
+            ErrorLog.record("Could not keep access to that folder: " + e);
+            Map<String, Object> m = new HashMap<>();
+            m.put("error", "Android would not grant lasting access to that folder.");
+            pending.success(m);
+            return;
+        }
+        String label = folderLabel(tree);
+        new DownloadDestination(this).setTree(tree, label);
+        Map<String, Object> m = new HashMap<>();
+        m.put("label", label);
+        m.put("custom", true);
+        pending.success(m);
+    }
+
+    /** The folder's own display name, so Settings shows something recognisable. */
+    private String folderLabel(Uri tree) {
+        try {
+            Uri doc = DocumentsContract.buildDocumentUriUsingTree(
+                    tree, DocumentsContract.getTreeDocumentId(tree));
+            try (Cursor c = getContentResolver().query(doc,
+                    new String[]{DocumentsContract.Document.COLUMN_DISPLAY_NAME},
+                    null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    String name = c.getString(0);
+                    if (name != null && !name.isEmpty()) return name;
+                }
+            }
+        } catch (Exception ignored) {
+            // Fall through to the id, which is still better than "unknown".
+        }
+        String id = DocumentsContract.getTreeDocumentId(tree);
+        return id == null ? tree.getLastPathSegment() : id;
     }
 
     /**
