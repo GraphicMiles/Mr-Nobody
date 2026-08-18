@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 
 /// The engine-independent browser capability used by the visible browser and,
@@ -26,6 +28,11 @@ abstract class BrowserEngine {
 
   /// Re-read user settings (JavaScript, parameter stripping) into the engine.
   Future<void> applySettings();
+
+  /// A small JPEG of the page as it looks now, for the tab grid. Null when
+  /// there is nothing to capture — or when the tab is private, where a picture
+  /// of what someone was reading is exactly what must not exist.
+  Future<Uint8List?> captureThumbnail();
 
   /// Called with true/false as navigation begins/ends (loading state).
   ValueChanged<bool>? onLoadingChanged;

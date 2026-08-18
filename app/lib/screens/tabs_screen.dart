@@ -256,18 +256,34 @@ class _TabCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(9),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _mockLine(0.72),
-                          const SizedBox(height: 8),
-                          _mockLine(0.48),
-                        ],
+                    // The page itself when we have a picture of it. The lines
+                    // below are only what a tab looks like before it has ever
+                    // finished loading — they used to be all a tab ever showed.
+                    if (tab.thumbnail != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.memory(
+                          tab.thumbnail!,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          gaplessPlayback: true,
+                          filterQuality: FilterQuality.low,
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.all(9),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _mockLine(0.72),
+                            const SizedBox(height: 8),
+                            _mockLine(0.48),
+                          ],
+                        ),
                       ),
-                    ),
                     if (tab.isPrivate)
                       Positioned(
                         top: 6,

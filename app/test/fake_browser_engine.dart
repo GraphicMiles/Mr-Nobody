@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import 'package:mrnobody/browser/browser_engine.dart';
@@ -84,6 +86,12 @@ class FakeBrowserEngine implements BrowserEngine {
 
   @override
   Future<void> applySettings() async {}
+
+  /// Tests can hand the tab a picture to prove the card renders it.
+  Uint8List? thumbnail;
+
+  @override
+  Future<Uint8List?> captureThumbnail() async => thumbnail;
 
   @override
   void dispose() => disposed = true;

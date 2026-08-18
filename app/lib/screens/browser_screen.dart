@@ -63,6 +63,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
   @override
   void dispose() {
+    // Leaving the browser is exactly when the grid's picture should be current.
+    _tab?.captureThumbnail();
     _noticeTab?.downloadNotice.removeListener(_onDownloadNotice);
     _address.dispose();
     _addressFocus.dispose();
@@ -155,7 +157,10 @@ class _BrowserScreenState extends State<BrowserScreen> {
                                 widget.tabs.newTab();
                                 AppToast.show(context, 'New tab');
                               },
-                              onTabs: widget.onShowTabs,
+                              onTabs: () {
+              tab.captureThumbnail();
+              widget.onShowTabs();
+            },
                               onMenu: _openMenu,
                             ),
                           ),

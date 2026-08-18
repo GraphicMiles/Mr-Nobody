@@ -87,6 +87,9 @@ public final class MrNobodyApp extends Application {
         DeterministicEngine engine = new DeterministicEngine();
         headlessEngine = new HeadlessWebViewEngine(this);
         engine.registerTool(new BrowserTool(headlessEngine));
+        // Search can escalate into the headless browser when a provider
+        // answers a plain fetch with a challenge page.
+        engine.registerTool(new com.mrnobody.agent.tools.SearchTool(headlessEngine));
         engine.registerTool(new DownloadTool());
         agentEngine = engine;
         applyTerminalSetting();
