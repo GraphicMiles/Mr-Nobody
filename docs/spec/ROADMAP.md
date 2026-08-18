@@ -221,6 +221,27 @@ profile of its user. (V2 §18)
 `RemoteWorker` is a registered no-op. Optional, opt-in, never required.
 (V2 §9)
 
+Now specified in **`docs/spec/V2_ARCHITECTURE.md`**, which is the architecture
+of record for the four independent layers (agent execution, task persistence,
+device identity, privacy routing) and for how they must stay independent while
+the 70 MB privacy work lands.
+
+Two decisions from it that bind this item:
+
+- **Device identity is EC P-256 in Android Keystore, not Ed25519.** Android
+  Keystore's `KeyPairGenerator` supports only EC (NIST curves) and RSA; Curve
+  25519 exists there as a hardware-feature flag and a `@hide` `XDH` constant,
+  not a usable public API. Generating Ed25519 in software would put the private
+  key outside the Keystore — destroying the one property the design exists for.
+  `PURPOSE_AGREE_KEY` (ECDH) needs API 31, and `minSdk` is already 31.
+- **The remote worker cannot be sold as private.** It executes tasks, so it
+  necessarily sees URLs and page content in plaintext. Transport encryption and
+  anonymous identity are real and claimable; "the server cannot see what your
+  task does" is not, and must never be printed.
+
+`RemoteWorker` and the `TaskDispatcher` registry are the seam that keeps this
+additive. Neither is dead code; neither may be removed.
+
 ### 3.4 Device-level test matrix
 
 No `androidTest` exists. The privacy spec's device-level cases (network audit
