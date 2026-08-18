@@ -94,12 +94,10 @@ public final class DeterministicEngine implements AgentEngine {
             new ToolPipeline(policy).addGuard(repeatGuard).addGuard(budgetGuard);
 
     /**
-     * Produces the plan for an instruction. A local provider uses
-     * {@link DeterministicPlanner} (the research cascade, or a one-step routed
-     * action); a remote provider uses {@link LlmPlanner}, which asks the model
-     * for a multi-step plan and falls back to the deterministic cascade on any
-     * parse or validation failure. Chosen per run in {@link #run}, so the
-     * engine never learns which kind it is running.
+     * The deterministic planner, used on the local (no-model) path — the
+     * research cascade, or a one-step routed action. A remote provider instead
+     * runs the autonomous observe→act loop in {@link #runAutonomous}, so this
+     * field serves only the path that has no model to reason with.
      */
     private Planner planner = new DeterministicPlanner();
 
@@ -157,11 +155,18 @@ public final class DeterministicEngine implements AgentEngine {
 
         // The plan comes from the planner, not from hard-coded control flow
         // here. A routed action is a one-step plan; a question is the research
-        // cascade; a remote provider proposes a multi-step plan and falls back
-        // to the cascade. Choosing a tool is still not the same as permitting
-        // it — every tool step passes through the guarded pipeline.
+        // cascade. A remote provider runs the autonomous observe→act loop —
+        // the model proposes one step, observes its result, and decides the
+        // next, falling back to the deterministic cascade when it cannot. A
+        // local provider has no model to reason with, so it stays on the
+        // deterministic path.
         AiProvider provider = MrNobodyApp.activeProvider();
-        planner = provider.isRemote() ? new LlmPlanner(provider) : new DeterministicPlanner();
+        if (provider.isRemote()) {
+            runAutonomous(context, task, provider, cancellation);
+            return;
+        }
+
+        planner = new DeterministicPlanner();
         Plan plan = planner.plan(task.instruction(), tools.keySet());
         if (plan.size() == 0 || plan.isAbandoned()) {
             fail(task, ToolResult.fail("No plan for this instruction."));
@@ -266,21 +271,7 @@ public final class DeterministicEngine implements AgentEngine {
                     // should sink it. Record success or failure and carry on to
                     // the answer, so the user hears "downloaded to folder" or
                     // "download failed: 404" instead of the whole task dying.
-                    if (result.isSuccess()) {
-                        Map<String, Object> v = result.value();
-                        r.downloadNote = "Downloaded " + v.get("name")
-                                + " to " + v.get("folder") + ".";
-                        // The user has never picked a folder: the file went to
-                        // system Downloads. Tell them, and point at where to
-                        // choose, rather than silently using a location they
-                        // did not ask for.
-                        if (!Boolean.TRUE.equals(v.get("customFolder"))) {
-                            r.downloadNote += " No download folder is set — files go "
-                                    + "to system Downloads. Pick one in Settings → Downloads.";
-                        }
-                    } else {
-                        r.downloadNote = "Download failed: " + result.error() + ".";
-                    }
+                    applyDownloadNote(r, result);
                     plan.advance();
                     continue;
                 }
@@ -319,6 +310,116 @@ public final class DeterministicEngine implements AgentEngine {
             }
             plan.advance();
         }
+    }
+
+    /**
+     * The autonomous path: observe → reason → act, until the model decides it
+     * has gathered enough. The plan is discovered, not fixed.
+     *
+     * <p>Every step still flows through the guarded pipeline — approval,
+     * budgets, spilling and the repeat guard all apply unchanged — and the
+     * loop is bounded by {@link Plan#MAX_STEPS} plus the budget guard, so a
+     * model that never says "done" stops anyway. The answer is synthesised and
+     * verified by {@link #answerStep} and {@link #verifyStep}, which are
+     * untouched: the model only decides <em>what to do</em>, never what the
+     * answer says, so grounding and verification hold exactly as on the
+     * deterministic path.
+     */
+    private void runAutonomous(Context context, Task task, AiProvider provider,
+                               Cancellation cancellation) {
+        Research r = new Research();
+        r.namedUrl = findUrl(task.instruction());
+        r.provider = provider;
+
+        // One fence token for the whole run: page content fed back to the model
+        // is wrapped with it, and the planner's system prompt explains the rule.
+        String nonce = UntrustedContent.newNonce();
+        AutonomousPlanner planner = new AutonomousPlanner(provider, nonce);
+        java.util.List<String> transcript = new java.util.ArrayList<>();
+
+        for (int taken = 0; taken < Plan.MAX_STEPS; taken++) {
+            if (stopped(task, cancellation)) return;
+            Plan.Step step = planner.nextStep(task.instruction(), transcript, tools.keySet());
+            if (step == null) break; // the model is done gathering
+
+            task.setCurrentStep(step.label);
+            ToolResult result = callTool(context, step.tool, step.request, cancellation);
+            if (stopped(task, cancellation)) return;
+            applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
+        }
+
+        answerStep(context, task, cancellation, r);
+        if (stopped(task, cancellation)) return;
+        verifyStep(context, task, cancellation, r);
+    }
+
+    /**
+     * Fold one autonomous step's result into the research state and the
+     * transcript the model sees next. Mirrors {@code executeResearch}'s tool
+     * handling — search populates results, reads populate sources, downloads
+     * set the note — except that a failed step is fed back rather than fatal,
+     * because the whole point is that the model observes and decides again.
+     */
+    private void applyAutonomousResult(Context context, Research r, Plan.Step step,
+                                       ToolResult result, String nonce,
+                                       java.util.List<String> transcript,
+                                       Cancellation cancellation) {
+        ToolResult effective = result;
+        boolean pageContent = false;
+
+        if ("search".equals(step.tool)) {
+            r.search = result;
+            if (result.isSuccess()) {
+                r.results = resultsOf(result);
+            }
+        } else if ("http".equals(step.tool)) {
+            // A read is best-effort; escalate to the headless browser on a
+            // block, exactly as the deterministic path does.
+            boolean read = readOne(r, step, result);
+            if (!read) {
+                ToolResult escalated = readViaBrowser(context, step, cancellation);
+                if (escalated != null) {
+                    readOne(r, step, escalated);
+                    effective = escalated;
+                }
+            }
+            pageContent = true;
+        } else if ("download".equals(step.tool)) {
+            applyDownloadNote(r, result);
+        } else if ("browser".equals(step.tool)) {
+            // The browser's fetch/extract results are page content; actions
+            // (click/type/scroll) are just status.
+            String action = step.request == null ? "" : step.request.action();
+            pageContent = "fetch".equals(action) || "extract".equals(action) || "links".equals(action);
+        }
+
+        transcript.add(autonomousLine(step, effective, pageContent, nonce));
+    }
+
+    /** One line of the planning transcript: the call, then its (fenced) result. */
+    private static String autonomousLine(Plan.Step step, ToolResult result,
+                                         boolean pageContent, String nonce) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("called ").append(step.tool);
+        if (step.request != null && step.request.params() != null
+                && !step.request.params().isEmpty()) {
+            sb.append(' ').append(step.request.params());
+        }
+        sb.append(" → ");
+
+        String text = result.isSuccess()
+                ? (result.result() == null ? "" : result.result())
+                : "failed: " + result.error();
+        text = text.replaceAll("\\s+", " ").trim();
+        if (text.length() > 2000) text = text.substring(0, 2000) + "…";
+
+        if (pageContent) {
+            // Page content is data, not instructions: fence it with the run
+            // nonce before the model sees it, exactly as the answer step does.
+            text = UntrustedContent.fence(text, nonce).fenced;
+        }
+        sb.append(text);
+        return sb.toString();
     }
 
     /**
@@ -384,6 +485,20 @@ public final class DeterministicEngine implements AgentEngine {
         // title; the URL itself is the honest label.
         appendSource(r.sources, r.readUrls.size(), url, r.titles.getOrDefault(url, url), text);
         return true;
+    }
+
+    /** Record a download's outcome as a user-facing note (shared by both paths). */
+    private void applyDownloadNote(Research r, ToolResult result) {
+        if (result.isSuccess()) {
+            Map<String, Object> v = result.value();
+            r.downloadNote = "Downloaded " + v.get("name") + " to " + v.get("folder") + ".";
+            if (!Boolean.TRUE.equals(v.get("customFolder"))) {
+                r.downloadNote += " No download folder is set — files go to system "
+                        + "Downloads. Pick one in Settings → Downloads.";
+            }
+        } else {
+            r.downloadNote = "Download failed: " + result.error() + ".";
+        }
     }
 
     /**
