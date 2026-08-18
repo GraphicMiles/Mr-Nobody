@@ -160,6 +160,9 @@ public final class DeterministicEngine implements AgentEngine {
     private void fail(Task task, ToolResult r) {
         task.setError(r.error());
         task.setStatus(Task.Status.FAILED);
+        // The debug overlay is the only channel a user has for reporting a
+        // failure — a task that fails silently there is a failure we never see.
+        com.mrnobody.debug.ErrorLog.record("task " + task.id() + " failed: " + r.error());
     }
 
     private static String findUrl(String text) {
@@ -180,7 +183,11 @@ public final class DeterministicEngine implements AgentEngine {
         try {
             provider.complete(SYSTEM_PROMPT, prompt, new AiProvider.CompletionCallback() {
                 @Override public void onResult(String text) { out[0] = text; latch.countDown(); }
-                @Override public void onError(String error) { out[0] = "AI error: " + error; latch.countDown(); }
+                @Override public void onError(String error) {
+                    out[0] = "AI error: " + error;
+                    com.mrnobody.debug.ErrorLog.record("AI provider: " + error);
+                    latch.countDown();
+                }
             });
             long deadline = System.currentTimeMillis() + PROVIDER_TIMEOUT_MS;
             while (System.currentTimeMillis() < deadline) {

@@ -28,12 +28,74 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _state = AppState.instance;
   int? _downloadCount;
+  String _downloadFolder = 'Downloads (system)';
+  bool _customFolder = false;
 
   @override
   void initState() {
     super.initState();
     _state.load();
     _loadDownloadCount();
+    _loadDownloadFolder();
+  }
+
+  Future<void> _loadDownloadFolder() async {
+    final folder = await NativeBridge.guard(
+      NativeBridge.downloadFolder,
+      const <String, dynamic>{},
+      'download folder unavailable',
+    );
+    if (!mounted || folder.isEmpty) return;
+    setState(() {
+      _downloadFolder = folder['label'] as String? ?? _downloadFolder;
+      _customFolder = folder['custom'] as bool? ?? false;
+    });
+  }
+
+  Future<void> _chooseDownloadFolder(BuildContext rowContext) async {
+    if (_customFolder) {
+      final picked = await showAnchoredMenu<String>(
+        context: rowContext,
+        title: 'Download folder',
+        selected: 'keep',
+        options: const [
+          MenuOption(id: 'keep', label: 'Choose another folder', icon: Icons.folder_open),
+          MenuOption(id: 'system', label: 'Use system Downloads', icon: Icons.undo),
+        ],
+      );
+      if (picked == null) return;
+      if (picked == 'system') {
+        final result = await NativeBridge.guard(
+          NativeBridge.clearDownloadFolder,
+          const <String, dynamic>{},
+          'could not reset the download folder',
+        );
+        if (!mounted) return;
+        setState(() {
+          _downloadFolder = result['label'] as String? ?? 'Downloads (system)';
+          _customFolder = false;
+        });
+        AppToast.show(context, 'Saving to system Downloads');
+        return;
+      }
+    }
+    final result = await NativeBridge.guard(
+      NativeBridge.pickDownloadFolder,
+      const <String, dynamic>{},
+      'folder picker unavailable',
+    );
+    if (!mounted) return;
+    if (result['cancelled'] == true) return;
+    final error = result['error'] as String?;
+    if (error != null) {
+      AppToast.show(context, error);
+      return;
+    }
+    setState(() {
+      _downloadFolder = result['label'] as String? ?? _downloadFolder;
+      _customFolder = result['custom'] as bool? ?? false;
+    });
+    AppToast.show(context, 'Saving downloads to $_downloadFolder');
   }
 
   Future<void> _loadDownloadCount() async {
@@ -120,6 +182,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         label: 'Clear browsing data',
                         onTap: () => Navigator.of(context)
                             .push(MaterialPageRoute(builder: (_) => const ClearDataScreen())),
+                      ),
+                      Builder(
+                        builder: (rowContext) => SettingRow(
+                          label: 'Download folder',
+                          value: _downloadFolder,
+                          valueOn: _customFolder,
+                          onTap: () => _chooseDownloadFolder(rowContext),
+                        ),
                       ),
                       SettingRow(
                         label: 'Downloads',

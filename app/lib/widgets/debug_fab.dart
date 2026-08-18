@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../bridge/native_bridge.dart';
 import '../state/error_log.dart';
 import '../theme/app_theme.dart';
 import 'toast.dart';
@@ -22,6 +25,34 @@ class DebugOverlay extends StatefulWidget {
 
 class _DebugOverlayState extends State<DebugOverlay> {
   bool _open = false;
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    // Half of what goes wrong happens in the Java core and never touches a
+    // Dart try/catch, so the badge has to ask the core rather than wait to be
+    // told. Cheap: one in-process call.
+    _syncNative();
+    _poll = Timer.periodic(const Duration(seconds: 5), (_) => _syncNative());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _syncNative() async {
+    final entries = await NativeBridge.guard(
+      NativeBridge.debugLog,
+      const <String>[],
+      // Deliberately not logged: a failure to read the log must not write to it.
+      '',
+    );
+    if (!mounted) return;
+    ErrorLog.instance.setNative(entries);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +78,10 @@ class _DebugOverlayState extends State<DebugOverlay> {
               right: 16,
               bottom: safeBottom + widget.bottomInset,
               child: GestureDetector(
-                onTap: () => setState(() => _open = !_open),
+                onTap: () {
+                  setState(() => _open = !_open);
+                  if (_open) _syncNative();
+                },
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
