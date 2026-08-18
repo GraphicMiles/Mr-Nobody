@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mr Nobody — agent response, beautifului patterns</title>
+<style>
+  :root{
+    /* ── Mr Nobody tokens (app_theme.dart) mapped onto beautifului names ── */
+    --canvas:#000;            /* --bg / s-0            */
+    --surface:#101010;        /* --s-1                 */
+    --inset:#181818;          /* --s-2   (field, inset)*/
+    --hover:#212121;          /* --s-3                 */
+    --hover-2:rgba(255,255,255,.055);
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(255,255,255,.16);
+    --ink:#fafafa;            /* --t-0                 */
+    --ink-2:#c4c4c7;          /* --t-1                 */
+    --ink-3:#8a8a8f;          /* --t-2                 */
+    --ink-4:#5c5c61;          /* --t-3                 */
+    --accent:#fff;
+    --warn:#e8b339;           /* the one hue we allow  */
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ease:cubic-bezier(.23,1,.32,1);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:#050505;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  .page{padding:26px 16px 70px;}
+  h1{font-size:16px;font-weight:600;margin:0 0 4px;text-align:center;}
+  .sub{text-align:center;color:var(--ink-3);font-size:12px;margin:0 auto 26px;max-width:700px;line-height:1.6;}
+  .rail{display:flex;gap:20px;justify-content:center;align-items:flex-start;flex-wrap:wrap;}
+  .col{display:flex;flex-direction:column;align-items:center;gap:9px;}
+  .cap{font:600 11px/1.45 var(--sans);color:var(--ink-2);text-align:center;max-width:376px;}
+  .cap b{color:var(--ink);} .cap span{display:block;color:var(--ink-4);font-weight:500;font-size:10.5px;margin-top:3px;}
+
+  .frame{width:376px;height:812px;background:var(--canvas);border-radius:34px;border:1px solid var(--line-strong);
+    overflow:hidden;position:relative;display:flex;flex-direction:column;}
+  .statusbar{display:flex;justify-content:space-between;padding:17px 22px 8px;color:var(--ink-2);font-weight:600;font-size:12.5px;flex-shrink:0;}
+  .scroll{flex:1;overflow-y:auto;padding-bottom:8px;}
+  .scroll::-webkit-scrollbar{width:0;}
+  .topbar{display:flex;align-items:center;gap:11px;padding:8px 16px 6px;flex-shrink:0;}
+  .topbar .back{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-2);font-size:12px;}
+  .topbar .ttl{font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .topbar .act{color:var(--ink-3);font-size:16px;}
+
+  /* user bubble */
+  .msg{padding:5px 16px;display:flex;}
+  .msg.me{justify-content:flex-end;}
+  .bub.me{max-width:82%;background:var(--accent);color:#000;border-radius:16px;border-bottom-right-radius:5px;
+    padding:10px 13px;font-size:12.5px;line-height:1.55;font-weight:500;}
+  .stamp{font:500 9px/1 var(--mono);color:var(--ink-4);padding:2px 20px 8px;}
+  .stamp.me{text-align:right;}
+
+  /* agent turn: mark, no bubble */
+  .agent{display:flex;gap:10px;padding:8px 16px 2px;}
+  .mark{width:24px;height:24px;flex-shrink:0;margin-top:1px;}
+  .agent .out{flex:1;min-width:0;}
+
+  /* ── 1. PIXEL LOADER (LoadingState) ── */
+  .loader{display:flex;align-items:center;gap:10px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,4px);gap:1.5px;flex-shrink:0;}
+  .grid3 i{width:4px;height:4px;background:var(--ink);border-radius:1px;opacity:.15;animation:pixel-on 650ms ease-in-out infinite;}
+  @keyframes pixel-on{0%,100%{opacity:.15;}50%{opacity:1;}}
+  .shim{font-size:13px;font-weight:500;color:transparent;background:linear-gradient(90deg,var(--ink-4) 35%,var(--ink) 50%,var(--ink-4) 65%);
+    background-size:200% 100%;-webkit-background-clip:text;background-clip:text;animation:shimmer-text 1.4s linear infinite;white-space:nowrap;}
+  @keyframes shimmer-text{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+  .elapsed{font:500 12px/1 var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums;}
+
+  /* ── 2. TRACE (ThinkingState / ToolChips) ── */
+  .trace-hd{display:inline-flex;align-items:center;gap:8px;margin:0 0 2px -6px;padding:4px 6px;border-radius:8px;
+    font-size:13px;font-weight:500;color:var(--ink-2);}
+  .trace-hd .cv{width:13px;height:13px;transition:transform .3s var(--ease);}
+  .trace-wrap{margin-left:5px;padding-left:15px;border-left:1px solid var(--line);}
+  .trow{display:flex;align-items:center;gap:8px;min-height:28px;padding:2px 6px;margin:0 -6px;border-radius:6px;
+    animation:fade-up 320ms var(--ease) both;}
+  @keyframes fade-up{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+  .trow .g{width:14px;height:14px;flex-shrink:0;color:var(--ink-3);}
+  .trow .lb{font-size:12.5px;font-weight:500;color:var(--ink);flex-shrink:0;}
+  .trow .chip{flex:1;min-width:0;display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:7px;
+    background:var(--inset);border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .trow .chip.mono{font-family:var(--mono);font-size:11px;}
+  .spin{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--line-strong);border-top-color:var(--ink-2);
+    animation:spin .7s linear infinite;flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .tdetail{margin:1px 0 5px 8px;padding:2px 0 2px 14px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:2px;}
+  .tdetail span{font-size:11.5px;line-height:1.6;color:var(--ink-2);}
+  .tdetail span.mono{font-family:var(--mono);font-size:11px;}
+
+  /* ── 3. STREAMING TEXT ── */
+  .out p{margin:0 0 8px;font-size:13px;line-height:1.62;color:var(--ink);}
+  .out p:last-child{margin-bottom:0;}
+  .w{display:inline;animation:stream-in 420ms cubic-bezier(.22,.61,.25,1) both;}
+  @keyframes stream-in{from{opacity:0;filter:blur(4px);}to{opacity:1;filter:blur(0);}}
+  .caret{display:inline-block;width:2px;height:13px;background:var(--ink);border-radius:1px;vertical-align:-2px;margin-left:2px;animation:blink 1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+
+  /* inline source chip */
+  .cite{display:inline-flex;align-items:center;gap:4px;height:17px;padding:0 4px;margin:0 2px;border-radius:5px;
+    background:var(--inset);border:1px solid var(--line);font:500 10.5px/1 var(--mono);color:var(--ink-2);
+    vertical-align:1px;text-decoration:none;animation:pop-in 250ms var(--ease) both;}
+  @keyframes pop-in{from{opacity:0;transform:scale(.9);}to{opacity:1;transform:none;}}
+  .cite img{width:11px;height:11px;border-radius:3px;}
+
+  /* ── 4. ACTION ROW + SOURCES ── */
+  .actions{display:flex;align-items:center;gap:2px;margin-top:9px;}
+  .abtn{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);}
+  .abtn svg{width:15px;height:15px;}
+  .srcbtn{display:flex;align-items:center;gap:6px;margin-left:6px;padding:2px 5px;border-radius:6px;}
+  .stack{display:flex;}
+  .stack img{width:14px;height:14px;border-radius:50%;margin-left:-4px;box-shadow:0 0 0 1.5px var(--canvas);}
+  .stack img:first-child{margin-left:0;}
+  .srcbtn span{font-size:12px;color:var(--ink-2);}
+  .srclist{margin:6px 0 0;padding:4px;border-radius:10px;background:var(--inset);border:1px solid var(--line);display:flex;flex-direction:column;}
+  .srclist a{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;font-size:12px;color:var(--ink-2);text-decoration:none;}
+  .srclist img{width:15px;height:15px;border-radius:4px;}
+  .srclist .dom{margin-left:auto;font:500 10.5px/1 var(--mono);color:var(--ink-4);}
+
+  /* ── 5. FOLLOW-UPS ── */
+  .fups{margin-top:11px;}
+  .fups .h{font-size:12px;font-weight:500;color:var(--ink-2);margin-bottom:2px;}
+  .fup{display:flex;align-items:center;gap:8px;padding:7px 6px;margin:0 -6px;border-bottom:1px solid var(--line);
+    font-size:12.5px;color:var(--ink);animation:fade-up 350ms var(--ease) both;}
+  .fup svg{width:11px;height:11px;flex-shrink:0;color:var(--ink-4);}
+
+  /* warn */
+  .flag{margin:9px 0 0;border-radius:10px;padding:9px 11px;font-size:11.5px;line-height:1.55;
+    background:rgba(232,179,57,.07);border:1px solid rgba(232,179,57,.26);color:#f0cf8a;}
+  .flag b{color:var(--warn);}
+  .readat{margin-top:8px;font:500 10px/1.6 var(--mono);color:var(--ink-4);}
+
+  .composer{flex-shrink:0;border-top:1px solid var(--line);background:var(--canvas);padding:9px 12px 18px;}
+  .cbox{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line-strong);border-radius:22px;padding:8px 8px 8px 14px;}
+  .cbox .ph{flex:1;color:var(--ink-4);font-size:12.5px;}
+  .cbox .send{width:30px;height:30px;border-radius:50%;background:var(--hover);color:var(--ink-3);display:flex;align-items:center;justify-content:center;font-size:13px;}
+  .cbox .send.on{background:var(--accent);color:#000;}
+
+  .note{max-width:900px;margin:38px auto 0;color:var(--ink-3);font-size:12px;line-height:1.75;}
+  .note h2{color:var(--ink);font-size:13.5px;margin:26px 0 8px;}
+  .note code{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:var(--surface);padding:1px 5px;border-radius:5px;}
+  .note ul{padding-left:17px;} .note li{margin:5px 0;}
+  .note table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11.5px;}
+  .note th{text-align:left;color:var(--ink-2);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line-strong);}
+  .note td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;}
+  .note td code{background:none;padding:0;}
+  .warnbox{border-left:2px solid var(--warn);padding:2px 0 2px 12px;margin:12px 0;color:var(--ink-2);}
+  .warnbox b{color:var(--warn);}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Agent response — beautifului patterns in Mr Nobody's palette</h1>
+  <p class="sub">The four components translated: pixel loader, expandable trace with inline chips,
+  blur-in streaming with inline citations, and the action / sources / follow-ups tail.
+  Same motion language, Mr Nobody's monochrome tokens, rebuilt for touch.</p>
+
+  <div class="rail">
+
+    <!-- ══════ A. WORKING ══════ -->
+    <div class="col">
+      <div class="frame">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ 82%</span></div>
+        <div class="topbar"><div class="back">‹</div><div class="ttl">Track the Bitcoin price</div><div class="act">⋯</div></div>
+
+        <div class="scroll">
+          <div class="msg me"><div class="bub me">track the bitcoin price</div></div>
+          <div class="stamp me">9:32</div>
+
+          <div class="agent">
+            <svg class="mark" viewBox="0 0 64 64">
+              <path fill="#fafafa" d="M18,30 L24,15 C26,20 30,21 32,12 C34,21 38,20 40,15 L46,30 Z"/>
+              <path fill="#fafafa" d="M16,30 h32 a2,2 0 0,1 0,4 h-32 a2,2 0 0,1 0,-4 Z"/>
+              <circle cx="24" cy="42" r="7" fill="none" stroke="#fafafa" stroke-width="3"/>
+              <circle cx="40" cy="42" r="7" fill="none" stroke="#fafafa" stroke-width="3"/>
+              <path d="M31,42 L33,42" stroke="#fafafa" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <div class="out">
+              <!-- LoadingState -->
+              <div class="loader">
+                <span class="grid3">
+                  <i style="animation-delay:90ms"></i><i style="animation-delay:180ms"></i><i style="animation-delay:270ms"></i>
+                  <i style="animation-delay:0ms"></i><i style="animation-delay:90ms"></i><i style="animation-delay:180ms"></i>
+                  <i style="animation-delay:90ms"></i><i style="animation-delay:180ms"></i><i style="animation-delay:270ms"></i>
+                </span>
+                <span class="shim">Reading coinmarketcap.com</span>
+                <span class="elapsed" id="el">2.4s</span>
+              </div>
+
+              <!-- ThinkingState trace, auto-expanded while working -->
+              <div style="margin-top:10px;">
+                <div class="trace-hd">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="var(--ink-2)"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+                  <span class="shim" style="font-size:13px;">Working</span>
+                  <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+                </div>
+                <div class="trace-wrap">
+                  <div class="trow" style="animation-delay:0ms">
+                    <svg class="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    <span class="lb">Search</span>
+                    <span class="chip">bitcoin price · 6 results</span>
+                  </div>
+                  <div class="trow" style="animation-delay:120ms">
+                    <svg class="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    <span class="lb">Read</span>
+                    <span class="chip mono">coinmarketcap.com</span>
+                  </div>
+                  <div class="tdetail">
+                    <span class="mono">24 KB → 4,180 words</span>
+                    <span>Price, 24h range and change found.</span>
+                  </div>
+                  <div class="trow" style="animation-delay:240ms">
+                    <span class="spin"></span>
+                    <span class="lb">Read</span>
+                    <span class="chip mono">tradingview.com</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="height:12px;"></div>
+        </div>
+
+        <div class="composer">
+          <div class="cbox"><span class="ph">Reply to this task…</span><span class="send">■</span></div>
+        </div>
+      </div>
+      <div class="cap"><b>A · Working</b>
+        <span>Pixel-grid loader with the shimmer label and a live elapsed timer. The trace
+        auto-expands while running: completed rows get a check, the live one keeps the spinner.
+        Chips carry the actual argument — the domain, the query — not a restatement of the verb.</span></div>
+    </div>
+
+    <!-- ══════ B. STREAMING ══════ -->
+    <div class="col">
+      <div class="frame">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ 82%</span></div>
+        <div class="topbar"><div class="back">‹</div><div class="ttl">Track the Bitcoin price</div><div class="act">⋯</div></div>
+
+        <div class="scroll">
+          <div class="msg me"><div class="bub me">track the bitcoin price</div></div>
+          <div class="stamp me">9:32</div>
+
+          <div class="agent">
+            <svg class="mark" viewBox="0 0 64 64">
+              <path fill="#fafafa" d="M18,30 L24,15 C26,20 30,21 32,12 C34,21 38,20 40,15 L46,30 Z"/>
+              <path fill="#fafafa" d="M16,30 h32 a2,2 0 0,1 0,4 h-32 a2,2 0 0,1 0,-4 Z"/>
+              <circle cx="24" cy="42" r="7" fill="none" stroke="#fafafa" stroke-width="3"/>
+              <circle cx="40" cy="42" r="7" fill="none" stroke="#fafafa" stroke-width="3"/>
+              <path d="M31,42 L33,42" stroke="#fafafa" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <div class="out">
+              <!-- settled trace, collapsed to one line -->
+              <div class="trace-hd" style="color:var(--ink-2);">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="var(--ink-4)"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+                <span>Searched, read 2 pages · 4.1s</span>
+                <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="2.2" stroke-linecap="round" style="transform:rotate(-90deg)"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+
+              <p style="margin-top:8px;">
+                <span class="w" style="animation-delay:0ms">Bitcoin </span><span class="w" style="animation-delay:55ms">is </span><span class="w" style="animation-delay:110ms"><b>$64,282.19</b>, </span><span class="w" style="animation-delay:165ms">up </span><span class="w" style="animation-delay:220ms">1.18% </span><span class="w" style="animation-delay:275ms">over </span><span class="w" style="animation-delay:330ms">24 </span><span class="w" style="animation-delay:385ms">hours </span><a class="cite" style="animation-delay:440ms" href="#"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23222'/%3E%3Cpath d='M32 14v36M24 22h14a7 7 0 0 1 0 14H24V22Zm0 14h16a7 7 0 0 1 0 14H24V36Z' fill='none' stroke='%23fafafa' stroke-width='4'/%3E%3C/svg%3E" alt=""><span>coinmarketcap.com</span></a><span class="w" style="animation-delay:500ms">.</span>
+              </p>
+              <p>
+                <span class="w" style="animation-delay:560ms">The </span><span class="w" style="animation-delay:615ms">24-hour </span><span class="w" style="animation-delay:670ms">range </span><span class="w" style="animation-delay:725ms">is </span><span class="w" style="animation-delay:780ms">$63,222.65 </span><span class="w" style="animation-delay:835ms">to </span><span class="w" style="animation-delay:890ms">$64,547.85, </span><span class="w" style="animation-delay:945ms">so </span><span class="w" style="animation-delay:1000ms">it </span><span class="w" style="animation-delay:1055ms">is </span><span class="w" style="animation-delay:1110ms">near </span><span class="w" style="animation-delay:1165ms">the </span><span class="w" style="animation-delay:1220ms">top</span><span class="caret"></span>
+              </p>
+            </div>
+          </div>
+          <div style="height:12px;"></div>
+        </div>
+
+        <div class="composer">
+          <div class="cbox"><span class="ph">Reply to this task…</span><span class="send">■</span></div>
+        </div>
+      </div>
+      <div class="cap"><b>B · Streaming</b>
+        <span>Words resolve out of blur at ~55ms. The citation appears <em>in context</em>, where
+        the claim is, rather than as a footnote — favicon plus domain, so the source is legible
+        without tapping. Trace has collapsed to one line and stays expandable.</span></div>
+    </div>
+
+    <!-- ══════ C. SETTLED ══════ -->
+    <div class="col">
+      <div class="frame">
+        <div class="statusbar"><span>9:41</span><span>▮▮▮ ⌁ 82%</span></div>
+        <div class="topbar"><div class="back">‹</div><div class="ttl">Track the Bitcoin price</div><div class="act">⋯</div></div>
+
+        <div class="scroll">
+          <div class="msg me"><div class="bub me">track the bitcoin price</div></div>
+          <div class="stamp me">9:32</div>
+
+          <div class="agent">
+            <svg class="mark" viewBox="0 0 64 64">
+              <path fill="#fafafa" d="M18,30 L24,15 C26,20 30,21 32,12 C34,21 38,20 40,15 L46,30 Z"/>
+              <path fill="#fafafa" d="M16,30 h32 a2,2 0 0,1 0,4 h-32 a2,2 0 0,1 0,-4 Z"/>
+              <circle cx="24" cy="42" r="7" fill="none" stroke="#fafafa" stroke-width="3"/>
+              <circle cx="40" cy="42" r="7" fill="none" stroke="#fafafa" stroke-width="3"/>
+              <path d="M31,42 L33,42" stroke="#fafafa" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <div class="out">
+              <div class="trace-hd" style="color:var(--ink-2);">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="var(--ink-4)"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+                <span>Searched, read 2 pages · 4.1s</span>
+                <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="var(--ink-4)" stroke-width="2.2" stroke-linecap="round" style="transform:rotate(-90deg)"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+
+              <p style="margin-top:8px;">Bitcoin is <b>$64,282.19</b>, up 1.18% over 24 hours <a class="cite" href="#"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23222'/%3E%3Cpath d='M32 14v36M24 22h14a7 7 0 0 1 0 14H24V22Zm0 14h16a7 7 0 0 1 0 14H24V36Z' fill='none' stroke='%23fafafa' stroke-width='4'/%3E%3C/svg%3E" alt=""><span>coinmarketcap.com</span></a>.</p>
+              <p>Range $63,222.65 – $64,547.85. I'll check every hour from now on.</p>
+
+              <div class="flag"><b>⚠︎ One figure isn't on the pages I read:</b> 6.7%. It may be
+              worked out from the sources — worth checking.</div>
+
+              <div class="readat">Read at 09:32 · hourly · next check 10:32</div>
+
+              <!-- action row -->
+              <div class="actions">
+                <span class="abtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
+                <span class="abtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></span>
+                <span class="abtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z"/></svg></span>
+                <span class="abtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2M9 18.12L10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88z"/></svg></span>
+                <span class="srcbtn">
+                  <span class="stack">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='32' fill='%232a2a2a'/%3E%3Cpath d='M32 14v36M24 22h14a7 7 0 0 1 0 14H24V22Z' fill='none' stroke='%23fafafa' stroke-width='4'/%3E%3C/svg%3E" alt="">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='32' fill='%23343434'/%3E%3Cpath d='M14 44 27 30l9 8 14-18' fill='none' stroke='%23fafafa' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" alt="">
+                  </span>
+                  <span>2 sources</span>
+                </span>
+              </div>
+
+              <!-- expanded sources -->
+              <div class="srclist">
+                <a href="#"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23222'/%3E%3Cpath d='M32 14v36M24 22h14a7 7 0 0 1 0 14H24V22Z' fill='none' stroke='%23fafafa' stroke-width='4'/%3E%3C/svg%3E" alt=""><span>Bitcoin price today</span><span class="dom">coinmarketcap.com</span></a>
+                <a href="#"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23303030'/%3E%3Cpath d='M14 44 27 30l9 8 14-18' fill='none' stroke='%23fafafa' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" alt=""><span>BTCUSD chart</span><span class="dom">tradingview.com</span></a>
+              </div>
+
+              <!-- follow-ups -->
+              <div class="fups">
+                <div class="h">Follow-ups</div>
+                <div class="fup" style="animation-delay:0ms">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10l-5 5 5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+                  Tell me if it goes under $60,000
+                </div>
+                <div class="fup" style="animation-delay:90ms">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10l-5 5 5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+                  Check every 6 hours instead
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="height:14px;"></div>
+        </div>
+
+        <div class="composer">
+          <div class="cbox"><span class="ph">Reply to this task…</span><span class="send on">↑</span></div>
+        </div>
+      </div>
+      <div class="cap"><b>C · Settled</b>
+        <span>Copy / retry / up / down, then the stacked source avatars that expand to a list.
+        Follow-ups are the library's pattern with the agent's own suggestions. The figure warning
+        sits above the actions — it belongs to the claim, not to the controls.</span></div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <h2>Token mapping — the two systems line up almost exactly</h2>
+    <table>
+      <tr><th>beautifului</th><th>Mr Nobody</th><th></th></tr>
+      <tr><td><code>--ink</code></td><td><code>AppColors.text</code> #fafafa</td><td>identical</td></tr>
+      <tr><td><code>--ink-2</code></td><td><code>textDim</code> #c4c4c7</td><td>identical</td></tr>
+      <tr><td><code>--ink-3</code></td><td><code>textFaint</code> #8a8a8f</td><td>identical</td></tr>
+      <tr><td><code>--line</code> / <code>--line-strong</code></td><td><code>line</code> / <code>lineStrong</code></td><td>identical, white @ 8% / 16%</td></tr>
+      <tr><td><code>--surface</code></td><td><code>surface</code> #101010</td><td>identical</td></tr>
+      <tr><td><code>bg-field</code>, <code>bg-inset</code></td><td><code>surface2</code> #181818</td><td>one tier serves both</td></tr>
+      <tr><td><code>bg-hover</code>, <code>bg-hover-2</code></td><td><code>surface3</code> #212121</td><td>press state, not hover</td></tr>
+      <tr><td><code>--green</code> / <code>--red</code> / <code>--orange</code></td><td>—</td><td><b>no equivalent</b></td></tr>
+      <tr><td><code>shadow-hairline/btn/overlay</code></td><td>—</td><td><b>no equivalent</b></td></tr>
+    </table>
+    <p>The greys are a direct match, which is why this translates cleanly. Both systems are
+    near-black tiers with hairline borders and one bright ink. The motion vocabulary —
+    <code>fade-up</code>, <code>pop-in</code>, <code>stream-in</code>, <code>shimmer-text</code>,
+    <code>cubic-bezier(.23,1,.32,1)</code> — carries over unchanged and is already close to the
+    app's existing <code>easeOutCubic</code> at 240ms.</p>
+
+    <h2>Three collisions worth deciding before this becomes Dart</h2>
+
+    <div class="warnbox"><b>1 · Hover does not exist on a phone.</b> <code>ToolChips</code> reveals
+    each row's chevron on <code>group-hover/row</code> and opens the diff preview on
+    <code>onMouseEnter</code>. On Android those affordances would simply never appear, and the
+    diff preview would be unreachable. Every hover-gated control has to become either always-visible
+    or tap-toggled. Above, the chevron is always drawn and rows expand on tap.</div>
+
+    <div class="warnbox"><b>2 · The palette is monochrome by charter.</b>
+    <code>app_theme.dart</code> says "one accent (white), near-black surface tiers, hairline
+    borders, no shadows". The library uses green/red for diffs and coloured dots per source. Mr
+    Nobody has exactly one non-grey — the amber already used for the figure warning. Recommendation:
+    keep it that way. Reserve amber for "something needs your judgement" and express everything
+    else with weight and position. A palette with one warning colour makes that colour mean
+    something; a palette with four makes it decoration.</div>
+
+    <div class="warnbox"><b>3 · The library's verbs are for a coding agent.</b> Write 204 lines,
+    file diffs, <code>npm run freeze</code>. Mr Nobody's agent searches, reads pages, downloads and
+    clicks. The row shape is right and the taxonomy is not: <code>Search</code> ·
+    <code>Read</code> · <code>Download</code> · <code>Click</code> · <code>Type</code>, mapping
+    directly onto the tools already registered. The diff-chip row has no counterpart — the closest
+    equivalent is a downloaded-files strip, which is worth having but is a different component.</div>
+
+    <h2>What can be built now, and what cannot</h2>
+    <ul>
+      <li><b>Trace, loader, actions, sources, follow-ups — all buildable today.</b>
+      <code>TaskEventStore</code> already records <code>tool.call</code>,
+      <code>tool.result</code>, <code>tool.denied</code> with timings, and
+      <code>taskEvents</code> is already on the method channel with no Dart caller.</li>
+      <li><b>The blur-in stream is not.</b> <code>AiProvider.complete()</code> returns one finished
+      string and both remote providers buffer the whole body. Word-by-word arrival needs a token
+      callback, <code>stream:true</code>, SSE parsing and an <code>EventChannel</code>.</li>
+      <li><b>Honest interim:</b> stream the <em>trace</em> from the event log, then reveal the
+      finished answer with the same <code>stream-in</code> blur applied per word on a timer. It
+      is the library's animation over a non-streamed payload — real motion, no pretence of live
+      tokens, and it becomes genuinely live when the provider work lands with no UI change.</li>
+      <li><b>Favicons need care.</b> Fetching them from source domains is an un-gated network call
+      per result, straight through the privacy audit's egress rule. Either route via
+      <code>NetworkGate</code> or draw a lettermark from the domain — the mark above is drawn,
+      not fetched.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  // live elapsed timer, matching useElapsed()
+  var t0 = Date.now(), el = document.getElementById('el');
+  setInterval(function () {
+    var s = (Date.now() - t0) / 1000 + 2.4;
+    el.textContent = s < 60 ? s.toFixed(1) + 's'
+      : Math.floor(s / 60) + 'm ' + (s % 60).toFixed(1) + 's';
+  }, 100);
+</script>
+</body>
+</html>
