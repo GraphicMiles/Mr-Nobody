@@ -12,7 +12,6 @@ import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PrivacyProfile;
-import com.mrnobody.browser.deeplink.DeepLinkHandler;
 import com.mrnobody.browser.download.DownloadDestination;
 import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadRecord;
@@ -1019,17 +1018,45 @@ public class MainActivity extends FlutterActivity {
         }
     }
 
-    /** Forward a deep link (mrnobody:// or a shared http(s) URL) to Dart. */    private void dispatchDeepLink(Intent intent) {
+    /**
+     * A WAITING task is answered. Allow re-runs with a one-tool override so
+     * the confirmer is not asked again for the same call; deny fails it.
+     */
+    private boolean resolveApproval(long id, boolean allow) {
+        Task t = MrNobodyApp.tasks().get(id);
+        if (t == null || t.status() != Task.Status.WAITING) return false;
+        String tool = MrNobodyApp.tasks().pendingTool(id);
+        MrNobodyApp.tasks().setPendingTool(id, null);
+        if (!allow) {
+            t.setStatus(Task.Status.FAILED);
+            t.setError("Declined" + (tool.isEmpty() ? "." : ": " + tool));
+            t.setCurrentStep("");
+            MrNobodyApp.tasks().update(t);
+            return true;
+        }
+        if (!tool.isEmpty() && MrNobodyApp.approvalOverrides() != null) {
+            MrNobodyApp.approvalOverrides().set(tool,
+                    com.mrnobody.agent.policy.ApprovalPolicy.Rule.ALWAYS_ALLOW);
+        }
+        t.setStatus(Task.Status.QUEUED);
+        t.setError("");
+        t.setResult("");
+        t.setCurrentStep("");
+        t.resetRetry();
+        MrNobodyApp.tasks().update(t);
+        MrNobodyApp.scheduler().cancel(getApplicationContext(), id);
+        MrNobodyApp.scheduler().schedule(getApplicationContext(), id);
+        return true;
+    }
+
+    /** Forward a deep link (mrnobody:// or a shared http(s) URL) to Dart. */
+    private void dispatchDeepLink(Intent intent) {
         if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
         Uri data = intent.getData();
         if (data == null) return;
         final String uri = data.toString();
         if (deeplinkChannel != null) {
             deeplinkChannel.invokeMethod("link", uri);
-        }
-        // Classify for convenience (Dart re-parses; this just normalizes).
-        if (DeepLinkHandler.isWebUrl(uri) || DeepLinkHandler.parse(uri).action != DeepLinkHandler.Action.NONE) {
-            // handled by Dart via the channel above
         }
     }
 
@@ -1040,29 +1067,7 @@ public class MainActivity extends FlutterActivity {
         dispatchDeepLink(intent);
     }
 
-    // The approval prompt needs to know whether anyone is actually looking at
-    // the screen. With no foreground activity there is nobody to ask, and the
-    // pipeline refuses the call rather than queueing it out of sight.
-
     @Override
-    protected void onResume() {
-        super.onResume();
-        ApprovalPrompt.setHost(this);
-    }
-
-    @Override
-    protected void onPause() {
-        ApprovalPrompt.clearHost(this);
-        super.onPause();
-    }
-
-    @Override
-    protected void onDestroy() {
-        ApprovalPrompt.clearHost(this);
-        super.onDestroy();
-    }
-}
-ride
     protected void onResume() {
         super.onResume();
         ApprovalPrompt.setHost(this);

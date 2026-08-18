@@ -54,15 +54,19 @@ public final class SearchTool implements Tool {
     private static final int MAX_BYTES = 512 * 1024;
     private static final long PER_ENGINE_TIMEOUT_MS = 12_000;
 
-    private final BrowserEngine engine;
+    private final Supplier<BrowserEngine> engines;
 
     /** Without an engine, only the cheap HTTP path is available. */
     public SearchTool() {
-        this(null);
+        this((Supplier<BrowserEngine>) null);
     }
 
     public SearchTool(BrowserEngine engine) {
-        this.engine = engine;
+        this(() -> engine);
+    }
+
+    public SearchTool(Supplier<BrowserEngine> engines) {
+        this.engines = engines == null ? () -> null : engines;
     }
 
     private static final ToolSpec SPEC = ToolSpec.named("search")

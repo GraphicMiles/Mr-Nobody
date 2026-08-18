@@ -115,21 +115,24 @@ public final class ApprovalPrompt implements ToolPipeline.Confirmer {
 
         try {
             if (!answered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                ErrorLog.record("approval timed out, denying: " + call.summary());
-                return false;
+                ErrorLog.record("approval timed out, parking: " + call.summary());
+                return Confirmation.UNAVAILABLE;
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return false;
+            return Confirmation.UNAVAILABLE;
         }
 
+        if (!answeredByUser.get()) {
+            return Confirmation.UNAVAILABLE;
+        }
         boolean allowed = approved.get();
         if (allowed && Boolean.TRUE.equals(remember.get()) && overrides != null) {
             // "Always allow" is a per-tool override, which is exactly the
             // escape hatch that makes a cautious default liveable.
             overrides.set(call.tool(), ApprovalPolicy.Rule.ALWAYS_ALLOW);
         }
-        return allowed;
+        return allowed ? Confirmation.ALLOWED : Confirmation.DENIED;
     }
 
     private static String capitalise(String s) {

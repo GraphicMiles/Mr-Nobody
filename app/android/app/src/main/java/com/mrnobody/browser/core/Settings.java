@@ -26,6 +26,8 @@ public final class Settings {
     public static final String KEY_PROFILE = "privacy_profile";
     public static final String KEY_PARAM_STRIPPING = "param_stripping";
     public static final String KEY_FINGERPRINT_PROTECTION = "fingerprint_protection";
+    public static final String KEY_FINGERPRINT_BEFORE_NOBODY = "fingerprint_before_nobody";
+    public static final String KEY_FINGERPRINT_FORCED_BY_NOBODY = "fingerprint_forced_by_nobody";
     public static final String KEY_TERMINAL_ENABLED = "terminal_enabled";
     // Privacy mode + network route (V2). See browser/net/.
     public static final String KEY_PRIVACY_MODE = "privacy_mode";
