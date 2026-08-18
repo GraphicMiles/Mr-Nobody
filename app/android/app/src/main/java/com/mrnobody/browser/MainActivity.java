@@ -633,15 +633,20 @@ public class MainActivity extends FlutterActivity {
                             events.error("bad_arg", "task id required", null);
                             return;
                         }
+                        // The hub emits from the provider's worker thread, but
+                        // EventSink.success() dispatches a platform message that
+                        // MUST run on the main thread — posting off-main is the
+                        // "Methods marked with @UiThread must be executed on the
+                        // main thread" crash that killed the app mid-task.
                         TaskStreamHub.Listener listener = new TaskStreamHub.Listener() {
                             @Override public void onToken(long id, String token) {
-                                events.success(streamEvent(id, "token", token));
+                                runOnUiThread(() -> events.success(streamEvent(id, "token", token)));
                             }
                             @Override public void onDone(long id, String fullText) {
-                                events.success(streamEvent(id, "done", fullText));
+                                runOnUiThread(() -> events.success(streamEvent(id, "done", fullText)));
                             }
                             @Override public void onError(long id, String error) {
-                                events.success(streamEvent(id, "error", error));
+                                runOnUiThread(() -> events.success(streamEvent(id, "error", error)));
                             }
                         };
                         streamListeners.put(taskId, listener);
