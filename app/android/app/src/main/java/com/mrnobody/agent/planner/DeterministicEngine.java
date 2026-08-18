@@ -334,8 +334,10 @@ public final class DeterministicEngine implements AgentEngine {
         // One fence token for the whole run: page content fed back to the model
         // is wrapped with it, and the planner's system prompt explains the rule.
         String nonce = UntrustedContent.newNonce();
-        AutonomousPlanner planner = new AutonomousPlanner(provider, nonce);
+        AutonomousPlanner planner = new AutonomousPlanner(provider, nonce,
+                usage -> r.usage = r.usage.add(usage));
         java.util.List<String> transcript = new java.util.ArrayList<>();
+        long budget = com.mrnobody.agent.ai.TokenBudget.transcriptBudget(provider.modelId());
 
         for (int taken = 0; taken < Plan.MAX_STEPS; taken++) {
             if (stopped(task, cancellation)) return;
@@ -346,6 +348,16 @@ public final class DeterministicEngine implements AgentEngine {
             ToolResult result = callTool(context, step.tool, step.request, cancellation);
             if (stopped(task, cancellation)) return;
             applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
+
+            // The transcript is the one unbounded thing in the loop. Trim it to
+            // the budget so a long task never overflows the model's context
+            // window mid-run — drop the oldest, keep the newest.
+            java.util.List<String> trimmed =
+                    com.mrnobody.agent.ai.TokenBudget.compact(transcript, budget);
+            if (trimmed.size() != transcript.size()) {
+                transcript.clear();
+                transcript.addAll(trimmed);
+            }
         }
 
         answerStep(context, task, cancellation, r);
@@ -610,7 +622,7 @@ public final class DeterministicEngine implements AgentEngine {
                 prompt = "Context — your recent work on this device (for continuity "
                         + "only; do not cite it as a source):\n" + memory + "\n\n" + prompt;
             }
-            r.answer = askProvider(r.provider, prompt, cancellation, task.id());
+            r.answer = askProvider(r.provider, prompt, cancellation, task.id(), r);
         } else if (r.search != null) {
             r.answer = r.search.result();
         } else {
@@ -690,6 +702,14 @@ public final class DeterministicEngine implements AgentEngine {
             }
         }
 
+        // The run's token spend, reported as a fact the reader can act on — the
+        // provider measured it, so it is authoritative, not an estimate.
+        String cost = r.usage.describe(
+                com.mrnobody.agent.ai.ModelPricing.forModel(r.provider.modelId()));
+        if (!cost.isEmpty()) {
+            r.answer = r.answer + "\n\n" + cost;
+        }
+
         task.setResult(truncate(r.answer, 6000));
         task.setStatus(Task.Status.COMPLETED);
     }
@@ -709,6 +729,9 @@ public final class DeterministicEngine implements AgentEngine {
 
         /** What the download step did, appended to the answer verbatim. */
         String downloadNote;
+
+        /** Total tokens the provider reported across the run's AI calls. */
+        com.mrnobody.agent.ai.TokenUsage usage = com.mrnobody.agent.ai.TokenUsage.ZERO;
     }
 
     /** Local time, so "read at" means something to the person reading it. */
@@ -824,6 +847,11 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private String askProvider(AiProvider provider, String prompt, Cancellation cancellation,
                                long taskId) {
+        return askProvider(provider, prompt, cancellation, taskId, null);
+    }
+
+    private String askProvider(AiProvider provider, String prompt, Cancellation cancellation,
+                               long taskId, Research r) {
         final CountDownLatch latch = new CountDownLatch(1);
         final String[] out = {"(no AI response)"};
         try {
@@ -847,6 +875,12 @@ public final class DeterministicEngine implements AgentEngine {
                     com.mrnobody.debug.ErrorLog.record("AI provider: " + error);
                     TaskStreamHub.instance().emitError(taskId, error);
                     latch.countDown();
+                }
+                @Override public void onUsage(com.mrnobody.agent.ai.TokenUsage usage) {
+                    // Accumulate the run's authoritative token spend.
+                    if (r != null) {
+                        r.usage = r.usage.add(usage);
+                    }
                 }
             });
             long deadline = System.currentTimeMillis() + PROVIDER_TIMEOUT_MS;

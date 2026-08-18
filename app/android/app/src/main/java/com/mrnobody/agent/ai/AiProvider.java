@@ -19,6 +19,15 @@ public interface AiProvider {
     boolean isRemote();
 
     /**
+     * The model this provider is configured for, or "" when unknown (e.g. the
+     * local provider has no model). Used for context-window budgeting and
+     * rough pricing; the empty string means "use a conservative default".
+     */
+    default String modelId() {
+        return "";
+    }
+
+    /**
      * Produce a completion. Implementations must run off the UI thread and
      * return via the callback. Never called unless the user enabled this
      * provider explicitly.
@@ -46,6 +55,9 @@ public interface AiProvider {
             @Override public void onError(String error) {
                 callback.onError(error);
             }
+            @Override public void onUsage(TokenUsage usage) {
+                callback.onUsage(usage);
+            }
         });
     }
 
@@ -65,6 +77,13 @@ public interface AiProvider {
         void onResult(String text);
 
         void onError(String error);
+
+        /**
+         * The provider's reported token usage for this call. Called (when the
+         * provider can report it) before {@link #onResult}. Default ignores it,
+         * so an implementation that does not capture usage needs no change.
+         */
+        default void onUsage(TokenUsage usage) { }
     }
 
     /**
@@ -81,6 +100,9 @@ public interface AiProvider {
         void onDone(String fullText);
 
         void onError(String error);
+
+        /** The provider's reported usage, delivered alongside {@link #onDone}. */
+        default void onUsage(TokenUsage usage) { }
     }
 
     interface ModelsCallback {
