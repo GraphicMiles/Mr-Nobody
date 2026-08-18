@@ -77,11 +77,23 @@ public final class TaskWorker extends Worker {
             return Result.success();
         }
 
-        // Idempotent guard: never re-run finished work.
+        // Idempotent guard: never re-run finished work — except a recurring
+        // task, whose whole point is to run again. A recurring COMPLETED task
+        // is reset and re-executed, keeping its last answer for the change
+        // note; a cancelled task stays cancelled forever.
         switch (task.status()) {
-            case COMPLETED:
             case CANCELLED:
                 return Result.success();
+            case COMPLETED:
+                if (!MrNobodyApp.tasks().scheduleOf(taskId).isRecurring()) {
+                    return Result.success();
+                }
+                MrNobodyApp.tasks().setPreviousResult(taskId, task.result());
+                task.setStatus(Task.Status.QUEUED);
+                task.setCurrentStep("");
+                task.setResult("");
+                task.setError("");
+                break;
             case FAILED:
                 // Bounded retry: only re-run a failed task once.
                 if (task.retryCount() > 0) return Result.success();
