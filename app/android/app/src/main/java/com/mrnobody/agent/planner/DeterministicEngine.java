@@ -231,9 +231,10 @@ public final class DeterministicEngine implements AgentEngine {
      * this method changing.
      */
     private void executeResearch(Context context, Task task, Plan plan,
-                                 Cancellation cancellation) {
+                                 Cancellation cancellation, String asked) {
         Research r = new Research();
-        r.namedUrl = findUrl(task.instruction());
+        r.asked = asked;
+        r.namedUrl = findUrl(asked);
 
         while (!plan.isFinished()) {
             if (stopped(task, cancellation)) return;
