@@ -57,7 +57,7 @@ without a rewrite (`AgentEngine`, `Tool`, `Worker`, `TaskScheduler`,
 | Terminal sandbox | Partial | policy gate only |
 | Typed tool schemas | **Not started** | `ToolRequest` is a `Map<String,String>`; no JSON Schema, no validation |
 | Tool permission policy | Done | `policy/ApprovalPolicy` resolves per-tool rule → mode → tier. `RepeatCallGuard` breaks tool-call loops. Guards can only subtract permission, by construction |
-| Prompt-injection defenses | **Not started** | page text is concatenated into the prompt with no provenance boundary |
+| Prompt-injection defenses | Done | `planner/UntrustedContent.java` fences page text in an unguessable per-task nonce, neutralises known imperative shapes in place, and reports attempts to the reader. Reduces the surface; the approval gate remains the backstop |
 | Persistent tasks / background execution | Done | |
 | Resumable tasks | Done | bounded retry in `TaskWorker` |
 | Scheduled tasks / monitoring | **Not started** | no `Schedule` model |
@@ -67,7 +67,7 @@ without a rewrite (`AgentEngine`, `Tool`, `Worker`, `TaskScheduler`,
 | Local-first task data | Done | SQLite, on-device |
 | AI provider abstraction | Done | `AiProvider` + Gemini/Groq/OpenAI-compatible/Local, UI wired |
 | Advanced privacy controls | Partial | profiles + param stripping exist in `Settings`; not all enforced. `isFingerprintProtection()` is a **dead toggle** — it is read by the Settings UI but enforces nothing. Implement via `addDocumentStartJavaScript` or hide it; see `PRIVACY_V2_OPTIONS.md` §5 |
-| Filter-list integrity | Partial | bundled list, versioned; no signature/rollback |
+| Filter-list integrity | Partial | `blocking/FilterIntegrity.java` adds SHA-256 verification, rollback refusal and bounded reads. Digest, not signature: it detects tampering but does not establish authorship, so remote lists still need a key before they can be fetched |
 | Decentralized filter distribution | Not started | |
 | Security regression tests | Not started | |
 

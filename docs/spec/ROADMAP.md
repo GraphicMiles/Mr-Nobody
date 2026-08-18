@@ -104,7 +104,7 @@ Capabilities that need Phase 1's router and approval UI underneath them.
 Replace the fixed four-step cascade with a plan that can branch, loop and
 replan. Requires 1.3. (V2 §5)
 
-### 2.2 Prompt-injection defence
+### 2.2 Prompt-injection defence ✅ DONE
 
 Page text is concatenated into the prompt with **no provenance boundary**
 today — a page can address the model directly. Needs: a fetched-content
@@ -163,7 +163,7 @@ deferred below.
 
 Speculative or expensive. Nothing here should start before Phase 2 lands.
 
-### 3.1 Filter-list integrity and distribution
+### 3.1 Filter-list integrity ✅ DONE — distribution still open
 
 Signed filter lists with rollback protection, then the decentralised
 distribution experiment. Today the list is bundled and versioned with no
@@ -216,7 +216,9 @@ under proxy, real ad-page blocking) cannot run without an emulator matrix.
 | 1.3 Tool router (first rule) | this commit |
 | 2.3 Task event log | this commit |
 | 2.6b Approval tiers x mode x per-tool | this commit |
-| Loop breaker (harness priority 8) | this commit |
+| Loop breaker (harness priority 8) | `fa1bea9` |
+| 2.2 Prompt-injection defence | this commit |
+| 3.1 Filter-list integrity (digest + rollback) | this commit |
 
 Both ordering dependencies are now discharged: the tool router exists, and the
 approval UI exists to gate what it reaches.
