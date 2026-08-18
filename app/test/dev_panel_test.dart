@@ -39,8 +39,10 @@ void main() {
       reason: 'a failed benchmark must be recorded, not just shown',
     );
 
-    // The manual section is present for what code cannot observe.
-    expect(find.textContaining('Needs your eyes'), findsOneWidget);
+    // The manual section is present for what code cannot observe. It sits
+    // below the results, so scroll it into the lazy ListView's viewport.
+    await tester.scrollUntilVisible(find.text('Needs your eyes'), 300);
+    expect(find.text('Needs your eyes'), findsOneWidget);
     expect(find.text('PASS'), findsWidgets);
   });
 
