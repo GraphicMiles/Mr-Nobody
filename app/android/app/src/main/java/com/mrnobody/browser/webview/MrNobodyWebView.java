@@ -11,7 +11,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.webkit.CookieManager;
-import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -26,6 +25,7 @@ import androidx.annotation.Nullable;
 import com.mrnobody.browser.MrNobodyApp;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.blocking.TrackingParams;
+import com.mrnobody.browser.download.DownloadNaming;
 
 import java.io.ByteArrayInputStream;
 import java.util.HashMap;
@@ -246,7 +246,9 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             send("onDownload", data);
             return;
         }
-        String name = URLUtil.guessFileName(url, contentDisposition, mimeType);
+        // Not URLUtil.guessFileName: it answers "downloadfile.bin" whenever the
+        // server says octet-stream, which is how an .mkv arrives unopenable.
+        String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
         try {
             DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
             if (dm == null) {
@@ -256,13 +258,15 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             }
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setTitle(name);
-            request.setMimeType(mimeType);
+            request.setDescription("Downloaded by Mr Nobody");
+            if (mimeType != null && !mimeType.trim().isEmpty()) request.setMimeType(mimeType);
             request.addRequestHeader("User-Agent", userAgent);
             request.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
-            dm.enqueue(request);
+            long id = dm.enqueue(request);
             data.put("name", name);
+            data.put("id", id);
         } catch (Exception e) {
             data.put("error", "Could not start the download");
         }

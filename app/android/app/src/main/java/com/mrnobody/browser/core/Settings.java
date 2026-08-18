@@ -146,9 +146,15 @@ public final class Settings {
         prefs.edit().putString("api_base_" + provider, base).apply();
     }
 
+    /**
+     * The model the user picked, or empty. There is deliberately no default:
+     * providers retire model ids (Groq's llama-3.3-70b-versatile disappeared
+     * and every install carrying it started 404-ing), so the app asks the
+     * provider what the key can use rather than shipping a guess.
+     */
     public String apiModel(String provider) {
         String v = prefs.getString("api_model_" + provider, "");
-        return v == null || v.trim().isEmpty() ? defaultModel(provider) : v;
+        return v == null ? "" : v.trim();
     }
 
     public void setApiModel(String provider, String model) {
@@ -156,32 +162,22 @@ public final class Settings {
     }
 
     /**
-     * Correct, free-accessible defaults for each remote provider. A user can
-     * override these (e.g. point OpenAI-compatible at their own gateway).
+     * The endpoint that <em>defines</em> a named provider — choosing "Groq"
+     * means talking to Groq. Still editable, and empty for the generic
+     * OpenAI-compatible option, where only the user knows their gateway.
+     *
+     * <p>Endpoints are stable in a way model ids are not; this is a starting
+     * value, not a guess about someone's account.
      */
     private static String defaultBase(String provider) {
         switch (provider) {
             case "gemini":
-                return "https://generativelanguage.googleapis.com/v1beta"; // Google AI Studio free tier
+                return "https://generativelanguage.googleapis.com/v1beta";
             case "groq":
-                return "https://api.groq.com/openai/v1"; // Groq free tier
+                return "https://api.groq.com/openai/v1";
             case "openai":
-                return "https://openrouter.ai/api/v1"; // OpenRouter (has :free models)
             default:
-                return "";
-        }
-    }
-
-    private static String defaultModel(String provider) {
-        switch (provider) {
-            case "gemini":
-                return "gemini-2.0-flash";
-            case "groq":
-                return "llama-3.3-70b-versatile";
-            case "openai":
-                return "meta-llama/llama-3.3-70b-instruct:free"; // OpenRouter free model
-            default:
-                return "";
+                return ""; // the user's own gateway — we cannot know it
         }
     }
 

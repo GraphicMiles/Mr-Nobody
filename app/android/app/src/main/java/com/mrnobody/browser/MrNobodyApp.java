@@ -148,22 +148,33 @@ public final class MrNobodyApp extends Application {
 
     /** Build the provider for an id, reading the current key/base/model from settings. */
     public static AiProvider buildProvider(String id) {
+        String key = settings.apiKey(storageKey(id));
+        return buildProvider(id, settings.apiBase(storageKey(id)), settings.apiModel(storageKey(id)), key);
+    }
+
+    /**
+     * Build a provider from explicit values — used to probe a configuration
+     * (list its models) before the user commits it.
+     */
+    public static AiProvider buildProvider(String id, String base, String model, String key) {
         switch (id) {
             case "gemini":
-                return new GeminiProvider(settings.apiBase("gemini"),
-                        settings.apiModel("gemini"), settings.apiKey("gemini"));
+                return new GeminiProvider(base, model, key);
             case "groq":
-                return new GroqProvider(settings.apiBase("groq"),
-                        settings.apiModel("groq"), settings.apiKey("groq"));
+                return new GroqProvider(base, model, key);
+            case "openai":
             case "openai-compatible":
                 return new OpenAiCompatibleProvider(
-                        "openai-compatible", "OpenAI-compatible",
-                        settings.apiBase("openai"), settings.apiModel("openai"),
-                        settings.apiKey("openai"));
+                        "openai-compatible", "OpenAI-compatible", base, model, key);
             case "local":
             default:
                 return new LocalProvider();
         }
+    }
+
+    /** Settings store the generic gateway under "openai"; the UI calls it that too. */
+    private static String storageKey(String providerId) {
+        return "openai-compatible".equals(providerId) ? "openai" : providerId;
     }
 
     public static String providerDisplayName(String id) {

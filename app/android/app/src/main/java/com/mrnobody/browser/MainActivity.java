@@ -6,16 +6,21 @@ import android.net.Uri;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.mrnobody.agent.ai.AiProvider;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.deeplink.DeepLinkHandler;
+import com.mrnobody.debug.ErrorLog;
 import com.mrnobody.browser.webview.MrNobodyWebViewFactory;
 
 import android.app.DownloadManager;
 import android.database.Cursor;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.webkit.CookieManager;
 import android.webkit.WebStorage;
 import android.webkit.WebView;
@@ -147,32 +152,38 @@ public class MainActivity extends FlutterActivity {
                             return;
                         }
                         case "downloads": {
-                            List<Map<String, Object>> out = new ArrayList<>();
-                            try {
-                                DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                                if (dm != null) {
-                                    DownloadManager.Query query = new DownloadManager.Query();
-                                    Cursor c = dm.query(query);
-                                    if (c != null) {
-                                        int iTitle = c.getColumnIndex(DownloadManager.COLUMN_TITLE);
-                                        int iSize = c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
-                                        int iSoFar = c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
-                                        int iStatus = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
-                                        while (c.moveToNext()) {
-                                            Map<String, Object> m = new HashMap<>();
-                                            m.put("name", c.getString(iTitle));
-                                            m.put("size", c.getLong(iSize));
-                                            m.put("downloaded", iSoFar >= 0 ? c.getLong(iSoFar) : 0L);
-                                            m.put("status", c.getInt(iStatus));
-                                            out.add(m);
-                                        }
-                                        c.close();
-                                    }
-                                }
-                            } catch (Exception e) {
-                                // best-effort; return empty list
+                            result.success(listDownloads());
+                            return;
+                        }
+                        case "openDownload": {
+                            Number dlId = call.argument("id");
+                            if (dlId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
                             }
-                            result.success(out);
+                            result.success(openDownload(dlId.longValue()));
+                            return;
+                        }
+                        case "removeDownload": {
+                            // Cancels it if running, and deletes the file it
+                            // wrote — the only way to stop a system download
+                            // from inside the app.
+                            Number rmId = call.argument("id");
+                            if (rmId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            try {
+                                DownloadManager dm =
+                                        (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                                result.success(dm != null && dm.remove(rmId.longValue()) > 0);
+                            } catch (Exception e) {
+                                result.success(false);
+                            }
+                            return;
+                        }
+                        case "networkStatus": {
+                            result.success(networkStatus());
                             return;
                         }
                         case "getSettings": {
@@ -208,6 +219,42 @@ public class MainActivity extends FlutterActivity {
                             // The key itself never crosses the channel — only whether one exists.
                             m.put("hasKey", !MrNobodyApp.settings().apiKey(id).isEmpty());
                             result.success(m);
+                            return;
+                        }
+                        case "listModels": {
+                            // Ask the provider, with whatever the user has
+                            // typed but not yet saved, so the list can be
+                            // fetched before committing anything.
+                            String id = call.argument("id");
+                            if (id == null || id.trim().isEmpty()) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            String base = call.argument("base");
+                            String key = call.argument("key");
+                            if (key == null || key.isEmpty()) {
+                                key = MrNobodyApp.settings().apiKey(id);
+                            }
+                            if (base == null || base.trim().isEmpty()) {
+                                base = MrNobodyApp.settings().apiBase(id);
+                            }
+                            AiProvider probe = MrNobodyApp.buildProvider(id, base, "", key);
+                            probe.listModels(new AiProvider.ModelsCallback() {
+                                @Override
+                                public void onModels(java.util.List<String> modelIds) {
+                                    Map<String, Object> m = new HashMap<>();
+                                    m.put("models", modelIds);
+                                    runOnUiThread(() -> result.success(m));
+                                }
+
+                                @Override
+                                public void onError(String error) {
+                                    Map<String, Object> m = new HashMap<>();
+                                    m.put("models", new ArrayList<String>());
+                                    m.put("error", error);
+                                    runOnUiThread(() -> result.success(m));
+                                }
+                            });
                             return;
                         }
                         case "saveProvider": {
@@ -304,6 +351,102 @@ public class MainActivity extends FlutterActivity {
         // Deep-link channel: forward incoming intents to Dart.
         deeplinkChannel = new MethodChannel(
                 flutterEngine.getDartExecutor().getBinaryMessenger(), DEEPLINK);
+    }
+
+    /**
+     * Everything the Downloads screen needs to describe a file: where it came
+     * from, what it is, how far along it is, and where it landed.
+     */
+    private List<Map<String, Object>> listDownloads() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (dm == null) return out;
+            Cursor c = dm.query(new DownloadManager.Query());
+            if (c == null) return out;
+            int iId = c.getColumnIndex(DownloadManager.COLUMN_ID);
+            int iTitle = c.getColumnIndex(DownloadManager.COLUMN_TITLE);
+            int iSize = c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
+            int iSoFar = c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
+            int iStatus = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
+            int iReason = c.getColumnIndex(DownloadManager.COLUMN_REASON);
+            int iUri = c.getColumnIndex(DownloadManager.COLUMN_URI);
+            int iLocal = c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
+            int iMime = c.getColumnIndex(DownloadManager.COLUMN_MEDIA_TYPE);
+            int iWhen = c.getColumnIndex(DownloadManager.COLUMN_LAST_MODIFIED_TIMESTAMP);
+            while (c.moveToNext()) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", iId >= 0 ? c.getLong(iId) : 0L);
+                m.put("name", iTitle >= 0 ? c.getString(iTitle) : "download");
+                m.put("size", iSize >= 0 ? c.getLong(iSize) : 0L);
+                m.put("downloaded", iSoFar >= 0 ? c.getLong(iSoFar) : 0L);
+                m.put("status", iStatus >= 0 ? c.getInt(iStatus) : 0);
+                m.put("reason", iReason >= 0 ? c.getInt(iReason) : 0);
+                m.put("url", iUri >= 0 ? c.getString(iUri) : null);
+                m.put("localUri", iLocal >= 0 ? c.getString(iLocal) : null);
+                m.put("mime", iMime >= 0 ? c.getString(iMime) : null);
+                m.put("updatedAt", iWhen >= 0 ? c.getLong(iWhen) : 0L);
+                out.add(m);
+            }
+            c.close();
+        } catch (Exception e) {
+            ErrorLog.record("downloads query failed: " + e);
+        }
+        return out;
+    }
+
+    /** Hand a finished download to whatever app knows how to open it. */
+    private boolean openDownload(long id) {
+        try {
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            if (dm == null) return false;
+            Uri uri = dm.getUriForDownloadedFile(id);
+            if (uri == null) return false;
+            String mime = dm.getMimeTypeForDownloadedFile(id);
+            Intent view = new Intent(Intent.ACTION_VIEW);
+            view.setDataAndType(uri, mime == null ? "*/*" : mime);
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(view);
+            return true;
+        } catch (Exception e) {
+            ErrorLog.record("could not open download " + id + ": " + e);
+            return false;
+        }
+    }
+
+    /**
+     * What the connection can do right now. Deliberately from
+     * NetworkCapabilities only: signal bars would need READ_PHONE_STATE, a
+     * permission this product refuses to ask for.
+     */
+    private Map<String, Object> networkStatus() {
+        Map<String, Object> m = new HashMap<>();
+        m.put("transport", "none");
+        m.put("metered", false);
+        m.put("downKbps", 0);
+        m.put("upKbps", 0);
+        m.put("online", false);
+        try {
+            ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+            if (cm == null) return m;
+            Network network = cm.getActiveNetwork();
+            NetworkCapabilities caps = network == null ? null : cm.getNetworkCapabilities(network);
+            if (caps == null) return m;
+            String transport = "other";
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) transport = "wifi";
+            else if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) transport = "cellular";
+            else if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) transport = "ethernet";
+            else if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) transport = "vpn";
+            m.put("transport", transport);
+            m.put("metered", !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED));
+            m.put("downKbps", caps.getLinkDownstreamBandwidthKbps());
+            m.put("upKbps", caps.getLinkUpstreamBandwidthKbps());
+            m.put("online", caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED));
+        } catch (Exception e) {
+            ErrorLog.record("network status failed: " + e);
+        }
+        return m;
     }
 
     /**

@@ -60,6 +60,17 @@ class NativeBridge {
     return Map<String, dynamic>.from(await _ch.invokeMethod('providerConfig', {'id': id}));
   }
 
+  /// Ask a provider which models the supplied key can actually use. Nothing is
+  /// saved by this call, so the list can be fetched before committing.
+  static Future<Map<String, dynamic>> listModels({
+    required String id,
+    String? base,
+    String? key,
+  }) async {
+    final r = await _ch.invokeMethod('listModels', {'id': id, 'base': base, 'key': key});
+    return Map<String, dynamic>.from(r as Map);
+  }
+
   /// Save an AI provider's configuration, optionally making it the active one.
   static Future<void> saveProvider({
     required String id,
@@ -90,6 +101,21 @@ class NativeBridge {
   static Future<List<Map<String, dynamic>>> downloads() async {
     final r = await _ch.invokeMethod('downloads');
     return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  /// Open a finished download with whatever app handles its type.
+  static Future<bool> openDownload(int id) async {
+    return await _ch.invokeMethod('openDownload', {'id': id}) as bool? ?? false;
+  }
+
+  /// Cancel a running download (or delete a finished one) and remove its file.
+  static Future<bool> removeDownload(int id) async {
+    return await _ch.invokeMethod('removeDownload', {'id': id}) as bool? ?? false;
+  }
+
+  /// What the connection can do right now: transport, metered, link speeds.
+  static Future<Map<String, dynamic>> networkStatus() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('networkStatus') as Map);
   }
 
   /// Locally stored bookmarks.
