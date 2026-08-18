@@ -129,7 +129,7 @@ public final class GeminiProvider implements AiProvider {
                     }
                     // streamGenerateContent carries usageMetadata on chunks;
                     // keep the most recent non-zero figure.
-                    TokenUsage u = usageOf(new JSONObject(json));
+                    TokenUsage u = usageOfJson(json);
                     if (u.totalTokens() > 0) usage[0] = u;
                 });
             }
@@ -180,6 +180,15 @@ public final class GeminiProvider implements AiProvider {
             long prompt = meta.optLong("promptTokenCount", 0);
             long completion = meta.optLong("candidatesTokenCount", 0);
             return new TokenUsage(prompt, completion);
+        } catch (Exception e) {
+            return TokenUsage.ZERO;
+        }
+    }
+
+    /** {@link #usageOf} from a raw JSON string (the SSE frame's payload). */
+    private static TokenUsage usageOfJson(String json) {
+        try {
+            return usageOf(new JSONObject(json));
         } catch (Exception e) {
             return TokenUsage.ZERO;
         }

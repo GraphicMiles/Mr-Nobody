@@ -125,7 +125,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
                     }
                     // The final frame carries the usage block (when the request
                     // asked for it); non-final frames carry none.
-                    TokenUsage u = usageOf(new JSONObject(json));
+                    TokenUsage u = usageOfJson(json);
                     if (u.totalTokens() > 0) usage[0] = u;
                 });
             }
@@ -176,6 +176,15 @@ public class OpenAiCompatibleProvider implements AiProvider {
             long prompt = usage.optLong("prompt_tokens", 0);
             long completion = usage.optLong("completion_tokens", 0);
             return new TokenUsage(prompt, completion);
+        } catch (Exception e) {
+            return TokenUsage.ZERO;
+        }
+    }
+
+    /** {@link #usageOf} from a raw JSON string (the SSE frame's payload). */
+    private static TokenUsage usageOfJson(String json) {
+        try {
+            return usageOf(new JSONObject(json));
         } catch (Exception e) {
             return TokenUsage.ZERO;
         }
