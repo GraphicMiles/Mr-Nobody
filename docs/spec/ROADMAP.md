@@ -70,11 +70,17 @@ Closes: V1 #12 (agent half), V2 §6, harness priority 9. **This is the largest
 single item in Phase 1** and the one that turns the agent from a research
 cascade into an agent.
 
-### 1.4 Real private tabs — `MULTI_PROFILE`
+### 1.4 Real private tabs — `MULTI_PROFILE` ✅ built and wired — unverified on device
 
 Per-profile `CookieManager` and `WebStorage` via `androidx.webkit` 1.9.0.
 Feature-detect; `setProfile` before first navigation; move existing cookie
 policy onto the profile's manager. See `PRIVACY_V2_OPTIONS.md` §1.
+
+`ProfileManager.applyPrivate` is called from `MrNobodyWebView:108` and
+`destroyPrivate` from `TabWebViews:148`, both feature-detected. **Not yet
+observed on a device**, and the UI does not report whether this device's
+WebView actually supports it — so the retracted claim stays retracted until
+`NEXT_THREE_PHASES.md` A1/A2 land.
 
 Closes: V2 §10 browser session isolation (visible half), and the claim we
 retracted.
@@ -85,10 +91,15 @@ The only privacy regression testing is a static grep. There are no
 request-level assertions that the filter engine actually blocks anything on a
 real page. This is the gap the audit fix explicitly did *not* close.
 
-### 1.6 Fingerprint defence
+### 1.6 Fingerprint defence ✅ built and wired — unverified, and the toggle is inert
 
 `addDocumentStartJavaScript` + `setUserAgentMetadata`. Kilobytes.
 `PRIVACY_V2_OPTIONS.md` §5. Ship with the honest ceiling stated in the UI.
+
+`FingerprintDefence.apply` is called from `MrNobodyWebView:114`. Two gaps
+remain: it is applied unconditionally, so `Settings.isFingerprintProtection()`
+reads a value nothing consults — item 1.1's "a toggle that enforces nothing"
+in a new form — and none of it is device-verified.
 
 **Phase 1 exit:** no claim in the README, the settings screen or `STATUS.md`
 is unsupported by code, and CI fails when one becomes so.
@@ -257,6 +268,21 @@ under proxy, real ad-page blocking) cannot run without an emulator matrix.
 | Rust filter core | `PrivacyEngine` is the seam if benchmarks ever justify it. They have not. |
 
 ---
+
+## Execution order
+
+The staged plan for what to do next, in effort order, is
+**`docs/spec/NEXT_THREE_PHASES.md`**. It supersedes the phase ordering below
+where the two disagree, because it was written by reading the code and found
+1.4 and 1.6 already built.
+
+Short version: **Phase A** proves what exists (build an APK, report real device
+capability, behavioural filter tests); **Phase B** finishes the agent (`Plan`
+driving execution, monitoring) and verifies privacy routing on hardware;
+**Phase C** is the remote layer (device identity → signed envelope → remote
+worker → credits), strictly ordered.
+
+Start at A1: build the APK. Nothing here has ever run on a device.
 
 ## Summary
 
