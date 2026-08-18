@@ -35,7 +35,7 @@ void main() {
     await loadTestFonts();
     _mockCore();
     // No Android platform view in a widget test.
-    BrowserTab.engineFactory = ({required String url, required bool isPrivate}) =>
+    BrowserTab.engineFactory = ({required int tabId, required String url, required bool isPrivate}) =>
         FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
   });
 
@@ -230,10 +230,54 @@ void _mockCore() {
             'hasKey': false,
           };
         case 'downloads':
+          // The shape the app's own engine returns: named statuses, a folder,
+          // and whether the user may press Resume.
           return [
-            {'name': 'report.pdf', 'size': 2202009, 'downloaded': 1365245, 'status': 2},
-            {'name': 'image.jpg', 'size': 491520, 'downloaded': 491520, 'status': 8},
-            {'name': 'archive.zip', 'size': 0, 'downloaded': 0, 'status': 16},
+            {
+              'id': 1,
+              'name': 'report.pdf',
+              'size': 2202009,
+              'downloaded': 1365245,
+              'status': 'RUNNING',
+              'percent': 62,
+              'folder': 'Documents',
+              'resumable': true,
+              'canResume': false,
+            },
+            {
+              'id': 2,
+              'name': 'Batman.mkv',
+              'size': 1073741824,
+              'downloaded': 322122547,
+              'status': 'PAUSED',
+              'percent': 30,
+              'folder': 'Movies',
+              'resumable': true,
+              'canResume': true,
+            },
+            {
+              'id': 3,
+              'name': 'image.jpg',
+              'size': 491520,
+              'downloaded': 491520,
+              'status': 'COMPLETED',
+              'percent': 100,
+              'folder': 'Downloads (system)',
+              'resumable': true,
+              'canResume': false,
+            },
+            {
+              'id': 4,
+              'name': 'archive.zip',
+              'size': 0,
+              'downloaded': 0,
+              'status': 'FAILED',
+              'percent': -1,
+              'error': 'No connection',
+              'folder': 'Downloads (system)',
+              'resumable': false,
+              'canResume': true,
+            },
           ];
         case 'bookmarks':
           return <Map<String, Object>>[];

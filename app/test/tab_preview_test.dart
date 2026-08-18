@@ -19,7 +19,7 @@ void main() {
   late FakeBrowserEngine lastEngine;
 
   setUp(() {
-    BrowserTab.engineFactory = ({required String url, required bool isPrivate}) {
+    BrowserTab.engineFactory = ({required int tabId, required String url, required bool isPrivate}) {
       lastEngine = FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
       return lastEngine;
     };

@@ -112,107 +112,109 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _state,
-      builder: (context, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SafeArea(bottom: false, child: TopBar(title: 'Settings', onBack: widget.onBack)),
-          Expanded(
-            child: ListView(
-              controller: widget.scrollController,
-              padding: const EdgeInsets.only(bottom: 120),
-              children: [
-                const SectionLabel('Browsing'),
-                AppCard(
-                  child: Column(
-                    children: withDividers([
-                      _toggle('Save browsing history', _state.history, (v) {
-                        _state.setHistory(v);
-                        AppToast.show(context, 'History ${v ? 'ON' : 'OFF'}');
-                      }),
-                      _toggle('JavaScript', _state.js, (v) {
-                        _state.setJs(v);
-                        // WebSettings take effect on the next load, so say so
-                        // rather than let the current page look unchanged.
-                        AppToast.show(
-                          context,
-                          'JavaScript ${v ? 'ON' : 'OFF'} — reload the page to apply',
-                        );
-                      }),
-                      _toggle('Search suggestions', _state.suggestions, (v) {
-                        _state.setSuggestions(v);
-                        AppToast.show(context, 'Suggestions ${v ? 'ON' : 'OFF'}');
-                      }),
-                    ]),
+      builder: (context, _) => ScreenSurface(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SafeArea(bottom: false, child: TopBar(title: 'Settings', onBack: widget.onBack)),
+            Expanded(
+              child: ListView(
+                controller: widget.scrollController,
+                padding: const EdgeInsets.only(bottom: 120),
+                children: [
+                  const SectionLabel('Browsing'),
+                  AppCard(
+                    child: Column(
+                      children: withDividers([
+                        _toggle('Save browsing history', _state.history, (v) {
+                          _state.setHistory(v);
+                          AppToast.show(context, 'History ${v ? 'ON' : 'OFF'}');
+                        }),
+                        _toggle('JavaScript', _state.js, (v) {
+                          _state.setJs(v);
+                          // WebSettings take effect on the next load, so say so
+                          // rather than let the current page look unchanged.
+                          AppToast.show(
+                            context,
+                            'JavaScript ${v ? 'ON' : 'OFF'} — reload the page to apply',
+                          );
+                        }),
+                        _toggle('Search suggestions', _state.suggestions, (v) {
+                          _state.setSuggestions(v);
+                          AppToast.show(context, 'Suggestions ${v ? 'ON' : 'OFF'}');
+                        }),
+                      ]),
+                    ),
                   ),
-                ),
-                const SectionLabel('Agent'),
-                AppCard(
-                  child: Column(
-                    children: withDividers([
-                      Builder(
-                        builder: (rowContext) => SettingRow(
-                          label: 'Privacy profile',
-                          value: _state.profileLabel,
-                          valueOn: true,
-                          onTap: () => _pickProfile(rowContext),
+                  const SectionLabel('Agent'),
+                  AppCard(
+                    child: Column(
+                      children: withDividers([
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Privacy profile',
+                            value: _state.profileLabel,
+                            valueOn: true,
+                            onTap: () => _pickProfile(rowContext),
+                          ),
                         ),
-                      ),
-                      Builder(
-                        builder: (rowContext) => SettingRow(
-                          label: 'AI provider',
-                          value: _state.providerLabel,
-                          onTap: () => _pickProvider(rowContext),
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'AI provider',
+                            value: _state.providerLabel,
+                            onTap: () => _pickProvider(rowContext),
+                          ),
                         ),
-                      ),
-                      Builder(
-                        builder: (rowContext) => SettingRow(
-                          label: 'Terminal',
-                          value: _state.terminalLabel,
-                          onTap: () => _pickTerminal(rowContext),
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Terminal',
+                            value: _state.terminalLabel,
+                            onTap: () => _pickTerminal(rowContext),
+                          ),
                         ),
-                      ),
-                    ]),
+                      ]),
+                    ),
                   ),
-                ),
-                const SectionLabel('Data'),
-                AppCard(
-                  child: Column(
-                    children: withDividers([
-                      SettingRow(
-                        label: 'Clear browsing data',
-                        onTap: () => Navigator.of(context)
-                            .push(MaterialPageRoute(builder: (_) => const ClearDataScreen())),
-                      ),
-                      Builder(
-                        builder: (rowContext) => SettingRow(
-                          label: 'Download folder',
-                          value: _downloadFolder,
-                          valueOn: _customFolder,
-                          onTap: () => _chooseDownloadFolder(rowContext),
+                  const SectionLabel('Data'),
+                  AppCard(
+                    child: Column(
+                      children: withDividers([
+                        SettingRow(
+                          label: 'Clear browsing data',
+                          onTap: () => Navigator.of(context)
+                              .push(MaterialPageRoute(builder: (_) => const ClearDataScreen())),
                         ),
-                      ),
-                      SettingRow(
-                        label: 'Downloads',
-                        value: _downloadCount?.toString(),
-                        onTap: () async {
-                          await Navigator.of(context)
-                              .push(MaterialPageRoute(builder: (_) => const DownloadsScreen()));
-                          _loadDownloadCount();
-                        },
-                      ),
-                      SettingRow(
-                        label: 'Privacy dashboard',
-                        onTap: () => Navigator.of(context)
-                            .push(MaterialPageRoute(builder: (_) => const PrivacyScreen())),
-                      ),
-                      SettingRow(label: 'About', onTap: _about),
-                    ]),
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Download folder',
+                            value: _downloadFolder,
+                            valueOn: _customFolder,
+                            onTap: () => _chooseDownloadFolder(rowContext),
+                          ),
+                        ),
+                        SettingRow(
+                          label: 'Downloads',
+                          value: _downloadCount?.toString(),
+                          onTap: () async {
+                            await Navigator.of(context)
+                                .push(MaterialPageRoute(builder: (_) => const DownloadsScreen()));
+                            _loadDownloadCount();
+                          },
+                        ),
+                        SettingRow(
+                          label: 'Privacy dashboard',
+                          onTap: () => Navigator.of(context)
+                              .push(MaterialPageRoute(builder: (_) => const PrivacyScreen())),
+                        ),
+                        SettingRow(label: 'About', onTap: _about),
+                      ]),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -232,7 +234,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       selected: _state.profile,
       options: const [
         MenuOption(id: 'BALANCED', label: 'Balanced', icon: Icons.balance, tag: 'default'),
-        MenuOption(id: 'STRICT', label: 'Strict', icon: Icons.shield_outlined, tag: '3P cookies blocked'),
+        MenuOption(
+            id: 'STRICT', label: 'Strict', icon: Icons.shield_outlined, tag: '3P cookies blocked'),
         MenuOption(id: 'MAXIMUM', label: 'Maximum', icon: Icons.lock_outline, tag: 'JS off'),
       ],
     );
@@ -318,7 +321,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: Text('OK', style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w600)),
+            child: Text('OK',
+                style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w600)),
           ),
         ],
       ),

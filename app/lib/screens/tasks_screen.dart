@@ -63,7 +63,9 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ScreenSurface(child: _buildBody(context));
+
+  Widget _buildBody(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

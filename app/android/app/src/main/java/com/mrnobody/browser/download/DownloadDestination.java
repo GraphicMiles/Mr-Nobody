@@ -4,27 +4,23 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
 
-import java.io.File;
-
 /**
- * Where downloads are written, and how a file gets to a folder the user chose.
+ * The folder downloads are written to.
  *
- * <p>DownloadManager can only write to paths this app owns or to the public
- * Downloads directory — it cannot write into a Storage Access Framework tree.
- * So when the user picks a folder, a download is <em>staged</em> in app-private
- * storage and moved into the tree once it finishes
- * ({@link DownloadMoveWorker}). Without a chosen folder nothing changes: the
- * file goes straight to public Downloads, where every other app puts them.
+ * <p>This used to describe a staging dance: {@code DownloadManager} cannot
+ * write into a Storage Access Framework tree, so a download was written to
+ * app-private storage and copied into the user's folder afterwards. That is
+ * why choosing a folder still left the file in
+ * {@code Android/data/com.mrnobody.browser/files/staging}. {@link
+ * DownloadEngine} performs the transfer itself and writes into the chosen
+ * folder from the first byte, so all that is left here is the grant and its
+ * label.
  */
 public final class DownloadDestination {
 
     private static final String PREFS = "mrnobody_downloads";
     private static final String KEY_TREE = "tree_uri";
     private static final String KEY_TREE_LABEL = "tree_label";
-    private static final String PENDING_PREFIX = "pending_";
-
-    /** Subdirectory of the app's external files dir used for staging. */
-    public static final String STAGING_DIR = "staging";
 
     private final SharedPreferences prefs;
 
@@ -62,24 +58,14 @@ public final class DownloadDestination {
         prefs.edit().remove(KEY_TREE).remove(KEY_TREE_LABEL).apply();
     }
 
-    // ------------------------------------------------------------- staging
+    // -------------------------------------------------------------- naming
 
     /**
-     * The file a download is written to while it runs, when it will be moved
-     * afterwards. App-private, so nothing half-downloaded appears in the user's
-     * folder — and a failed move leaves the bytes somewhere we can retry from.
+     * Never overwrite: two downloads can share a name, and silently replacing
+     * someone's file is not a thing a browser gets to do.
      */
-    public static File stagingFile(Context context, String fileName) {
-        File dir = new File(context.getExternalFilesDir(null), STAGING_DIR);
-        //noinspection ResultOfMethodCallIgnored
-        dir.mkdirs();
-        return new File(dir, uniqueName(dir, fileName));
-    }
-
-    /** Never overwrite a staged file: two downloads can share a name. */
-    static String uniqueName(File dir, String fileName) {
-        File candidate = new File(dir, fileName);
-        if (!candidate.exists()) return fileName;
+    public static String uniqueName(java.util.Set<String> taken, String fileName) {
+        if (!taken.contains(fileName)) return fileName;
         String stem = fileName;
         String extension = "";
         int dot = fileName.lastIndexOf('.');
@@ -89,60 +75,8 @@ public final class DownloadDestination {
         }
         for (int i = 2; i < 1000; i++) {
             String next = stem + " (" + i + ")" + extension;
-            if (!new File(dir, next).exists()) return next;
+            if (!taken.contains(next)) return next;
         }
         return stem + "-" + System.currentTimeMillis() + extension;
-    }
-
-    // ------------------------------------------------------- pending moves
-
-    /**
-     * Remember that this download is staged and where it should end up. The
-     * process can die between enqueueing and completion, so this has to be on
-     * disk rather than in a map.
-     */
-    public void rememberPending(long downloadId, String stagedPath, String fileName, String mime) {
-        prefs.edit()
-                .putString(PENDING_PREFIX + downloadId,
-                        encode(stagedPath, fileName, mime == null ? "" : mime))
-                .apply();
-    }
-
-    public Pending pending(long downloadId) {
-        String raw = prefs.getString(PENDING_PREFIX + downloadId, "");
-        return decode(raw);
-    }
-
-    public void forgetPending(long downloadId) {
-        prefs.edit().remove(PENDING_PREFIX + downloadId).apply();
-    }
-
-    /** A staged download waiting to be moved into the user's folder. */
-    public static final class Pending {
-        public final String stagedPath;
-        public final String fileName;
-        public final String mime;
-
-        Pending(String stagedPath, String fileName, String mime) {
-            this.stagedPath = stagedPath;
-            this.fileName = fileName;
-            this.mime = mime;
-        }
-    }
-
-    // Values are joined with a character that cannot appear in a path segment
-    // we generate; kept package-visible so the format is unit-tested.
-    static final String SEPARATOR = "\u001f";
-
-    static String encode(String stagedPath, String fileName, String mime) {
-        return stagedPath + SEPARATOR + fileName + SEPARATOR + mime;
-    }
-
-    static Pending decode(String raw) {
-        if (raw == null || raw.isEmpty()) return null;
-        String[] parts = raw.split(SEPARATOR, -1);
-        if (parts.length < 2 || parts[0].isEmpty()) return null;
-        String mime = parts.length > 2 ? parts[2] : "";
-        return new Pending(parts[0], parts[1], mime.isEmpty() ? null : mime);
     }
 }

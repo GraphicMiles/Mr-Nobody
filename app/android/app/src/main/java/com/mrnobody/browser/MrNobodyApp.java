@@ -81,6 +81,15 @@ public final class MrNobodyApp extends Application {
         perSiteSettings = new PerSiteSettings(this);
 
         historyStore.setEnabled(settings.isHistoryEnabled());
+
+        // Downloads are ours to carry now, so a process death leaves rows that
+        // claim to be running when nothing is. Park them as stalled so the user
+        // gets a Resume button instead of a progress bar frozen forever.
+        try {
+            com.mrnobody.browser.download.DownloadEngine.get(this).reconcile();
+        } catch (Throwable t) {
+            com.mrnobody.debug.ErrorLog.record("download reconcile failed: " + t);
+        }
         activeAiProviderId = settings.activeAiProvider();
 
         // Agent stack (V1 = deterministic + local worker + headless WebView).

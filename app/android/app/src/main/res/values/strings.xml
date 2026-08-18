@@ -7,4 +7,20 @@
     <string name="notification_channel_tasks_desc">Tells you when a task you asked for has finished.</string>
     <string name="notification_task_done">Task finished</string>
     <string name="notification_task_failed">Task failed</string>
+
+    <!-- The app's own download notification: the system downloader's could not
+         be paused, renamed or pointed at the folder the user picked. -->
+    <string name="notification_channel_downloads">Downloads</string>
+    <string name="notification_channel_downloads_desc">Progress for files you are downloading, with pause and cancel.</string>
+    <string name="download_summary_one">Downloading 1 file</string>
+    <string name="download_summary_many">Downloading %1$d files</string>
+    <string name="download_queued">Waiting to start</string>
+    <string name="download_paused_at">Paused at %1$s</string>
+    <string name="download_stalled">Stopped — tap Resume to continue</string>
+    <string name="download_saved_to">Saved to %1$s</string>
+    <string name="download_failed">Download failed</string>
+    <string name="download_pause">Pause</string>
+    <string name="download_resume">Resume</string>
+    <string name="download_cancel">Cancel</string>
+    <string name="download_retry">Retry</string>
 </resources>

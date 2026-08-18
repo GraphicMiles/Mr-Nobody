@@ -3,6 +3,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Only ever used to tell you a task you started has finished. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Downloads are performed by this app, not handed to the system
+         downloader, so they need a foreground service to survive the user
+         switching away. The flip side is the one the user asked for: they stop
+         when Mr Nobody is uninstalled. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -61,15 +67,13 @@
             </intent-filter>
         </activity>
 
-        <!-- A download outlives the app; this is how a file still reaches the
-             folder the user chose after Mr Nobody is closed. -->
-        <receiver
-            android:name="com.mrnobody.browser.download.DownloadCompleteReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
-            </intent-filter>
-        </receiver>
+        <!-- Carries downloads while the user is elsewhere in the app or off
+             it entirely. Not exported: nothing outside Mr Nobody may start a
+             download. -->
+        <service
+            android:name="com.mrnobody.browser.download.DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <meta-data
             android:name="flutterEmbedding"

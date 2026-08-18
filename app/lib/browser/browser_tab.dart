@@ -50,10 +50,11 @@ class BrowserTab extends ChangeNotifier {
   int _lastScrollY = 0;
 
   /// Injected in tests; production always builds the platform-view engine.
-  static BrowserEngine Function({required String url, required bool isPrivate})? engineFactory;
+  static BrowserEngine Function({required int tabId, required String url, required bool isPrivate})?
+      engineFactory;
 
   BrowserTab(this.id, {this.isPrivate = false, this.url = '', this.title = ''}) {
-    engine = (engineFactory ?? _defaultEngine)(url: url, isPrivate: isPrivate);
+    engine = (engineFactory ?? _defaultEngine)(tabId: id, url: url, isPrivate: isPrivate);
     engine
       ..onUrlChanged = (u) {
         if (u == url) return;
@@ -100,8 +101,9 @@ class BrowserTab extends ChangeNotifier {
       };
   }
 
-  static BrowserEngine _defaultEngine({required String url, required bool isPrivate}) =>
-      NativeWebViewEngine(initialUrl: url, isPrivate: isPrivate);
+  static BrowserEngine _defaultEngine(
+          {required int tabId, required String url, required bool isPrivate}) =>
+      NativeWebViewEngine(tabId: tabId, initialUrl: url, isPrivate: isPrivate);
 
   /// Load a URL through this tab, clearing any error state first.
   Future<void> load(String target) async {
