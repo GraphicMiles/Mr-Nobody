@@ -20,10 +20,12 @@ public final class TaskStore extends SQLiteOpenHelper {
     private static final String DB = "mrnobody_tasks.db";
     /**
      * v2 adds {@code cancel_requested}; v3 adds heartbeat and schedule; v4 adds
-     * {@code prev_result} for recurring-task change detection. Every bump needs
-     * a real onUpgrade.
+     * {@code prev_result} for recurring-task change detection; v5 adds
+     * {@code pending_tool} so a WAITING task knows what to resume; v6 adds
+     * {@code follow_up} so a reply stays on this task. Every bump needs a
+     * real onUpgrade.
      */
-    private static final int VERSION = 4;
+    private static final int VERSION = 6;
 
     private static final String T = "tasks";
     private static final String C_ID = "_id";
@@ -43,6 +45,9 @@ public final class TaskStore extends SQLiteOpenHelper {
     private static final String C_LAST_RUN = "last_run_at";
     /** The answer a recurring task produced last run, for change detection. */
     private static final String C_PREV_RESULT = "prev_result";
+    /** Tool that is waiting for a human, or null. */
+    private static final String C_PENDING_TOOL = "pending_tool";
+    private static final String C_FOLLOW_UP = "follow_up";
 
     public TaskStore(Context context) {
         super(context, DB, null, VERSION);
@@ -65,7 +70,9 @@ public final class TaskStore extends SQLiteOpenHelper {
                 + C_BEAT + " INTEGER DEFAULT 0, "
                 + C_REPEAT + " TEXT, "
                 + C_LAST_RUN + " INTEGER DEFAULT 0, "
-                + C_PREV_RESULT + " TEXT)");
+                + C_PREV_RESULT + " TEXT, "
+                + C_PENDING_TOOL + " TEXT, "
+                + C_FOLLOW_UP + " TEXT)");
     }
 
     @Override
@@ -84,6 +91,12 @@ public final class TaskStore extends SQLiteOpenHelper {
         }
         if (oldVersion < 4) {
             db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_PREV_RESULT + " TEXT");
+        }
+        if (oldVersion < 5) {
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_PENDING_TOOL + " TEXT");
+        }
+        if (oldVersion < 6) {
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_FOLLOW_UP + " TEXT");
         }
     }
 
@@ -108,6 +121,7 @@ public final class TaskStore extends SQLiteOpenHelper {
         v.put(C_UPDATED, System.currentTimeMillis());
         v.put(C_RETRY, task.retryCount());
         v.put(C_WORKER, task.worker());
+        v.put(C_FOLLOW_UP, task.followUp());
         getWritableDatabase().update(T, v, C_ID + "=?", new String[]{String.valueOf(task.id())});
     }
 
@@ -251,6 +265,23 @@ public final class TaskStore extends SQLiteOpenHelper {
         } catch (Exception e) {
             return "";
         }
+    }
+
+    /** The tool a WAITING task needs approved, or "". */
+    public String pendingTool(long id) {
+        try (Cursor c = getReadableDatabase().query(T, new String[]{C_PENDING_TOOL},
+                C_ID + "=?", new String[]{String.valueOf(id)}, null, null, null)) {
+            String v = c.moveToFirst() ? c.getString(0) : null;
+            return v == null ? "" : v;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public void setPendingTool(long id, String tool) {
+        ContentValues v = new ContentValues();
+        v.put(C_PENDING_TOOL, tool == null ? null : tool);
+        getWritableDatabase().update(T, v, C_ID + "=?", new String[]{String.valueOf(id)});
     }
 
     /** Remember what the task last answered, so the next run can say what changed. */

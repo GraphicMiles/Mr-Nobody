@@ -59,6 +59,10 @@ runner (see `tests/`).
 
 ## 6. Hard gate
 
-- Release APK **must be ≤ 45 MB**. CI fails the build if it exceeds this
-  (`tools/apk_size_check.py`, enforced in `.github/workflows/build.yml`).
-- The 20–45 MB target is a product identity, not a soft preference.
+- **Product target:** stay in the 20–45 MB band. Typical release APK is ~2–8 MB
+  because the engine is the OS.
+- **CI hard-fail:** 70 MB (`tools/apk_size_check.py`, invoked from
+  `.github/workflows/flutter.yml` with that ceiling). Large enough that a real
+  regression still fails, without treating the design target as a cliff the
+  first extra library walks off.
+- The 20–45 MB target remains the identity. The 70 MB gate is the last line.

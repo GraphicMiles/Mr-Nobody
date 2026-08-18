@@ -43,11 +43,19 @@ All counts (the privacy dashboard) are computed on-device. Nothing is uploaded.
   (`CookieManager.setAcceptThirdPartyCookies(view, false)`); WebView does not
   expose a fully hardened third-party cookie policy. Blocking is reinforced by
   the tracker-domain filter.
-- **Private tabs** share the engine's cookie/storage jars (WebView has no
-  per-tab incognito profile). We set `FLAG_SECURE`, never write history for
-  private tabs, and clear state where practical. Full storage isolation is a V2
-  item.
-- **WebView Safe Browsing** is disabled (it would send URLs to Google).
+- **Private tabs** isolate cookies and site storage only when this device's
+  System WebView supports `MULTI_PROFILE`. The privacy dashboard reports that
+  as a fact (`Isolated private tabs`), not an assumption. On an older WebView
+  a private tab still writes no history, skips thumbnails, and is cleared on
+  close — it is **not** a separate cookie jar. Private is not anonymous: same
+  IP, same TLS stack.
+- **WebView Safe Browsing** is disabled (`setSafeBrowsingEnabled(false)`).
+  Enabling it would send visited URLs to Google. Malware checks stay with the
+  OS / Play Protect.
+- **Nobody mode** hides the IP only if Orbot (or a configured proxy) is up
+  and the WebView can be proxied. Otherwise the mode is refused and the UI
+  must show why. Fingerprint patches are forced on for a live Nobody session
+  and restored when it ends. This is not Tor Browser and not anonymity.
 
 ## Verification
 

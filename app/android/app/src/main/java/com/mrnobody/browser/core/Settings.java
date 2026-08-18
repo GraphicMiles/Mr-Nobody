@@ -139,6 +139,27 @@ public final class Settings {
         prefs.edit().putBoolean(KEY_FINGERPRINT_PROTECTION, enabled).apply();
     }
 
+    /**
+     * The fingerprint setting as it was before Nobody forced it on. Meaningless
+     * unless {@link #isFingerprintForcedByNobody()} is true.
+     */
+    public boolean fingerprintBeforeNobody() {
+        return prefs.getBoolean(KEY_FINGERPRINT_BEFORE_NOBODY, false);
+    }
+
+    public void setFingerprintBeforeNobody(boolean enabled) {
+        prefs.edit().putBoolean(KEY_FINGERPRINT_BEFORE_NOBODY, enabled).apply();
+    }
+
+    /** True when Nobody turned fingerprinting on and we must restore on exit. */
+    public boolean isFingerprintForcedByNobody() {
+        return prefs.getBoolean(KEY_FINGERPRINT_FORCED_BY_NOBODY, false);
+    }
+
+    public void setFingerprintForcedByNobody(boolean forced) {
+        prefs.edit().putBoolean(KEY_FINGERPRINT_FORCED_BY_NOBODY, forced).apply();
+    }
+
     // ------------------------------------------------------- AI provider keys
     // Stored locally; never used unless the user enables a remote provider.
 

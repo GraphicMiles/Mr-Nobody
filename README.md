@@ -4,10 +4,11 @@
 
 A small, **native** Android privacy browser. No ads, no trackers, no history by default.
 
-Mr Nobody is a native Java application. All browser chrome, tabs, settings, privacy
-controls, storage policy, ad/tracker filtering, and UX are implemented natively by us.
-Rendering is delegated to the **smallest practical engine** — Android System WebView —
-so the APK stays small (20–45 MB) instead of bundling a ~60 MB engine.
+Mr Nobody is a native Android app: a **Java core** (agent, filters, WebView,
+privacy, downloads) and **Flutter chrome**. Rendering is delegated to the
+**smallest practical engine** — Android System WebView — so the APK stays
+small (~2–8 MB typical, 20–45 MB product target) instead of bundling a ~60 MB
+engine.
 
 ---
 
@@ -63,19 +64,27 @@ Mr-Nobody/
 ## Building
 
 The authoritative build pipeline is GitHub Actions (see `.github/workflows`). Every
-push builds a **release APK**, runs tests, and enforces the **45 MB size gate**.
+push builds a **release APK**, runs tests, and enforces the APK size gate.
 
 To build locally:
 
 ```bash
-cd android
-./gradlew assembleDebug          # debug APK
-./gradlew assembleRelease        # minified release APK (R8 + resource shrinking)
+cd app
+flutter build apk --release
 ```
 
-Requirements: JDK 17, Android SDK (compileSdk 35).
+Requirements: JDK 17, Flutter 3.24, Android SDK (compileSdk 35).
 
-Expected release APK size: **~2–8 MB** (the engine ships with the OS, not the app).
+**Size, three numbers, on purpose:**
+
+| | Number | Meaning |
+|---|---|---|
+| Typical | **~2–8 MB** | Engine is the OS, not the APK |
+| Product target | **20–45 MB** | Stay in this band; do not bundle an engine |
+| CI hard-fail | **70 MB** | A dependency cannot silently blow the budget |
+
+The 70 MB gate is the cliff. The 45 MB target is the identity. They are not
+the same number.
 
 ---
 

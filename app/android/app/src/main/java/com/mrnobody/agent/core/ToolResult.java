@@ -19,39 +19,62 @@ public final class ToolResult {
     private final Map<String, Object> value;
     private final String error;
     private final String modelText;
+    private final boolean awaitingApproval;
 
-    private ToolResult(boolean success, Map<String, Object> value, String error, String modelText) {
+    private ToolResult(boolean success, Map<String, Object> value, String error,
+                       String modelText, boolean awaitingApproval) {
         this.success = success;
         this.value = value == null ? Collections.emptyMap()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(value));
         this.error = error;
         this.modelText = modelText;
+        this.awaitingApproval = awaitingApproval;
     }
 
     /** Success carrying a structured value. */
     public static ToolResult ok(Map<String, Object> value) {
-        return new ToolResult(true, value, null, null);
+        return new ToolResult(true, value, null, null, false);
     }
 
     /** Success whose whole value is one piece of text (a status line, a page's text). */
     public static ToolResult okText(String text) {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("text", text == null ? "" : text);
-        return new ToolResult(true, value, null, null);
+        return new ToolResult(true, value, null, null, false);
     }
 
     public static ToolResult fail(String error) {
-        return new ToolResult(false, null, error == null ? "unknown error" : error, null);
+        return new ToolResult(false, null, error == null ? "unknown error" : error, null, false);
+    }
+
+    /**
+     * The call did not run because nobody could approve it. Distinct from
+     * {@link #fail}: the task should WAIT, not die.
+     */
+    public static ToolResult needsApproval(String tool, String error) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        if (tool != null && !tool.isEmpty()) value.put("pendingTool", tool);
+        return new ToolResult(false, value,
+                error == null ? "Needs your approval." : error, null, true);
     }
 
     /** The pipeline attaches the rendered model text once the value has passed its spec. */
     public ToolResult renderedAs(String text) {
-        return new ToolResult(success, value, error, text);
+        return new ToolResult(success, value, error, text, awaitingApproval);
     }
 
     public boolean isSuccess() { return success; }
 
     public boolean isError() { return !success; }
+
+    /** True when the call was not run because a human could not be asked. */
+    public boolean needsApproval() { return awaitingApproval; }
+
+    /** The tool that is waiting, or null. */
+    public String pendingTool() {
+        Object t = value.get("pendingTool");
+        return t == null ? null : String.valueOf(t);
+    }
 
     /** The canonical structured value. Empty on failure. */
     public Map<String, Object> value() { return value; }

@@ -21,6 +21,11 @@ class NativeBridge {
     return await _ch.invokeMethod('rerunTask', {'id': id}) as bool? ?? false;
   }
 
+  /// Reply inside an existing task. Same id, same chat — not a new thread.
+  static Future<bool> followUpTask(int id, String text) async {
+    return await _ch.invokeMethod('followUpTask', {'id': id, 'text': text}) as bool? ?? false;
+  }
+
   /// Recent task list for the Tasks / Agent Home screens.
   static Future<List<Map<String, dynamic>>> recentTasks() async {
     final r = await _ch.invokeMethod('recentTasks');
@@ -193,6 +198,16 @@ class NativeBridge {
   /// never pass through a Dart try/catch, so the overlay has to ask for them.
   /// Apply a privacy mode (NORMAL / PRIVATE / NOBODY) and report what actually
   /// took effect — a refused mode must not look like it applied.
+  /// Re-check a live Nobody session. Returns `{ok, problem, mode}`.
+  static Future<Map<String, dynamic>> revalidateRoute() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('revalidateRoute') as Map);
+  }
+
+  /// Allow or deny a WAITING task. Allow re-runs it; deny fails it.
+  static Future<bool> resolveApproval(int id, {required bool allow}) async {
+    return await _ch.invokeMethod('resolveApproval', {'id': id, 'allow': allow}) as bool? ?? false;
+  }
+
   static Future<Map<String, dynamic>> applyPrivacyMode(String mode) async {
     return Map<String, dynamic>.from(await _ch.invokeMethod('privacyMode', {'mode': mode}) as Map);
   }

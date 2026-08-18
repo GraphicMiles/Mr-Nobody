@@ -68,9 +68,12 @@ public final class ToolPipeline {
         ApprovalDecision decide(ToolCall call);
     }
 
-    /** Asks a human. Absent (or unable to ask) means the call does not run. */
+    /**
+     * Asks a human. The call does not run unless the answer is ALLOWED.
+     * UNAVAILABLE (no UI, timeout) is not a denial — the task parks.
+     */
     public interface Confirmer {
-        boolean confirm(ToolCall call, String reason);
+        Confirmation confirm(ToolCall call, String reason);
     }
 
     private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool(r -> {
@@ -136,14 +139,20 @@ public final class ToolPipeline {
 
             if (decision.needsConfirmation()) {
                 Confirmer asker = confirmer;
-                if (asker == null) {
-                    // Fail closed. Nothing here can be "assumed yes".
-                    result = ToolResult.fail("Needs your approval: " + call.summary()
-                            + " — open Mr Nobody to allow it.");
+                String why = reasonOr(decision, "this action needs your approval");
+                Confirmation answer = asker == null
+                        ? Confirmation.UNAVAILABLE
+                        : asker.confirm(call, why);
+                if (answer == null) answer = Confirmation.UNAVAILABLE;
+                if (answer == Confirmation.UNAVAILABLE) {
+                    // Fail-closed on the call; the task parks rather than dies.
+                    result = ToolResult.needsApproval(call.tool(),
+                            "Needs your approval: " + call.summary()
+                                    + " — open Mr Nobody to allow it.");
                     return finish(call, ApprovalDecision.deny(decision.source(),
                             "no one available to confirm"), result, startedAt);
                 }
-                if (!asker.confirm(call, reasonOr(decision, "this action needs your approval"))) {
+                if (answer == Confirmation.DENIED) {
                     result = ToolResult.fail("Declined: " + call.summary());
                     return finish(call, ApprovalDecision.deny(ApprovalDecision.Source.USER_OVERRIDE,
                             "declined by the user"), result, startedAt);

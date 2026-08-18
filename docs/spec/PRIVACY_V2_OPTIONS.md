@@ -2,8 +2,8 @@
 
 Scope: the four items marked 🔴 in the V2 status (Tor, proxy, fingerprint
 defence, DNS), plus the private-tab claim that was overstated. Budget: keep the
-APK under 70 MB, against a current hard gate of 45 MB
-(`tools/apk_size_check.py`).
+APK under 70 MB, which is now the CI hard gate
+(`tools/apk_size_check.py`; product target remains 20–45 MB).
 
 Everything below is constrained by one fact: **we host the system WebView, we
 do not ship an engine.** That is what keeps the APK small, and it is also what

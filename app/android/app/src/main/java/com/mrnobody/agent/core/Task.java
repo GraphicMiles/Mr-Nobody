@@ -21,6 +21,8 @@ public final class Task {
     private long updatedAt;
     private int retryCount;
     private String worker; // "local" | "remote" | "user" — which worker runs it
+    /** Latest follow-up in this thread, or empty. Does not replace instruction. */
+    private String followUp = "";
 
     public Task(long id, String instruction) {
         this.id = id;
@@ -52,6 +54,31 @@ public final class Task {
     public void setRetryCount(int n) { this.retryCount = Math.max(0, n); }
     public String worker() { return worker; }
     public void setWorker(String w) { this.worker = w; }
+    public String followUp() { return followUp == null ? "" : followUp; }
+    public void setFollowUp(String text) {
+        this.followUp = text == null ? "" : text;
+        this.updatedAt = System.currentTimeMillis();
+    }
+
+    /**
+     * What this run should honour: the follow-up if the user just replied,
+     * otherwise the original ask. Recurring wakes use the original only
+     * (the worker clears follow-up first).
+     */
+    public String activeInstruction() {
+        String extra = followUp();
+        return extra.isEmpty() ? instruction : extra;
+    }
+
+    /**
+     * Original plus follow-up, so "download it" still sees a site named in
+     * the first message, and a monitor follow-up still contains "keep up".
+     */
+    public String conversation() {
+        String extra = followUp();
+        if (extra.isEmpty()) return instruction;
+        return instruction + "\n\nFollow-up from the user:\n" + extra;
+    }
 
     public static final String STEP_SEARCH = "Search";
     public static final String STEP_READ = "Read sources";

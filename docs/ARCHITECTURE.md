@@ -2,8 +2,8 @@
 
 ## Overview
 
-Mr Nobody is a native Android application written in Java. It owns the entire
-browser experience; Android System WebView is used only as the rendering engine.
+Mr Nobody is a native Android app: Java core (filters, WebView, agent, privacy)
+and Flutter chrome. Android System WebView is used only as the rendering engine.
 
 ```
                        INTERNET
@@ -57,8 +57,9 @@ com.mrnobody.browser
 
 - **History OFF by default.** `HistoryStore.add()` is a no-op unless the user
   enabled history. No history DB rows are written otherwise.
-- **Private tabs** set `FLAG_SECURE` on the window and skip history regardless of
-  the global setting; private session data is cleared when the tab closes.
+- **Private tabs** skip history and thumbnails, and clear on close. Cookie /
+  storage isolation is real only when the device WebView supports
+  `MULTI_PROFILE` — the privacy dashboard reports which. Private is not anonymous.
 - **Blocking is local.** The filter list ships in `assets/` and is compiled at
   startup. No per-request server round-trip.
 - **Cookies:** first-party allowed, third-party blocked via
@@ -66,7 +67,8 @@ com.mrnobody.browser
   limitation — WebView does not expose a fully hardened third-party cookie policy).
 - **Permissions** are requested only when a site asks, via
   `WebChromeClient.onPermissionRequest`, with a Block/Allow dialog.
-- **Downloads** go through `DownloadManager`; no cloud storage.
+- **Downloads** are the app's own engine (pause / resume / die with the app);
+  not Android `DownloadManager`. No cloud storage.
 - **Minimal WebView bridge:** none in V1. No `addJavascriptInterface`.
 - **No backup:** `allowBackup=false`, data-extraction rules exclude everything.
 

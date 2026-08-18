@@ -114,7 +114,6 @@ class AppState extends ChangeNotifier {
   Future<void> setJs(bool v) => _set('js', v, () => js = v);
   Future<void> setSuggestions(bool v) => _set('suggestions', v, () => suggestions = v);
   Future<void> setTerminal(bool v) => _set('terminal', v, () => terminal = v);
-  Future<void> setProfile(String v) => _set('profile', v, () => profile = v);
   Future<void> setProvider(String v) => _set('provider', v, () => providerId = v);
   Future<void> setBlocking(bool v) => _set('blocking', v, () => blocking = v);
   Future<void> setParamStripping(bool v) => _set('paramStripping', v, () => paramStripping = v);
@@ -122,20 +121,55 @@ class AppState extends ChangeNotifier {
   Future<void> setApprovalMode(String v) => _set('approvalMode', v, () => approvalMode = v);
   Future<void> setResourcePolicy(String v) => _set('resourcePolicy', v, () => resourcePolicy = v);
 
+  Future<void> setProfile(String v) async {
+    await _set('profile', v, () => profile = v);
+    // The core applies the bundle (JS, fingerprint, blocking…). Reload so
+    // the toggles on this screen match what actually changed.
+    await load();
+  }
+
   /// Privacy mode uses its own channel (not setSetting), because the core must
   /// report what actually took effect — a refused NOBODY must not look applied.
-  Future<void> setPrivacyMode(String v) async {
+  ///
+  /// Returns the refusal reason when the requested mode did not take, or null
+  /// when it did. Callers must show that sentence; toasting the effective
+  /// label alone is how "Start Orbot" got thrown away.
+  Future<String?> setPrivacyMode(String v) async {
     privacyMode = v;
     notifyListeners();
     try {
       final r = await NativeBridge.applyPrivacyMode(v);
       final effective = (r['effective'] as String? ?? v).toUpperCase();
-      if (effective != v) {
-        privacyMode = effective;
-        notifyListeners();
-      }
+      final problem = r['problem'] as String?;
+      privacyMode = effective;
+      notifyListeners();
+      await load();
+      if (problem != null && problem.isNotEmpty) return problem;
+      return null;
     } catch (e) {
       ErrorLog.instance.add('could not apply privacy mode: $e');
+      privacyMode = 'NORMAL';
+      notifyListeners();
+      return 'Could not apply privacy mode.';
+    }
+  }
+
+  /// Called when the app comes to the foreground. If Orbot died, Nobody
+  /// drops and this returns the sentence to show; otherwise null.
+  Future<String?> revalidateRoute() async {
+    try {
+      final r = await NativeBridge.revalidateRoute();
+      final mode = (r['mode'] as String? ?? privacyMode).toUpperCase();
+      if (mode != privacyMode) {
+        privacyMode = mode;
+        notifyListeners();
+      }
+      final problem = r['problem'] as String?;
+      if (problem != null && problem.isNotEmpty) return problem;
+      return null;
+    } catch (e) {
+      ErrorLog.instance.add('could not revalidate route: $e');
+      return null;
     }
   }
 

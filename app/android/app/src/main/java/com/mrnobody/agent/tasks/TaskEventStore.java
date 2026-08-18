@@ -47,6 +47,10 @@ public final class TaskEventStore extends SQLiteOpenHelper {
     public static final String TOOL_DENIED = "tool.denied";
     public static final String TASK_FINISHED = "task.finished";
     public static final String TASK_FAILED = "task.failed";
+    /** A reply typed in this task's chat — not a new task. */
+    public static final String USER_FOLLOWUP = "user.followup";
+    /** A finished answer, kept so a follow-up does not erase the previous turn. */
+    public static final String AGENT_ANSWER = "agent.answer";
 
     /** One recorded event. */
     public static final class Event {
