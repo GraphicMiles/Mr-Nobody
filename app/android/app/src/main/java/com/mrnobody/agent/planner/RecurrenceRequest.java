@@ -7,44 +7,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Recognises when an instruction asks for something to be watched over time.
+ * Extracts an explicit interval from an instruction.
  *
- * <p>"Track the Bitcoin price" was answered once, with a figure, and finished.
- * That is not tracking — it is a reading. The task went to COMPLETED, the
- * schedule machinery that already exists was never involved, and the number
- * the user was given began going stale the moment they read it.
+ * <p>Whether a task should repeat is no longer this class's job. That is
+ * an intent question and lives on {@link IntentClassifier}. This class
+ * only reads structure: {@code every 6 hours}, {@code daily}. Those are
+ * quantities and units, the same kind of fact as a hostname — not a
+ * vocabulary of tracking verbs.
  *
- * <p>Everything needed to do this properly was already built and idle:
- * {@link Schedule} clamps to WorkManager's floor, {@code TaskStore} persists
- * {@code repeat_every}, and {@code scheduleRepeating} enqueues periodic work.
- * The one missing piece was noticing that the user had asked for it. This is
- * that piece, and it is deliberately a small pure function rather than a
- * model call: whether a task repeats decides whether the device wakes up on a
- * timer, and that should not depend on a language model's mood.
- *
- * <p><b>Conservative on purpose.</b> A false positive schedules background
- * work nobody asked for and spends battery; a false negative gives a one-off
- * answer, which is what happens today and is merely disappointing. So an
- * explicit interval always wins, a tracking verb yields a deliberately coarse
- * default, and anything ambiguous stays a single run.
+ * <p>The phrase list that used to live here is gone. Adding another verb
+ * was how the last bug was "fixed", and the next paraphrase missed again.
  */
 public final class RecurrenceRequest {
-
-    /**
-     * Verbs that mean "keep looking at this", as distinct from "tell me".
-     *
-     * <p>"Watch" is included and "follow" is not: "follow the link" is an
-     * action on a page, and reading it as a recurring request would schedule
-     * work for an instruction that has nothing to do with time.
-     */
-    private static final String[] TRACKING_VERBS = {
-            "track", "monitor", "keep an eye on", "watch for", "watch the",
-            "alert me", "notify me", "let me know when", "tell me when",
-            "keep checking", "check periodically",
-            // "keep up on Marvel announcements" is tracking, not a one-off search.
-            "keep up", "keep me updated", "keep me posted",
-            "stay up to date", "stay updated", "stay up-to-date",
-    };
 
     /** "every 30 minutes", "each 2 hours", "every day". */
     private static final Pattern EXPLICIT_INTERVAL = Pattern.compile(
@@ -57,12 +31,9 @@ public final class RecurrenceRequest {
             "\\b(hourly|daily|weekly)\\b", Pattern.CASE_INSENSITIVE);
 
     /**
-     * The default for a bare tracking verb.
-     *
-     * <p>Hourly, not every fifteen minutes. A user who says "track" without a
-     * number has expressed no urgency, and the cost of guessing too fast is
-     * paid by their battery every hour of every day. They can ask for faster;
-     * they cannot easily discover why the phone is warm.
+     * The default when the classifier said "monitor" and no interval was
+     * named. Hourly, not every fifteen minutes: a user who named no number
+     * expressed no urgency, and guessing too fast is paid in battery.
      */
     private static final Schedule.Repeat DEFAULT_TRACKING = Schedule.Repeat.HOURLY;
 
@@ -93,10 +64,10 @@ public final class RecurrenceRequest {
             String base = "Checking " + repeat.label().toLowerCase(Locale.ROOT)
                     + " from now on.";
             return explicit
-                    ? base + " Say \"stop tracking\" to end it."
+                    ? base + " Say you want it stopped to end it."
                     : base + " No interval was given, so this is the default —"
                             + " ask for a different one if you need it."
-                            + " Say \"stop tracking\" to end it.";
+                            + " Say you want it stopped to end it.";
         }
     }
 
@@ -105,13 +76,19 @@ public final class RecurrenceRequest {
     private RecurrenceRequest() {
     }
 
-    /** Whether {@code instruction} asks for repeated work, and how often. */
+    /** A one-shot. */
+    public static Request once() {
+        return ONCE;
+    }
+
+    /**
+     * The interval written in {@code instruction}, or a one-shot when none
+     * was. Does not infer tracking from verbs.
+     */
     public static Request parse(String instruction) {
         if (instruction == null || instruction.trim().isEmpty()) return ONCE;
         String text = instruction.toLowerCase(Locale.ROOT);
 
-        // An explicit interval is honoured whether or not a tracking verb is
-        // present: "check the price every hour" is unambiguous.
         Matcher m = EXPLICIT_INTERVAL.matcher(text);
         if (m.find()) {
             int count = m.group(1) == null ? 1 : parseCount(m.group(1));
@@ -129,20 +106,17 @@ public final class RecurrenceRequest {
             }
         }
 
-        for (String verb : TRACKING_VERBS) {
-            if (text.contains(verb)) return new Request(DEFAULT_TRACKING, false);
-        }
         return ONCE;
     }
 
-    /** Whether the user is asking to stop an existing schedule. */
-    public static boolean isStopRequest(String instruction) {
-        if (instruction == null) return false;
-        String text = instruction.toLowerCase(Locale.ROOT);
-        return text.contains("stop tracking")
-                || text.contains("stop monitoring")
-                || text.contains("stop watching")
-                || text.contains("stop checking");
+    /**
+     * The schedule to persist once the classifier has already decided this
+     * is a monitor: honour a named interval, otherwise the default.
+     */
+    public static Request forMonitor(String instruction) {
+        Request named = parse(instruction);
+        if (named.isRecurring()) return named;
+        return new Request(DEFAULT_TRACKING, false);
     }
 
     private static int parseCount(String digits) {

@@ -30,9 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 /**
  * V1 agent brain — deterministic by default, with an optional AI synthesis step.
  *
@@ -74,9 +71,6 @@ public final class DeterministicEngine implements AgentEngine {
 
     /** How often that wait checks for a cancel request. */
     private static final long POLL_MS = 250L;
-
-    private static final Pattern URL_IN_TEXT =
-            Pattern.compile("(https?://[^\\s\"'<>]+)");
 
     private final Map<String, Tool> tools = new LinkedHashMap<>();
 
@@ -172,8 +166,15 @@ public final class DeterministicEngine implements AgentEngine {
         String asked = task.conversation();
 
         AiProvider provider = MrNobodyApp.activeProvider();
+
+        // Classify-before-act (DeepSeek Harness agent/pre-step). The label
+        // decides search vs monitor vs fetch-this-site; named sites and
+        // intervals are parsed as structure beside it, not instead of it.
+        IntentClassifier.Decision classified = IntentClassifier.classify(provider, asked);
+        if (stopIfAsked(context, task, provider)) return;
+
         if (provider.isRemote()) {
-            runAutonomous(context, task, provider, cancellation, asked);
+            runAutonomous(context, task, provider, cancellation, asked, classified.intent);
             return;
         }
 
@@ -188,7 +189,7 @@ public final class DeterministicEngine implements AgentEngine {
             executeRouted(context, task, plan.steps().get(0), cancellation);
             return;
         }
-        executeResearch(context, task, plan, cancellation, asked);
+        executeResearch(context, task, plan, cancellation, asked, classified.intent);
     }
 
     /** A routed action is the whole task: one tool call whose result is the answer. */
@@ -231,10 +232,13 @@ public final class DeterministicEngine implements AgentEngine {
      * this method changing.
      */
     private void executeResearch(Context context, Task task, Plan plan,
-                                 Cancellation cancellation, String asked) {
+                                 Cancellation cancellation, String asked,
+                                 TaskIntent intent) {
         Research r = new Research();
         r.asked = asked;
+        r.intent = intent;
         r.namedUrl = findUrl(asked);
+        r.recurrence = resolveRecurrence(task, asked, intent);
 
         while (!plan.isFinished()) {
             if (stopped(task, cancellation)) return;
@@ -339,10 +343,13 @@ public final class DeterministicEngine implements AgentEngine {
      * deterministic path.
      */
     private void runAutonomous(Context context, Task task, AiProvider provider,
-                               Cancellation cancellation, String asked) {
+                               Cancellation cancellation, String asked,
+                               TaskIntent intent) {
         Research r = new Research();
         r.asked = asked;
+        r.intent = intent;
         r.namedUrl = findUrl(asked);
+        r.recurrence = resolveRecurrence(task, asked, intent);
         r.provider = provider;
         r.cap = new com.mrnobody.agent.ai.SpendCap(MAX_RUN_USD,
                 com.mrnobody.agent.ai.ModelPricing.forModel(provider.modelId()));
@@ -673,7 +680,7 @@ public final class DeterministicEngine implements AgentEngine {
             String prompt = GroundedPrompt.build(
                     r.asked != null ? r.asked : task.conversation(),
                     fenced.fenced, r.pagesRead, nonce);
-            if (RecurrenceRequest.parse(r.asked != null ? r.asked : task.conversation()).isRecurring()) {
+            if (r.recurrence != null && r.recurrence.isRecurring()) {
                 prompt = prompt + "\n\nMr Nobody will schedule this check itself. "
                         + "Do not recommend other monitoring apps, Twitter tools, or "
                         + "\"follow this account\". Describe what is on the page, and "
@@ -778,8 +785,9 @@ public final class DeterministicEngine implements AgentEngine {
         // "Track the price" asks for something to be watched, not answered
         // once. The schedule machinery already existed; nothing was noticing
         // that the user had asked for it.
-        RecurrenceRequest.Request recurrence = RecurrenceRequest.parse(
-                r.asked != null ? r.asked : task.conversation());
+        RecurrenceRequest.Request recurrence = r.recurrence != null
+                ? r.recurrence
+                : RecurrenceRequest.once();
         if (recurrence.isRecurring()) {
             String note = applyRecurrence(context, task, recurrence);
             if (!note.isEmpty()) r.answer = r.answer + "\n\n" + note;
@@ -826,6 +834,8 @@ public final class DeterministicEngine implements AgentEngine {
         final List<String> readUrls = new ArrayList<>();
         final Map<String, String> titles = new LinkedHashMap<>();
         String asked;
+        TaskIntent intent;
+        RecurrenceRequest.Request recurrence;
         String namedUrl;
         /** Last tool result, so a parked CONFIRM during prefetch is visible. */
         ToolResult lastResult;
@@ -968,11 +978,64 @@ public final class DeterministicEngine implements AgentEngine {
      * wrong — the one page they specified was the one page never read.
      */
     static String findUrl(String text) {
-        Matcher m = URL_IN_TEXT.matcher(text);
-        if (m.find()) return m.group(1);
+        return NamedSource.fetchUrlIn(text);
+    }
 
-        String host = Hosts.firstIn(text);
-        return host == null ? null : "https://" + host;
+    /**
+     * End a live monitor when the follow-up is asking to stop. Classification
+     * is a model call, not a phrase list — "that's enough" and "drop this"
+     * have to work the same as "stop tracking".
+     */
+    private boolean stopIfAsked(Context context, Task task, AiProvider provider) {
+        String extra = task.followUp();
+        if (extra.isEmpty()) return false;
+        boolean recurring;
+        try {
+            recurring = MrNobodyApp.tasks().scheduleOf(task.id()).isRecurring();
+        } catch (Throwable e) {
+            return false;
+        }
+        if (!recurring) return false;
+        if (!IntentClassifier.wantsCancel(provider, extra)) return false;
+        try {
+            MrNobodyApp.tasks().setSchedule(task.id(), Schedule.Repeat.NEVER);
+            MrNobodyApp.scheduler().cancel(context, task.id());
+        } catch (Throwable e) {
+            com.mrnobody.debug.ErrorLog.record("could not cancel schedule for task "
+                    + task.id() + ": " + e);
+        }
+        task.setResult("Stopped tracking.");
+        task.setError("");
+        task.setCurrentStep("");
+        task.setStatus(Task.Status.COMPLETED);
+        recordAnswer(task);
+        return true;
+    }
+
+    /**
+     * The schedule this run should persist, if any.
+     *
+     * <p>A timer wake keeps the existing schedule even if the classifier
+     * flakes — otherwise a bad label would silently retire a monitor the
+     * user still wants. A first run or a follow-up honours the classifier,
+     * and an explicit interval (structure, not vocabulary) still counts.
+     */
+    private RecurrenceRequest.Request resolveRecurrence(Task task, String asked,
+                                                        TaskIntent intent) {
+        boolean wake = false;
+        Schedule.Repeat existing = Schedule.Repeat.NEVER;
+        try {
+            existing = MrNobodyApp.tasks().scheduleOf(task.id());
+            wake = task.followUp().isEmpty() && existing.isRecurring();
+        } catch (Throwable ignored) {
+            // Tests and a missing store: treat as a first run.
+        }
+        if (wake) return new RecurrenceRequest.Request(existing, true);
+        if (intent == TaskIntent.RECURRING_MONITOR
+                || RecurrenceRequest.parse(asked).isRecurring()) {
+            return RecurrenceRequest.forMonitor(asked);
+        }
+        return RecurrenceRequest.once();
     }
 
     /**
