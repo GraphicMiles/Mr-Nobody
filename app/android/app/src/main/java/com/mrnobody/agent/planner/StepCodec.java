@@ -16,12 +16,10 @@ import java.util.Map;
  * Turns a model's JSON into executable tool steps — the one place a model's
  * parameter names, aliases and URLs are normalised.
  *
- * <p>Shared by {@link LlmPlanner} (plan-once) and the autonomous planner
- * (step-by-step) so the two can never drift: a model that writes {@code query}
- * instead of {@code q}, or a bare domain without a scheme, is normalised the
- * same way on both paths. A step whose required argument is unusable is
- * dropped — a step the pipeline is guaranteed to refuse is a failed step by
- * another name.
+ * <p>A model that writes {@code query} instead of {@code q}, or a bare domain
+ * without a scheme, is normalised here. A step whose required argument is
+ * unusable is dropped — a step the pipeline is guaranteed to refuse is a
+ * failed step by another name.
  */
 final class StepCodec {
 

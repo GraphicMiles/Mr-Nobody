@@ -22,19 +22,4 @@ public interface Planner {
      *                       can never route to a tool that is not registered.
      */
     Plan plan(String instruction, Collection<String> availableTools);
-
-    /**
-     * Revise the plan after a tool step failed.
-     *
-     * <p>Called when a step the planner produced could not run. A model-backed
-     * planner can produce replacement steps (read a different page, try another
-     * source); a deterministic planner has nothing smarter to offer and returns
-     * {@code null}, which the engine treats as "give up and fail the task".
-     * The returned steps are appended after the failed one, and the plan's own
-     * ceiling still applies — a replan cannot make a task unbounded.
-     */
-    default Plan replan(Plan current, Plan.Step failedStep, String error,
-                        Collection<String> availableTools) {
-        return null;
-    }
 }
