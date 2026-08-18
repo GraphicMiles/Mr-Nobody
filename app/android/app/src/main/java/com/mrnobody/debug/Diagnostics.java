@@ -129,7 +129,9 @@ public final class Diagnostics {
                 () -> IntentRouter.route("https://example.com/page") == IntentType.URL
                         && IntentRouter.route("example.com") == IntentType.URL
                         && IntentRouter.route("find laptops under 500000") == IntentType.TASK
-                        && IntentRouter.route("what is the capital of ghana") == IntentType.SEARCH
+                        && IntentRouter.route("what is the capital of ghana") == IntentType.TASK
+                        && IntentRouter.route("hrithik roshan age") == IntentType.TASK
+                        && IntentRouter.route("arsenal") == IntentType.SEARCH
                         ? Result.pass("input.route", "Unified input routing",
                                 "URL, bare domain, task verb and plain search all route correctly")
                         : Result.fail("input.route", "Unified input routing",

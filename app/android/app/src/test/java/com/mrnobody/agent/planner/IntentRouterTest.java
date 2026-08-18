@@ -26,9 +26,16 @@ public class IntentRouterTest {
     }
 
     @Test
-    public void questionIsSearch() {
+    public void aPlainPhraseIsSearchButAQuestionIsTask() {
+        // No verb, no question word, no fact word: a plain search.
         assertEquals(IntentType.SEARCH, IntentRouter.route("latest Arsenal result"));
-        assertEquals(IntentType.SEARCH, IntentRouter.route("what is the weather"));
+        assertEquals(IntentType.SEARCH, IntentRouter.route("arsenal"));
+        // A natural-language question goes to the agent, not a results page.
+        assertEquals(IntentType.TASK, IntentRouter.route("what is the weather"));
+        assertEquals(IntentType.TASK, IntentRouter.route("how old is hrithik roshan"));
+        // A vague/partial fact lookup is also a task.
+        assertEquals(IntentType.TASK, IntentRouter.route("hrithik roshan age"));
+        assertEquals(IntentType.TASK, IntentRouter.route("bitcoin price"));
     }
 
     @Test

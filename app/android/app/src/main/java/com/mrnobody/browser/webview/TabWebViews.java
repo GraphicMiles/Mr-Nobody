@@ -84,13 +84,19 @@ public final class TabWebViews {
     /**
      * The tab is gone for good: destroy the page and forget it. Called when
      * the user closes a tab, never when a platform view is merely rebuilt.
+     * Also drops the tab's method channel, so no late command can reach the
+     * destroyed WebView.
      */
     public static void release(int tabId) {
+        MrNobodyWebView.releaseChannel(tabId);
         destroy(LIVE.remove(tabId));
     }
 
     /** Every tab closed at once (Clear data, "close all tabs"). */
     public static void releaseAll() {
+        for (Integer tabId : LIVE.keySet()) {
+            if (tabId != null) MrNobodyWebView.releaseChannel(tabId);
+        }
         for (Page page : LIVE.values()) {
             destroy(page);
         }

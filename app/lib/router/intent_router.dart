@@ -9,9 +9,29 @@ class IntentRouter {
     'open and', 'every', 'watch', 'scrape', 'send', 'buy', 'order', 'look up',
   };
 
-  static final _scheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://');
-  static final _ip = RegExp(r'^\d{1,3}(\.\d{1,3}){3}(:\d+)?$');
-  static final _localhost = RegExp(r'^localhost(:\d+)?$');
+  /// Question openers: a natural-language question is an agent task, not a
+  /// raw search. "What is X's age" went to a DuckDuckGo results page because
+  /// nothing recognised it as a question; it should go to the agent, which
+  /// searches and answers instead of dumping a results page.
+  static const _questions = {
+    'what is', "what's", 'what are', 'what was', 'what were', 'what about',
+    'who is', "who's", 'who are', 'who was',
+    'how old', 'how much', 'how many', 'how to', 'how do', 'how does',
+    'how is', 'how are', 'how long', 'how tall',
+    'when is', 'when was', 'when did', 'when does', 'when will',
+    'where is', 'where can', 'where do', 'where are',
+    'why is', 'why does', 'why are', 'why do',
+    'which is', 'which one', 'which are',
+    'tell me', 'explain', 'define', 'is', 'are', 'does', 'did', 'can you',
+  };
+
+  /// Trailing fact-words: a phrase ending in one of these is a lookup the
+  /// agent should handle even without a question word ("hrithik roshan age").
+  static const _factWords = {
+    'age', 'height', 'birthday', 'birthdate', 'net worth', 'worth', 'price',
+    'salary', 'girlfriend', 'wife', 'husband', 'nationality', 'religion',
+    'instagram', 'twitter', 'meaning', 'definition', 'capital', 'population',
+  };
 
   static IntentType route(String input) {
     final s = input.trim();
@@ -25,6 +45,14 @@ class IntentRouter {
       if (lower == v || lower.startsWith('$v ')) return IntentType.task;
     }
     if (lower.contains(' and ')) return IntentType.task;
+    for (final q in _questions) {
+      if (lower == q || lower.startsWith('$q ')) return IntentType.task;
+    }
+    // A vague/partial lookup: "hrithik roshan age", "bitcoin price today".
+    final words = lower.split(' ');
+    if (words.length >= 2 && _factWords.contains(words.last)) {
+      return IntentType.task;
+    }
     return IntentType.search;
   }
 

@@ -395,14 +395,50 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
 
   // --------------------------------------------------------------- actions
 
+  /// Follow-ups that mean "re-run what you were just doing", not a new question.
+  static final _recheckPhrases = {
+    'again', 'check again', 'check now', 'recheck', 're-check', 're check',
+    'update', 'refresh', 'any change', 'any update', 'what now', 'run again',
+    'once more', 'once again', 'any news', 'what about now',
+  };
+
+  bool _isRecheck(String text) {
+    final t = text.toLowerCase().trim();
+    return _recheckPhrases.contains(t);
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
     if (text.isEmpty) return;
     _input.clear();
 
-    // Follow-ups start a new task today. Carrying the previous turns into the
-    // prompt is the "true context" work and is not built yet, so this must not
-    // pretend otherwise: it is a fresh run, and the thread groups them.
+    // A recheck ("check again", "update") is not a new question — it asks the
+    // agent to re-run the task being viewed and produce a fresh answer.
+    // Running it as a literal new task is how "check again" became a search
+    // for the phrase "check again" instead of a fresh bitcoin price.
+    if (_isRecheck(text) && widget.taskId != null) {
+      final ok = await NativeBridge.guard(
+        () => NativeBridge.rerunTask(widget.taskId!),
+        false,
+        'could not re-run that',
+      );
+      if (!mounted) return;
+      if (ok) {
+        // Same task, same screen: the answer refreshes in place and the
+        // conversation continues rather than forking into a new thread. Clear
+        // the old answer so the working state shows while the re-check runs.
+        setState(() {
+          _revealedFrom = '';
+          _streamBuf = '';
+          _tokens = const [];
+          _revealed = 0;
+        });
+        _refresh();
+        return;
+      }
+      // Fall through: re-run failed, start a fresh task below.
+    }
+
     final started = await NativeBridge.guard(
       () => NativeBridge.runTask(text),
       const <String, dynamic>{},
