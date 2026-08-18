@@ -122,7 +122,9 @@ public final class LlmPlanner implements Planner {
                 JSONObject args = s.optJSONObject("args");
                 Map<String, String> params = new LinkedHashMap<>();
                 if (args != null) {
-                    for (String key : args.keySet()) {
+                    // Android's JSONObject exposes keys(), not keySet().
+                    for (java.util.Iterator<String> it = args.keys(); it.hasNext(); ) {
+                        String key = it.next();
                         if (!args.isNull(key)) params.put(key, String.valueOf(args.opt(key)));
                     }
                 }
