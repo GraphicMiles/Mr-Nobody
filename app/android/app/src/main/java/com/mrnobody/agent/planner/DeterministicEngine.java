@@ -276,14 +276,12 @@ public final class DeterministicEngine implements AgentEngine {
                     continue;
                 }
 
-                // A failed action step can be replanned: a model-backed planner
-                // proposes what to do instead; a deterministic one has nothing
-                // to offer and the task fails as before.
+                // A failed action step ends the deterministic cascade. (Replanning
+                // on failure is what the autonomous observe→act loop is for; the
+                // deterministic path has no model to reason about alternatives.)
                 if (!result.isSuccess()) {
-                    if (!replanAfterFailure(context, task, plan, step, result, cancellation)) {
-                        fail(task, result);
-                        return;
-                    }
+                    fail(task, result);
+                    return;
                 }
                 plan.advance();
                 continue;
@@ -432,24 +430,6 @@ public final class DeterministicEngine implements AgentEngine {
         }
         sb.append(text);
         return sb.toString();
-    }
-
-    /**
-     * Ask the planner for replacement steps after a failed action. Returns true
-     * if replacement steps were added (the plan continues); false if the task
-     * should fail. The plan's own ceiling still applies, so a replan cannot
-     * make a task unbounded.
-     */
-    private boolean replanAfterFailure(Context context, Task task, Plan plan, Plan.Step step,
-                                       ToolResult result, Cancellation cancellation) {
-        Plan replan = planner.replan(plan, step, result.error(), tools.keySet());
-        if (replan == null || replan.size() == 0) return false;
-        // Insert in reverse so the replacement steps run next, in order.
-        List<Plan.Step> replacements = replan.steps();
-        for (int i = replacements.size() - 1; i >= 0; i--) {
-            if (!plan.insertNext(replacements.get(i))) return false;
-        }
-        return true;
     }
 
     /**
