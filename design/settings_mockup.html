@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mr Nobody — Settings mockup (proposed)</title>
+<style>
+  :root{
+    --bg:#000000; --surface:#101010; --surface2:#181818; --surface3:#212121;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.16);
+    --text:#FAFAFA; --dim:#C4C4C7; --faint:#8A8A8F; --muted:#5C5C61;
+    --accent:#FFFFFF; --ink:#000000;
+    --warn:#E8B339; --warn-ink:#F0CF8A;
+    --green:#3DDC84; --red:#E5484D;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:#0a0a0a; color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased; padding:24px 0;
+  }
+  .mono{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  /* phone frame */
+  .stage{display:flex;flex-wrap:wrap;gap:32px;justify-content:center;align-items:flex-start}
+  .phone{
+    width:390px; background:var(--bg); border:1px solid var(--line-strong);
+    border-radius:40px; overflow:hidden; padding-bottom:28px;
+    box-shadow:0 0 0 10px #111, 0 20px 60px rgba(0,0,0,.6);
+  }
+  .note{width:390px;color:var(--dim);font-size:13px;line-height:1.6}
+  .note b{color:var(--text)}
+  .note .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}
+  .tag.new{background:rgba(61,220,132,.15);color:var(--green);border:1px solid rgba(61,220,132,.35)}
+  .tag.move{background:rgba(232,179,57,.12);color:var(--warn);border:1px solid rgba(232,179,57,.3)}
+
+  /* top bar */
+  .topbar{display:flex;align-items:center;gap:10px;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+  .back{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--dim)}
+  .topbar h1{font-size:16px;font-weight:700}
+
+  /* sections */
+  .section{font-size:10.5px;font-weight:600;letter-spacing:1.26px;text-transform:uppercase;color:var(--muted);padding:22px 20px 10px}
+  .card{margin:0 16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .row{display:flex;align-items:center;gap:8px;padding:14px;min-height:50px}
+  .row+.row{border-top:1px solid var(--line)}
+  .row .lbl{flex:1;font-size:13px;color:var(--text)}
+  .row .sub{font-size:11px;color:var(--faint);line-height:1.45}
+  .row .val{font-size:11.5px;color:var(--faint)}
+  .row .val.on{color:var(--text)}
+  .chev{color:var(--muted);font-size:16px}
+  .row.stack{flex-direction:column;align-items:stretch;gap:3px}
+
+  /* pill toggle */
+  .toggle{width:36px;height:20px;border-radius:999px;padding:2px;flex:none;transition:background .15s}
+  .toggle.on{background:var(--accent);border:1px solid var(--accent)}
+  .toggle.off{background:var(--surface2);border:1px solid var(--line-strong)}
+  .toggle .knob{width:14px;height:14px;border-radius:50%;transition:transform .15s}
+  .toggle.on .knob{background:var(--ink);transform:translateX(16px)}
+  .toggle.off .knob{background:var(--muted);transform:translateX(0)}
+
+  /* segmented control (data saver / privacy mode) */
+  .seg{display:flex;gap:4px;padding:4px;background:var(--surface2);border-radius:12px;border:1px solid var(--line)}
+  .seg .opt{flex:1;text-align:center;padding:8px 4px;border-radius:9px;font-size:11px;font-weight:600;color:var(--faint);cursor:pointer}
+  .seg .opt.sel{background:var(--accent);color:var(--ink)}
+  .seg .opt .d{display:block;font-size:9px;font-weight:500;color:inherit;opacity:.7;margin-top:2px}
+
+  /* proxy fields */
+  .field{display:flex;gap:8px;margin-top:10px}
+  .field input{
+    background:var(--surface2);border:1px solid var(--line-strong);border-radius:9px;
+    color:var(--text);font-size:12.5px;padding:9px 11px;width:100%;outline:none;
+  }
+  .field input:focus{border-color:rgba(255,255,255,.4)}
+  .field .port{max-width:90px}
+  select{
+    background:var(--surface2);border:1px solid var(--line-strong);border-radius:9px;
+    color:var(--text);font-size:12.5px;padding:9px 11px;width:100%;outline:none;appearance:none;
+  }
+
+  /* radio rows (approval mode) */
+  .radio{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line-strong);flex:none;display:flex;align-items:center;justify-content:center}
+  .radio.sel{border-color:var(--accent)}
+  .radio.sel::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent)}
+
+  .hint{padding:8px 20px 0;font-size:10px;color:var(--muted);line-height:1.5}
+
+  /* popover sample */
+  .pop{
+    position:relative;margin:0 16px;background:var(--surface2);border:1px solid var(--line-strong);
+    border-radius:14px;padding:10px 4px;
+  }
+  .pop .opt{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px}
+  .pop .opt.sel{background:rgba(255,255,255,.06)}
+  .pop .opt .ic{width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--dim)}
+  .pop .opt .t{font-size:13px}
+  .pop .opt .g{margin-left:auto;font-size:9.5px;color:var(--faint);letter-spacing:.5px;text-transform:uppercase}
+  .pop .ttl{font-size:11px;color:var(--faint);padding:6px 14px 2px;letter-spacing:.8px;text-transform:uppercase}
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- ============ PHONE 1: SETTINGS ============ -->
+  <div>
+    <div class="phone">
+      <div class="topbar"><div class="back">‹</div><h1>Settings</h1></div>
+
+      <!-- BROWSING -->
+      <div class="section">Browsing</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Save browsing history</span><div class="toggle off"><div class="knob"></div></div></div>
+        <div class="row"><span class="lbl">JavaScript</span><div class="toggle on"><div class="knob"></div></div></div>
+        <div class="row"><span class="lbl">Search suggestions</span><div class="toggle off"><div class="knob"></div></div></div>
+        <!-- NEW -->
+        <div class="row"><span class="lbl">Block ads &amp; trackers</span><div class="toggle on"><div class="knob"></div></div></div>
+        <div class="row"><span class="lbl">Strip tracking parameters</span><div class="toggle on"><div class="knob"></div></div></div>
+      </div>
+      <div class="hint">Blocking and parameter-stripping are on by default (privacy promise). These are new toggles to pause them.</div>
+
+      <!-- PRIVACY -->
+      <div class="section">Privacy</div>
+      <div class="card">
+        <div class="row stack">
+          <span class="lbl">Privacy mode</span>
+          <div class="seg">
+            <div class="opt sel">Normal<span class="d">direct</span></div>
+            <div class="opt">Private<span class="d">isolated</span></div>
+            <div class="opt">Nobody<span class="d">Tor/proxy</span></div>
+          </div>
+          <span class="sub">Nobody hides your IP via Tor/proxy and adds fingerprint defence. It does not guarantee anonymity.</span>
+        </div>
+        <div class="row"><span class="lbl">Proxy route</span><span class="val on">Orbot · 127.0.0.1:9050</span><span class="chev">›</span></div>
+        <div class="row"><span class="lbl">Fingerprint defence</span><span class="val">On — Maximum</span></div>
+      </div>
+      <div class="hint">Proxy configuration opens below when you pick a custom route.</div>
+
+      <!-- NETWORK -->
+      <div class="section">Network</div>
+      <div class="card">
+        <div class="row stack">
+          <span class="lbl">Proxy</span>
+          <select><option>Orbot (Tor SOCKS)</option><option selected>HTTP / HTTPS proxy</option><option>Direct (off)</option></select>
+          <div class="field">
+            <input placeholder="host" value="127.0.0.1">
+            <input class="port" placeholder="port" value="8080">
+          </div>
+        </div>
+      </div>
+
+      <!-- AGENT -->
+      <div class="section">Agent</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Privacy profile</span><span class="val on">Balanced</span><span class="chev">›</span></div>
+        <div class="row"><span class="lbl">AI provider</span><span class="val">Local</span><span class="chev">›</span></div>
+        <div class="row"><span class="lbl">Search engine</span><span class="val on">DuckDuckGo</span><span class="chev">›</span></div>
+        <div class="row"><span class="lbl">Approval mode</span><span class="val on">Cautious</span><span class="chev">›</span></div>
+        <div class="row"><span class="lbl">Terminal</span><span class="val">off</span><span class="chev">›</span></div>
+      </div>
+
+      <!-- DATA -->
+      <div class="section">Data</div>
+      <div class="card">
+        <div class="row stack">
+          <span class="lbl">Data Saver</span>
+          <div class="seg">
+            <div class="opt">Off<span class="d">none</span></div>
+            <div class="opt sel">Balanced<span class="d">autoplay</span></div>
+            <div class="opt">Aggressive<span class="d">+images</span></div>
+            <div class="opt">Extreme<span class="d">+cache</span></div>
+          </div>
+        </div>
+        <div class="row"><span class="lbl">Clear browsing data</span><span class="chev">›</span></div>
+        <div class="row"><span class="lbl">Download folder</span><span class="val on">Downloads</span><span class="chev">›</span></div>
+      </div>
+
+      <!-- THEME -->
+      <div class="section">Appearance</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Theme</span><span class="val on">Dark</span><span class="chev">›</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PHONE 2: PICKERS (popovers) ============ -->
+  <div>
+    <div class="phone">
+      <div class="topbar"><div class="back">‹</div><h1>Settings</h1></div>
+      <div class="section">Popovers (tap a row)</div>
+
+      <div class="pop" style="margin-bottom:18px">
+        <div class="ttl">Privacy mode</div>
+        <div class="opt sel"><span class="ic">◉</span><span class="t">Normal</span><span class="g">default</span></div>
+        <div class="opt"><span class="ic">◯</span><span class="t">Private</span><span class="g">isolated storage</span></div>
+        <div class="opt"><span class="ic">◯</span><span class="t">Nobody</span><span class="g">tor / proxy</span></div>
+      </div>
+
+      <div class="pop" style="margin-bottom:18px">
+        <div class="ttl">Search engine</div>
+        <div class="opt sel"><span class="ic">◉</span><span class="t">DuckDuckGo</span></div>
+        <div class="opt"><span class="ic">◯</span><span class="t">Bing</span></div>
+        <div class="opt"><span class="ic">◯</span><span class="t">Startpage</span></div>
+      </div>
+
+      <div class="pop" style="margin-bottom:18px">
+        <div class="ttl">Approval mode</div>
+        <div class="opt sel"><span class="ic">◉</span><span class="t">Ask every time</span><span class="g">safest</span></div>
+        <div class="opt"><span class="ic">◯</span><span class="t">Allow reads</span><span class="g">balanced</span></div>
+        <div class="opt"><span class="ic">◯</span><span class="t">Allow safe writes</span><span class="g">convenient</span></div>
+      </div>
+
+      <div class="pop">
+        <div class="ttl">Theme</div>
+        <div class="opt sel"><span class="ic">◉</span><span class="t">System</span></div>
+        <div class="opt"><span class="ic">◯</span><span class="t">Dark</span></div>
+        <div class="opt"><span class="ic">◯</span><span class="t">Light</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ NOTES ============ -->
+  <div class="note">
+    <h3 style="color:var(--text);margin-bottom:10px">What's proposed</h3>
+
+    <p style="margin-bottom:14px">
+      <span class="tag new">NEW</span> controls that the core already supports but were never surfaced:
+      <b>Privacy mode</b> (Normal / Private / Nobody), <b>Proxy</b> (route + host + port),
+      <b>Data Saver</b> (Off / Balanced / Aggressive / Extreme), <b>Search engine</b>,
+      <b>Approval mode</b>, and <b>Block ads &amp; trackers / Strip parameters</b> toggles.
+    </p>
+
+    <p style="margin-bottom:14px">
+      <span class="tag move">MOVED</span> Data Saver currently lives only in the hidden dev panel (ⓘ → BENCH);
+      this promotes it to a first-class Settings section.
+    </p>
+
+    <p style="margin-bottom:8px"><b>Design decisions to confirm:</b></p>
+    <ul style="margin-left:18px;line-height:1.7;color:var(--dim)">
+      <li>Privacy mode as a <b>3-way segmented control</b> (not a popover) — it's a core identity, not a one-off choice.</li>
+      <li>Data Saver as a <b>4-way segmented control</b> with tiny one-word summaries.</li>
+      <li>Proxy is a <b>form inside a card</b> (route dropdown + host/port fields) rather than a popover.</li>
+      <li>Search engine / approval mode / theme use the existing <b>popover</b> pattern (consistent with profile &amp; provider).</li>
+      <li>Blocking &amp; parameter-stripping sit under <b>Browsing</b> as toggles, on by default.</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>
