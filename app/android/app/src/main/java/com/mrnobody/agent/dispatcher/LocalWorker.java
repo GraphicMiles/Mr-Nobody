@@ -5,6 +5,7 @@ import android.content.Context;
 import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
+import com.mrnobody.agent.tasks.EventLogRecorder;
 
 /**
  * Runs a task on-device. Delegates to the AgentEngine (deterministic in V1,
@@ -28,6 +29,17 @@ public final class LocalWorker implements Worker {
     public void execute(Context context, Task task, Cancellation cancellation) {
         task.setWorker("local");
         task.setStatus(Task.Status.RUNNING);
-        engine.run(context, task, cancellation);
+
+        // The pipeline is shared and deliberately knows nothing about tasks,
+        // so the task id travels on the thread. Without this every tool call
+        // would be logged against task 0 and the event log could not say which
+        // task did what. Cleared in a finally: a leaked binding would file the
+        // next task's calls under this one.
+        EventLogRecorder.bind(task.id());
+        try {
+            engine.run(context, task, cancellation);
+        } finally {
+            EventLogRecorder.clear();
+        }
     }
 }

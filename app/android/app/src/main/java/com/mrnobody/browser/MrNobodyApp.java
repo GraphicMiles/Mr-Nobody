@@ -17,6 +17,10 @@ import com.mrnobody.agent.dispatcher.TaskDispatcher;
 import com.mrnobody.agent.planner.DeterministicEngine;
 import com.mrnobody.agent.tasks.TaskReconciler;
 import com.mrnobody.agent.tasks.TaskStore;
+import com.mrnobody.agent.tasks.TaskEventStore;
+import com.mrnobody.agent.tasks.EventLogRecorder;
+import com.mrnobody.agent.policy.ApprovalMode;
+import com.mrnobody.agent.policy.ApprovalPolicy;
 import com.mrnobody.agent.tasks.TaskScheduler;
 import com.mrnobody.agent.tasks.WorkManagerTaskScheduler;
 import com.mrnobody.agent.policy.PolicyGate;
@@ -59,6 +63,8 @@ public final class MrNobodyApp extends Application {
     // Agent stack
     private static AgentEngine agentEngine;
     private static TaskStore taskStore;
+    private static TaskEventStore taskEvents;
+    private static ApprovalPolicy.MapOverrides approvalOverrides;
     private static TaskDispatcher taskDispatcher;
     private static TaskScheduler taskScheduler;
     private static HeadlessWebViewEngine headlessEngine;
@@ -119,6 +125,21 @@ public final class MrNobodyApp extends Application {
         TaskNotifier.ensureChannel(this);
 
         taskStore = new TaskStore(this);
+        taskEvents = new TaskEventStore(this);
+
+        // Attach the two pipeline seams that had never been connected. Until
+        // now every tool call vanished on return, and every CONFIRM resolved
+        // to a refusal because there was nothing able to ask.
+        if (agentEngine instanceof DeterministicEngine) {
+            DeterministicEngine de = (DeterministicEngine) agentEngine;
+            de.pipeline().setRecorder(new EventLogRecorder(taskEvents));
+            approvalOverrides = new ApprovalPolicy.MapOverrides();
+            // The prompt writes "always allow" here and the policy reads it
+            // here: one instance, or the choice is recorded and ignored.
+            de.policy().setOverrides(approvalOverrides);
+            de.pipeline().setConfirmer(new ApprovalPrompt(approvalOverrides));
+            de.policy().setMode(ApprovalMode.fromName(settings.approvalMode()));
+        }
         taskDispatcher = new TaskDispatcher("local");
         taskDispatcher.register(new LocalWorker(agentEngine));
         taskDispatcher.register(new RemoteWorker()); // no-op until V2 enables it
@@ -174,6 +195,16 @@ public final class MrNobodyApp extends Application {
         }
     }
     public static TaskStore tasks() { return taskStore; }
+    public static TaskEventStore taskEvents() { return taskEvents; }
+    public static ApprovalPolicy.MapOverrides approvalOverrides() { return approvalOverrides; }
+
+    /** Change how often the agent stops to ask, and remember it. */
+    public static void setApprovalMode(ApprovalMode mode) {
+        settings.setApprovalMode(mode.name());
+        if (agentEngine instanceof DeterministicEngine) {
+            ((DeterministicEngine) agentEngine).policy().setMode(mode);
+        }
+    }
     public static TaskDispatcher dispatcher() { return taskDispatcher; }
     public static TaskScheduler scheduler() { return taskScheduler; }
     public static HeadlessWebViewEngine headlessEngine() { return headlessEngine; }
