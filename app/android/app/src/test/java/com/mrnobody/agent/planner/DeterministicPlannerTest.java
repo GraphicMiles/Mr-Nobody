@@ -1,0 +1,79 @@
+package com.mrnobody.agent.planner;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+import com.mrnobody.agent.core.Task;
+
+import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+/**
+ * The plan the deterministic planner produces. The engine used to hard-code
+ * this sequence as control flow; now it is data, and this test pins the shape
+ * so a regression in planning fails here rather than on a device.
+ */
+public class DeterministicPlannerTest {
+
+    private static final Set<String> TOOLS = new LinkedHashSet<>(
+            Arrays.asList("search", "http", "download", "browser", "terminal"));
+
+    private final Planner planner = new DeterministicPlanner();
+
+    @Test
+    public void aQuestionPlansTheResearchCascade() {
+        Plan plan = planner.plan("find laptops under 500000", TOOLS);
+
+        assertEquals(4, plan.size());
+        assertToolStep(plan.steps().get(0), Task.STEP_SEARCH, "search");
+        assertInternalStep(plan.steps().get(1), Task.STEP_READ);
+        assertInternalStep(plan.steps().get(2), Task.STEP_ANSWER);
+        assertInternalStep(plan.steps().get(3), Task.STEP_VERIFY);
+    }
+
+    @Test
+    public void theSearchStepCarriesTheInstructionAsItsQuery() {
+        Plan plan = planner.plan("find laptops under 500000", TOOLS);
+
+        Plan.Step search = plan.steps().get(0);
+        assertNotNull(search.request);
+        assertEquals("search", search.request.action());
+        assertEquals("find laptops under 500000", search.request.param("q"));
+    }
+
+    @Test
+    public void aDownloadInstructionPlansASingleAction() {
+        Plan plan = planner.plan("download the report.pdf from example.com", TOOLS);
+
+        assertEquals(1, plan.size());
+        assertToolStep(plan.steps().get(0), Task.STEP_ACT, "download");
+        assertNotNull("the action step must carry its arguments", plan.steps().get(0).request);
+    }
+
+    @Test
+    public void aToolThatIsNotRegisteredIsNeverRoutedTo() {
+        // With no download tool, the same instruction falls back to research
+        // rather than planning a call the engine cannot serve.
+        Set<String> noDownload = new LinkedHashSet<>(Arrays.asList("search", "http"));
+        Plan plan = planner.plan("download the report.pdf from example.com", noDownload);
+
+        assertEquals(4, plan.size());
+        assertEquals(Task.STEP_SEARCH, plan.steps().get(0).label);
+    }
+
+    private static void assertToolStep(Plan.Step step, String label, String tool) {
+        assertEquals(label, step.label);
+        assertTrue(step.isToolStep());
+        assertEquals(tool, step.tool);
+    }
+
+    private static void assertInternalStep(Plan.Step step, String label) {
+        assertEquals(label, step.label);
+        assertFalse(step.isToolStep());
+    }
+}

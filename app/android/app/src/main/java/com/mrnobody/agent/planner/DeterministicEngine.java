@@ -90,6 +90,22 @@ public final class DeterministicEngine implements AgentEngine {
     private final ToolPipeline pipeline =
             new ToolPipeline(policy).addGuard(repeatGuard).addGuard(budgetGuard);
 
+    /**
+     * Produces the plan for an instruction. V1 is {@link DeterministicPlanner}
+     * (the research cascade, or a one-step routed action); an LLM planner later
+     * returns the same shape through {@link Planner}, so this engine never
+     * learns which kind it is running.
+     */
+    private final Planner planner = new DeterministicPlanner();
+
+    /**
+     * How many source candidates the read phase will try. Larger than
+     * {@link #MAX_SOURCES_READ} on purpose: a candidate that fails to read must
+     * not consume the budget, so a later candidate is tried. Bounded by the
+     * plan's own ceiling so the answer and verify steps always have room.
+     */
+    private static final int MAX_READ_CANDIDATES = 8;
+
     public DeterministicEngine() {
         tools.put("search", new SearchTool());
         tools.put("http", new HttpTool());
@@ -122,7 +138,6 @@ public final class DeterministicEngine implements AgentEngine {
 
     @Override
     public void run(Context context, Task task, Cancellation cancellation) {
-        String instruction = task.instruction();
         task.setStatus(Task.Status.RUNNING);
 
         // Budgets are per task, not per process: a fresh instruction starts
@@ -135,123 +150,213 @@ public final class DeterministicEngine implements AgentEngine {
         // can describe, never halfway through one.
         if (stopped(task, cancellation)) return;
 
-        // 0. Does this instruction name an action rather than a question?
-        //    Until the router existed, the answer was always "no": the cascade
-        //    below ran regardless, so "...and download it" reached a model that
-        //    could only answer, never act. A routed call is still subject to
-        //    the pipeline, so choosing a tool is not the same as permitting it.
-        ToolRouter.Route route = ToolRouter.route(instruction, tools.keySet());
-        if (route != null) {
-            runRoutedAction(context, task, route, cancellation);
+        // The plan comes from the planner, not from hard-coded control flow
+        // here. A routed action is a one-step plan; a question is the research
+        // cascade. Choosing a tool is still not the same as permitting it —
+        // every tool step passes through the guarded pipeline.
+        Plan plan = planner.plan(task.instruction(), tools.keySet());
+        if (plan.size() == 0 || plan.isAbandoned()) {
+            fail(task, ToolResult.fail("No plan for this instruction."));
             return;
         }
 
-        // 1. Search — parsed results, never a page scrape. A refusal is a
-        //    failure: an answer with no sources is a guess with a citation.
-        task.setCurrentStep(Task.STEP_SEARCH);
-        ToolResult search = callTool(context, "search",
-                ToolRequest.of("search", "q", instruction), cancellation);
-        if (!search.isSuccess()) {
-            fail(task, search);
+        if (isRoutedAction(plan)) {
+            executeRouted(context, task, plan.steps().get(0), cancellation);
             return;
         }
+        executeResearch(context, task, plan, cancellation);
+    }
+
+    /** A routed action is the whole task: one tool call whose result is the answer. */
+    private static boolean isRoutedAction(Plan plan) {
+        return plan.size() == 1 && Task.STEP_ACT.equals(plan.steps().get(0).label);
+    }
+
+    /**
+     * Run a single routed tool call.
+     *
+     * <p>Deliberately not folded into the research loop. An action either
+     * happened or it did not, and dressing that up as a four-step research
+     * narrative would report progress the task is not making.
+     */
+    private void executeRouted(Context context, Task task, Plan.Step step,
+                               Cancellation cancellation) {
+        task.setCurrentStep(Task.STEP_ACT);
+        ToolResult result = callTool(context, step.tool, step.request, cancellation);
         if (stopped(task, cancellation)) return;
 
-        List<Map<String, Object>> results = resultsOf(search);
-        if (results.isEmpty()) {
-            fail(task, ToolResult.fail("The search returned nothing to read, so there is "
-                    + "nothing to answer from."));
+        if (!result.isSuccess()) {
+            fail(task, result);
             return;
         }
 
-        // 2. Read the sources. This is the step that was missing: previously
-        //    only a URL typed by the user was ever opened, so an instruction
-        //    like "find the best X" reached the model as five snippets and a
-        //    blank cheque.
-        task.setCurrentStep(Task.STEP_READ);
-        List<String> readUrls = new ArrayList<>();
-        StringBuilder sources = new StringBuilder();
-        String namedUrl = findUrl(instruction);
-        if (namedUrl != null) {
-            String text = readPage(context, namedUrl, cancellation);
-            if (!text.isEmpty()) {
-                readUrls.add(namedUrl);
-                appendSource(sources, readUrls.size(), namedUrl, "the page you named", text);
-            }
-        }
-        for (Map<String, Object> result : results) {
-            if (readUrls.size() >= MAX_SOURCES_READ) break;
-            if (stopped(task, cancellation)) return;
-            String url = String.valueOf(result.get("url"));
-            String title = String.valueOf(result.get("title"));
-            if (url.isEmpty() || readUrls.contains(url)) continue;
-            String text = readPage(context, url, cancellation);
-            if (text.isEmpty()) continue;
-            readUrls.add(url);
-            appendSource(sources, readUrls.size(), url, title, text);
-        }
+        String rendered = result.result();
+        task.setResult(truncate(rendered == null || rendered.isEmpty()
+                ? step.tool + " finished."
+                : rendered, 6000));
+        task.setStatus(Task.Status.COMPLETED);
+    }
 
-        // Nothing readable: keep the snippets, but say what they are.
-        boolean pagesRead = !readUrls.isEmpty();
-        if (!pagesRead) {
-            for (Map<String, Object> result : results) {
-                if (readUrls.size() >= MAX_SOURCES_READ) break;
+    /**
+     * Execute the research plan: Search, then the reads the search discovers
+     * (the plan grows here), then Answer, then Verify. The fixed cascade of
+     * before is now the plan the {@link DeterministicPlanner} returns, so an
+     * LLM planner can later return a plan that branches and replans without
+     * this method changing.
+     */
+    private void executeResearch(Context context, Task task, Plan plan,
+                                 Cancellation cancellation) {
+        Research r = new Research();
+        r.namedUrl = findUrl(task.instruction());
+
+        while (!plan.isFinished()) {
+            if (stopped(task, cancellation)) return;
+            Plan.Step step = plan.current();
+
+            if (step.isToolStep()) {
+                task.setCurrentStep(step.label);
+                ToolResult result = callTool(context, step.tool, step.request, cancellation);
+                if ("search".equals(step.tool)) {
+                    r.search = result;
+                    if (!result.isSuccess()) {
+                        fail(task, result);
+                        return;
+                    }
+                    r.results = resultsOf(result);
+                    if (r.results.isEmpty()) {
+                        fail(task, ToolResult.fail("The search returned nothing to read, so "
+                                + "there is nothing to answer from."));
+                        return;
+                    }
+                } else if ("http".equals(step.tool)) {
+                    readOne(r, step, result);
+                }
+                plan.advance();
+                continue;
+            }
+
+            switch (step.label) {
+                case Task.STEP_READ:
+                    task.setCurrentStep(Task.STEP_READ);
+                    planReads(plan, r);
+                    break;
+                case Task.STEP_ANSWER:
+                    task.setCurrentStep(Task.STEP_ANSWER);
+                    answerStep(context, task, cancellation, r);
+                    break;
+                case Task.STEP_VERIFY:
+                    verifyStep(context, task, cancellation, r);
+                    break;
+                default:
+                    break;
+            }
+            plan.advance();
+        }
+    }
+
+    /**
+     * Append one {@code http} step per source the search returned, so the plan
+     * grows in response to what the search learned — the named page first,
+     * then each result in order. The read steps are inserted to run before the
+     * Answer and Verify steps that already follow.
+     */
+    private void planReads(Plan plan, Research r) {
+        List<Plan.Step> reads = new ArrayList<>();
+        if (r.namedUrl != null) {
+            r.titles.put(r.namedUrl, "the page you named");
+            reads.add(readStep(r.namedUrl));
+        }
+        for (Map<String, Object> result : r.results) {
+            if (reads.size() >= MAX_READ_CANDIDATES) break;
+            String url = String.valueOf(result.get("url"));
+            if (url.isEmpty()) continue;
+            r.titles.put(url, String.valueOf(result.get("title")));
+            reads.add(readStep(url));
+        }
+        // insertNext always places after the current step, so inserting in
+        // reverse yields the correct order: named page, then results.
+        for (int i = reads.size() - 1; i >= 0; i--) {
+            plan.insertNext(reads.get(i));
+        }
+    }
+
+    /** A read step: fetch one URL as readable text. */
+    private static Plan.Step readStep(String url) {
+        return Plan.Step.tool("Read", "http", ToolRequest.of("fetch", "url", url),
+                "read a source");
+    }
+
+    /** Record one source that actually read, or skip it silently when it failed. */
+    private void readOne(Research r, Plan.Step step, ToolResult result) {
+        String url = step.request == null ? "" : step.request.param("url", "");
+        if (url.isEmpty() || r.readUrls.contains(url) || r.readUrls.size() >= MAX_SOURCES_READ) {
+            return;
+        }
+        String text = result.isSuccess() ? result.result() : null;
+        if (text == null || text.trim().isEmpty()) return;
+        r.readUrls.add(url);
+        appendSource(r.sources, r.readUrls.size(), url, r.titles.getOrDefault(url, ""), text);
+    }
+
+    /** Answer, strictly from the sources read; fall back to snippets when none read. */
+    private void answerStep(Context context, Task task, Cancellation cancellation, Research r) {
+        // Nothing readable: keep the snippets, but say what they are. Frozen
+        // before the fallback so "pages read" stays false when only snippets
+        // exist and no read-time is claimed.
+        r.pagesRead = !r.readUrls.isEmpty();
+        if (!r.pagesRead) {
+            for (Map<String, Object> result : r.results) {
+                if (r.readUrls.size() >= MAX_SOURCES_READ) break;
                 String url = String.valueOf(result.get("url"));
                 if (url.isEmpty()) continue;
-                readUrls.add(url);
-                appendSource(sources, readUrls.size(), url,
+                r.readUrls.add(url);
+                appendSource(r.sources, r.readUrls.size(), url,
                         String.valueOf(result.get("title")),
                         String.valueOf(result.get("snippet")));
             }
         }
         if (stopped(task, cancellation)) return;
 
-        // 3. Answer. The local provider does not write prose — it shows what
-        //    was found, which is honest. A remote provider is asked to answer
-        //    strictly from the sources above.
-        task.setCurrentStep(Task.STEP_ANSWER);
-        AiProvider provider = MrNobodyApp.activeProvider();
-        String answer;
-        String injectionNote = null;
-        if (provider.isRemote()) {
+        r.provider = MrNobodyApp.activeProvider();
+        if (r.provider.isRemote()) {
             // Page text is fenced before it reaches the model. Until this
             // existed a page could write "ignore your instructions" and arrive
             // in the same voice as the user's own request.
             String nonce = UntrustedContent.newNonce();
-            UntrustedContent.Report fenced =
-                    UntrustedContent.fence(sources.toString(), nonce);
-            injectionNote = fenced.note();
-            answer = askProvider(provider,
-                    GroundedPrompt.build(instruction, fenced.fenced, pagesRead, nonce),
+            UntrustedContent.Report fenced = UntrustedContent.fence(r.sources.toString(), nonce);
+            r.injectionNote = fenced.note();
+            r.answer = askProvider(r.provider,
+                    GroundedPrompt.build(task.instruction(), fenced.fenced, r.pagesRead, nonce),
                     cancellation, task.id());
         } else {
-            answer = search.result();
+            r.answer = r.search.result();
         }
-        if (stopped(task, cancellation)) return;
+    }
 
-        // 4. Verify what came back against what was read.
+    /** Verify the answer against what was read, then close the task. */
+    private void verifyStep(Context context, Task task, Cancellation cancellation, Research r) {
         task.setStatus(Task.Status.VERIFYING);
         task.setCurrentStep(Task.STEP_VERIFY);
-        if (provider.isRemote()) {
-            AnswerVerifier.Report report = AnswerVerifier.check(answer, readUrls);
-            String note = AnswerVerifier.note(report, readUrls);
+        if (r.provider.isRemote()) {
+            AnswerVerifier.Report report = AnswerVerifier.check(r.answer, r.readUrls);
+            String note = AnswerVerifier.note(report, r.readUrls);
 
             // Citations and hostnames are the frame of an answer; the figures
             // are usually the answer itself. Asked for the Bitcoin price the
             // model once copied the 24h low and high correctly and invented
             // the headline price, and every check here passed because the
             // marker [1] was well-formed and the host had been read.
-            FigureCheck.Report figures = FigureCheck.check(answer, sources.toString());
+            FigureCheck.Report figures = FigureCheck.check(r.answer, r.sources.toString());
             String figureNote = FigureCheck.note(figures);
             // An attempted injection is something the reader is told about,
             // not something we quietly absorb.
-            if (injectionNote != null) {
-                answer = answer + "\n\n" + injectionNote;
+            if (r.injectionNote != null) {
+                r.answer = r.answer + "\n\n" + r.injectionNote;
                 com.mrnobody.debug.ErrorLog.record("task " + task.id()
                         + ": page content attempted to instruct the agent");
             }
-            if (!figureNote.isEmpty()) answer = answer + "\n\n" + figureNote;
-            if (!note.isEmpty()) answer = answer + "\n\n" + note;
+            if (!figureNote.isEmpty()) r.answer = r.answer + "\n\n" + figureNote;
+            if (!note.isEmpty()) r.answer = r.answer + "\n\n" + note;
             if (report.hasProblems()) {
                 com.mrnobody.debug.ErrorLog.record("task " + task.id()
                         + ": answer could not be verified against its sources");
@@ -266,21 +371,35 @@ public final class DeterministicEngine implements AgentEngine {
         // When the pages were read. A live figure with no read time is stale
         // the instant it is shown and gives no way to tell: the Bitcoin answer
         // looked equally authoritative an hour later, when it was wrong.
-        if (pagesRead) {
-            answer = answer + "\n\nRead at " + readTimeLabel() + ".";
+        if (r.pagesRead) {
+            r.answer = r.answer + "\n\nRead at " + readTimeLabel() + ".";
         }
 
         // "Track the price" asks for something to be watched, not answered
         // once. The schedule machinery already existed; nothing was noticing
         // that the user had asked for it.
-        RecurrenceRequest.Request recurrence = RecurrenceRequest.parse(instruction);
+        RecurrenceRequest.Request recurrence = RecurrenceRequest.parse(task.instruction());
         if (recurrence.isRecurring()) {
             String note = applyRecurrence(context, task, recurrence);
-            if (!note.isEmpty()) answer = answer + "\n\n" + note;
+            if (!note.isEmpty()) r.answer = r.answer + "\n\n" + note;
         }
 
-        task.setResult(truncate(answer, 6000));
+        task.setResult(truncate(r.answer, 6000));
         task.setStatus(Task.Status.COMPLETED);
+    }
+
+    /** State shared across the steps of one research run. */
+    private static final class Research {
+        final StringBuilder sources = new StringBuilder();
+        final List<String> readUrls = new ArrayList<>();
+        final Map<String, String> titles = new LinkedHashMap<>();
+        String namedUrl;
+        ToolResult search;
+        List<Map<String, Object>> results;
+        AiProvider provider;
+        boolean pagesRead;
+        String answer = "";
+        String injectionNote;
     }
 
     /** Local time, so "read at" means something to the person reading it. */
@@ -311,39 +430,6 @@ public final class DeterministicEngine implements AgentEngine {
             return "⚠︎ This looked like a request to keep checking, but the repeat "
                     + "could not be scheduled, so this answer is a one-off.";
         }
-    }
-
-    /**
-     * Run a single routed tool call.
-     *
-     * <p>Deliberately not folded into the cascade. An action either happened or
-     * it did not, and dressing that up as a four-step research narrative would
-     * report progress the task is not making.
-     */
-    private void runRoutedAction(Context context, Task task, ToolRouter.Route route,
-                                 Cancellation cancellation) {
-        task.setCurrentStep(Task.STEP_ACT);
-        ToolResult result = callTool(context, route.tool, route.request, cancellation);
-        if (stopped(task, cancellation)) return;
-
-        if (!result.isSuccess()) {
-            fail(task, result);
-            return;
-        }
-
-        String rendered = result.result();
-        task.setResult(truncate(rendered == null || rendered.isEmpty()
-                ? route.tool + " finished."
-                : rendered, 6000));
-        task.setStatus(Task.Status.COMPLETED);
-    }
-
-    /** Fetch one page's readable text through the pipeline; empty on failure. */
-    private String readPage(Context context, String url, Cancellation cancellation) {
-        ToolResult page = callTool(context, "http", ToolRequest.of("fetch", "url", url), cancellation);
-        if (!page.isSuccess()) return "";
-        String text = page.result();
-        return text == null ? "" : text.trim();
     }
 
     private static void appendSource(StringBuilder sources, int number, String url,
