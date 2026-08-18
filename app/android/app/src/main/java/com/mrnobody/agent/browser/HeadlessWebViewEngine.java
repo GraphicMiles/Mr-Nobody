@@ -116,69 +116,79 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
         return currentTitle;
     }
 
+    /** One WebView, so concurrent loads must be serialised or they interleave. */
+    private final Object loadLock = new Object();
+
     @Override
     public String loadAndExtract(String url, long timeoutMs) {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<String> result = new AtomicReference<>("");
+        // Serialised: two tools (search escalation and page read) share this
+        // engine, and two concurrent loadUrl calls on one WebView rebind the
+        // client mid-flight and cross each other's callbacks.
+        synchronized (loadLock) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<String> result = new AtomicReference<>("");
 
-        onMain(() -> {
-            WebView wv = webView();
-            wv.setWebViewClient(new WebViewClient() {
-                @Override
-                public void onPageFinished(WebView view, String finishedUrl) {
-                    currentTitle = view.getTitle() == null ? "" : view.getTitle();
-                    view.evaluateJavascript(
-                            "(function(){try{return document.body?document.body.innerText:''}catch(e){return ''}})()",
-                            value -> {
-                                result.set(unescapeJs(value));
-                                latch.countDown();
-                            });
-                }
+            onMain(() -> {
+                WebView wv = webView();
+                wv.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(WebView view, String finishedUrl) {
+                        currentTitle = view.getTitle() == null ? "" : view.getTitle();
+                        view.evaluateJavascript(
+                                "(function(){try{return document.body?document.body.innerText:''}catch(e){return ''}})()",
+                                value -> {
+                                    result.set(unescapeJs(value));
+                                    latch.countDown();
+                                });
+                    }
+                });
+                wv.loadUrl(url);
             });
-            wv.loadUrl(url);
-        });
 
-        try {
-            latch.await(timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            try {
+                latch.await(timeoutMs, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            String text = result.get();
+            if (text == null || text.trim().isEmpty()) {
+                // Fall back to the title if body text was unavailable.
+                return currentTitle;
+            }
+            return text;
         }
-        String text = result.get();
-        if (text == null || text.trim().isEmpty()) {
-            // Fall back to the title if body text was unavailable.
-            return currentTitle;
-        }
-        return text;
     }
 
     @Override
     public String loadAndEvaluate(String url, String script, long timeoutMs) {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<String> result = new AtomicReference<>("");
+        synchronized (loadLock) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<String> result = new AtomicReference<>("");
 
-        onMain(() -> {
-            WebView wv = webView();
-            wv.setWebViewClient(new WebViewClient() {
-                @Override
-                public void onPageFinished(WebView view, String finishedUrl) {
-                    currentTitle = view.getTitle() == null ? "" : view.getTitle();
-                    // A results page often finishes loading before it finishes
-                    // rendering its results, so give the document a moment.
-                    view.postDelayed(() -> view.evaluateJavascript(script, value -> {
-                        result.set(unescapeJs(value));
-                        latch.countDown();
-                    }), 350);
-                }
+            onMain(() -> {
+                WebView wv = webView();
+                wv.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(WebView view, String finishedUrl) {
+                        currentTitle = view.getTitle() == null ? "" : view.getTitle();
+                        // A results page often finishes loading before it finishes
+                        // rendering its results, so give the document a moment.
+                        view.postDelayed(() -> view.evaluateJavascript(script, value -> {
+                            result.set(unescapeJs(value));
+                            latch.countDown();
+                        }), 350);
+                    }
+                });
+                wv.loadUrl(url);
             });
-            wv.loadUrl(url);
-        });
 
-        try {
-            latch.await(timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            try {
+                latch.await(timeoutMs, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return result.get() == null ? "" : result.get();
         }
-        return result.get() == null ? "" : result.get();
     }
 
     @Override
@@ -219,21 +229,23 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
 
     /** Evaluate a JS expression that must return a boolean, on the main thread. */
     private boolean evalBool(String js) {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Boolean> result = new AtomicReference<>(false);
-        onMain(() -> {
-            WebView wv = webView();
-            wv.evaluateJavascript(js, value -> {
-                result.set("true".equalsIgnoreCase(unescapeJs(value)));
-                latch.countDown();
+        synchronized (loadLock) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<Boolean> result = new AtomicReference<>(false);
+            onMain(() -> {
+                WebView wv = webView();
+                wv.evaluateJavascript(js, value -> {
+                    result.set("true".equalsIgnoreCase(unescapeJs(value)));
+                    latch.countDown();
+                });
             });
-        });
-        try {
-            latch.await(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            try {
+                latch.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return Boolean.TRUE.equals(result.get());
         }
-        return Boolean.TRUE.equals(result.get());
     }
 
     /** JSON-string-encode a value for safe inlining into JS source. */
@@ -247,22 +259,29 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
 
     @Override
     public void close() {
-        onMain(() -> {
-            if (webView != null) {
-                webView.destroy();
-                webView = null;
-            }
-            // Only after the WebView is destroyed: deleteProfile refuses while
-            // a live WebView still holds the profile, so doing this first
-            // would silently leave the session's data on disk.
-            if (isolated && scope.isEphemeral()) {
-                boolean gone = ProfileManager.destroyProfile(scope.profileName());
-                if (!gone) {
-                    ErrorLog.record("ephemeral session not deleted: " + scope.profileName());
+        // Serialised with loads: never destroy a WebView while a load is
+        // driving it. The worker calls this after a task's run completes, when
+        // no load should be in flight, but the lock makes that a guarantee
+        // rather than an assumption.
+        synchronized (loadLock) {
+            onMain(() -> {
+                if (webView != null) {
+                    webView.stopLoading();
+                    webView.destroy();
+                    webView = null;
                 }
-            }
-            isolated = false;
-        });
+                // Only after the WebView is destroyed: deleteProfile refuses
+                // while a live WebView still holds the profile, so doing this
+                // first would silently leave the session's data on disk.
+                if (isolated && scope.isEphemeral()) {
+                    boolean gone = ProfileManager.destroyProfile(scope.profileName());
+                    if (!gone) {
+                        ErrorLog.record("ephemeral session not deleted: " + scope.profileName());
+                    }
+                }
+                isolated = false;
+            });
+        }
     }
 
     private void onMain(Runnable r) {
