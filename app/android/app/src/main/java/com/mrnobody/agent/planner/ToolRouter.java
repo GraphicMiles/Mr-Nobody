@@ -78,6 +78,17 @@ public final class ToolRouter {
         return null; // research cascade
     }
 
+    /**
+     * True when the instruction asks to download/save/grab something, whether
+     * or not it names a direct URL. Used by the planner to add a
+     * "resolve download" step for the common case of a download asked by name
+     * rather than by link.
+     */
+    public static boolean isDownloadIntent(String instruction) {
+        if (instruction == null || instruction.trim().isEmpty()) return false;
+        return mentionsAny(instruction.trim().toLowerCase(Locale.ROOT), DOWNLOAD_VERBS);
+    }
+
     private static Route routeDownload(String text, String lower, Collection<String> available) {
         if (!has(available, "download")) return null;
         if (!mentionsAny(lower, DOWNLOAD_VERBS)) return null;

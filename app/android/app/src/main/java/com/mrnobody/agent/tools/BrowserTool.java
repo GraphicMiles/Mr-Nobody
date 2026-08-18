@@ -12,6 +12,8 @@ import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
 
+import org.json.JSONArray;
+
 /**
  * Drives a {@link BrowserEngine} (visible or headless) with typed actions.
  * The agent never touches engine internals; it goes through this tool.
@@ -26,7 +28,7 @@ public final class BrowserTool implements Tool {
 
     /** Actions that only observe the page. Everything else changes it. */
     private static final java.util.Set<String> READ_ACTIONS =
-            java.util.Set.of("fetch", "extract", "title");
+            java.util.Set.of("fetch", "extract", "title", "links");
 
     /** The last URL this tool navigated to, for anchoring. */
     private volatile String lastKnownUrl = "";
@@ -37,7 +39,7 @@ public final class BrowserTool implements Tool {
             // action narrows it per call (see tierFor).
             .tier(Tier.WRITE)
             .param(ParamSpec.enumOf("action", false, "What to do with the page.",
-                    "open", "fetch", "back", "forward", "reload", "extract", "title",
+                    "open", "fetch", "back", "forward", "reload", "extract", "title", "links",
                     "click", "type", "scroll", "wait"))
             .param(ParamSpec.url("url", false, "Page to open or fetch."))
             .param(ParamSpec.string("selector", false, "CSS selector to click or type into."))
@@ -131,6 +133,24 @@ public final class BrowserTool implements Tool {
                 return value("reload", "status", "reloaded");
             case "extract":
                 return value("extract", "text", engine.extractText());
+            case "links": {
+                // Every anchor the rendered page exposes, as absolute URLs.
+                // This is how the agent finds the file to download: it reads
+                // the page, then asks for its links, rather than guessing a
+                // URL the page never offered.
+                String linkUrl = request.param("url");
+                if (linkUrl == null || linkUrl.isEmpty()) {
+                    return ToolResult.fail("browser.links needs 'url'");
+                }
+                long linkTimeout = parseLong(request.param("timeout"), 20_000);
+                String json = engine.loadAndEvaluate(linkUrl, LINKS_SCRIPT, linkTimeout);
+                lastKnownUrl = linkUrl;
+                java.util.Map<String, Object> v = new java.util.LinkedHashMap<>();
+                v.put("action", "links");
+                v.put("url", linkUrl);
+                v.put("links", parseLinks(json));
+                return ToolResult.ok(v);
+            }
             case "title":
                 return value("title", "title", engine.title());
             case "click": {
@@ -193,6 +213,33 @@ public final class BrowserTool implements Tool {
         Object selector = value.get("selector");
         if (selector != null) sb.append(' ').append(selector);
         return sb.toString();
+    }
+
+    /**
+     * Collect the page's anchors as absolute URLs. Bounded at 200 so a page
+     * with tens of thousands of links cannot flood the result.
+     */
+    private static final String LINKS_SCRIPT =
+            "(function(){try{var out=[],seen={};var as=document.querySelectorAll('a[href]');"
+            + "for(var i=0;i<as.length;i++){var u=as[i].href;"
+            + "if(u&&u.indexOf('http')===0&&!seen[u]){seen[u]=1;out.push(u);}"
+            + "if(out.length>=200)break;}return JSON.stringify(out);"
+            + "}catch(e){return '[]'}})()";
+
+    /** A JSON array of link strings, or an empty list on any failure. */
+    private static java.util.List<String> parseLinks(String json) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (json == null || json.trim().isEmpty()) return out;
+        try {
+            JSONArray arr = new JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                String u = arr.optString(i, "");
+                if (!u.isEmpty()) out.add(u);
+            }
+        } catch (Exception ignored) {
+            // A page that returned something unparseable simply has no links.
+        }
+        return out;
     }
 
     private static long parseLong(String s, long fallback) {
