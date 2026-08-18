@@ -40,11 +40,17 @@ class TaskChatScreen extends StatefulWidget {
 class _TaskChatScreenState extends State<TaskChatScreen> {
   static const _live = {'QUEUED', 'RUNNING', 'VERIFYING', 'WAITING'};
 
+  /// The task answer stream, pushed from the worker via TaskStreamHub. See
+  /// the Java side; this is how a remote provider's tokens reach the chat as
+  /// they are generated.
+  static const _stream = EventChannel('mrnobody/task-stream');
+
   final _scroll = ScrollController();
   final _input = TextEditingController();
 
   Timer? _poll;
   Timer? _reveal;
+  StreamSubscription<dynamic>? _streamSub;
 
   Map<String, dynamic> _task = const {};
   List<Map<String, dynamic>> _events = const [];
@@ -64,12 +70,20 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   /// same answer does not restart the animation.
   String _revealedFrom = '';
 
+  /// The answer text arrived live through the stream, so the final result's
+  /// already-shown prefix is not re-revealed. Cleared once the result lands.
+  String _streamBuf = '';
+
+  /// A live stream is in flight (tokens may still arrive).
+  bool _streaming = false;
+
   @override
   void initState() {
     super.initState();
     if (widget.taskId != null) {
       _refresh();
       _poll = Timer.periodic(const Duration(milliseconds: 600), (_) => _refresh());
+      _listenStream();
     }
   }
 
@@ -77,9 +91,59 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   void dispose() {
     _poll?.cancel();
     _reveal?.cancel();
+    _streamSub?.cancel();
     _scroll.dispose();
     _input.dispose();
     super.dispose();
+  }
+
+  // ------------------------------------------------------------------ stream
+
+  /// Subscribe to the task answer stream, so a remote provider's tokens land
+  /// as they are generated rather than all at once when the task completes.
+  ///
+  /// The stream is best-effort: when it is absent (tests, a build without the
+  /// native handler) the poll and the timed reveal below still deliver the
+  /// full answer, so a missing stream must never read as an error.
+  void _listenStream() {
+    final id = widget.taskId;
+    if (id == null) return;
+    _streamSub = _stream.receiveBroadcastStream(id).listen(
+      _onStreamEvent,
+      onError: (Object _) {
+        // No native handler: fall through to the poll, which already has the
+        // answer covered. Deliberately not logged — this is a normal state.
+      },
+    );
+  }
+
+  void _onStreamEvent(dynamic event) {
+    if (!mounted || event is! Map) return;
+    final map = Map<String, dynamic>.from(event);
+    if ((map['taskId'] as num?)?.toInt() != widget.taskId) return;
+    switch (map['type']) {
+      case 'token':
+        // The final result, once it lands, is authoritative (it carries the
+        // verification notes the stream does not), so ignore late tokens that
+        // race it.
+        if (_revealedFrom.isNotEmpty) break;
+        _streamBuf += map['text'] as String? ?? '';
+        _streaming = true;
+        setState(() {
+          _tokens = _tokenise(_streamBuf);
+          _revealed = _tokens.length;
+        });
+        _autoScroll();
+        break;
+      case 'done':
+        _streaming = false;
+        break;
+      case 'error':
+        _streaming = false;
+        break;
+      default:
+        break;
+    }
   }
 
   // ------------------------------------------------------------------ data
@@ -121,19 +185,39 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
 
   bool get _isLive => _live.contains(_task['status'] as String? ?? 'QUEUED');
 
-  /// Reveal the answer word by word.
+  /// Reveal the final answer word by word.
   ///
-  /// The provider hands back one finished string — `AiProvider.complete`
-  /// returns a whole completion and both remote providers read the entire body
-  /// before returning — so this is a timed reveal of text that has already
-  /// arrived, not a live token feed. It is honest motion rather than a
-  /// pretence: the words appear at a readable rate and nothing claims they are
-  /// arriving from the network. When the provider gains real streaming, this
-  /// method is replaced by chunks from an EventChannel and no widget changes.
+  /// Two paths converge here. When a remote provider streams, the raw answer
+  /// already arrived through the EventChannel (see [_onStreamEvent]); this
+  /// then reveals only what the verified result adds — the figure check, the
+  /// read time, a recurrence notice — so the reader never watches the same
+  /// words twice. Without a stream (the local provider, or a task reopened
+  /// later) this is the timed reveal of the whole answer, and a restored
+  /// answer paints at full opacity rather than re-animating.
   void _startReveal(String result) {
     _reveal?.cancel();
     _revealedFrom = result;
+
+    // A live stream already showed the raw answer word by word; re-running
+    // the whole thing would replay text the reader just watched arrive. Reveal
+    // only what the final result adds and leave the streamed prefix in place.
+    if (_streamBuf.isNotEmpty && result.startsWith(_streamBuf)) {
+      final tail = _tokenise(result.substring(_streamBuf.length));
+      setState(() {
+        _tokens = [..._tokens, ...tail];
+        _streamBuf = '';
+        _streaming = false;
+      });
+      if (tail.isEmpty) {
+        setState(() => _revealed = _tokens.length);
+        return;
+      }
+      _revealRemaining();
+      return;
+    }
+
     _tokens = _tokenise(result);
+    _streamBuf = '';
 
     // A task restored from a previous session should not re-animate; only
     // reveal progressively when the answer landed while we were watching.
@@ -144,6 +228,11 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     }
 
     setState(() => _revealed = 0);
+    _revealRemaining();
+  }
+
+  /// Reveal the not-yet-shown tail of [_tokens], one word per tick.
+  void _revealRemaining() {
     _reveal = Timer.periodic(const Duration(milliseconds: 55), (t) {
       if (!mounted) {
         t.cancel();
@@ -360,7 +449,9 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     final result = _task['result'] as String? ?? '';
     final error = _task['error'] as String? ?? '';
     final steps = _steps;
-    final streaming = _revealed < _tokens.length;
+    // The caret blinks while a live stream is still generating, not only
+    // while the timed reveal is catching up to a finished answer.
+    final streaming = _streaming || _revealed < _tokens.length;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
