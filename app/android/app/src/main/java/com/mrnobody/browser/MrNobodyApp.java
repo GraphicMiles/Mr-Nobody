@@ -93,6 +93,9 @@ public final class MrNobodyApp extends Application {
         filterEngine = new FilterEngine();
         filterEngine.loadBundled(this);
         settings = new Settings(this);
+        // The blocking toggle must reach the engine's own enable flag, or the
+        // setting is a label the engine never reads.
+        filterEngine.setEnabled(settings.isBlockingEnabled());
         historyStore = new HistoryStore(this);
         bookmarksStore = new BookmarksStore(this);
         privacyReport = new PrivacyReport(this);

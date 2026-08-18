@@ -375,6 +375,8 @@ public class MainActivity extends FlutterActivity {
                             m.put("proxyPort", MrNobodyApp.settings().proxyPort());
                             m.put("approvalMode", MrNobodyApp.settings().approvalMode());
                             m.put("resourcePolicy", MrNobodyApp.settings().resourcePolicy().name());
+                            m.put("blocking", MrNobodyApp.settings().isBlockingEnabled());
+                            m.put("paramStripping", MrNobodyApp.settings().isParamStrippingEnabled());
                             result.success(m);
                             return;
                         }
@@ -866,6 +868,21 @@ public class MainActivity extends FlutterActivity {
                 // already open keeps its current settings until reload.
                 MrNobodyApp.settings().setResourcePolicy(
                         com.mrnobody.browser.net.ResourcePolicy.fromName(String.valueOf(value)));
+                break;
+            case "blocking": {
+                // Ad/tracker blocking. The FilterEngine holds its own enable
+                // flag, so the toggle must reach it, or this would be a dead
+                // switch that reads "on" while the engine still blocks nothing
+                // (or blocks when the user asked it not to).
+                boolean v = Boolean.TRUE.equals(value);
+                MrNobodyApp.settings().setBlockingEnabled(v);
+                MrNobodyApp.filters().setEnabled(v);
+                break;
+            }
+            case "paramStripping":
+                // Tracking-parameter stripping. Already enforced on the request
+                // path; this toggle just exposes it.
+                MrNobodyApp.settings().setParamStrippingEnabled(Boolean.TRUE.equals(value));
                 break;
             default:
                 // Unknown keys are ignored on purpose: the UI never writes

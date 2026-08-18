@@ -191,6 +191,28 @@ class NativeBridge {
 
   /// The core's own error log — tool failures, AI errors, failed tasks. These
   /// never pass through a Dart try/catch, so the overlay has to ask for them.
+  /// Apply a privacy mode (NORMAL / PRIVATE / NOBODY) and report what actually
+  /// took effect — a refused mode must not look like it applied.
+  static Future<Map<String, dynamic>> applyPrivacyMode(String mode) async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('privacyMode', {'mode': mode}) as Map);
+  }
+
+  /// Configure the privacy route (Orbot Tor / HTTP proxy / direct) and re-apply
+  /// the current mode so a live session picks up the change.
+  static Future<Map<String, dynamic>> setProxy({
+    String? kind,
+    String? host,
+    int? port,
+    String? route,
+  }) async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('setProxy', {
+      'kind': kind,
+      'host': host,
+      'port': port,
+      'route': route,
+    }) as Map);
+  }
+
   /// What the agent remembers: the on-device task history, newest first.
   static Future<Map<String, dynamic>> memoryInfo() async {
     return Map<String, dynamic>.from(await _ch.invokeMethod('memoryInfo') as Map);

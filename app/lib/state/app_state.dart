@@ -43,15 +43,46 @@ class AppState extends ChangeNotifier {
   bool js = true;
   bool suggestions = false;
   bool terminal = false;
+  bool blocking = true;
+  bool paramStripping = true;
   String profile = 'BALANCED';
   String providerId = 'local';
+  String privacyMode = 'NORMAL';
+  String searchEngine = 'https://duckduckgo.com/?q=';
+  String approvalMode = 'CAUTIOUS';
+  String resourcePolicy = 'OFF';
   bool loaded = false;
 
   static const profiles = ['BALANCED', 'STRICT', 'MAXIMUM'];
+  static const privacyModes = ['NORMAL', 'PRIVATE', 'NOBODY'];
+
+  /// Friendly label → engine URL, mirroring Settings.java. Google is offered
+  /// because the agent's SearchProviders already knows how to read it.
+  static const searchEngines = <String, String>{
+    'DuckDuckGo': 'https://duckduckgo.com/?q=',
+    'Bing': 'https://www.bing.com/search?q=',
+    'Startpage': 'https://www.startpage.com/sp/search?query=',
+    'Google': 'https://www.google.com/search?q=',
+  };
+
+  static const approvalModes = ['CAUTIOUS', 'BALANCED', 'TRUSTING'];
+
+  /// Friendly labels matching ApprovalMode.java's own descriptions.
+  static const approvalLabels = <String, String>{
+    'CAUTIOUS': 'Ask before acting',
+    'BALANCED': 'Ask before commands',
+    'TRUSTING': 'Don\'t ask',
+  };
 
   String get profileLabel => _title(profile);
   String get providerLabel => AiProviderOption.byId(providerId).shortName;
   String get terminalLabel => terminal ? 'on' : 'off';
+  String get privacyModeLabel => _title(privacyMode);
+  String get searchEngineLabel => searchEngines.entries
+      .firstWhere((e) => e.value == searchEngine, orElse: () => const MapEntry('DuckDuckGo', 'https://duckduckgo.com/?q='))
+      .key;
+  String get approvalModeLabel => approvalLabels[approvalMode] ?? _title(approvalMode);
+  String get resourcePolicyLabel => _title(resourcePolicy);
 
   static String _title(String v) =>
       v.isEmpty ? v : v[0].toUpperCase() + v.substring(1).toLowerCase();
@@ -63,8 +94,14 @@ class AppState extends ChangeNotifier {
       js = s['js'] as bool? ?? js;
       suggestions = s['suggestions'] as bool? ?? suggestions;
       terminal = s['terminal'] as bool? ?? terminal;
+      blocking = s['blocking'] as bool? ?? blocking;
+      paramStripping = s['paramStripping'] as bool? ?? paramStripping;
       profile = (s['profile'] as String? ?? profile).toUpperCase();
       providerId = s['provider'] as String? ?? providerId;
+      privacyMode = (s['privacyMode'] as String? ?? privacyMode).toUpperCase();
+      searchEngine = s['searchEngine'] as String? ?? searchEngine;
+      approvalMode = (s['approvalMode'] as String? ?? approvalMode).toUpperCase();
+      resourcePolicy = (s['resourcePolicy'] as String? ?? resourcePolicy).toUpperCase();
     } catch (e) {
       ErrorLog.instance.add('settings load failed: $e');
     } finally {
@@ -79,6 +116,28 @@ class AppState extends ChangeNotifier {
   Future<void> setTerminal(bool v) => _set('terminal', v, () => terminal = v);
   Future<void> setProfile(String v) => _set('profile', v, () => profile = v);
   Future<void> setProvider(String v) => _set('provider', v, () => providerId = v);
+  Future<void> setBlocking(bool v) => _set('blocking', v, () => blocking = v);
+  Future<void> setParamStripping(bool v) => _set('paramStripping', v, () => paramStripping = v);
+  Future<void> setSearchEngine(String v) => _set('searchEngine', v, () => searchEngine = v);
+  Future<void> setApprovalMode(String v) => _set('approvalMode', v, () => approvalMode = v);
+  Future<void> setResourcePolicy(String v) => _set('resourcePolicy', v, () => resourcePolicy = v);
+
+  /// Privacy mode uses its own channel (not setSetting), because the core must
+  /// report what actually took effect — a refused NOBODY must not look applied.
+  Future<void> setPrivacyMode(String v) async {
+    privacyMode = v;
+    notifyListeners();
+    try {
+      final r = await NativeBridge.applyPrivacyMode(v);
+      final effective = (r['effective'] as String? ?? v).toUpperCase();
+      if (effective != v) {
+        privacyMode = effective;
+        notifyListeners();
+      }
+    } catch (e) {
+      ErrorLog.instance.add('could not apply privacy mode: $e');
+    }
+  }
 
   Future<void> _set(String key, Object value, VoidCallback apply) async {
     apply();

@@ -41,6 +41,7 @@ public final class Settings {
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
     public static final String SEARCH_STARTPAGE = "https://www.startpage.com/sp/search?query=";
+    public static final String SEARCH_GOOGLE = "https://www.google.com/search?q=";
 
     // Theme constants (see MainActivity.applyTheme)
     public static final String THEME_SYSTEM = "system";

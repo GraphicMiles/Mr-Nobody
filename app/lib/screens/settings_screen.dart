@@ -30,6 +30,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int? _downloadCount;
   String _downloadFolder = 'Downloads (system)';
   bool _customFolder = false;
+  String _proxyRoute = 'tor-orbot';
+  String _proxyKind = 'http';
+  String _proxyHost = '';
+  int _proxyPort = 0;
+
+  String get _proxyLabel {
+    switch (_proxyRoute) {
+      case 'direct':
+        return 'Direct';
+      case 'proxy':
+        return 'HTTP proxy';
+      case 'tor-orbot':
+      default:
+        return 'Orbot (Tor)';
+    }
+  }
 
   @override
   void initState() {
@@ -37,6 +53,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _state.load();
     _loadDownloadCount();
     _loadDownloadFolder();
+    _loadProxy();
+  }
+
+  Future<void> _loadProxy() async {
+    final s = await NativeBridge.guard(
+      NativeBridge.getSettings,
+      const <String, dynamic>{},
+      'settings unavailable',
+    );
+    if (!mounted || s.isEmpty) return;
+    setState(() {
+      _proxyRoute = s['route'] as String? ?? _proxyRoute;
+      _proxyKind = s['proxyKind'] as String? ?? _proxyKind;
+      _proxyHost = s['proxyHost'] as String? ?? _proxyHost;
+      _proxyPort = (s['proxyPort'] as num?)?.toInt() ?? _proxyPort;
+    });
   }
 
   Future<void> _loadDownloadFolder() async {
@@ -143,6 +175,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _state.setSuggestions(v);
                           AppToast.show(context, 'Suggestions ${v ? 'ON' : 'OFF'}');
                         }),
+                        _toggle('Block ads & trackers', _state.blocking, (v) {
+                          _state.setBlocking(v);
+                          AppToast.show(
+                              context, 'Ad blocking ${v ? 'ON' : 'OFF'} — reload the page to apply');
+                        }),
+                        _toggle('Strip tracking parameters', _state.paramStripping, (v) {
+                          _state.setParamStripping(v);
+                          AppToast.show(context,
+                              'Parameter stripping ${v ? 'ON' : 'OFF'} — reload the page to apply');
+                        }),
+                      ]),
+                    ),
+                  ),
+                  const SectionLabel('Privacy'),
+                  AppCard(
+                    child: Column(
+                      children: withDividers([
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Privacy mode',
+                            value: _state.privacyModeLabel,
+                            valueOn: true,
+                            onTap: () => _pickPrivacyMode(rowContext),
+                          ),
+                        ),
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Proxy',
+                            value: _proxyLabel,
+                            valueOn: _proxyRoute != 'direct',
+                            onTap: () => _pickProxy(rowContext),
+                          ),
+                        ),
                       ]),
                     ),
                   ),
@@ -172,6 +237,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onTap: () => _pickTerminal(rowContext),
                           ),
                         ),
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Search engine',
+                            value: _state.searchEngineLabel,
+                            valueOn: true,
+                            onTap: () => _pickSearchEngine(rowContext),
+                          ),
+                        ),
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Approval mode',
+                            value: _state.approvalModeLabel,
+                            onTap: () => _pickApprovalMode(rowContext),
+                          ),
+                        ),
                       ]),
                     ),
                   ),
@@ -179,6 +259,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppCard(
                     child: Column(
                       children: withDividers([
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Data Saver',
+                            value: _state.resourcePolicyLabel,
+                            valueOn: _state.resourcePolicy != 'OFF',
+                            onTap: () => _pickDataSaver(rowContext),
+                          ),
+                        ),
                         SettingRow(
                           label: 'Clear browsing data',
                           onTap: () => Navigator.of(context)
@@ -290,6 +378,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
       MaterialPageRoute(builder: (_) => AiProviderScreen(initialProvider: picked)),
     );
     if (mounted) setState(() {});
+  }
+
+  Future<void> _pickPrivacyMode(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<String>(
+      context: rowContext,
+      title: 'Privacy mode',
+      selected: _state.privacyMode,
+      options: const [
+        MenuOption(id: 'NORMAL', label: 'Normal', icon: Icons.language, tag: 'direct'),
+        MenuOption(
+            id: 'PRIVATE', label: 'Private', icon: Icons.visibility_off, tag: 'isolated storage'),
+        MenuOption(id: 'NOBODY', label: 'Nobody', icon: Icons.shield_outlined, tag: 'tor / proxy'),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    await _state.setPrivacyMode(picked);
+    if (!mounted) return;
+    AppToast.show(context, 'Privacy mode: ${_state.privacyModeLabel}');
+  }
+
+  Future<void> _pickProxy(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<String>(
+      context: rowContext,
+      title: 'Proxy route',
+      selected: _proxyRoute,
+      options: const [
+        MenuOption(id: 'tor-orbot', label: 'Orbot (Tor)', icon: Icons.shield_outlined, tag: 'SOCKS 9050'),
+        MenuOption(id: 'proxy', label: 'HTTP proxy', icon: Icons.swap_horiz, tag: 'host : port'),
+        MenuOption(id: 'direct', label: 'Direct', icon: Icons.language, tag: 'no proxy'),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    await NativeBridge.guard(
+      () => NativeBridge.setProxy(
+        kind: _proxyKind,
+        host: _proxyHost.isEmpty ? null : _proxyHost,
+        port: _proxyPort == 0 ? null : _proxyPort,
+        route: picked,
+      ),
+      const <String, dynamic>{},
+      'could not apply proxy',
+    );
+    if (!mounted) return;
+    setState(() => _proxyRoute = picked);
+    AppToast.show(context, 'Proxy: $_proxyLabel');
+  }
+
+  Future<void> _pickSearchEngine(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<String>(
+      context: rowContext,
+      title: 'Search engine',
+      selected: _state.searchEngine,
+      options: [
+        for (final e in AppState.searchEngines.entries)
+          MenuOption(id: e.value, label: e.key, icon: Icons.search),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    await _state.setSearchEngine(picked);
+    if (!mounted) return;
+    AppToast.show(context, 'Search engine: ${_state.searchEngineLabel}');
+  }
+
+  Future<void> _pickApprovalMode(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<String>(
+      context: rowContext,
+      title: 'Approval mode',
+      selected: _state.approvalMode,
+      options: [
+        for (final m in AppState.approvalModes)
+          MenuOption(
+              id: m,
+              label: AppState.approvalLabels[m] ?? m,
+              icon: Icons.gpp_maybe_outlined),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    await _state.setApprovalMode(picked);
+    if (!mounted) return;
+    AppToast.show(context, 'Approval: ${_state.approvalModeLabel}');
+  }
+
+  Future<void> _pickDataSaver(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<String>(
+      context: rowContext,
+      title: 'Data Saver',
+      selected: _state.resourcePolicy,
+      options: const [
+        MenuOption(id: 'OFF', label: 'Off', icon: Icons.wifi, tag: 'nothing restricted'),
+        MenuOption(
+            id: 'BALANCED', label: 'Balanced', icon: Icons.pause_circle_outline, tag: 'autoplay off'),
+        MenuOption(
+            id: 'AGGRESSIVE', label: 'Aggressive', icon: Icons.image_not_supported_outlined, tag: '+ images off'),
+        MenuOption(
+            id: 'EXTREME', label: 'Extreme', icon: Icons.offline_bolt, tag: '+ no caching'),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    await _state.setResourcePolicy(picked);
+    if (!mounted) return;
+    AppToast.show(context, 'Data Saver: ${_state.resourcePolicyLabel}');
   }
 
   static IconData _providerIcon(String id) {
