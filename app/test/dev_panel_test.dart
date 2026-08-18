@@ -5,9 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mrnobody/screens/dev_panel_screen.dart';
 import 'package:mrnobody/state/error_log.dart';
 
+import 'test_fonts.dart';
+
 /// The Phase 1 benchmark panel: shows every check's pass/fail and records
 /// failures to the error log, so a device run is a list the user reads off.
 void main() {
+  setUpAll(loadTestFonts);
+
   Future<void> pumpPanel(WidgetTester tester) async {
     // A tall phone viewport so the whole panel (results + the manual section)
     // renders without the lazy sliver culling anything off-screen.
@@ -49,8 +53,9 @@ void main() {
       reason: 'a failed benchmark must be recorded, not just shown',
     );
 
-    // The manual section is present for what code cannot observe.
-    expect(find.text('Needs your eyes'), findsOneWidget);
+    // The manual section is present for what code cannot observe. SectionLabel
+    // renders uppercase, so the finder must match the transformed text.
+    expect(find.text('NEEDS YOUR EYES'), findsOneWidget);
     expect(find.text('PASS'), findsWidgets);
   });
 
