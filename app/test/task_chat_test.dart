@@ -51,6 +51,17 @@ void main() {
       },
     ];
 
+    // An empty answer stream by default: most tests drive the answer through
+    // the poll + timed reveal. Without a handler the subscription throws
+    // MissingPluginException through FlutterError, which fails the test.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+      const EventChannel('mrnobody/task-stream'),
+      MockStreamHandler.inline(
+        onListen: (Object? arguments, MockStreamHandlerEventSink events) {},
+      ),
+    );
+
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('mrnobody/core'),
@@ -191,6 +202,33 @@ void main() {
 
     // One http fetch in the log, so one source — not one per search result.
     expect(find.text('1 source'), findsOneWidget);
+  });
+
+  testWidgets('a streamed answer arrives as the tokens land', (tester) async {
+    // A live stream for task 7, emitting the answer in pieces and then
+    // closing, as a remote provider would.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+      const EventChannel('mrnobody/task-stream'),
+      MockStreamHandler.inline(
+        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+          events.success({'taskId': 7, 'type': 'token', 'text': 'Bitcoin '});
+          events.success({'taskId': 7, 'type': 'token', 'text': 'is 64282'});
+          events.success({'taskId': 7, 'type': 'done', 'text': 'Bitcoin is 64282'});
+        },
+      ),
+    );
+
+    status = 'RUNNING';
+    result = '';
+    await pump(tester);
+    await tester.pump();
+
+    expect(find.textContaining('Bitcoin'), findsWidgets);
+    expect(find.textContaining('64282'), findsWidgets);
+
+    // Unmount so the screen's poll timer is cancelled before the test ends.
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('polling stops once the task can no longer change',

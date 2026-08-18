@@ -38,6 +38,17 @@ void main() {
     // No Android platform view in a widget test.
     BrowserTab.engineFactory = ({required int tabId, required String url, required bool isPrivate}) =>
         FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
+    // The task chat subscribes to the answer stream. In a golden capture there
+    // is no live stream, so register an empty one — an un-mocked EventChannel
+    // subscription throws MissingPluginException through FlutterError, which
+    // fails the test even though the poll and timed reveal already cover it.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+      const EventChannel('mrnobody/task-stream'),
+      MockStreamHandler.inline(
+        onListen: (Object? arguments, MockStreamHandlerEventSink events) {},
+      ),
+    );
   });
 
   tearDownAll(() => BrowserTab.engineFactory = null);
