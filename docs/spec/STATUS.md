@@ -51,7 +51,7 @@ without a rewrite (`AgentEngine`, `Tool`, `Worker`, `TaskScheduler`,
 | Agent-first architecture | Done | Agent Home is the hub; the browser is a tool path |
 | Unified instruction bar | Done | |
 | Multi-step planning | **Not started** | `DeterministicEngine` runs a fixed cascade: search → optional page fetch → optional AI synthesis |
-| Tool router | **Not started** | tools are a `LinkedHashMap` keyed by name; no selection logic |
+| Tool router | **Not started** | tools are a `LinkedHashMap` keyed by name; no selection logic. This is why "…and download it" silently does nothing: `DownloadTool` is registered but no code path ever selects it — see §3.8 |
 | Search / HTTP / headless browser tools | Done | |
 | Browser session isolation | Not started | one shared headless engine, no task-scoped cookie jars |
 | Terminal sandbox | Partial | policy gate only |
@@ -188,6 +188,48 @@ Two dependencies had to be resolved first, and neither was obvious:
 Verified after deletion: the audit reports `audited: app/android/app` and exits
 0, its 9 self-tests pass, and `filter_compile.py` writes a byte-identical
 blocklist to the live tree.
+
+### 3.8 The agent skipped the site the user named — FIXED
+
+Reported task: *"search for reacher season 4 episode from nkiri.ink and
+download it"*. The answer discussed Prime Video, Amazon and JustWatch, and the
+debug panel logged `answer could not be verified against its sources`.
+
+Two independent faults, which hid each other:
+
+**The planner would not open a site unless a scheme was typed.**
+`DeterministicEngine.findUrl` matched `(https?://…)` only, so `nkiri.ink` was
+not a URL. The one page the user asked for was the one page never read; the
+three that *were* read came from the search engine. `findUrl` now falls back to
+the first hostname in the instruction and fetches it over `https://`.
+
+**The verifier could not see the host it had missed.** `AnswerVerifier`
+recognised a bare host only if its suffix was one of nine hardcoded strings —
+`com|org|net|ng|io|co|uk|info|news`. `.ink` was absent, so an answer could
+discuss nkiri.ink at length and be reported as naming nothing off-source. The
+same blind spot covered `.xyz`, `.to`, `.ru`, `.app`, `.dev`, `.stream` and
+`.download` — the suffixes this class of request most often involves.
+
+Host detection now lives in `agent/util/Hosts.java`, shared by both callers.
+Its false-positive tests carry equal weight: this runs over model output, and
+flagging `Reacher.S04E01.1080p.mkv` or `config.json` as an unvisited website
+would teach the reader to ignore the warning. Bare tokens must end in a known
+public suffix and must not end in a known file extension; an explicit scheme is
+taken at its word.
+
+Verified against compiled classes: 34 checks on `Hosts`, 15 on `AnswerVerifier`
+(including the exact answer the user received, and every previously-passing
+case), 5 on `findUrl`. The warning now reads *"It refers to nkiri.ink, which was
+not among the pages read."*
+
+**What is still wrong, and is not a bug:** the agent cannot download anything.
+`Task.PLAN` is fixed at Search → Read → Answer → Verify, and the planner only
+ever calls `search` and `http`. `DownloadTool` is registered but unreachable —
+no code path selects it. "…and download it" was never going to happen; the
+model was answering a question it had been handed instead. That is the missing
+tool router (V2 §6), tracked below, not something this commit fixes. The
+verifier's job was to make the gap visible rather than let it pass as an
+answer, and it now does.
 
 ## 4. The Java-vs-Flutter deviation
 

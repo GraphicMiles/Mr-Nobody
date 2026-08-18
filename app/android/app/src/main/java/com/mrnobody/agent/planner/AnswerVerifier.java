@@ -1,5 +1,6 @@
 package com.mrnobody.agent.planner;
 
+import com.mrnobody.agent.util.Hosts;
 import com.mrnobody.agent.util.SearchResultsJson;
 
 import java.util.ArrayList;
@@ -27,11 +28,6 @@ public final class AnswerVerifier {
 
     /** Bracketed source markers: [1], [2] — what the prompt asks for. */
     private static final Pattern CITATION = Pattern.compile("\\[(\\d{1,2})]");
-
-    /** Bare URLs and hostnames appearing in prose. */
-    private static final Pattern URL_LIKE = Pattern.compile(
-            "\\bhttps?://[^\\s)\\]},\"']+|\\b([a-z0-9-]+\\.)+(com|org|net|ng|io|co|uk|info|news)\\b",
-            Pattern.CASE_INSENSITIVE);
 
     public static final class Report {
         /** Source numbers the answer referred to. */
@@ -78,16 +74,9 @@ public final class AnswerVerifier {
             if (n >= 1 && n <= sourceUrls.size() && !citations.contains(n)) citations.add(n);
         }
 
-        Set<String> seen = new LinkedHashSet<>();
-        Matcher urls = URL_LIKE.matcher(answer);
-        while (urls.find()) {
-            String found = urls.group();
-            String host = found.startsWith("http")
-                    ? SearchResultsJson.hostOf(found)
-                    : found.toLowerCase(Locale.ROOT).replaceFirst("^www\\.", "");
-            if (host.isEmpty()) continue;
+        for (String host : Hosts.findIn(answer)) {
             if (allowedHosts.contains(host)) continue;
-            if (seen.add(host)) unsupported.add(host);
+            unsupported.add(host);
         }
 
         boolean grounded = !citations.isEmpty()
