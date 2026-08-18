@@ -129,6 +129,14 @@ public final class LlmPlanner implements Planner {
                     }
                 }
 
+                // A model writes parameter names the way a person would, not the
+                // way the tool declares them. Normalise the common aliases, and
+                // drop a step whose required argument is unusable — a step the
+                // pipeline is guaranteed to refuse is a failed step by another
+                // name, and skipping it keeps the rest of the plan alive.
+                normalizeAliases(tool, params);
+                if (!usableParams(tool, params)) continue;
+
                 String action;
                 if ("browser".equals(tool)) {
                     // The browser's action is part of the request, not a param.
@@ -143,6 +151,62 @@ public final class LlmPlanner implements Planner {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Map the parameter names a model is likely to write onto the names the
+     * tools actually declare. "query" → "q", "link" → "url", "text" → "query".
+     */
+    private static void normalizeAliases(String tool, Map<String, String> params) {
+        if ("search".equals(tool)) {
+            if (!params.containsKey("q") && params.containsKey("query")) {
+                params.put("q", params.remove("query"));
+            }
+        }
+        if ("http".equals(tool) || "download".equals(tool)) {
+            if (!params.containsKey("url") && params.containsKey("link")) {
+                params.put("url", params.remove("link"));
+            }
+        }
+    }
+
+    /**
+     * True when the step's arguments are worth trying. A URL that is not
+     * http(s) — a bare filename, a relative path, a phone-number-shaped string —
+     * will be refused by the tool's spec, so drop it rather than enqueue a
+     * guaranteed failure. A bare domain gets its scheme filled in.
+     */
+    private static boolean usableParams(String tool, Map<String, String> params) {
+        if ("http".equals(tool) || "download".equals(tool) || "browser".equals(tool)) {
+            String url = params.get("url");
+            if (url == null || url.trim().isEmpty()) return true; // spec will refuse clearly
+            String fixed = normaliseUrl(url);
+            if (fixed == null) return false;
+            params.put("url", fixed);
+        }
+        if ("search".equals(tool)) {
+            String q = params.get("q");
+            if (q == null || q.trim().isEmpty()) return false;
+        }
+        return true;
+    }
+
+    /** A scheme-qualified http(s) URL from a model's best effort, or null. */
+    private static String normaliseUrl(String url) {
+        String u = url.trim();
+        if (u.startsWith("http://") || u.startsWith("https://")) return u;
+        // A bare host with a dot is the common case ("amazon.com/...") — give it
+        // the scheme it needs. Anything else (no dot, spaces, stray tokens) is
+        // not a URL and is refused.
+        if (u.contains(" ") || u.isEmpty()) return null;
+        String host = u;
+        int slash = host.indexOf('/');
+        if (slash >= 0) host = host.substring(0, slash);
+        int colon = host.indexOf(':');
+        if (colon >= 0) host = host.substring(0, colon);
+        int dot = host.indexOf('.');
+        if (dot <= 0 || dot == host.length() - 1) return null;
+        return "https://" + u;
     }
 
     /** The ToolRequest action each tool expects, matching the deterministic planner. */

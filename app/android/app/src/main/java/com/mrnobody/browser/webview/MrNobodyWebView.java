@@ -77,6 +77,15 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     private final boolean isPrivate;
     private final int tabId;
 
+    /**
+     * The current view instance per tab, so the stable tab-keyed channel can
+     * survive a platform-view rebuild. A tab's view is destroyed and rebuilt
+     * whenever the user leaves and returns to the browser, but the tab — and
+     * the channel Dart talks to it over — must not move underneath it.
+     */
+    private static final java.util.Map<Integer, MrNobodyWebView> ACTIVE =
+            new java.util.HashMap<>();
+
     /** True when this tab genuinely has its own cookie/storage jar. */
     private final boolean isolated;
 
@@ -116,8 +125,18 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
         if (fresh && tabId >= 0) TabWebViews.put(tabId, webView, isPrivate);
 
-        this.channel = new MethodChannel(messenger, "mrnobody/webview_" + viewId);
+        // The channel is keyed by the stable tab id, not the ephemeral view id.
+        // Flutter assigns a fresh view id to every platform-view rebuild, so a
+        // view-id-keyed channel goes stale the moment the user leaves and
+        // returns to the browser — Dart then invokes loadUrl/applySettings on a
+        // channel whose handler was cleared, and the tab breaks. A tab owns its
+        // page; the channel must match that lifetime, not the view's.
+        String channelName = tabId >= 0
+                ? "mrnobody/webview_tab_" + tabId
+                : "mrnobody/webview_" + viewId;
+        this.channel = new MethodChannel(messenger, channelName);
         this.channel.setMethodCallHandler(this);
+        if (tabId >= 0) ACTIVE.put(tabId, this);
 
         applySettings();
         applyCookiePolicy();
@@ -509,7 +528,14 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     @Override
     public void dispose() {
         destroyed = true;
-        channel.setMethodCallHandler(null);
+        // Clear the channel handler only if this instance is still the tab's
+        // current view. On a rebuild the new view has already re-registered
+        // under the same tab key; clearing it here would tear down the new
+        // view's handler and break the very tab we are handing over to it.
+        if (tabId < 0 || ACTIVE.get(tabId) == this) {
+            if (tabId >= 0) ACTIVE.remove(tabId);
+            channel.setMethodCallHandler(null);
+        }
         webView.setWebChromeClient(null);
         webView.setOnScrollChangeListener(null);
         container.removeAllViews();

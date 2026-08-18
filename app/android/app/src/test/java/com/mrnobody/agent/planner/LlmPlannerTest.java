@@ -135,6 +135,69 @@ public class LlmPlannerTest {
     }
 
     @Test
+    public void aModelWritingQueryInsteadOfQIsNormalised() {
+        FakeProvider p = new FakeProvider(
+                "{\"steps\":[{\"tool\":\"search\",\"args\":{\"query\":\"laptops\"}}]}");
+        Plan plan = new LlmPlanner(p).plan("find laptops", TOOLS);
+
+        Plan.Step search = plan.steps().get(0);
+        assertEquals("search", search.tool);
+        assertEquals("query must be normalised to q", "laptops", search.request.param("q"));
+    }
+
+    @Test
+    public void aBareDomainUrlGetsItsSchemeFilledIn() {
+        FakeProvider p = new FakeProvider(
+                "{\"steps\":[{\"tool\":\"http\",\"args\":{\"url\":\"example.com/page\"}}]}");
+        Plan plan = new LlmPlanner(p).plan("read example.com", TOOLS);
+
+        assertEquals("https://example.com/page",
+                plan.steps().get(0).request.param("url"));
+    }
+
+    @Test
+    public void aLinkAliasIsNormalisedToUrl() {
+        FakeProvider p = new FakeProvider(
+                "{\"steps\":[{\"tool\":\"download\",\"args\":{\"link\":\"https://example.com/f.zip\"}}]}");
+        Plan plan = new LlmPlanner(p).plan("download f", TOOLS);
+
+        assertEquals("https://example.com/f.zip",
+                plan.steps().get(0).request.param("url"));
+    }
+
+    @Test
+    public void aStepWithAnUnusableUrlIsDroppedNotEnqueued() {
+        // A URL with no scheme and no domain shape (no dot) is unusable: the
+        // tool would refuse it. The planner drops the step rather than enqueue
+        // a guaranteed failure — and with every model step dropped, it falls
+        // back to the deterministic cascade so the task still searches and
+        // answers instead of failing on the bogus download.
+        FakeProvider p = new FakeProvider(
+                "{\"steps\":[{\"tool\":\"download\",\"args\":{\"url\":\"notaurl\"}}]}");
+        Plan plan = new LlmPlanner(p).plan("download it", TOOLS);
+
+        assertEquals(4, plan.size());
+        assertEquals(Task.STEP_SEARCH, plan.steps().get(0).label);
+    }
+
+    @Test
+    public void aBogusDownloadStepAmongGoodStepsIsSkippedNotFatal() {
+        // One unusable download step alongside a good search: the download is
+        // dropped, the search survives, and Answer + Verify follow.
+        FakeProvider p = new FakeProvider(
+                "{\"steps\":["
+                + "{\"tool\":\"search\",\"args\":{\"q\":\"laptops\"}},"
+                + "{\"tool\":\"download\",\"args\":{\"url\":\"notaurl\"}}"
+                + "]}");
+        Plan plan = new LlmPlanner(p).plan("find and download laptops", TOOLS);
+
+        assertEquals(3, plan.size());
+        assertEquals("search", plan.steps().get(0).tool);
+        assertEquals(Task.STEP_ANSWER, plan.steps().get(1).label);
+        assertEquals(Task.STEP_VERIFY, plan.steps().get(2).label);
+    }
+
+    @Test
     public void aPlanFromTheModelIsBounded() {
         // Far more steps than Plan.MAX_STEPS must be refused, not honoured.
         StringBuilder sb = new StringBuilder("{\"steps\":[");
