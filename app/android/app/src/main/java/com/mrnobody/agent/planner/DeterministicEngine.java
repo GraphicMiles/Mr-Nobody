@@ -12,6 +12,7 @@ import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
+import com.mrnobody.agent.util.Hosts;
 import com.mrnobody.browser.MrNobodyApp;
 
 import java.util.ArrayList;
@@ -251,9 +252,21 @@ public final class DeterministicEngine implements AgentEngine {
         com.mrnobody.debug.ErrorLog.record("task " + task.id() + " failed: " + r.error());
     }
 
-    private static String findUrl(String text) {
+    /**
+     * The site the user named, as something fetchable.
+     *
+     * <p>A scheme is used as written. A bare hostname is not: "download it
+     * from nkiri.ink" named a site the agent never opened, because this only
+     * recognised {@code http://} and {@code https://}. The task then answered
+     * from three pages the user had not asked about, and reported nothing
+     * wrong — the one page they specified was the one page never read.
+     */
+    static String findUrl(String text) {
         Matcher m = URL_IN_TEXT.matcher(text);
-        return m.find() ? m.group(1) : null;
+        if (m.find()) return m.group(1);
+
+        String host = Hosts.firstIn(text);
+        return host == null ? null : "https://" + host;
     }
 
     /**
