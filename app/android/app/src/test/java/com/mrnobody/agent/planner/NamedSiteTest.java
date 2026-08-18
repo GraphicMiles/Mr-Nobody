@@ -41,6 +41,20 @@ public class NamedSiteTest {
     }
 
     @Test
+    public void aDownloadFromANamedSiteIsADownloadIntent() {
+        assertTrue(ToolRouter.isDownloadIntent(
+                "download Avengers Infinity War from nkiri.ink"));
+    }
+
+    @Test
+    public void aFollowUpStillSeesTheSiteNamedInTheOriginal() {
+        assertEquals("https://nkiri.ink",
+                DeterministicEngine.findUrl(
+                        "keep up on Marvel announcements\n\nFollow-up from the user:\n"
+                                + "download Infinity War from nkiri.ink"));
+    }
+
+    @Test
     public void anExplicitUrlIsStillUsedExactlyAsWritten() {
         assertEquals("https://nkiri.ink/reacher-s04e01/",
                 DeterministicEngine.findUrl("get https://nkiri.ink/reacher-s04e01/ for me"));

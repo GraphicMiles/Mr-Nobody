@@ -41,6 +41,9 @@ public final class RecurrenceRequest {
             "track", "monitor", "keep an eye on", "watch for", "watch the",
             "alert me", "notify me", "let me know when", "tell me when",
             "keep checking", "check periodically",
+            // "keep up on Marvel announcements" is tracking, not a one-off search.
+            "keep up", "keep me updated", "keep me posted",
+            "stay up to date", "stay updated", "stay up-to-date",
     };
 
     /** "every 30 minutes", "each 2 hours", "every day". */

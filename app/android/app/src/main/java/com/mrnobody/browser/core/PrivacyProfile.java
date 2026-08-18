@@ -31,6 +31,7 @@ public enum PrivacyProfile {
                 settings.setJsEnabled(true);
                 settings.setHistoryEnabled(false);
                 settings.setParamStrippingEnabled(true);
+                settings.setFingerprintProtection(false);
                 break;
             case STRICT:
                 settings.setBlockingEnabled(true);

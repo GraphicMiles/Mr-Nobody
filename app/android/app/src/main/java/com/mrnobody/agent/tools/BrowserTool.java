@@ -12,6 +12,8 @@ import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
 
+import java.util.function.Supplier;
+
 import org.json.JSONArray;
 
 /**
@@ -20,10 +22,19 @@ import org.json.JSONArray;
  */
 public final class BrowserTool implements Tool {
 
-    private final BrowserEngine engine;
+    private final Supplier<BrowserEngine> engines;
 
     public BrowserTool(BrowserEngine engine) {
-        this.engine = engine;
+        this(() -> engine);
+    }
+
+    /** Resolve the engine at call time — one engine per task, not one for the process. */
+    public BrowserTool(Supplier<BrowserEngine> engines) {
+        this.engines = engines == null ? () -> null : engines;
+    }
+
+    private BrowserEngine engine() {
+        return engines.get();
     }
 
     /**
@@ -87,7 +98,9 @@ public final class BrowserTool implements Tool {
         if (expected == null || expected.isEmpty()) return null;
 
         PageAnchor anchor = PageAnchor.of(request.param("anchorUrl"), expected);
-        String reason = anchor.staleReason(currentUrl(), engine.extractText());
+        BrowserEngine eng = engine();
+        if (eng == null) return "Refused: no browser engine.";
+        String reason = anchor.staleReason(currentUrl(), eng.extractText());
         if (reason == null) return null;
 
         // Refusing is recoverable -- the agent can re-read and decide again.
@@ -111,6 +124,7 @@ public final class BrowserTool implements Tool {
 
     @Override
     public ToolResult execute(Context context, ToolRequest request) {
+        BrowserEngine engine = engine();
         if (engine == null) return ToolResult.fail("no browser engine configured");
         String action = request.action();
         switch (action) {

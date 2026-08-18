@@ -39,9 +39,26 @@ public final class AndroidKeyStoreIdentity {
     }
 
     /**
-     * Load the installation identity, generating it on first run. Idempotent:
-     * the same alias always yields the same key, so calling this twice returns
-     * the same identity.
+     * True when this install already has an identity. Does not create one.
+     *
+     * <p>The key is a stable install identifier. Mint it only when remote
+     * execution is first used — never from diagnostics, first launch, or a
+     * settings screen that only wants to report.
+     */
+    public static boolean exists() {
+        try {
+            KeyStore ks = KeyStore.getInstance(ANDROID_KEYSTORE);
+            ks.load(null);
+            return ks.containsAlias(ALIAS);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Load the installation identity, generating it if absent. Call only from
+     * the remote-execution path. Idempotent: the same alias always yields the
+     * same key.
      */
     public static DeviceIdentity loadOrCreate() throws Exception {
         KeyStore ks = KeyStore.getInstance(ANDROID_KEYSTORE);

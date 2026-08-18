@@ -65,7 +65,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final TabManager _tabs = TabManager();
   final GlobalKey<HomeScreenState> _homeKey = GlobalKey<HomeScreenState>();
   final Map<ShellTab, ScrollController> _scrollControllers = {
@@ -82,6 +82,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _listenForDeepLinks();
     _checkFirstLaunch();
     AppState.instance.load();
@@ -94,7 +95,19 @@ class _AppShellState extends State<AppShell> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _revalidateRoute();
+  }
+
+  Future<void> _revalidateRoute() async {
+    final problem = await AppState.instance.revalidateRoute();
+    if (!mounted || problem == null) return;
+    AppToast.show(context, problem);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     AppState.instance.removeListener(_pushSettingsToTabs);
     for (final c in _scrollControllers.values) {
       c.dispose();
@@ -284,6 +297,20 @@ class _AppShellState extends State<AppShell> {
   /// that was hardcoded and identical for every task, so a download reported
   /// "Extract prices"; the chat shows the event log instead, which can only
   /// contain work that happened.
+  Future<void> _openWaitingTask(int id) async {
+    final task = await NativeBridge.guard(
+      () => NativeBridge.task(id),
+      null,
+      'task unavailable',
+    );
+    if (!mounted) return;
+    if (task == null) {
+      _select(ShellTab.tasks);
+      return;
+    }
+    _openTask(task);
+  }
+
   void _openTask(Map<String, dynamic> task) {
     final instruction = task['instruction'] as String? ?? 'Task';
     _push(TaskChatScreen(

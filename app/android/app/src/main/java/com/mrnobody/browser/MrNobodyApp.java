@@ -2,14 +2,13 @@ package com.mrnobody.browser;
 
 import android.app.Application;
 import android.content.Context;
-import android.webkit.WebView;
 
 import com.mrnobody.agent.ai.AiProvider;
 import com.mrnobody.agent.ai.GeminiProvider;
 import com.mrnobody.agent.ai.GroqProvider;
 import com.mrnobody.agent.ai.LocalProvider;
 import com.mrnobody.agent.ai.OpenAiCompatibleProvider;
-import com.mrnobody.agent.browser.HeadlessWebViewEngine;
+import com.mrnobody.agent.browser.HeadlessSessions;
 import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.dispatcher.LocalWorker;
 import com.mrnobody.agent.dispatcher.RemoteWorker;
@@ -31,6 +30,7 @@ import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PerSiteSettings;
 import com.mrnobody.browser.core.PermissionStore;
+import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.core.PrivacyReport;
 import com.mrnobody.browser.core.Settings;
 import com.mrnobody.browser.net.PrivacyController;
@@ -67,7 +67,6 @@ public final class MrNobodyApp extends Application {
     private static ApprovalPolicy.MapOverrides approvalOverrides;
     private static TaskDispatcher taskDispatcher;
     private static TaskScheduler taskScheduler;
-    private static HeadlessWebViewEngine headlessEngine;
     private static String activeAiProviderId = "local";
 
     // Provider ids in display order (instances are built on demand so a key
@@ -127,11 +126,13 @@ public final class MrNobodyApp extends Application {
 
         // Agent stack (V1 = deterministic + local worker + headless WebView).
         DeterministicEngine engine = new DeterministicEngine();
-        headlessEngine = new HeadlessWebViewEngine(this);
-        engine.registerTool(new BrowserTool(headlessEngine));
+        HeadlessSessions.init(this);
+        // One engine per task, resolved at call time from the bound task id.
+        // A shared instance here is how two tasks inherited each other's cookies.
+        engine.registerTool(new BrowserTool(HeadlessSessions::current));
         // Search can escalate into the headless browser when a provider
         // answers a plain fetch with a challenge page.
-        engine.registerTool(new com.mrnobody.agent.tools.SearchTool(headlessEngine));
+        engine.registerTool(new com.mrnobody.agent.tools.SearchTool(HeadlessSessions::current));
         engine.registerTool(new DownloadTool());
         // The agent's own memory: it can recall past tasks, on-device only.
         engine.registerTool(new com.mrnobody.agent.tools.MemoryTool());
@@ -190,6 +191,25 @@ public final class MrNobodyApp extends Application {
         settings.setPrivacyMode(r.effective.name());
         return r;
     }
+
+    /**
+     * Apply a privacy profile's defaults and push them onto the live engines.
+     * Selecting a profile that only stored its name was a lock icon on an
+     * unlocked door.
+     */
+    public static void applyPrivacyProfile(PrivacyProfile profile) {
+        if (profile == null) profile = PrivacyProfile.BALANCED;
+        profile.apply(settings);
+        settings.setProfile(profile);
+        if (filterEngine != null) filterEngine.setEnabled(settings.isBlockingEnabled());
+        if (historyStore != null) historyStore.setEnabled(settings.isHistoryEnabled());
+        // Nobody's fingerprint claim outranks the profile: leaving it off
+        // after picking Balanced while Nobody is live would strip the
+        // identification half of that mode.
+        if (PrivacyController.current().needsFingerprintDefence()) {
+            settings.setFingerprintProtection(true);
+        }
+    }
     public static HistoryStore history() { return historyStore; }
     public static BookmarksStore bookmarks() { return bookmarksStore; }
     public static PrivacyReport report() { return privacyReport; }
@@ -225,7 +245,6 @@ public final class MrNobodyApp extends Application {
     }
     public static TaskDispatcher dispatcher() { return taskDispatcher; }
     public static TaskScheduler scheduler() { return taskScheduler; }
-    public static HeadlessWebViewEngine headlessEngine() { return headlessEngine; }
 
     // ------------------------------------------------------------ AI providers
 

@@ -91,6 +91,43 @@ public final class TaskNotifier {
         nm.notify(NOTIFICATION_BASE + (int) task.id(), notification);
     }
 
+    /**
+     * A background task needs a human. Tapping opens that task so they can
+     * allow or deny; the call itself did not run.
+     */
+    public static void notifyWaiting(@NonNull Context context, @NonNull Task task) {
+        if (!canNotify(context)) return;
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
+        if (nm == null) return;
+        ensureChannel(context);
+
+        Intent intent = new Intent(Intent.ACTION_VIEW,
+                Uri.parse("mrnobody://task?id=" + task.id()));
+        intent.setPackage(context.getPackageName());
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent content = PendingIntent.getActivity(
+                context,
+                (int) task.id(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        String body = task.error() == null || task.error().isEmpty()
+                ? task.instruction()
+                : task.error();
+
+        Notification notification = new Notification.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_nobody)
+                .setContentTitle(context.getString(R.string.notification_task_waiting))
+                .setContentText(body)
+                .setStyle(new Notification.BigTextStyle().bigText(body))
+                .setContentIntent(content)
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .build();
+
+        nm.notify(NOTIFICATION_BASE + (int) task.id(), notification);
+    }
+
     private static String preview(String result) {
         String trimmed = result.trim();
         return trimmed.length() > 200 ? trimmed.substring(0, 200) + "…" : trimmed;

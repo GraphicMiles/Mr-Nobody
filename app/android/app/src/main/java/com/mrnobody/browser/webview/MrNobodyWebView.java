@@ -244,7 +244,10 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         s.setAllowFileAccessFromFileURLs(false);
         s.setAllowUniversalAccessFromFileURLs(false);
         s.setMediaPlaybackRequiresUserGesture(true);
-        s.setSafeBrowsingEnabled(true);
+        // Off on purpose: Safe Browsing sends visited URLs to Google. That is
+        // the opposite of the privacy spec. Malware protection is the OS /
+        // Play Protect job, not a reason for this browser to phone home.
+        s.setSafeBrowsingEnabled(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         if (isPrivate) {
             s.setCacheMode(WebSettings.LOAD_NO_CACHE);

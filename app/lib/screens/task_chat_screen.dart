@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/agent_response.dart';
+import '../widgets/common.dart';
 import '../widgets/toast.dart';
 
 /// A task as a conversation.
@@ -184,6 +185,12 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   }
 
   bool get _isLive => _live.contains(_task['status'] as String? ?? 'QUEUED');
+
+  /// WAITING is live (keep polling) but not working (no spinner).
+  bool get _isWorking {
+    final s = _task['status'] as String? ?? 'QUEUED';
+    return s == 'QUEUED' || s == 'RUNNING' || s == 'VERIFYING';
+  }
 
   /// Reveal the final answer word by word.
   ///
@@ -412,31 +419,33 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     if (text.isEmpty) return;
     _input.clear();
 
-    // A recheck ("check again", "update") is not a new question — it asks the
-    // agent to re-run the task being viewed and produce a fresh answer.
-    // Running it as a literal new task is how "check again" became a search
-    // for the phrase "check again" instead of a fresh bitcoin price.
-    if (_isRecheck(text) && widget.taskId != null) {
+    // A reply in this composer belongs to THIS task. Spawning a new chat
+    // was the bug: "also download it from nkiri.ink" forked a thread and
+    // threw away the conversation. Recheck phrases re-run the original
+    // ask; everything else is a follow-up on the same id.
+    if (widget.taskId != null) {
       final ok = await NativeBridge.guard(
-        () => NativeBridge.rerunTask(widget.taskId!),
+        () => _isRecheck(text)
+            ? NativeBridge.rerunTask(widget.taskId!)
+            : NativeBridge.followUpTask(widget.taskId!, text),
         false,
-        'could not re-run that',
+        'could not continue that',
       );
       if (!mounted) return;
       if (ok) {
-        // Same task, same screen: the answer refreshes in place and the
-        // conversation continues rather than forking into a new thread. Clear
-        // the old answer so the working state shows while the re-check runs.
         setState(() {
           _revealedFrom = '';
           _streamBuf = '';
           _tokens = const [];
           _revealed = 0;
         });
+        _poll?.cancel();
+        _poll = Timer.periodic(const Duration(milliseconds: 600), (_) => _refresh());
         _refresh();
         return;
       }
-      // Fall through: re-run failed, start a fresh task below.
+      AppToast.show(context, 'Could not continue this task');
+      return;
     }
 
     final started = await NativeBridge.guard(
@@ -454,6 +463,27 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
       builder: (_) => TaskChatScreen(
           taskId: id, title: text, instruction: text),
     ));
+  }
+
+  Future<void> _resolve(bool allow) async {
+    final id = widget.taskId;
+    if (id == null) return;
+    final ok = await NativeBridge.guard(
+      () => NativeBridge.resolveApproval(id, allow: allow),
+      false,
+      'could not resolve approval',
+    );
+    if (!mounted) return;
+    AppToast.show(context, ok ? (allow ? 'Allowed — running…' : 'Declined') : 'Could not update that');
+    if (allow) {
+      setState(() {
+        _revealedFrom = '';
+        _streamBuf = '';
+        _tokens = const [];
+        _revealed = 0;
+      });
+    }
+    _refresh();
   }
 
   Future<void> _stop() async {
@@ -503,13 +533,14 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                 children: [
                   UserTurn(text: instruction, stamp: _stamp(_task['createdAt'])),
                   const SizedBox(height: AgentMetrics.turnGap),
+                  ..._priorTurns(),
 
                   AgentTurn(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Working: loader on top, trace filling beneath it.
-                        if (_isLive) ...[
+                        if (_isWorking) ...[
                           AgentWorkingLine(
                               label: _activeLabel, since: _startedAt),
                           if (steps.isNotEmpty) const SizedBox(height: 11),
@@ -517,7 +548,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                         if (steps.isNotEmpty)
                           AgentTrace(
                             steps: steps,
-                            running: _isLive,
+                            running: _isWorking,
                             activeLabel: 'Thinking',
                             doneLabel: _doneLabel,
                           ),
@@ -545,6 +576,21 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                                   size: 12.5,
                                   color: AppColors.textDim,
                                   height: 1.55)),
+                        ],
+                        if (status == 'WAITING') ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ActionButton('Deny', onTap: () => _resolve(false)),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ActionButton('Allow',
+                                    solid: true, onTap: () => _resolve(true)),
+                              ),
+                            ],
+                          ),
                         ],
                         // The tail appears only once the answer has settled,
                         // so controls never move under a reader's thumb.

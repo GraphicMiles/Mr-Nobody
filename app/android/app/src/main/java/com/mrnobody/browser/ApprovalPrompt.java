@@ -3,6 +3,7 @@ package com.mrnobody.browser;
 import android.app.Activity;
 import android.app.AlertDialog;
 
+import com.mrnobody.agent.core.Confirmation;
 import com.mrnobody.agent.core.ToolCall;
 import com.mrnobody.agent.core.ToolPipeline;
 import com.mrnobody.agent.policy.ApprovalPolicy;
@@ -60,15 +61,16 @@ public final class ApprovalPrompt implements ToolPipeline.Confirmer {
     }
 
     @Override
-    public boolean confirm(ToolCall call, String reason) {
+    public Confirmation confirm(ToolCall call, String reason) {
         Activity activity = host;
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
-            // Fail closed: nobody is looking at the screen.
-            return false;
+            // Nobody is looking. The call must not run; the task should wait.
+            return Confirmation.UNAVAILABLE;
         }
 
         final CountDownLatch answered = new CountDownLatch(1);
         final AtomicBoolean approved = new AtomicBoolean(false);
+        final AtomicBoolean answeredByUser = new AtomicBoolean(false);
         final AtomicReference<Boolean> remember = new AtomicReference<>(Boolean.FALSE);
 
         activity.runOnUiThread(() -> {
@@ -84,10 +86,17 @@ public final class ApprovalPrompt implements ToolPipeline.Confirmer {
                                 + "\n\nNothing runs unless you allow it.")
                         .setPositiveButton("Allow", (d, w) -> {
                             approved.set(true);
+                            answeredByUser.set(true);
                             remember.set(always[0]);
                         })
-                        .setNegativeButton("Deny", (d, w) -> approved.set(false))
-                        .setOnCancelListener(d -> approved.set(false))
+                        .setNegativeButton("Deny", (d, w) -> {
+                            approved.set(false);
+                            answeredByUser.set(true);
+                        })
+                        .setOnCancelListener(d -> {
+                            approved.set(false);
+                            answeredByUser.set(true);
+                        })
                         .setMultiChoiceItems(
                                 new CharSequence[]{"Always allow " + call.tool()},
                                 new boolean[]{false},

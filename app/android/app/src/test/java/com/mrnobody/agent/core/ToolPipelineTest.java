@@ -132,8 +132,27 @@ public class ToolPipelineTest {
         ToolResult result = pipeline.run(NO_CONTEXT, tool, ToolRequest.of("run", "cmd", "sha256 x"));
 
         assertTrue(result.isError());
+        assertTrue(result.needsApproval());
         assertTrue(result.error(), result.error().contains("Needs your approval"));
         assertEquals(0, tool.runs.get());
+    }
+
+    @Test
+    public void unavailableConfirmationParksRatherThanDeclining() {
+        FakeTool tool = new FakeTool(ToolSpec.named("shell")
+                .tier(Tier.EXEC)
+                .param(ParamSpec.string("cmd", true, ""))
+                .returns(OutputSpec.of(v -> "ran", "text"))
+                .build());
+        ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
+        pipeline.setConfirmer((call, reason) -> Confirmation.UNAVAILABLE);
+
+        ToolResult result = pipeline.run(NO_CONTEXT, tool, ToolRequest.of("run", "cmd", "sha256 x"));
+
+        assertTrue(result.needsApproval());
+        assertEquals("shell", result.pendingTool());
+        assertEquals(0, tool.runs.get());
+        assertFalse(result.error(), result.error().startsWith("Declined"));
     }
 
     @Test
@@ -148,7 +167,7 @@ public class ToolPipelineTest {
         AtomicBoolean asked = new AtomicBoolean();
         pipeline.setConfirmer((call, reason) -> {
             asked.set(true);
-            return true;
+            return Confirmation.ALLOWED;
         });
 
         ToolResult result = pipeline.run(NO_CONTEXT, tool, ToolRequest.of("run", "cmd", "sha256 x"));
@@ -166,7 +185,7 @@ public class ToolPipelineTest {
                 .returns(OutputSpec.of(v -> "ran", "text"))
                 .build());
         ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
-        pipeline.setConfirmer((call, reason) -> false);
+        pipeline.setConfirmer((call, reason) -> Confirmation.DENIED);
 
         ToolResult result = pipeline.run(NO_CONTEXT, tool, ToolRequest.of("run", "cmd", "sha256 x"));
 

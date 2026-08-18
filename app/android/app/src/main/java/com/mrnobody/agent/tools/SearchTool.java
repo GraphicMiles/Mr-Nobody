@@ -18,6 +18,8 @@ import com.mrnobody.agent.util.SearchResultsJson;
 import com.mrnobody.browser.MrNobodyApp;
 import com.mrnobody.browser.net.NetworkGate;
 
+import java.util.function.Supplier;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -97,6 +99,7 @@ public final class SearchTool implements Tool {
         }
 
         // 2. The browser path, engine by engine.
+        BrowserEngine engine = engines.get();
         if (engine != null) {
             String preferred = safeSearchEngineSetting();
             for (SearchProviders.Provider provider : SearchProviders.chain(preferred)) {

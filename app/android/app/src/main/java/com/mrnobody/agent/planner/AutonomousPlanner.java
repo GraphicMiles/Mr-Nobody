@@ -72,7 +72,7 @@ public final class AutonomousPlanner {
                 .append("download takes {url}; terminal takes {cmd}; memory takes {q}.\n\n");
         sb.append("For research and monitoring, prefer the read-only tools — search, ")
                 .append("http, and browser (action fetch or open) — and say {done} once you ")
-                .append("have read enough. terminal and download are for when the user ")
+                .append("have read enough. If the user named a site, fetch that site; do not substitute other sites. If they asked to keep watching something, fetch the page. Mr Nobody schedules the repeat, so do not recommend other monitoring apps. terminal and download are for when the user ")
                 .append("explicitly asks to run a command or fetch a file. Never call a ")
                 .append("privileged tool when a read would answer the question.\n\n");
         if (transcript != null && !transcript.isEmpty()) {

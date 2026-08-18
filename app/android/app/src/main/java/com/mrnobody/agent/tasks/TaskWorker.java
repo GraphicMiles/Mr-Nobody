@@ -94,6 +94,7 @@ public final class TaskWorker extends Worker {
                 task.setCurrentStep("");
                 task.setResult("");
                 task.setError("");
+                task.setFollowUp(""); // a timer wake is the original ask, not a reply
                 task.resetRetry(); // a fresh cycle gets a fresh retry budget
                 break;
             case FAILED:
@@ -126,6 +127,12 @@ public final class TaskWorker extends Worker {
 
         if (task.status() == Task.Status.CANCELLED) {
             finishCancelled(task);
+            return Result.success();
+        }
+
+        if (task.status() == Task.Status.WAITING) {
+            MrNobodyApp.tasks().update(task);
+            TaskNotifier.notifyWaiting(getApplicationContext(), task);
             return Result.success();
         }
 

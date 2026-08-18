@@ -337,6 +337,13 @@ public final class Diagnostics {
 
         out.add(check("identity.keystore", "Keystore-backed identity",
                 () -> {
+                    // Do not mint a permanent install id from a benchmark.
+                    // Identity exists for remote execution; reporting must
+                    // not create the thing it is supposed to observe.
+                    if (!AndroidKeyStoreIdentity.exists()) {
+                        return Result.pass("identity.keystore", "Keystore-backed identity",
+                                "not created — minted only when remote execution is enabled");
+                    }
                     DeviceIdentity id = AndroidKeyStoreIdentity.loadOrCreate();
                     return Result.pass("identity.keystore", "Keystore-backed identity",
                             "level=" + id.securityLevel() + ", fp="

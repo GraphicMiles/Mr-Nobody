@@ -52,12 +52,21 @@ public final class PrivacyController {
 
     /** Build the route the user configured, without applying it. */
     public static NetworkRoute configuredRoute(Settings settings) {
-        String id = settings == null ? OrbotTorRoute.ID : settings.routeId();
-        if (ProxyRoute.ID.equals(id)) {
-            return new ProxyRoute(
-                    ProxyRoute.Kind.fromName(settings.proxyKind()),
-                    settings.proxyHost(),
-                    settings.proxyPort());
+        if (settings == null) return new OrbotTorRoute();
+        return routeFor(settings.routeId(), settings.proxyKind(),
+                settings.proxyHost(), settings.proxyPort());
+    }
+
+    /**
+     * Pick a route from persisted ids. Package-visible so a test can pin
+     * "direct means direct" without standing up SharedPreferences.
+     */
+    static NetworkRoute routeFor(String id, String kind, String host, int port) {
+        if (id != null && DirectRoute.ID.equalsIgnoreCase(id.trim())) {
+            return new DirectRoute();
+        }
+        if (id != null && ProxyRoute.ID.equalsIgnoreCase(id.trim())) {
+            return new ProxyRoute(ProxyRoute.Kind.fromName(kind), host, port);
         }
         return new OrbotTorRoute();
     }
@@ -75,11 +84,16 @@ public final class PrivacyController {
         if (!mode.needsPrivacyRoute()) {
             NetworkGate.setRoute(new DirectRoute());
             WebViewRouter.clear();
+            restoreFingerprint(settings);
             current = mode;
             return new Result(mode, mode, true, true, null);
         }
 
         NetworkRoute route = configuredRoute(settings);
+        if (route instanceof DirectRoute) {
+            return refuse(mode, "Nobody needs Orbot or a proxy. Pick one in Settings → Proxy.",
+                    settings);
+        }
         route.refresh();
 
         if (!route.isAvailable()) {
@@ -88,7 +102,7 @@ public final class PrivacyController {
             return refuse(mode, route.label() + " is not reachable. "
                     + (route instanceof OrbotTorRoute
                         ? "Start Orbot and try again."
-                        : "Check the proxy settings."));
+                        : "Check the proxy settings."), settings);
         }
 
         // Order matters: gate first. If applying to the engine fails we roll
@@ -99,17 +113,43 @@ public final class PrivacyController {
         if (!WebViewRouter.apply(route)) {
             NetworkGate.setRoute(new DirectRoute());
             return refuse(mode, "This device's WebView cannot route through a proxy, "
-                    + "so browsing could not be protected. Nothing was changed.");
+                    + "so browsing could not be protected. Nothing was changed.",
+                    settings);
         }
 
+        // The mode's own description promises reduced identification. The
+        // flag exists for this; leaving it unused meant Nobody hid the IP
+        // and left the fingerprint patches off.
+        enableFingerprintForNobody(settings);
         current = mode;
         return new Result(mode, mode, true, true, null);
     }
 
-    private static Result refuse(PrivacyMode requested, String problem) {
+    /**
+     * Turn fingerprint defence on for a live Nobody session, remembering the
+     * previous value so leaving the mode does not leave a surprise toggle.
+     */
+    static void enableFingerprintForNobody(Settings settings) {
+        if (settings == null) return;
+        if (!settings.isFingerprintForcedByNobody()) {
+            settings.setFingerprintBeforeNobody(settings.isFingerprintProtection());
+            settings.setFingerprintForcedByNobody(true);
+        }
+        settings.setFingerprintProtection(true);
+    }
+
+    /** Undo a Nobody-forced fingerprint change. No-op if Nobody never forced it. */
+    static void restoreFingerprint(Settings settings) {
+        if (settings == null || !settings.isFingerprintForcedByNobody()) return;
+        settings.setFingerprintProtection(settings.fingerprintBeforeNobody());
+        settings.setFingerprintForcedByNobody(false);
+    }
+
+    private static Result refuse(PrivacyMode requested, String problem, Settings settings) {
         ErrorLog.record("privacy mode " + requested + " refused: " + problem);
         NetworkGate.setRoute(new DirectRoute());
         WebViewRouter.clear();
+        restoreFingerprint(settings);
         current = PrivacyMode.NORMAL;
         return new Result(requested, PrivacyMode.NORMAL, false, false, problem);
     }
@@ -129,7 +169,7 @@ public final class PrivacyController {
         route.refresh();
         if (route.isAvailable()) return null;
         String label = route.label();
-        refuse(current, label + " stopped responding.");
+        refuse(current, label + " stopped responding.", settings);
         return label + " stopped responding, so protected browsing was turned off. "
                 + "Nothing was sent over your normal connection.";
     }

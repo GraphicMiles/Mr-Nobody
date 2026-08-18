@@ -74,6 +74,8 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
             isolated = ProfileManager.applyProfile(webView, scope.profileName());
             webView.getSettings().setJavaScriptEnabled(true);
             webView.getSettings().setDomStorageEnabled(true);
+            // Same rule as the visible WebView: do not send agent URLs to Google.
+            webView.getSettings().setSafeBrowsingEnabled(false);
             // Data Saver grade, applied before first load so it holds from the
             // first request. Reads the current setting; OFF by default.
             try {

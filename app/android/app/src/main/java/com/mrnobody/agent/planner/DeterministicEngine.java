@@ -169,14 +169,16 @@ public final class DeterministicEngine implements AgentEngine {
         // next, falling back to the deterministic cascade when it cannot. A
         // local provider has no model to reason with, so it stays on the
         // deterministic path.
+        String asked = task.conversation();
+
         AiProvider provider = MrNobodyApp.activeProvider();
         if (provider.isRemote()) {
-            runAutonomous(context, task, provider, cancellation);
+            runAutonomous(context, task, provider, cancellation, asked);
             return;
         }
 
         planner = new DeterministicPlanner();
-        Plan plan = planner.plan(task.instruction(), tools.keySet());
+        Plan plan = planner.plan(asked, tools.keySet());
         if (plan.size() == 0 || plan.isAbandoned()) {
             fail(task, ToolResult.fail("No plan for this instruction."));
             return;
@@ -186,7 +188,7 @@ public final class DeterministicEngine implements AgentEngine {
             executeRouted(context, task, plan.steps().get(0), cancellation);
             return;
         }
-        executeResearch(context, task, plan, cancellation);
+        executeResearch(context, task, plan, cancellation, asked);
     }
 
     /** A routed action is the whole task: one tool call whose result is the answer. */
@@ -206,6 +208,7 @@ public final class DeterministicEngine implements AgentEngine {
         task.setCurrentStep(Task.STEP_ACT);
         ToolResult result = callTool(context, step.tool, step.request, cancellation);
         if (stopped(task, cancellation)) return;
+        if (parkIfNeeded(task, result)) return;
 
         if (!result.isSuccess()) {
             fail(task, result);
@@ -217,6 +220,7 @@ public final class DeterministicEngine implements AgentEngine {
                 ? step.tool + " finished."
                 : rendered, 6000));
         task.setStatus(Task.Status.COMPLETED);
+        recordAnswer(task);
     }
 
     /**
@@ -238,6 +242,7 @@ public final class DeterministicEngine implements AgentEngine {
             if (step.isToolStep()) {
                 task.setCurrentStep(step.label);
                 ToolResult result = callTool(context, step.tool, step.request, cancellation);
+                if (parkIfNeeded(task, result)) return;
                 if ("search".equals(step.tool)) {
                     // Search is the anchor: an answer with no sources is a
                     // guess with a citation, so its failure ends the task
@@ -333,9 +338,10 @@ public final class DeterministicEngine implements AgentEngine {
      * deterministic path.
      */
     private void runAutonomous(Context context, Task task, AiProvider provider,
-                               Cancellation cancellation) {
+                               Cancellation cancellation, String asked) {
         Research r = new Research();
-        r.namedUrl = findUrl(task.instruction());
+        r.asked = asked;
+        r.namedUrl = findUrl(asked);
         r.provider = provider;
         r.cap = new com.mrnobody.agent.ai.SpendCap(MAX_RUN_USD,
                 com.mrnobody.agent.ai.ModelPricing.forModel(provider.modelId()));
@@ -348,21 +354,31 @@ public final class DeterministicEngine implements AgentEngine {
         java.util.List<String> transcript = new java.util.ArrayList<>();
         long budget = com.mrnobody.agent.ai.TokenBudget.transcriptBudget(provider.modelId());
 
+        // A site the user named is not optional. The model used to search
+        // Prime Video instead of opening nkiri.ink; prefetch so the one page
+        // they asked for is always among the pages read.
+        if (r.namedUrl != null) {
+            task.setCurrentStep(Task.STEP_READ);
+            fetchNamedSite(context, r, nonce, transcript, cancellation);
+            if (stopped(task, cancellation) || parkIfNeeded(task, r.lastResult)) return;
+        }
+
         for (int taken = 0; taken < Plan.MAX_STEPS; taken++) {
             if (stopped(task, cancellation)) return;
             // The CFO gate: refuse to make another planning call when the run's
             // spend plus an estimate of this call would exceed the ceiling.
-            String refusal = r.cap.check(r.usage, estimateTranscriptChars(task.instruction(), transcript));
+            String refusal = r.cap.check(r.usage, estimateTranscriptChars(asked, transcript));
             if (refusal != null) {
                 r.capReason = refusal;
                 break;
             }
-            Plan.Step step = planner.nextStep(task.instruction(), transcript, tools.keySet());
+            Plan.Step step = planner.nextStep(asked, transcript, tools.keySet());
             if (step == null) break; // the model is done gathering
 
             task.setCurrentStep(step.label);
             ToolResult result = callTool(context, step.tool, step.request, cancellation);
             if (stopped(task, cancellation)) return;
+            if (parkIfNeeded(task, result)) return;
             applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
 
             // The transcript is the one unbounded thing in the loop. Trim it to
@@ -376,9 +392,43 @@ public final class DeterministicEngine implements AgentEngine {
             }
         }
 
+        if (ToolRouter.isDownloadIntent(asked) && r.downloadNote == null) {
+            task.setCurrentStep(Task.STEP_RESOLVE_DOWNLOAD);
+            fulfillDownload(context, r, cancellation);
+            if (stopped(task, cancellation) || parkIfNeeded(task, r.lastResult)) return;
+        }
+
         answerStep(context, task, cancellation, r);
         if (stopped(task, cancellation)) return;
         verifyStep(context, task, cancellation, r);
+    }
+
+    /** Open the site the user named, before the model gets to pick substitutes. */
+    private void fetchNamedSite(Context context, Research r, String nonce,
+                                java.util.List<String> transcript, Cancellation cancellation) {
+        Plan.Step step = readStep(r.namedUrl);
+        r.titles.put(r.namedUrl, "the page you named");
+        ToolResult result = callTool(context, "http", step.request, cancellation);
+        r.lastResult = result;
+        if (result != null && result.needsApproval()) return;
+        applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
+    }
+
+    /** Resolve and enqueue a download the model never called. */
+    private void fulfillDownload(Context context, Research r, Cancellation cancellation) {
+        Plan plan = Plan.of(Plan.Step.internal(Task.STEP_RESOLVE_DOWNLOAD));
+        resolveDownload(context, plan, r, cancellation);
+        plan.advance();
+        while (!plan.isFinished()) {
+            Plan.Step step = plan.current();
+            if (step != null && step.isToolStep() && "download".equals(step.tool)) {
+                ToolResult result = callTool(context, "download", step.request, cancellation);
+                r.lastResult = result;
+                if (result != null && result.needsApproval()) return;
+                applyDownloadNote(r, result);
+            }
+            plan.advance();
+        }
     }
 
     /** Rough prompt size for the planning call: instruction + transcript + fixed. */
@@ -620,13 +670,21 @@ public final class DeterministicEngine implements AgentEngine {
             UntrustedContent.Report fenced = UntrustedContent.fence(r.sources.toString(), nonce);
             r.injectionNote = fenced.note();
             String prompt = GroundedPrompt.build(
-                    task.instruction(), fenced.fenced, r.pagesRead, nonce);
+                    r.asked != null ? r.asked : task.conversation(),
+                    fenced.fenced, r.pagesRead, nonce);
+            if (RecurrenceRequest.parse(r.asked != null ? r.asked : task.conversation()).isRecurring()) {
+                prompt = prompt + "\n\nMr Nobody will schedule this check itself. "
+                        + "Do not recommend other monitoring apps, Twitter tools, or "
+                        + "\"follow this account\". Describe what is on the page, and "
+                        + "the schedule note will be appended.";
+            }
             // Auto-injected memory: what the agent already did, as context only.
             // It is not a citable source — the verifier still checks every
             // citation against the pages actually read — but it gives the
             // answer continuity without the user repeating themselves.
             String memory = MemoryDigest.digest(
-                    MrNobodyApp.tasks().recent(50), task.instruction());
+                    MrNobodyApp.tasks().recent(50),
+                    r.asked != null ? r.asked : task.conversation());
             if (!memory.isEmpty()) {
                 prompt = "Context — your recent work on this device (for continuity "
                         + "only; do not cite it as a source):\n" + memory + "\n\n" + prompt;
@@ -719,7 +777,8 @@ public final class DeterministicEngine implements AgentEngine {
         // "Track the price" asks for something to be watched, not answered
         // once. The schedule machinery already existed; nothing was noticing
         // that the user had asked for it.
-        RecurrenceRequest.Request recurrence = RecurrenceRequest.parse(task.instruction());
+        RecurrenceRequest.Request recurrence = RecurrenceRequest.parse(
+                r.asked != null ? r.asked : task.conversation());
         if (recurrence.isRecurring()) {
             String note = applyRecurrence(context, task, recurrence);
             if (!note.isEmpty()) r.answer = r.answer + "\n\n" + note;
@@ -746,6 +805,18 @@ public final class DeterministicEngine implements AgentEngine {
 
         task.setResult(truncate(r.answer, 6000));
         task.setStatus(Task.Status.COMPLETED);
+        recordAnswer(task);
+    }
+
+    private static void recordAnswer(Task task) {
+        try {
+            String text = task.result();
+            if (text == null || text.isEmpty()) return;
+            MrNobodyApp.taskEvents().append(task.id(),
+                    com.mrnobody.agent.tasks.TaskEventStore.AGENT_ANSWER, text);
+        } catch (Throwable ignored) {
+            // The answer is on the task row; losing the log line is not fatal.
+        }
     }
 
     /** State shared across the steps of one research run. */
@@ -753,7 +824,10 @@ public final class DeterministicEngine implements AgentEngine {
         final StringBuilder sources = new StringBuilder();
         final List<String> readUrls = new ArrayList<>();
         final Map<String, String> titles = new LinkedHashMap<>();
+        String asked;
         String namedUrl;
+        /** Last tool result, so a parked CONFIRM during prefetch is visible. */
+        ToolResult lastResult;
         ToolResult search;
         List<Map<String, Object>> results;
         AiProvider provider;
@@ -846,6 +920,25 @@ public final class DeterministicEngine implements AgentEngine {
     /** The pipeline, so the host can attach a confirmer and a recorder to it. */
     public ToolPipeline pipeline() {
         return pipeline;
+    }
+
+    /**
+     * Park a task that needs a human and nobody could answer. Fail-closed on
+     * the call (nothing ran); WAITING on the task so it is not a silent fail.
+     */
+    private boolean parkIfNeeded(Task task, ToolResult result) {
+        if (result == null || !result.needsApproval()) return false;
+        task.setStatus(Task.Status.WAITING);
+        task.setError(result.error());
+        try {
+            String tool = result.pendingTool();
+            if (tool != null && !tool.isEmpty()) {
+                MrNobodyApp.tasks().setPendingTool(task.id(), tool);
+            }
+        } catch (Throwable ignored) {
+            // Store may not be up in tests.
+        }
+        return true;
     }
 
     /** Mark the task cancelled and stop, if a cancel request is outstanding. */

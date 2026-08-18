@@ -129,6 +129,46 @@ public class MainActivity extends FlutterActivity {
                             result.success(true);
                             return;
                         }
+                        case "followUpTask": {
+                            Number followId = call.argument("id");
+                            String text = call.argument("text");
+                            if (followId == null || text == null || text.trim().isEmpty()) {
+                                result.error("bad_arg", "id and text required", null);
+                                return;
+                            }
+                            Task t = MrNobodyApp.tasks().get(followId.longValue());
+                            if (t == null) {
+                                result.success(false);
+                                return;
+                            }
+                            String prior = t.result();
+                            if (prior != null && !prior.isEmpty()) {
+                                boolean already = false;
+                                for (TaskEventStore.Event e : MrNobodyApp.taskEvents().eventsFor(t.id())) {
+                                    if (TaskEventStore.AGENT_ANSWER.equals(e.type)) {
+                                        already = true;
+                                        break;
+                                    }
+                                }
+                                if (!already) {
+                                    MrNobodyApp.taskEvents().append(t.id(),
+                                            TaskEventStore.AGENT_ANSWER, prior);
+                                }
+                            }
+                            MrNobodyApp.taskEvents().append(t.id(),
+                                    TaskEventStore.USER_FOLLOWUP, text.trim());
+                            t.setFollowUp(text.trim());
+                            t.setStatus(Task.Status.QUEUED);
+                            t.setCurrentStep("");
+                            t.setResult("");
+                            t.setError("");
+                            t.resetRetry();
+                            MrNobodyApp.tasks().update(t);
+                            MrNobodyApp.scheduler().cancel(getApplicationContext(), t.id());
+                            MrNobodyApp.scheduler().schedule(getApplicationContext(), t.id());
+                            result.success(true);
+                            return;
+                        }
                         case "recentTasks": {
                             List<Task> tasks = MrNobodyApp.tasks().recent(100);
                             List<Map<String, Object>> out = new ArrayList<>();
@@ -435,11 +475,27 @@ public class MainActivity extends FlutterActivity {
                         }
                         case "revalidateRoute": {
                             String problem = PrivacyController.revalidate(MrNobodyApp.settings());
+                            if (problem != null) {
+                                // refuse() dropped the live mode; persist so
+                                // the next launch does not claim Nobody.
+                                MrNobodyApp.settings().setPrivacyMode(
+                                        PrivacyController.current().name());
+                            }
                             Map<String, Object> m = new HashMap<>();
                             m.put("ok", problem == null);
                             m.put("problem", problem);
                             m.put("mode", PrivacyController.current().name());
                             result.success(m);
+                            return;
+                        }
+                        case "resolveApproval": {
+                            Number waitId = call.argument("id");
+                            Boolean allow = call.argument("allow");
+                            if (waitId == null || allow == null) {
+                                result.error("bad_arg", "id and allow required", null);
+                                return;
+                            }
+                            result.success(resolveApproval(waitId.longValue(), allow));
                             return;
                         }
                         case "setSetting": {
@@ -842,7 +898,7 @@ public class MainActivity extends FlutterActivity {
                 MrNobodyApp.applyTerminalSetting();
                 break;
             case "profile":
-                MrNobodyApp.settings().setProfile(
+                MrNobodyApp.applyPrivacyProfile(
                         PrivacyProfile.fromName(String.valueOf(value)));
                 break;
             case "approvalMode":
@@ -989,6 +1045,24 @@ public class MainActivity extends FlutterActivity {
     // pipeline refuses the call rather than queueing it out of sight.
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        ApprovalPrompt.setHost(this);
+    }
+
+    @Override
+    protected void onPause() {
+        ApprovalPrompt.clearHost(this);
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        ApprovalPrompt.clearHost(this);
+        super.onDestroy();
+    }
+}
+ride
     protected void onResume() {
         super.onResume();
         ApprovalPrompt.setHost(this);

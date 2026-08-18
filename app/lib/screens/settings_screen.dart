@@ -34,6 +34,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _proxyKind = 'http';
   String _proxyHost = '';
   int _proxyPort = 0;
+  /// Null until asked: do not claim isolation without a fact.
+  bool? _multiProfile;
 
   String get _proxyLabel {
     switch (_proxyRoute) {
@@ -330,7 +332,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (picked == null || !mounted) return;
     await _state.setProfile(picked);
     if (!mounted) return;
-    AppToast.show(context, 'Profile: ${_state.profileLabel}');
+    // The toast names a consequence the toggles now reflect, so Maximum
+    // cannot look like a no-op.
+    AppToast.show(
+      context,
+      _state.js
+          ? 'Profile: ${_state.profileLabel}'
+          : 'Profile: ${_state.profileLabel} — JavaScript off',
+    );
   }
 
   Future<void> _pickTerminal(BuildContext rowContext) async {
@@ -385,17 +394,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: rowContext,
       title: 'Privacy mode',
       selected: _state.privacyMode,
-      options: const [
-        MenuOption(id: 'NORMAL', label: 'Normal', icon: Icons.language, tag: 'direct'),
+      options: [
+        const MenuOption(id: 'NORMAL', label: 'Normal', icon: Icons.language, tag: 'direct'),
         MenuOption(
-            id: 'PRIVATE', label: 'Private', icon: Icons.visibility_off, tag: 'isolated storage'),
-        MenuOption(id: 'NOBODY', label: 'Nobody', icon: Icons.shield_outlined, tag: 'tor / proxy'),
+            id: 'PRIVATE',
+            label: 'Private',
+            icon: Icons.visibility_off,
+            // Isolation is a property of this device's WebView, not of our
+            // APK. Claiming it here when the dashboard says otherwise is
+            // the overstated private-tab claim all over again.
+            tag: _multiProfile == true
+                ? 'isolated storage'
+                : 'no history, cleared on close'),
+        const MenuOption(id: 'NOBODY', label: 'Nobody', icon: Icons.shield_outlined, tag: 'tor / proxy'),
       ],
     );
     if (picked == null || !mounted) return;
-    await _state.setPrivacyMode(picked);
+    final problem = await _state.setPrivacyMode(picked);
     if (!mounted) return;
-    AppToast.show(context, 'Privacy mode: ${_state.privacyModeLabel}');
+    if (problem != null) {
+      AppToast.show(context, problem);
+    } else {
+      AppToast.show(context, 'Privacy mode: ${_state.privacyModeLabel}');
+    }
   }
 
   Future<void> _pickProxy(BuildContext rowContext) async {
@@ -410,7 +431,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
     if (picked == null || !mounted) return;
-    await NativeBridge.guard(
+    if (picked == 'proxy') {
+      final endpoint = await _editProxyEndpoint();
+      if (!mounted) return;
+      if (endpoint == null) return;
+    }
+    final result = await NativeBridge.guard(
       () => NativeBridge.setProxy(
         kind: _proxyKind,
         host: _proxyHost.isEmpty ? null : _proxyHost,
@@ -422,7 +448,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (!mounted) return;
     setState(() => _proxyRoute = picked);
-    AppToast.show(context, 'Proxy: $_proxyLabel');
+    final problem = result['problem'] as String?;
+    if (problem != null && problem.isNotEmpty) {
+      AppToast.show(context, problem);
+    } else {
+      AppToast.show(context, 'Proxy: $_proxyLabel');
+    }
+  }
+
+  /// Host and port for the HTTP proxy. Empty host is not a configured proxy.
+  Future<bool?> _editProxyEndpoint() async {
+    final hostCtrl = TextEditingController(text: _proxyHost);
+    final portCtrl = TextEditingController(
+        text: _proxyPort == 0 ? '8080' : '$_proxyPort');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('HTTP proxy', style: AppTheme.sans(size: 16, w: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: hostCtrl,
+              autofocus: true,
+              style: AppTheme.mono(size: 13),
+              cursorColor: AppColors.accent,
+              decoration: InputDecoration(
+                labelText: 'Host',
+                labelStyle: AppTheme.sans(size: 12, color: AppColors.textMuted),
+                hintText: '127.0.0.1',
+                hintStyle: AppTheme.mono(size: 12, color: AppColors.textFaint),
+              ),
+            ),
+            TextField(
+              controller: portCtrl,
+              keyboardType: TextInputType.number,
+              style: AppTheme.mono(size: 13),
+              cursorColor: AppColors.accent,
+              decoration: InputDecoration(
+                labelText: 'Port',
+                labelStyle: AppTheme.sans(size: 12, color: AppColors.textMuted),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: Text('Cancel',
+                style: AppTheme.sans(size: 13, color: AppColors.textDim)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: Text('Save',
+                style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    final host = hostCtrl.text.trim();
+    final port = int.tryParse(portCtrl.text.trim()) ?? 0;
+    hostCtrl.dispose();
+    portCtrl.dispose();
+    if (ok != true) return null;
+    if (host.isEmpty) {
+      AppToast.show(context, 'A proxy needs a host.');
+      return null;
+    }
+    setState(() {
+      _proxyHost = host;
+      _proxyPort = port;
+      _proxyKind = 'http';
+    });
+    return true;
   }
 
   Future<void> _pickSearchEngine(BuildContext rowContext) async {
