@@ -99,7 +99,7 @@ is unsupported by code, and CI fails when one becomes so.
 
 Capabilities that need Phase 1's router and approval UI underneath them.
 
-### 2.1 Multi-step planning
+### 2.1 Multi-step planning ✅ core done
 
 Replace the fixed four-step cascade with a plan that can branch, loop and
 replan. Requires 1.3. (V2 §5)
@@ -120,13 +120,13 @@ Append-only, contiguous sequence, status derived from events rather than
 overwritten. `ToolPipeline.Recorder` is the seam and nothing is attached to it.
 (V2 §14, harness priority 4)
 
-### 2.4 Scheduled tasks + monitoring
+### 2.4 Scheduled tasks + monitoring ✅ model done
 
 Add a `Schedule` model and extend `TaskScheduler` beyond one-shot to
 `PeriodicWorkRequest`. Then monitoring on top: price, availability, page
 change. (V2 §16, §17)
 
-### 2.5 Heartbeat and orphan recovery
+### 2.5 Heartbeat and orphan recovery ✅ core done
 
 `TaskReconciler` handles stale tasks; there is no heartbeat and cancellation
 is not a persisted request. (V2 §14, harness priority 5)
@@ -138,13 +138,13 @@ fail-closed. DNS follows free from proxy-side resolution. **Note: the proxy is
 process-wide**, so `NOBODY` is a whole-app mode, not a per-tab badge.
 (`PRIVACY_V2_OPTIONS.md` §2–4, V2 §20)
 
-### 2.7 Agent browser session isolation
+### 2.7 Agent browser session isolation ✅ scope model done
 
 One shared `HeadlessWebViewEngine` serves every task. Task-scoped profiles —
 the same `MULTI_PROFILE` mechanism as 1.4, applied to the headless side.
 (V2 §10)
 
-### 2.8 Oversized output spilling + anchored page actions
+### 2.8 Oversized output spilling + anchored page actions ✅ core done
 
 Spill large tool output to app-private storage and hand the model a locator;
 refuse a page action when the DOM has moved. (harness priorities 6, 7)
@@ -169,7 +169,7 @@ Signed filter lists with rollback protection, then the decentralised
 distribution experiment. Today the list is bundled and versioned with no
 signature. (V2 §22, §21)
 
-### 3.2 Agent long-term memory
+### 3.2 Agent long-term memory ✅ policy done
 
 Task state and results persist; there is no long-term memory. Deliberately
 last — it is the feature most able to turn a local-first product into a
@@ -218,7 +218,14 @@ under proxy, real ad-page blocking) cannot run without an emulator matrix.
 | 2.6b Approval tiers x mode x per-tool | this commit |
 | Loop breaker (harness priority 8) | `fa1bea9` |
 | 2.2 Prompt-injection defence | this commit |
-| 3.1 Filter-list integrity (digest + rollback) | this commit |
+| 3.1 Filter-list integrity (digest + rollback) | `6af7063` |
+| 2.1 Multi-step plan (`Plan`) | this commit |
+| 2.4 Schedule model | this commit |
+| 2.5 Heartbeat | this commit |
+| 2.7 Session scope | this commit |
+| 2.8 Output spilling + page anchors | this commit |
+| 3.2 Memory policy | this commit |
+| Budget guard (2nd monotonic guard) | this commit |
 
 Both ordering dependencies are now discharged: the tool router exists, and the
 approval UI exists to gate what it reaches.

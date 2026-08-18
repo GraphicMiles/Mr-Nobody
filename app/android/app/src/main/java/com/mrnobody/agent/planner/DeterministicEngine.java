@@ -12,6 +12,7 @@ import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.policy.ApprovalPolicy;
+import com.mrnobody.agent.policy.BudgetGuard;
 import com.mrnobody.agent.policy.RepeatCallGuard;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
@@ -77,8 +78,15 @@ public final class DeterministicEngine implements AgentEngine {
 
     private final RepeatCallGuard repeatGuard = new RepeatCallGuard();
 
+    /**
+     * A ceiling on work performed, not just on work repeated. The repeat guard
+     * says nothing about a task making forty different calls, which a plan
+     * that can extend itself is entirely capable of.
+     */
+    private final BudgetGuard budgetGuard = new BudgetGuard();
+
     private final ToolPipeline pipeline =
-            new ToolPipeline(policy).addGuard(repeatGuard);
+            new ToolPipeline(policy).addGuard(repeatGuard).addGuard(budgetGuard);
 
     public DeterministicEngine() {
         tools.put("search", new SearchTool());
@@ -114,6 +122,12 @@ public final class DeterministicEngine implements AgentEngine {
     public void run(Context context, Task task, Cancellation cancellation) {
         String instruction = task.instruction();
         task.setStatus(Task.Status.RUNNING);
+
+        // Budgets are per task, not per process: a fresh instruction starts
+        // with a full allowance, and a previous task's spending is not
+        // inherited by the next one.
+        repeatGuard.reset();
+        budgetGuard.reset();
 
         // Cancellation is observed between steps: the task stops in a state we
         // can describe, never halfway through one.
