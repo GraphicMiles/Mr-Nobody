@@ -54,6 +54,9 @@ public final class GeminiProvider implements AiProvider {
     public boolean isRemote() { return true; }
 
     @Override
+    public String modelId() { return model; }
+
+    @Override
     public void complete(String systemPrompt, String userMessage, CompletionCallback callback) {
         new Thread(() -> doComplete(systemPrompt, userMessage, callback)).start();
     }
@@ -90,10 +93,11 @@ public final class GeminiProvider implements AiProvider {
                 callback.onError(explain(code, response));
                 return;
             }
-            String text = new JSONObject(response)
-                    .getJSONArray("candidates").getJSONObject(0)
+            JSONObject root = new JSONObject(response);
+            String text = root.getJSONArray("candidates").getJSONObject(0)
                     .getJSONObject("content").getJSONArray("parts")
                     .getJSONObject(0).optString("text", "");
+            callback.onUsage(usageOf(root));
             callback.onResult(text);
         } catch (Exception e) {
             callback.onError(e.getMessage());
@@ -114,15 +118,22 @@ public final class GeminiProvider implements AiProvider {
                 return;
             }
             final StringBuilder acc = new StringBuilder();
+            final TokenUsage[] usage = {TokenUsage.ZERO};
             try (InputStream in = conn.getInputStream();
                  Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
                 SseFrames.read(reader, json -> {
                     String text = candidateText(json);
-                    if (text.isEmpty()) return;
-                    acc.append(text);
-                    callback.onToken(text);
+                    if (!text.isEmpty()) {
+                        acc.append(text);
+                        callback.onToken(text);
+                    }
+                    // streamGenerateContent carries usageMetadata on chunks;
+                    // keep the most recent non-zero figure.
+                    TokenUsage u = usageOf(new JSONObject(json));
+                    if (u.totalTokens() > 0) usage[0] = u;
                 });
             }
+            callback.onUsage(usage[0]);
             callback.onDone(acc.toString());
         } catch (Exception e) {
             callback.onError(e.getMessage());
@@ -159,6 +170,19 @@ public final class GeminiProvider implements AiProvider {
             os.write(body.toString().getBytes(StandardCharsets.UTF_8));
         }
         return conn;
+    }
+
+    /** The usageMetadata block of a response, or {@link TokenUsage#ZERO} when absent. */
+    static TokenUsage usageOf(JSONObject root) {
+        try {
+            JSONObject meta = root.optJSONObject("usageMetadata");
+            if (meta == null) return TokenUsage.ZERO;
+            long prompt = meta.optLong("promptTokenCount", 0);
+            long completion = meta.optLong("candidatesTokenCount", 0);
+            return new TokenUsage(prompt, completion);
+        } catch (Exception e) {
+            return TokenUsage.ZERO;
+        }
     }
 
     /**

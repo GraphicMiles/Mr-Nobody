@@ -1,11 +1,13 @@
 package com.mrnobody.agent.planner;
 
 import com.mrnobody.agent.ai.AiProvider;
+import com.mrnobody.agent.ai.TokenUsage;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * The step-by-step planner: the agent decides its next action from what it has
@@ -31,10 +33,20 @@ public final class AutonomousPlanner {
 
     private final AiProvider provider;
     private final String nonce;
+    private final Consumer<TokenUsage> usageSink;
 
     public AutonomousPlanner(AiProvider provider, String nonce) {
+        this(provider, nonce, null);
+    }
+
+    /**
+     * @param usageSink receives the provider's reported usage for every planning
+     *                  call, so the run can total its token spend. May be null.
+     */
+    public AutonomousPlanner(AiProvider provider, String nonce, Consumer<TokenUsage> usageSink) {
         this.provider = provider;
         this.nonce = nonce;
+        this.usageSink = usageSink;
     }
 
     /**
@@ -85,6 +97,9 @@ public final class AutonomousPlanner {
                 }
                 @Override public void onError(String error) {
                     latch.countDown();
+                }
+                @Override public void onUsage(TokenUsage usage) {
+                    if (usageSink != null) usageSink.accept(usage);
                 }
             });
             if (!latch.await(ASK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) return null;

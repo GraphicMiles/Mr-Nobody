@@ -51,6 +51,9 @@ public class OpenAiCompatibleProvider implements AiProvider {
     public boolean isRemote() { return true; }
 
     @Override
+    public String modelId() { return model; }
+
+    @Override
     public void complete(String systemPrompt, String userMessage, CompletionCallback callback) {
         new Thread(() -> doComplete(systemPrompt, userMessage, callback)).start();
     }
@@ -87,9 +90,10 @@ public class OpenAiCompatibleProvider implements AiProvider {
                 callback.onError(explain(code, response));
                 return;
             }
-            String text = new JSONObject(response)
-                    .getJSONArray("choices").getJSONObject(0)
+            JSONObject root = new JSONObject(response);
+            String text = root.getJSONArray("choices").getJSONObject(0)
                     .getJSONObject("message").getString("content");
+            callback.onUsage(usageOf(root));
             callback.onResult(text);
         } catch (Exception e) {
             callback.onError(e.getMessage());
@@ -110,15 +114,22 @@ public class OpenAiCompatibleProvider implements AiProvider {
                 return;
             }
             final StringBuilder acc = new StringBuilder();
+            final TokenUsage[] usage = {TokenUsage.ZERO};
             try (InputStream in = conn.getInputStream();
                  Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
                 SseFrames.read(reader, json -> {
                     String delta = deltaContent(json);
-                    if (delta.isEmpty()) return;
-                    acc.append(delta);
-                    callback.onToken(delta);
+                    if (!delta.isEmpty()) {
+                        acc.append(delta);
+                        callback.onToken(delta);
+                    }
+                    // The final frame carries the usage block (when the request
+                    // asked for it); non-final frames carry none.
+                    TokenUsage u = usageOf(new JSONObject(json));
+                    if (u.totalTokens() > 0) usage[0] = u;
                 });
             }
+            callback.onUsage(usage[0]);
             callback.onDone(acc.toString());
         } catch (Exception e) {
             callback.onError(e.getMessage());
@@ -136,7 +147,12 @@ public class OpenAiCompatibleProvider implements AiProvider {
         messages.put(new JSONObject().put("role", "user").put("content", user));
         body.put("messages", messages);
         body.put("max_tokens", 1024);
-        if (stream) body.put("stream", true);
+        if (stream) {
+            body.put("stream", true);
+            // Without this, the streaming response omits the usage block, so
+            // there would be no authoritative token count to report.
+            body.put("stream_options", new JSONObject().put("include_usage", true));
+        }
 
         HttpURLConnection conn = NetworkGate.openHttp(baseUrl + "/chat/completions");
         conn.setRequestMethod("POST");
@@ -150,6 +166,19 @@ public class OpenAiCompatibleProvider implements AiProvider {
             os.write(body.toString().getBytes(StandardCharsets.UTF_8));
         }
         return conn;
+    }
+
+    /** The usage block of a response, or {@link TokenUsage#ZERO} when absent. */
+    static TokenUsage usageOf(JSONObject root) {
+        try {
+            JSONObject usage = root.optJSONObject("usage");
+            if (usage == null) return TokenUsage.ZERO;
+            long prompt = usage.optLong("prompt_tokens", 0);
+            long completion = usage.optLong("completion_tokens", 0);
+            return new TokenUsage(prompt, completion);
+        } catch (Exception e) {
+            return TokenUsage.ZERO;
+        }
     }
 
     /**
