@@ -3,6 +3,8 @@ package com.mrnobody.browser.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.mrnobody.browser.net.ResourcePolicy;
+
 /**
  * Single source of truth for user settings. Every default favors privacy:
  * history OFF, search suggestions OFF, JavaScript ON (the web depends on it),
@@ -34,6 +36,7 @@ public final class Settings {
     /** How often the agent stops to ask before acting. */
     public static final String KEY_APPROVAL_MODE = "approval_mode";
     public static final String KEY_REMOTE_SERVER = "remote_server";
+    public static final String KEY_RESOURCE_POLICY = "resource_policy";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -248,6 +251,16 @@ public final class Settings {
 
     public void setApprovalMode(String mode) {
         prefs.edit().putString(KEY_APPROVAL_MODE, mode).apply();
+    }
+
+    /** Data Saver grade. Defaults to OFF: the privacy product never degrades a page by surprise. */
+    public ResourcePolicy resourcePolicy() {
+        return ResourcePolicy.fromName(prefs.getString(KEY_RESOURCE_POLICY, ResourcePolicy.OFF.name()));
+    }
+
+    public void setResourcePolicy(ResourcePolicy policy) {
+        prefs.edit().putString(KEY_RESOURCE_POLICY,
+                policy == null ? ResourcePolicy.OFF.name() : policy.name()).apply();
     }
 
     /** The remote worker's base URL. Empty until configured: remote is opt-in. */

@@ -74,6 +74,14 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
             isolated = ProfileManager.applyProfile(webView, scope.profileName());
             webView.getSettings().setJavaScriptEnabled(true);
             webView.getSettings().setDomStorageEnabled(true);
+            // Data Saver grade, applied before first load so it holds from the
+            // first request. Reads the current setting; OFF by default.
+            try {
+                com.mrnobody.browser.net.ResourceControls.apply(webView,
+                        com.mrnobody.browser.MrNobodyApp.settings().resourcePolicy());
+            } catch (Throwable ignored) {
+                // Core not up (tests): OFF-equivalent defaults already applied.
+            }
         }
         return webView;
     }

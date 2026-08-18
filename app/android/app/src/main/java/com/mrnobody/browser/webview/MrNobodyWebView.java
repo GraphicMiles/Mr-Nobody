@@ -171,6 +171,9 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         s.setDisplayZoomControls(false);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
+        // Data Saver grade: autoplay, images and caching per the user's choice.
+        com.mrnobody.browser.net.ResourceControls.apply(webView,
+                MrNobodyApp.settings().resourcePolicy());
         // A page must not be able to read the device's files or our own assets.
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);

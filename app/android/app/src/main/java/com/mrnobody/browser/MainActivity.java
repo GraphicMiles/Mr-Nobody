@@ -342,6 +342,7 @@ public class MainActivity extends FlutterActivity {
                             m.put("proxyHost", MrNobodyApp.settings().proxyHost());
                             m.put("proxyPort", MrNobodyApp.settings().proxyPort());
                             m.put("approvalMode", MrNobodyApp.settings().approvalMode());
+                            m.put("resourcePolicy", MrNobodyApp.settings().resourcePolicy().name());
                             result.success(m);
                             return;
                         }
@@ -794,6 +795,12 @@ public class MainActivity extends FlutterActivity {
                 break;
             case "provider":
                 MrNobodyApp.setActiveAiProviderId(String.valueOf(value));
+                break;
+            case "resourcePolicy":
+                // Data Saver grade. Applies to newly created WebViews; a page
+                // already open keeps its current settings until reload.
+                MrNobodyApp.settings().setResourcePolicy(
+                        com.mrnobody.browser.net.ResourcePolicy.fromName(String.valueOf(value)));
                 break;
             default:
                 // Unknown keys are ignored on purpose: the UI never writes

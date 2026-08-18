@@ -33,8 +33,8 @@ public class DiagnosticsTest {
         List<Diagnostics.Result> results = Diagnostics.runPure();
         Map<String, Diagnostics.Result> byId = byId(results);
 
-        // All eight pure checks are present and green.
-        assertEquals(8, results.size());
+        // All nine pure checks are present and green.
+        assertEquals(9, results.size());
         for (Diagnostics.Result r : results) {
             assertPass(r);
         }
@@ -42,7 +42,8 @@ public class DiagnosticsTest {
         // And each one is identifiable, so a device failure is reportable.
         for (String id : new String[]{
                 "input.route", "search.parse", "hosts.detect", "planner.plan",
-                "terminal.gate", "workspace.sandbox", "identity.sign", "network.route"}) {
+                "terminal.gate", "workspace.sandbox", "identity.sign", "network.route",
+                "datasaver.policy"}) {
             assertTrue("missing check " + id, byId.containsKey(id));
         }
     }
