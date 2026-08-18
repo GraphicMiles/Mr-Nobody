@@ -79,6 +79,17 @@ public final class MrNobodyApp extends Application {
     public void onCreate() {
         super.onCreate();
 
+        // Catch native crashes before anything else can. A Java uncaught
+        // exception or OOM takes the process down silently; the handler writes
+        // the stack to disk so the next launch can surface it in the debug ⓘ
+        // panel instead of leaving the user with a mystery.
+        com.mrnobody.debug.CrashLog.install(this);
+        String prior = com.mrnobody.debug.CrashLog.read(this);
+        if (prior != null) {
+            com.mrnobody.debug.ErrorLog.record("last crash: " + prior.trim());
+            com.mrnobody.debug.CrashLog.clear(this);
+        }
+
         filterEngine = new FilterEngine();
         filterEngine.loadBundled(this);
         settings = new Settings(this);
