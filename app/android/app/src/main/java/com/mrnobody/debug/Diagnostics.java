@@ -320,12 +320,19 @@ public final class Diagnostics {
                 () -> {
                     TaskStore store = new TaskStore(context);
                     long id = store.insert("diagnostic probe task");
-                    Task t = store.get(id);
-                    return t != null && t.instruction().equals("diagnostic probe task")
-                            ? Result.pass("task.store", "Durable task store (SQLite)",
-                                    "insert + get round-trip, id=" + id)
-                            : Result.fail("task.store", "Durable task store (SQLite)",
-                                    "round-trip returned null or wrong instruction");
+                    try {
+                        Task t = store.get(id);
+                        return t != null && t.instruction().equals("diagnostic probe task")
+                                ? Result.pass("task.store", "Durable task store (SQLite)",
+                                        "insert + get round-trip, id=" + id)
+                                : Result.fail("task.store", "Durable task store (SQLite)",
+                                        "round-trip returned null or wrong instruction");
+                    } finally {
+                        // A probe must not linger in the user's task list. This
+                        // was the bug: every benchmark run left a permanent
+                        // "diagnostic probe task — Queued" row behind.
+                        store.delete(id);
+                    }
                 }));
 
         // The headless browser: load a real page and extract its text, proving
