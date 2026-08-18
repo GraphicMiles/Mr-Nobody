@@ -20,8 +20,8 @@ and `docs/spec/ARCHITECTURE_EXPLAINED.md`. Every claim below points at code.
 | 9 | Basic agent routing | Done | `agent/planner/IntentRouter.java` (+ Dart mirror), unit-tested |
 | 10 | Search / fetch / extraction tools | Done | `SearchTool`, `HttpTool`, `util/HtmlText.java` |
 | 11 | Basic browser actions | Done | `HeadlessWebViewEngine.click/type/scroll` |
-| 12 | Downloads | Done | `MrNobodyWebView.setDownloadListener` → DownloadManager; `DownloadTool` registered for the agent path; Downloads screen reads them back |
-| 13 | Sandboxed terminal, feature-flagged | Done (V1 scope) | `TerminalTool` is registered **only while the Settings switch is on** (`MrNobodyApp.applyTerminalSetting`); `PolicyGate` runs ALLOW commands, refuses DENY, and reports CONFIRM as needing the user — the approval UI is V2 §11 |
+| 12 | Downloads | **Browser: done. Agent: no.** | `MrNobodyWebView.setDownloadListener` → DownloadManager; Downloads screen reads them back. `DownloadTool` is registered but **the planner never calls it** — only `search` and `http` are invoked, so the agent cannot download. See `ROADMAP.md` §1.3 |
+| 13 | Sandboxed terminal, feature-flagged | Partial (V1 scope) | `TerminalTool` is registered **only while the Settings switch is on** (`MrNobodyApp.applyTerminalSetting`); `PolicyGate` runs ALLOW, refuses DENY. **CONFIRM is dead**: `ToolPipeline.setConfirmer` is never called, so the pipeline fail-closes and every CONFIRM is refused. See `ROADMAP.md` §1.2 |
 | 14 | Persistent task model | Done | `agent/tasks/TaskStore.java` (SQLite), `agent/core/Task.java` |
 | 15 | Basic background tasks | Done | `TaskWorker` + `WorkManagerTaskScheduler`, resumable after process death |
 | 16 | History OFF by default | Done | `browser/core/Settings.java` |
@@ -29,7 +29,7 @@ and `docs/spec/ARCHITECTURE_EXPLAINED.md`. Every claim below points at code.
 | 18 | Cookie/storage controls | Done | `CookieManager.setAcceptThirdPartyCookies(webView, false)`, no file/content access, mixed content blocked, `clearData` for the rest |
 | 19 | No analytics / no ads SDK / no account | Done | no SDKs in `app/android/app/build.gradle`; only network I/O is user-initiated |
 | 20 | Privacy regression tests | Done (static) | `tools/privacy_audit.py` runs in CI on every push and now audits **every** Android tree it finds, not a hardcoded path — see §3.3; `tools/test_privacy_audit.py` gates the auditor itself. Behavioural filter tests are still to write |
-| 21 | APK size benchmark | Done | CI reports size; `tools/apk_size_check.py` |
+| 21 | APK size benchmark | **Reported, not gated** | CI prints the size to the step summary but **never calls `tools/apk_size_check.py`**, so a size regression cannot fail the build. See `ROADMAP.md` §1.1 |
 | 22 | GitHub Actions build/release | Done | `.github/workflows/flutter.yml` (analyze → tests → APK) |
 | 23 | UI parity with the approved prototype | Done | all 11 views built; `app/test/screens_golden_test.dart` gates drift |
 
