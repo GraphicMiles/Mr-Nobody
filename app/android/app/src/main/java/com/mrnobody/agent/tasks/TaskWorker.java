@@ -81,11 +81,12 @@ public final class TaskWorker extends Worker {
         // task, whose whole point is to run again. A recurring COMPLETED task
         // is reset and re-executed, keeping its last answer for the change
         // note; a cancelled task stays cancelled forever.
+        boolean recurring = MrNobodyApp.tasks().scheduleOf(taskId).isRecurring();
         switch (task.status()) {
             case CANCELLED:
                 return Result.success();
             case COMPLETED:
-                if (!MrNobodyApp.tasks().scheduleOf(taskId).isRecurring()) {
+                if (!recurring) {
                     return Result.success();
                 }
                 MrNobodyApp.tasks().setPreviousResult(taskId, task.result());
@@ -93,9 +94,17 @@ public final class TaskWorker extends Worker {
                 task.setCurrentStep("");
                 task.setResult("");
                 task.setError("");
+                task.resetRetry(); // a fresh cycle gets a fresh retry budget
                 break;
             case FAILED:
-                // Bounded retry: only re-run a failed task once.
+                if (recurring) {
+                    // A transient failure (DNS hiccup, one blocked fetch) must
+                    // not kill a monitor. The periodic schedule fires again
+                    // next interval, so give up this cycle without consuming a
+                    // budget that would eventually silence it forever.
+                    return Result.success();
+                }
+                // One-shot: bounded retry, then give up.
                 if (task.retryCount() > 0) return Result.success();
                 task.bumpRetry();
                 break;
@@ -124,8 +133,12 @@ public final class TaskWorker extends Worker {
 
         if (task.status() == Task.Status.COMPLETED) {
             // The app may well be closed by now — this is the only way the user
-            // finds out (V1 §13).
-            TaskNotifier.notifyFinished(getApplicationContext(), task);
+            // finds out (V1 §13). But a recurring run that reports "no change"
+            // is not news: an hourly monitor must not buzz every hour forever.
+            // Notify only when the answer actually moved, or for one-shots.
+            if (!recurring || !isNoChange(task)) {
+                TaskNotifier.notifyFinished(getApplicationContext(), task);
+            }
             return Result.success();
         }
         if (task.status() == Task.Status.FAILED) {
@@ -134,10 +147,17 @@ public final class TaskWorker extends Worker {
                 TaskNotifier.notifyFinished(getApplicationContext(), task);
             }
             // Let WorkManager apply its backoff; the FAILED guard above bounds
-            // how many times we actually re-execute.
+            // how many times we actually re-execute. A recurring task never
+            // reaches here — it returns before dispatch when failed.
             return Result.retry();
         }
         return Result.success();
+    }
+
+    /** True when a recurring answer reports that nothing changed since last time. */
+    private static boolean isNoChange(Task task) {
+        String result = task.result();
+        return result != null && result.contains(ChangeDetector.NO_CHANGE);
     }
 
     /**

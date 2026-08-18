@@ -484,6 +484,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
         widget.instruction ?? _task['instruction'] as String? ?? widget.title;
     final result = _task['result'] as String? ?? '';
     final error = _task['error'] as String? ?? '';
+    final status = _task['status'] as String? ?? '';
     final steps = _steps;
     // The caret blinks while a live stream is still generating, not only
     // while the timed reveal is catching up to a finished answer.
@@ -520,6 +521,14 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                             activeLabel: 'Thinking',
                             doneLabel: _doneLabel,
                           ),
+                        if (status == 'CANCELLED' && result.isEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text('Stopped',
+                              style: AppTheme.sans(
+                                  size: 12.5,
+                                  color: AppColors.textMuted,
+                                  w: FontWeight.w600)),
+                        ],
                         if (_tokens.isNotEmpty) ...[
                           const SizedBox(height: 7),
                           StreamedAnswer(

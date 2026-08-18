@@ -18,6 +18,12 @@ import java.util.Set;
  */
 public final class ChangeDetector {
 
+    /** The sentence a recurring answer carries when nothing changed. */
+    public static final String NO_CHANGE = "No change since your last check.";
+
+    /** The sentence a recurring answer carries when something did change. */
+    public static final String CHANGED = "Changed since your last check.";
+
     /**
      * How much of the previous wording must survive for two answers to count
      * as "the same". High enough that a real change registers, low enough that

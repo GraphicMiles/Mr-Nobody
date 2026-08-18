@@ -317,6 +317,10 @@ public final class TaskStore extends SQLiteOpenHelper {
         t.setResult(c.getString(c.getColumnIndexOrThrow(C_RESULT)));
         t.setError(c.getString(c.getColumnIndexOrThrow(C_ERROR)));
         t.setWorker(c.getString(c.getColumnIndexOrThrow(C_WORKER)));
+        // The bounded-retry budget must survive a process restart, or a failed
+        // one-shot retries forever after every crash instead of once.
+        try { t.setRetryCount(c.getInt(c.getColumnIndexOrThrow(C_RETRY))); }
+        catch (Exception ignored) { }
         return t;
     }
 }

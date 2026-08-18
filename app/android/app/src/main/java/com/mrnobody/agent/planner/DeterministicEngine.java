@@ -569,8 +569,8 @@ public final class DeterministicEngine implements AgentEngine {
             String previous = MrNobodyApp.tasks().previousResult(task.id());
             if (!previous.isEmpty()) {
                 String change = ChangeDetector.unchanged(previous, r.answer)
-                        ? "No change since your last check."
-                        : "Changed since your last check.";
+                        ? ChangeDetector.NO_CHANGE
+                        : ChangeDetector.CHANGED;
                 r.answer = r.answer + "\n\n" + change;
             }
         }
