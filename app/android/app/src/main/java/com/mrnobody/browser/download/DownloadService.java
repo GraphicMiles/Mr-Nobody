@@ -16,11 +16,8 @@ import androidx.annotation.Nullable;
 
 import com.mrnobody.debug.ErrorLog;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
- * Keeps downloads running, and shows the app's own notification for them.
+ * Keeps the process alive while downloads are running.
  *
  * <p>A transfer we perform ourselves dies with the process unless something
  * holds it up, so this is a foreground service: it is what lets a film keep
@@ -28,9 +25,14 @@ import java.util.Map;
  * downloader — it stops when Mr Nobody is uninstalled, because it was always
  * ours.
  *
- * <p>It owns no transfer logic. {@link DownloadEngine} moves the bytes; this
- * translates the engine's state changes into notifications and routes the
- * Pause / Resume / Cancel buttons back to it.
+ * <p>It owns no transfer logic and, since the completion-notification bug, no
+ * per-download rendering either. {@link DownloadEngine} moves the bytes,
+ * {@link DownloadNotifier} draws the notifications, and this holds the process
+ * up and routes the Pause / Resume / Cancel buttons back to the engine.
+ *
+ * <p>The split matters: this object deliberately stops itself the moment no
+ * download is active, which made it the worst possible owner of the
+ * notification that says a download just finished. Drawing now outlives it.
  */
 public final class DownloadService extends Service implements DownloadEngine.Listener {
 
@@ -42,10 +44,6 @@ public final class DownloadService extends Service implements DownloadEngine.Lis
     public static final String EXTRA_ID = "id";
 
     private final Handler main = new Handler(Looper.getMainLooper());
-
-    /** id → (bytes, at) from the last tick, for the speed readout. */
-    private final Map<Long, long[]> lastSample = new HashMap<>();
-    private final Map<Long, Long> speed = new HashMap<>();
 
     private DownloadEngine engine;
     private NotificationManager notifications;
@@ -116,53 +114,31 @@ public final class DownloadService extends Service implements DownloadEngine.Lis
 
     // ------------------------------------------------------- engine listener
 
+    /**
+     * The service no longer draws per-download notifications.
+     *
+     * <p>It used to, and that was the bug: this object stops itself as soon as
+     * nothing is active, and the state change that makes a download inactive
+     * is COMPLETED. A renderer owned by the service was therefore shutting
+     * down at the precise moment it needed to replace "downloading" with
+     * "saved", so the last notification the user saw was a stale progress bar
+     * on a file that had already finished. {@link DownloadNotifier} draws
+     * instead, and it lives as long as the engine.
+     *
+     * <p>What is left here is the one thing that genuinely needs a service:
+     * keeping the process alive while bytes move, and letting it go when they
+     * stop.
+     */
     @Override
     public void onChanged(@NonNull DownloadRecord record) {
-        // The engine calls from its worker threads; notifications are posted
-        // from the main thread so their ordering matches the user's actions.
-        main.post(() -> render(record));
-    }
-
-    private void render(DownloadRecord record) {
-        try {
-            long bps = sampleSpeed(record);
-            Notification notification =
-                    DownloadNotifications.forRecord(this, record, bps);
-            int id = DownloadNotifications.idFor(record);
-            if (notification == null) {
-                notifications.cancel(id);
-            } else if (DownloadNotifications.canNotify(this)) {
-                notifications.notify(id, notification);
+        main.post(() -> {
+            try {
+                updateSummary();
+                stopIfIdle();
+            } catch (Throwable t) {
+                ErrorLog.record("download service update failed: " + t);
             }
-            if (record.status.isTerminal() || record.status == DownloadRecord.Status.PAUSED) {
-                lastSample.remove(record.id);
-                speed.remove(record.id);
-            }
-            updateSummary();
-            stopIfIdle();
-        } catch (Throwable t) {
-            ErrorLog.record("download notification failed: " + t);
-        }
-    }
-
-    /**
-     * Bytes per second, smoothed. The raw per-tick delta jumps around enough
-     * to be unreadable, and a number that flickers is worse than none.
-     */
-    private long sampleSpeed(DownloadRecord record) {
-        if (record.status != DownloadRecord.Status.RUNNING) return 0;
-        long now = System.currentTimeMillis();
-        long[] previous = lastSample.get(record.id);
-        lastSample.put(record.id, new long[]{record.bytes, now});
-        if (previous == null) return 0;
-        long elapsed = now - previous[1];
-        if (elapsed < 300) return speed.getOrDefault(record.id, 0L);
-        long delta = record.bytes - previous[0];
-        long instant = delta <= 0 ? 0 : delta * 1000L / elapsed;
-        long prior = speed.getOrDefault(record.id, instant);
-        long smoothed = (long) (prior * 0.6 + instant * 0.4);
-        speed.put(record.id, smoothed);
-        return smoothed;
+        });
     }
 
     // ------------------------------------------------------------- lifecycle

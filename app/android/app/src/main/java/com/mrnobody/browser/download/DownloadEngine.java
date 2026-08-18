@@ -60,9 +60,23 @@ public final class DownloadEngine {
     private final Map<Long, Job> jobs = new ConcurrentHashMap<>();
     private final List<Listener> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
+    /**
+     * Draws notifications for the whole life of the engine.
+     *
+     * <p>Deliberately not the service. The service stops itself when no
+     * download is active, and the change that makes a download inactive is the
+     * completion itself -- so a service-owned renderer is being torn down at
+     * the exact moment it has to draw "finished", and sometimes never draws
+     * it. Holding the renderer here means a completion is posted by something
+     * that is still alive.
+     */
+    private final DownloadNotifier notifier;
+
     private DownloadEngine(Context context) {
         this.context = context.getApplicationContext();
         this.store = DownloadStore.get(this.context);
+        this.notifier = new DownloadNotifier(this.context);
+        addListener(this.notifier);
     }
 
     public static DownloadEngine get(@NonNull Context context) {
@@ -189,6 +203,10 @@ public final class DownloadEngine {
      * a progress bar that will never move again.
      */
     public void reconcile() {
+        // Clear notifications for work that died with the last process before
+        // republishing anything: a progress bar nothing will ever update again
+        // is a claim about right now that is false.
+        notifier.reconcile();
         for (DownloadRecord record : store.active()) {
             if (jobs.containsKey(record.id)) continue;
             record.status = DownloadRecord.Status.WAITING;
@@ -295,7 +313,20 @@ public final class DownloadEngine {
                     conn.getHeaderField("ETag"), conn.getHeaderField("Last-Modified"));
             if (validator != null) record.etag = validator;
 
-            record.total = DownloadResume.totalSize(code, from, contentLength(conn));
+            // Content-Range first: the server stating the whole size beats us
+            // inferring it by adding our offset to a body length, which
+            // double-counts whenever a CDN answers a range with the full file.
+            String contentRange = conn.getHeaderField("Content-Range");
+            if (DownloadResume.lengthDescribesTheStream(conn.getContentEncoding())) {
+                record.total = DownloadResume.totalSize(
+                        code, from, contentLength(conn), contentRange);
+            } else {
+                // A compressed body measures a different thing than the bytes
+                // we write. Say unknown and show an indeterminate bar rather
+                // than a confident percentage of the wrong denominator.
+                long stated = DownloadResume.statedTotal(contentRange);
+                record.total = stated > 0 ? stated : DownloadRecord.UNKNOWN_SIZE;
+            }
 
             if (sink == null) {
                 // Now — and only now — we know what this file really is.
@@ -415,6 +446,12 @@ public final class DownloadEngine {
             if (record.referrer != null && !record.referrer.isEmpty()) {
                 conn.setRequestProperty("Referer", record.referrer);
             }
+            // Without this the client advertises gzip and decompresses
+            // silently, so Content-Length describes the compressed body while
+            // we count expanded bytes -- two different measurements either
+            // side of the same percentage. A file transfer wants the bytes as
+            // they are, not a re-encoded copy of them.
+            conn.setRequestProperty("Accept-Encoding", "identity");
             if (from > 0) {
                 conn.setRequestProperty("Range", DownloadResume.rangeHeader(from));
                 // If the file changed, the server sends 200 and we start over,

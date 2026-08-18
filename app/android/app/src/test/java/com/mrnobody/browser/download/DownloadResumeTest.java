@@ -87,6 +87,60 @@ public class DownloadResumeTest {
         assertEquals(DownloadRecord.UNKNOWN_SIZE, DownloadResume.totalSize(200, 0, -1));
     }
 
+    // --------------------------------------------------------------------
+    // The reported-size bug: a 30 MB file near completion showing under half.
+    // --------------------------------------------------------------------
+
+    /**
+     * The exact shape of the bug. We resumed a 30 MB file at 12 MB and the CDN
+     * answered the range with the length of the <em>whole</em> file rather
+     * than the remainder. Adding our offset to that counts the first 12 MB
+     * twice: the total reads 42 MB, and a download one byte from done sits at
+     * 71%. Content-Range states the real total, so it wins.
+     */
+    @Test
+    public void aStatedTotalBeatsArithmeticOnTheBodyLength() {
+        assertEquals(31_457_280L, DownloadResume.totalSize(
+                206, 12_582_912L, 31_457_280L,
+                "bytes 12582912-31457279/31457280"));
+    }
+
+    /** With no Content-Range, the old arithmetic is still the best guess. */
+    @Test
+    public void withoutAStatedTotalTheRemainderIsStillAdded() {
+        assertEquals(100_000_000L,
+                DownloadResume.totalSize(206, 92_000_000L, 8_000_000L, null));
+    }
+
+    /** A server that will not commit to a size must not be invented one. */
+    @Test
+    public void anUnknownStatedTotalIsNotATotal() {
+        assertEquals(DownloadRecord.UNKNOWN_SIZE,
+                DownloadResume.statedTotal("bytes 0-1023/*"));
+        assertEquals(DownloadRecord.UNKNOWN_SIZE, DownloadResume.statedTotal(null));
+        assertEquals(DownloadRecord.UNKNOWN_SIZE, DownloadResume.statedTotal("garbage"));
+        assertEquals(DownloadRecord.UNKNOWN_SIZE, DownloadResume.statedTotal("bytes 0-1/"));
+    }
+
+    @Test
+    public void aWellFormedStatedTotalIsRead() {
+        assertEquals(31_457_280L, DownloadResume.statedTotal("bytes 0-31457279/31457280"));
+    }
+
+    /**
+     * Content-Length measures the compressed body while the stream we count
+     * is decompressed. A percentage of two different measurements is not a
+     * percentage, so the size has to be reported unknown.
+     */
+    @Test
+    public void aCompressedBodyMeansTheLengthDescribesSomethingElse() {
+        assertTrue(DownloadResume.lengthDescribesTheStream(null));
+        assertTrue(DownloadResume.lengthDescribesTheStream(""));
+        assertTrue(DownloadResume.lengthDescribesTheStream("identity"));
+        assertFalse(DownloadResume.lengthDescribesTheStream("gzip"));
+        assertFalse(DownloadResume.lengthDescribesTheStream("br"));
+    }
+
     @Test
     public void anEtagIsPreferredOverADate() {
         assertEquals("\"abc123\"",

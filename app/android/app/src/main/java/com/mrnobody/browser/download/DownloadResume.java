@@ -54,13 +54,82 @@ final class DownloadResume {
     }
 
     /**
-     * The size of the finished file. {@code Content-Length} on a 206 is the
-     * length of the <em>remainder</em>, not of the file, which is the classic
-     * way a resumed download reports 8% forever.
+     * The size of the finished file, inferred from the status code alone.
+     *
+     * <p>{@code Content-Length} on a 206 is the length of the
+     * <em>remainder</em>, not of the file, which is the classic way a resumed
+     * download reports 8% forever.
+     *
+     * <p>Prefer {@link #totalSize(int, long, long, String)}: this arithmetic
+     * is only correct when the server sent exactly the range we asked for.
      */
     static long totalSize(int statusCode, long from, long contentLength) {
         if (contentLength < 0) return DownloadRecord.UNKNOWN_SIZE;
         return statusCode == PARTIAL ? from + contentLength : contentLength;
+    }
+
+    /**
+     * The size of the finished file, preferring what the server stated.
+     *
+     * <p>{@code Content-Range: bytes 12582912-31457279/31457280} carries the
+     * total after the slash, and that number is authoritative: it is the
+     * server describing the whole document rather than us adding our offset
+     * to the length of a body. The two only agree when the server honoured
+     * precisely the range we asked for, and plenty of CDNs do not -- some
+     * answer a range request with the length of the entire file, and then
+     * {@code from + contentLength} counts the prefix twice. A 30 MB file
+     * resumed at 12 MB is reported as 42 MB, and the bar sits under half
+     * while the last byte lands. That is the bug this exists to remove.
+     */
+    static long totalSize(int statusCode, long from, long contentLength,
+                          @Nullable String contentRange) {
+        long stated = statedTotal(contentRange);
+        if (stated > 0) return stated;
+        return totalSize(statusCode, from, contentLength);
+    }
+
+    /**
+     * The total from a {@code Content-Range} header, or -1.
+     *
+     * <p>A server that does not know the length sends {@code /*}, which is an
+     * honest "unknown" and must not be read as a number.
+     */
+    static long statedTotal(@Nullable String contentRange) {
+        if (contentRange == null) return DownloadRecord.UNKNOWN_SIZE;
+        int slash = contentRange.lastIndexOf('/');
+        if (slash < 0 || slash == contentRange.length() - 1) {
+            return DownloadRecord.UNKNOWN_SIZE;
+        }
+        String tail = contentRange.substring(slash + 1).trim();
+        if (tail.isEmpty() || "*".equals(tail)) return DownloadRecord.UNKNOWN_SIZE;
+        try {
+            long total = Long.parseLong(tail);
+            return total > 0 ? total : DownloadRecord.UNKNOWN_SIZE;
+        } catch (NumberFormatException e) {
+            return DownloadRecord.UNKNOWN_SIZE;
+        }
+    }
+
+    /**
+     * Whether {@code Content-Length} describes the bytes we are going to
+     * count.
+     *
+     * <p>It does not when the body is compressed in transit. HttpURLConnection
+     * asks for gzip on our behalf unless told otherwise and decompresses
+     * transparently, so the header measures the compressed body while the
+     * stream hands us the expanded one. Comparing the two produces a
+     * percentage of two different quantities: the bar races past the end on a
+     * compressible file, or crawls, depending on which way the ratio falls.
+     *
+     * <p>The download path asks for {@code identity} to keep the two the same
+     * measurement. If a server ignores that and compresses anyway, the honest
+     * answer is that the size is unknown -- an indeterminate bar tells the
+     * truth, and a number computed from mismatched units does not.
+     */
+    static boolean lengthDescribesTheStream(@Nullable String contentEncoding) {
+        if (contentEncoding == null) return true;
+        String encoding = contentEncoding.trim();
+        return encoding.isEmpty() || encoding.equalsIgnoreCase("identity");
     }
 
     /**
