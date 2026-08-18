@@ -29,6 +29,8 @@ import com.mrnobody.browser.core.PerSiteSettings;
 import com.mrnobody.browser.core.PermissionStore;
 import com.mrnobody.browser.core.PrivacyReport;
 import com.mrnobody.browser.core.Settings;
+import com.mrnobody.browser.net.PrivacyController;
+import com.mrnobody.browser.net.PrivacyMode;
 import com.mrnobody.browser.history.HistoryStore;
 import com.mrnobody.debug.ErrorLog;
 
@@ -92,6 +94,17 @@ public final class MrNobodyApp extends Application {
         }
         activeAiProviderId = settings.activeAiProvider();
 
+        // Restore the privacy mode before anything can open a socket. If the
+        // saved mode was NOBODY and its route is gone, PrivacyController
+        // refuses it and drops to NORMAL rather than starting the app in a
+        // state that claims protection it does not have.
+        try {
+            PrivacyController.apply(
+                    PrivacyMode.fromName(settings.privacyMode()), settings);
+        } catch (Throwable t2) {
+            com.mrnobody.debug.ErrorLog.record("privacy mode restore failed: " + t2);
+        }
+
         // Agent stack (V1 = deterministic + local worker + headless WebView).
         DeterministicEngine engine = new DeterministicEngine();
         headlessEngine = new HeadlessWebViewEngine(this);
@@ -129,6 +142,15 @@ public final class MrNobodyApp extends Application {
 
     public static FilterEngine filters() { return filterEngine; }
     public static Settings settings() { return settings; }
+
+    /** Apply a privacy mode and persist it only if it actually took effect. */
+    public static PrivacyController.Result applyPrivacyMode(PrivacyMode mode) {
+        PrivacyController.Result r = PrivacyController.apply(mode, settings);
+        // Persist what was achieved, not what was asked for: a refused mode
+        // must not come back on the next launch.
+        settings.setPrivacyMode(r.effective.name());
+        return r;
+    }
     public static HistoryStore history() { return historyStore; }
     public static BookmarksStore bookmarks() { return bookmarksStore; }
     public static PrivacyReport report() { return privacyReport; }

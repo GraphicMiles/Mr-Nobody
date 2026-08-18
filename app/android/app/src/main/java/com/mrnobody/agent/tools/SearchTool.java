@@ -16,11 +16,11 @@ import com.mrnobody.agent.util.SearchProviders;
 import com.mrnobody.agent.util.SearchResult;
 import com.mrnobody.agent.util.SearchResultsJson;
 import com.mrnobody.browser.MrNobodyApp;
+import com.mrnobody.browser.net.NetworkGate;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -176,7 +176,7 @@ public final class SearchTool implements Tool {
     }
 
     private static String fetch(String url) throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection conn = NetworkGate.openHttp(url);
         conn.setConnectTimeout(10_000);
         conn.setReadTimeout(15_000);
         // A plausible browser string: the endpoint answers a bare tool name

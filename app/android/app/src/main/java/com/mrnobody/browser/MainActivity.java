@@ -16,6 +16,9 @@ import com.mrnobody.browser.deeplink.DeepLinkHandler;
 import com.mrnobody.browser.download.DownloadDestination;
 import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadRecord;
+import com.mrnobody.browser.net.EngineInfo;
+import com.mrnobody.browser.net.PrivacyController;
+import com.mrnobody.browser.net.PrivacyMode;
 import com.mrnobody.debug.ErrorLog;
 import com.mrnobody.browser.webview.MrNobodyWebViewFactory;
 
@@ -305,6 +308,59 @@ public class MainActivity extends FlutterActivity {
                             m.put("profile", MrNobodyApp.settings().getProfile().name());
                             m.put("searchEngine", MrNobodyApp.settings().getSearchEngine());
                             m.put("provider", MrNobodyApp.settings().activeAiProvider());
+                            m.put("fingerprint", MrNobodyApp.settings().isFingerprintProtection());
+                            m.put("privacyMode", PrivacyController.current().name());
+                            m.put("privacyModeLabel", PrivacyController.current().label());
+                            m.put("privacyModeNote", PrivacyController.current().description());
+                            m.put("route", MrNobodyApp.settings().routeId());
+                            m.put("proxyKind", MrNobodyApp.settings().proxyKind());
+                            m.put("proxyHost", MrNobodyApp.settings().proxyHost());
+                            m.put("proxyPort", MrNobodyApp.settings().proxyPort());
+                            result.success(m);
+                            return;
+                        }
+                        case "privacyMode": {
+                            String name = call.argument("mode");
+                            PrivacyController.Result r =
+                                    MrNobodyApp.applyPrivacyMode(PrivacyMode.fromName(name));
+                            Map<String, Object> m = new HashMap<>();
+                            // Report what was achieved, not what was asked:
+                            // a refused mode must not look like it applied.
+                            m.put("requested", r.requested.name());
+                            m.put("effective", r.effective.name());
+                            m.put("applied", r.isFullyApplied());
+                            m.put("label", r.effective.label());
+                            m.put("note", r.effective.description());
+                            m.put("problem", r.problem);
+                            result.success(m);
+                            return;
+                        }
+                        case "setProxy": {
+                            String kind = call.argument("kind");
+                            String host = call.argument("host");
+                            Integer port = call.argument("port");
+                            MrNobodyApp.settings().setProxy(kind, host, port == null ? 0 : port);
+                            String routeId = call.argument("route");
+                            if (routeId != null) MrNobodyApp.settings().setRouteId(routeId);
+                            // Re-apply so a live NOBODY session picks the change up.
+                            PrivacyController.Result r =
+                                    MrNobodyApp.applyPrivacyMode(PrivacyController.current());
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("applied", r.isFullyApplied());
+                            m.put("problem", r.problem);
+                            result.success(m);
+                            return;
+                        }
+                        case "engineInfo": {
+                            result.success(EngineInfo.describe(MainActivity.this));
+                            return;
+                        }
+                        case "revalidateRoute": {
+                            String problem = PrivacyController.revalidate(MrNobodyApp.settings());
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("ok", problem == null);
+                            m.put("problem", problem);
+                            m.put("mode", PrivacyController.current().name());
                             result.success(m);
                             return;
                         }
@@ -627,6 +683,13 @@ public class MainActivity extends FlutterActivity {
             case "profile":
                 MrNobodyApp.settings().setProfile(
                         PrivacyProfile.fromName(String.valueOf(value)));
+                break;
+            case "fingerprint":
+                // Was a dead toggle: read by the UI, enforced nowhere. The
+                // patches install before first page load, so this takes effect
+                // on newly opened tabs rather than retroactively.
+                MrNobodyApp.settings().setFingerprintProtection(
+                        Boolean.TRUE.equals(value));
                 break;
             case "searchEngine":
                 MrNobodyApp.settings().setSearchEngine(String.valueOf(value));

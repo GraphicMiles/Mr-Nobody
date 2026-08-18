@@ -24,6 +24,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.mrnobody.browser.MrNobodyApp;
+import com.mrnobody.browser.net.FingerprintDefence;
+import com.mrnobody.browser.net.ProfileManager;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.blocking.TrackingParams;
 import com.mrnobody.browser.download.DownloadEngine;
@@ -60,6 +62,13 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     /** Width of a tab-grid thumbnail, in pixels. */
     private static final int THUMBNAIL_WIDTH = 360;
 
+    /**
+     * Fingerprint noise seed, fixed for the life of the process. Stable within
+     * a session on purpose: re-randomising per call would be detectable by
+     * reading the same value twice.
+     */
+    private static final long FINGERPRINT_SEED = new java.util.Random().nextLong();
+
     private final Context context;
     private final WebView webView;
     private final FrameLayout container;
@@ -67,6 +76,9 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final boolean isPrivate;
     private final int tabId;
+
+    /** True when this tab genuinely has its own cookie/storage jar. */
+    private final boolean isolated;
 
     private int lastReportedScrollY;
     private boolean destroyed;
@@ -87,6 +99,21 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         WebView retained = tabId >= 0 ? TabWebViews.get(tabId) : null;
         boolean fresh = retained == null;
         this.webView = fresh ? new WebView(context) : retained;
+
+        // Storage isolation has to happen here, before the WebView navigates:
+        // setProfile throws once a page has loaded. Only a fresh WebView is
+        // eligible -- a retained one has already been bound and, if it is
+        // private, was bound to the same profile when it was created.
+        this.isolated = fresh && isPrivate
+                ? ProfileManager.applyPrivate(webView)
+                : (isPrivate && ProfileManager.isSupported());
+
+        // Reduce unnecessary uniqueness. Also before first load, for the same
+        // reason: a patch applied after page script has run is theatre.
+        if (fresh && MrNobodyApp.settings().isFingerprintProtection()) {
+            FingerprintDefence.apply(webView, FINGERPRINT_SEED);
+        }
+
         if (fresh && tabId >= 0) TabWebViews.put(tabId, webView, isPrivate);
 
         this.channel = new MethodChannel(messenger, "mrnobody/webview_" + viewId);
@@ -163,9 +190,20 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      * claims, so it has to be enforced here rather than asserted there.
      */
     private void applyCookiePolicy() {
-        CookieManager cookies = CookieManager.getInstance();
+        // Deliberately not CookieManager.getInstance(): that is always the
+        // *default* profile's manager, so on an isolated tab it would
+        // configure the wrong jar -- the policy would look set and not be.
+        CookieManager cookies = ProfileManager.cookiesFor(webView);
         cookies.setAcceptCookie(true); // first-party cookies still work
         cookies.setAcceptThirdPartyCookies(webView, false);
+    }
+
+    /**
+     * Whether this tab really is storage-isolated, for the UI to report
+     * accurately rather than assume.
+     */
+    boolean isIsolated() {
+        return isolated;
     }
 
     // ------------------------------------------------------------ page hooks

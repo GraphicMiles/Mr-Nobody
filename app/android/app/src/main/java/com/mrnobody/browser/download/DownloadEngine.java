@@ -6,13 +6,13 @@ import android.net.Uri;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.mrnobody.browser.net.NetworkGate;
 import com.mrnobody.debug.ErrorLog;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -405,7 +405,7 @@ public final class DownloadEngine {
         }
 
         private HttpURLConnection connect(long from) throws IOException {
-            HttpURLConnection conn = (HttpURLConnection) new URL(record.url).openConnection();
+            HttpURLConnection conn = NetworkGate.openHttp(record.url);
             conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
             conn.setReadTimeout(READ_TIMEOUT_MS);
             conn.setInstanceFollowRedirects(true);

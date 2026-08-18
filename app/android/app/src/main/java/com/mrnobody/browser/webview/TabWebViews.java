@@ -6,6 +6,8 @@ import android.webkit.WebView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.mrnobody.browser.net.ProfileManager;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -137,5 +139,21 @@ public final class TabWebViews {
         } catch (Throwable ignored) {
             // Tearing down a page must never take the app with it.
         }
+
+        // The isolated profile can only be deleted once nothing is using it,
+        // so this runs after destroy() and only when the last private tab has
+        // gone. Where multi-profile is unsupported it is a no-op and the
+        // clear-on-close above remains the only defence.
+        if (page.isPrivate && !hasPrivatePages()) {
+            ProfileManager.destroyPrivate();
+        }
+    }
+
+    /** True while any retained page is private. */
+    private static boolean hasPrivatePages() {
+        for (Page p : LIVE.values()) {
+            if (p != null && p.isPrivate) return true;
+        }
+        return false;
     }
 }

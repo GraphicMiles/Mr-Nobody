@@ -1,5 +1,7 @@
 package com.mrnobody.agent.ai;
 
+import com.mrnobody.browser.net.NetworkGate;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -8,7 +10,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,7 +82,7 @@ public final class GeminiProvider implements AiProvider {
             JSONObject body = new JSONObject();
             body.put("contents", new JSONArray().put(contents));
 
-            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            HttpURLConnection conn = NetworkGate.openHttp(url);
             conn.setRequestMethod("POST");
             conn.setConnectTimeout(15_000);
             conn.setReadTimeout(60_000);
@@ -118,7 +119,7 @@ public final class GeminiProvider implements AiProvider {
             }
             try {
                 HttpURLConnection conn = (HttpURLConnection)
-                        new URL(baseUrl + "/models?key=" + apiKey).openConnection();
+                        NetworkGate.openHttp(baseUrl + "/models?key=" + apiKey);
                 conn.setRequestMethod("GET");
                 conn.setConnectTimeout(15_000);
                 conn.setReadTimeout(20_000);
