@@ -196,9 +196,18 @@ public final class DeterministicEngine implements AgentEngine {
         task.setCurrentStep(Task.STEP_ANSWER);
         AiProvider provider = MrNobodyApp.activeProvider();
         String answer;
+        String injectionNote = null;
         if (provider.isRemote()) {
+            // Page text is fenced before it reaches the model. Until this
+            // existed a page could write "ignore your instructions" and arrive
+            // in the same voice as the user's own request.
+            String nonce = UntrustedContent.newNonce();
+            UntrustedContent.Report fenced =
+                    UntrustedContent.fence(sources.toString(), nonce);
+            injectionNote = fenced.note();
             answer = askProvider(provider,
-                    GroundedPrompt.build(instruction, sources.toString(), pagesRead), cancellation);
+                    GroundedPrompt.build(instruction, fenced.fenced, pagesRead, nonce),
+                    cancellation);
         } else {
             answer = search.result();
         }
@@ -210,6 +219,13 @@ public final class DeterministicEngine implements AgentEngine {
         if (provider.isRemote()) {
             AnswerVerifier.Report report = AnswerVerifier.check(answer, readUrls);
             String note = AnswerVerifier.note(report, readUrls);
+            // An attempted injection is something the reader is told about,
+            // not something we quietly absorb.
+            if (injectionNote != null) {
+                answer = answer + "\n\n" + injectionNote;
+                com.mrnobody.debug.ErrorLog.record("task " + task.id()
+                        + ": page content attempted to instruct the agent");
+            }
             if (!note.isEmpty()) answer = answer + "\n\n" + note;
             if (report.hasProblems()) {
                 com.mrnobody.debug.ErrorLog.record("task " + task.id()

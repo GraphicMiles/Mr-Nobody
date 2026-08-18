@@ -19,17 +19,38 @@ public final class GroundedPrompt {
      * @param pagesRead   true when whole pages were read, false for snippets only
      */
     public static String build(String instruction, String sources, boolean pagesRead) {
-        return "Question:\n" + instruction + "\n\n"
-                + (pagesRead
-                        ? "Below are the pages that were fetched for it. "
-                        : "Below are search result summaries — the pages themselves could not be read. ")
-                + "Use ONLY what is written below.\n"
-                + "\nRules:\n"
-                + "- Cite every claim with its source number, like [1].\n"
-                + "- If the sources do not answer the question, say exactly what is missing. "
-                + "Do not fill the gap from memory.\n"
-                + "- Do not name a source that is not listed below.\n"
-                + "- Prefer fewer, supported statements over a complete-looking answer.\n"
-                + "\nSources:\n" + sources;
+        return build(instruction, sources, pagesRead, null);
+    }
+
+    /**
+     * @param nonce the fence token when sources are wrapped by
+     *              {@link UntrustedContent}, or null for unfenced text
+     */
+    public static String build(String instruction, String sources, boolean pagesRead,
+                               String nonce) {
+        StringBuilder sb = new StringBuilder();
+
+        // The user's question comes first and is named as theirs, so the model
+        // has already been told who it works for before it reads any page.
+        sb.append("Question from the user:\n").append(instruction).append("\n\n");
+
+        sb.append(pagesRead
+                ? "Below are the pages that were fetched for it. "
+                : "Below are search result summaries — the pages themselves could not be read. ");
+        sb.append("Use ONLY what is written below.\n");
+
+        if (nonce != null && !nonce.isEmpty()) {
+            sb.append("\n").append(UntrustedContent.rules(nonce));
+        }
+
+        sb.append("\nRules:\n")
+                .append("- Cite every claim with its source number, like [1].\n")
+                .append("- If the sources do not answer the question, say exactly what is missing. ")
+                .append("Do not fill the gap from memory.\n")
+                .append("- Do not name a source that is not listed below.\n")
+                .append("- Prefer fewer, supported statements over a complete-looking answer.\n")
+                .append("\nSources:\n").append(sources);
+
+        return sb.toString();
     }
 }
