@@ -33,6 +33,10 @@ class IntentRouter {
     'instagram', 'twitter', 'meaning', 'definition', 'capital', 'population',
   };
 
+  static final _scheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://');
+  static final _ip = RegExp(r'^\d{1,3}(\.\d{1,3}){3}(:\d+)?$');
+  static final _localhost = RegExp(r'^localhost(:\d+)?$');
+
   static IntentType route(String input) {
     final s = input.trim();
     if (s.isEmpty) return IntentType.search;
