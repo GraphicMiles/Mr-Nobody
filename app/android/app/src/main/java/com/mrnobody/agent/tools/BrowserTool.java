@@ -3,6 +3,7 @@ package com.mrnobody.agent.tools;
 import android.content.Context;
 
 import com.mrnobody.agent.browser.BrowserEngine;
+import com.mrnobody.agent.browser.PageAnchor;
 import com.mrnobody.agent.core.OutputSpec;
 import com.mrnobody.agent.core.ParamSpec;
 import com.mrnobody.agent.core.Tier;
@@ -27,6 +28,9 @@ public final class BrowserTool implements Tool {
     private static final java.util.Set<String> READ_ACTIONS =
             java.util.Set.of("fetch", "extract", "title");
 
+    /** The last URL this tool navigated to, for anchoring. */
+    private volatile String lastKnownUrl = "";
+
     private static final ToolSpec SPEC = ToolSpec.named("browser")
             .describedAs("Open, navigate and extract text from a web page.")
             // The declared tier is the worst this tool can do; a read-only
@@ -41,6 +45,9 @@ public final class BrowserTool implements Tool {
             .param(ParamSpec.enumOf("direction", false, "Scroll direction.", "up", "down"))
             .param(ParamSpec.integer("ms", false, "Milliseconds to wait."))
             .param(ParamSpec.integer("timeout", false, "Page load budget in milliseconds."))
+            .param(ParamSpec.text("anchorText", false,
+                    "Page text the decision was based on; the action is refused if it moved.", 8192))
+            .param(ParamSpec.url("anchorUrl", false, "URL the decision was based on."))
             .returns(OutputSpec.of(BrowserTool::render, "action"))
             .timeout(30_000)
             .build();
@@ -55,6 +62,43 @@ public final class BrowserTool implements Tool {
         return READ_ACTIONS.contains(request.action()) ? Tier.READ : Tier.WRITE;
     }
 
+    /**
+     * Refuse an action when the page is no longer the one the agent read.
+     *
+     * <p>Opt-in per call: the caller passes the text it based its decision on.
+     * Without it we cannot tell drift from replacement, and refusing every
+     * unanchored action would break the visible-browser path that has no
+     * prior read to anchor against.
+     *
+     * @return a reason to refuse, or null to proceed
+     */
+    private String checkAnchor(ToolRequest request) {
+        String expected = request.param("anchorText");
+        if (expected == null || expected.isEmpty()) return null;
+
+        PageAnchor anchor = PageAnchor.of(request.param("anchorUrl"), expected);
+        String reason = anchor.staleReason(currentUrl(), engine.extractText());
+        if (reason == null) return null;
+
+        // Refusing is recoverable -- the agent can re-read and decide again.
+        // Clicking the wrong element is not.
+        return "Refused: " + reason + ". Read the page again before acting on it.";
+    }
+
+    /**
+     * Where this tool last navigated.
+     *
+     * <p>{@link BrowserEngine} exposes no current-URL accessor, so the anchor
+     * compares against what we last opened. That is weaker than asking the
+     * engine -- a page that redirected itself is not detected -- but it does
+     * catch the case the anchor exists for: the agent navigating elsewhere
+     * between reading and acting. Adding {@code url()} to the engine would
+     * close the gap and is a wider change than this.
+     */
+    private String currentUrl() {
+        return lastKnownUrl;
+    }
+
     @Override
     public ToolResult execute(Context context, ToolRequest request) {
         if (engine == null) return ToolResult.fail("no browser engine configured");
@@ -64,6 +108,7 @@ public final class BrowserTool implements Tool {
                 String url = request.param("url");
                 if (url == null || url.isEmpty()) return ToolResult.fail("browser.open needs 'url'");
                 engine.open(url);
+                lastKnownUrl = url;
                 return value("open", "url", url, "status", "opened");
             case "fetch":
                 // Load + extract in one blocking call (the agent's extraction path).
@@ -73,6 +118,7 @@ public final class BrowserTool implements Tool {
                 }
                 long timeout = parseLong(request.param("timeout"), 20_000);
                 String text = engine.loadAndExtract(fetchUrl, timeout);
+                lastKnownUrl = fetchUrl;
                 return value("fetch", "url", fetchUrl, "text", text);
             case "back":
                 engine.back();
@@ -90,6 +136,8 @@ public final class BrowserTool implements Tool {
             case "click": {
                 String sel = request.param("selector");
                 if (sel == null || sel.isEmpty()) return ToolResult.fail("browser.click needs 'selector'");
+                String stale = checkAnchor(request);
+                if (stale != null) return ToolResult.fail(stale);
                 return engine.click(sel)
                         ? value("click", "selector", sel, "status", "clicked")
                         : ToolResult.fail("no element matched " + sel);
@@ -99,6 +147,8 @@ public final class BrowserTool implements Tool {
                 String typedText = request.param("text");
                 if (sel == null || sel.isEmpty()) return ToolResult.fail("browser.type needs 'selector'");
                 if (typedText == null) typedText = "";
+                String staleType = checkAnchor(request);
+                if (staleType != null) return ToolResult.fail(staleType);
                 return engine.type(sel, typedText)
                         ? value("type", "selector", sel, "status", "typed")
                         : ToolResult.fail("no element matched " + sel);

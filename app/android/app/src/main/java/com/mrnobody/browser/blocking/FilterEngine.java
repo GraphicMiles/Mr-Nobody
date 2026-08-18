@@ -3,7 +3,10 @@ package com.mrnobody.browser.blocking;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.mrnobody.debug.ErrorLog;
+
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -27,6 +30,21 @@ public final class FilterEngine {
     /** Bundled filter-list version. Bump when the blocklist changes. */
     private static final String FILTER_VERSION = "1";
 
+    /**
+     * SHA-256 of the bundled {@code blocklist.txt}, pinned at build time.
+     *
+     * <p>Must be regenerated whenever the asset changes:
+     * {@code sha256sum app/src/main/assets/blocklist.txt}. A stale value fails
+     * closed -- blocking switches off and the reason is logged -- which is the
+     * intended direction: a list we cannot vouch for should not silently
+     * decide what gets blocked.
+     */
+    private static final String BUNDLED_DIGEST =
+            "3ed6a3b8b92e87799efb13532fa0e827add9f16687b4b2e0cb4d92b6747990ae";
+
+    /** Generous ceiling for the bundled list; guards a corrupt/hostile asset. */
+    private static final int MAX_LIST_BYTES = 4 * 1024 * 1024;
+
     private final Blocklist blocklist = new Blocklist();
     private volatile boolean loaded = false;
     private volatile boolean enabled = true;
@@ -48,7 +66,20 @@ public final class FilterEngine {
 
     public void loadBundled(Context context) {
         try (InputStream in = context.getAssets().open("blocklist.txt")) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in, "UTF-8"));
+            // Verify before parsing, not after: a list that fails the check
+            // must never have reached the matcher, even briefly.
+            byte[] raw = FilterIntegrity.readBounded(in, MAX_LIST_BYTES);
+            FilterIntegrity.Result check = FilterIntegrity.verify(raw, BUNDLED_DIGEST);
+            if (!check.ok) {
+                // Fail closed. Blocking off is visible and recoverable; running
+                // an unverified blocklist is neither.
+                loaded = false;
+                ErrorLog.record("blocklist integrity check failed: " + check.reason);
+                return;
+            }
+
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(new ByteArrayInputStream(raw), "UTF-8"));
             Blocklist.Category current = blocklist.ads;
             String line;
             while ((line = reader.readLine()) != null) {

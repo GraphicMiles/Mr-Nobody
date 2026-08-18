@@ -33,7 +33,13 @@ public final class TaskWorker extends Worker {
     public static final String KEY_TASK_ID = "task_id";
 
     /** How often the row is stamped while work is in flight. */
-    private static final long HEARTBEAT_MS = 20_000L;
+    /**
+     * How often a running task reports in. Sourced from {@link Heartbeat} so
+     * the writer and the reader of a beat can never disagree about the
+     * interval -- a liveness check calibrated to a different period than the
+     * beat itself either kills live tasks or never fires.
+     */
+    private static final long HEARTBEAT_MS = Heartbeat.INTERVAL_MS;
 
     /** A cancel flag is re-read from storage at most this often. */
     private static final long CANCEL_POLL_MS = 500L;
@@ -54,6 +60,10 @@ public final class TaskWorker extends Worker {
         // Anything left RUNNING by a process that died is closed out before we
         // add more work; see TaskReconciler.
         MrNobodyApp.tasks().reconcileStale(TaskReconciler.DEFAULT_STALE_AFTER_MS);
+        // Faster sweep for tasks that were beating and stopped. Silence from a
+        // task that had been reporting is a dead worker, not a slow one, so it
+        // can be recovered in seconds instead of waiting out the stale window.
+        MrNobodyApp.tasks().reconcileDead(Heartbeat.DEAD_AFTER_MS);
 
         Task task = MrNobodyApp.tasks().get(taskId);
         if (task == null) {
@@ -80,6 +90,11 @@ public final class TaskWorker extends Worker {
             default:
                 break;
         }
+
+        // Stamped before dispatch: a recurring schedule measures from when a
+        // run began, so a crash mid-run still counts as an attempt and cannot
+        // spin into a retry loop that fires continuously.
+        MrNobodyApp.tasks().markRun(taskId);
 
         ScheduledExecutorService heartbeat = startHeartbeat(taskId);
         try {
@@ -145,7 +160,13 @@ public final class TaskWorker extends Worker {
             return t;
         });
         executor.scheduleWithFixedDelay(
-                () -> MrNobodyApp.tasks().touch(taskId),
+                () -> {
+                    // touch() advances the row's age so the stale sweep leaves
+                    // a live task alone; beat() records liveness proper. Both,
+                    // because the two reconcilers read different columns.
+                    MrNobodyApp.tasks().touch(taskId);
+                    MrNobodyApp.tasks().beat(taskId);
+                },
                 HEARTBEAT_MS, HEARTBEAT_MS, TimeUnit.MILLISECONDS);
         return executor;
     }

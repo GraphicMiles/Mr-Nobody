@@ -13,6 +13,15 @@ public interface TaskScheduler {
     /** Schedule a task to run in the background (resumable, local-first). */
     void schedule(Context context, long taskId);
 
-    /** Cancel a scheduled task. */
+    /**
+     * Schedule a task to repeat.
+     *
+     * <p>Separate from {@link #schedule} because a recurring request is a
+     * different object with different replace semantics, and conflating them
+     * would let a one-shot silently cancel a repeating schedule.
+     */
+    void scheduleRepeating(Context context, long taskId, Schedule schedule);
+
+    /** Cancel a scheduled task, one-shot or recurring. */
     void cancel(Context context, long taskId);
 }
