@@ -56,6 +56,32 @@ public class DeterministicPlannerTest {
     }
 
     @Test
+    public void aDownloadByNamePlansResolveThenDownload() {
+        // "download moci" names no URL, so it cannot route straight to the
+        // downloader. The plan must search, read, then resolve a file link —
+        // not hand the model an invented URL.
+        Plan plan = planner.plan("download moci", TOOLS);
+
+        assertEquals(5, plan.size());
+        assertEquals(Task.STEP_SEARCH, plan.steps().get(0).label);
+        assertEquals(Task.STEP_READ, plan.steps().get(1).label);
+        assertEquals(Task.STEP_RESOLVE_DOWNLOAD, plan.steps().get(2).label);
+        assertEquals(Task.STEP_ANSWER, plan.steps().get(3).label);
+        assertEquals(Task.STEP_VERIFY, plan.steps().get(4).label);
+    }
+
+    @Test
+    public void aQuestionStillPlansThePlainCascade() {
+        Plan plan = planner.plan("what is the capital of ghana", TOOLS);
+
+        assertEquals(4, plan.size());
+        assertEquals(Task.STEP_SEARCH, plan.steps().get(0).label);
+        assertEquals(Task.STEP_READ, plan.steps().get(1).label);
+        assertEquals(Task.STEP_ANSWER, plan.steps().get(2).label);
+        assertEquals(Task.STEP_VERIFY, plan.steps().get(3).label);
+    }
+
+    @Test
     public void aToolThatIsNotRegisteredIsNeverRoutedTo() {
         // With no download tool, the same instruction falls back to research
         // rather than planning a call the engine cannot serve.

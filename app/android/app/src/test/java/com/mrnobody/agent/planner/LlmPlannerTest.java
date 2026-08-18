@@ -174,7 +174,9 @@ public class LlmPlannerTest {
         // answers instead of failing on the bogus download.
         FakeProvider p = new FakeProvider(
                 "{\"steps\":[{\"tool\":\"download\",\"args\":{\"url\":\"notaurl\"}}]}");
-        Plan plan = new LlmPlanner(p).plan("download it", TOOLS);
+        // "read it" is not a download intent, so the fallback is the plain
+        // four-step cascade.
+        Plan plan = new LlmPlanner(p).plan("read it", TOOLS);
 
         assertEquals(4, plan.size());
         assertEquals(Task.STEP_SEARCH, plan.steps().get(0).label);

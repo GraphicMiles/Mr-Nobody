@@ -51,6 +51,7 @@ public final class Task {
 
     public static final String STEP_SEARCH = "Search";
     public static final String STEP_READ = "Read sources";
+    public static final String STEP_RESOLVE_DOWNLOAD = "Resolve download";
     public static final String STEP_ANSWER = "Answer";
     public static final String STEP_VERIFY = "Verify";
 

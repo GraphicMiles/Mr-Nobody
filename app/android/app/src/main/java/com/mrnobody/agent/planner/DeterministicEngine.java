@@ -16,6 +16,7 @@ import com.mrnobody.agent.policy.BudgetGuard;
 import com.mrnobody.agent.policy.RepeatCallGuard;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
+import com.mrnobody.agent.util.DownloadLinkResolver;
 import com.mrnobody.agent.util.Hosts;
 import com.mrnobody.agent.tasks.Schedule;
 import com.mrnobody.agent.tasks.TaskStreamHub;
@@ -258,6 +259,22 @@ public final class DeterministicEngine implements AgentEngine {
                     continue;
                 }
 
+                if ("download".equals(step.tool)) {
+                    // A download is the point of the task, not a step that
+                    // should sink it. Record success or failure and carry on to
+                    // the answer, so the user hears "downloaded to folder" or
+                    // "download failed: 404" instead of the whole task dying.
+                    if (result.isSuccess()) {
+                        Map<String, Object> v = result.value();
+                        r.downloadNote = "Downloaded " + v.get("name")
+                                + " to " + v.get("folder") + ".";
+                    } else {
+                        r.downloadNote = "Download failed: " + result.error() + ".";
+                    }
+                    plan.advance();
+                    continue;
+                }
+
                 // A failed action step can be replanned: a model-backed planner
                 // proposes what to do instead; a deterministic one has nothing
                 // to offer and the task fails as before.
@@ -275,6 +292,10 @@ public final class DeterministicEngine implements AgentEngine {
                 case Task.STEP_READ:
                     task.setCurrentStep(Task.STEP_READ);
                     planReads(plan, r);
+                    break;
+                case Task.STEP_RESOLVE_DOWNLOAD:
+                    task.setCurrentStep(Task.STEP_RESOLVE_DOWNLOAD);
+                    resolveDownload(context, plan, r, cancellation);
                     break;
                 case Task.STEP_ANSWER:
                     task.setCurrentStep(Task.STEP_ANSWER);
@@ -367,6 +388,64 @@ public final class DeterministicEngine implements AgentEngine {
         return callTool(context, "browser", ToolRequest.of("fetch", "url", url), cancellation);
     }
 
+    /**
+     * Find the file to download from what the search and reads turned up, and
+     * enqueue a download step for it.
+     *
+     * <p>The order is the honest one: a search result that is itself a file
+     * wins; otherwise the pages are re-read through the headless browser to
+     * collect their links, and the best file is chosen — preferring the user's
+     * own named site. When nothing is downloadable the answer step says so
+     * plainly instead of inventing a URL.
+     */
+    private void resolveDownload(Context context, Plan plan, Research r, Cancellation cancellation) {
+        java.util.List<String> candidates = new java.util.ArrayList<>();
+
+        // Direct hits: a search result that is already a file URL.
+        if (r.results != null) {
+            for (Map<String, Object> res : r.results) {
+                String url = String.valueOf(res.get("url"));
+                if (DownloadLinkResolver.isDownloadable(url)) candidates.add(url);
+            }
+        }
+
+        // The pages themselves: ask the browser for their links.
+        if (tools.containsKey("browser")) {
+            java.util.List<String> pages = new java.util.ArrayList<>();
+            if (r.namedUrl != null) pages.add(r.namedUrl);
+            for (String u : r.readUrls) {
+                if (!pages.contains(u)) pages.add(u);
+            }
+            if (r.results != null) {
+                for (Map<String, Object> res : r.results) {
+                    String url = String.valueOf(res.get("url"));
+                    if (url != null && !url.isEmpty() && !pages.contains(url)) pages.add(url);
+                }
+            }
+            for (String page : pages) {
+                if (cancellation != null && cancellation.isCancelled()) return;
+                ToolResult links = callTool(context, "browser",
+                        ToolRequest.of("links", "url", page), cancellation);
+                if (!links.isSuccess()) continue;
+                Object o = links.value().get("links");
+                if (o instanceof java.util.List) {
+                    for (Object item : (java.util.List<?>) o) {
+                        if (item instanceof String) candidates.add((String) item);
+                    }
+                }
+            }
+        }
+
+        String preferred = r.namedUrl == null ? null : Hosts.firstIn(r.namedUrl);
+        String best = DownloadLinkResolver.resolve(candidates, preferred);
+        if (best != null) {
+            plan.insertNext(Plan.Step.tool("Download", "download",
+                    ToolRequest.of("download", "url", best), "resolved download link"));
+        } else {
+            r.downloadNote = "No downloadable file was found on the pages read.";
+        }
+    }
+
     /** Answer, strictly from the sources read; fall back to snippets when none read. */
     private void answerStep(Context context, Task task, Cancellation cancellation, Research r) {
         // Nothing readable: keep the snippets, but say what they are. Frozen
@@ -405,6 +484,12 @@ public final class DeterministicEngine implements AgentEngine {
             r.answer = r.sources.length() == 0
                     ? "(nothing to report)"
                     : "Read:\n" + r.sources.toString();
+        }
+
+        // The download is an action the engine took, not a claim the model
+        // paraphrases: append it verbatim so the user gets the fact.
+        if (r.downloadNote != null && !r.downloadNote.isEmpty()) {
+            r.answer = r.answer + "\n\n" + r.downloadNote;
         }
     }
 
@@ -475,6 +560,9 @@ public final class DeterministicEngine implements AgentEngine {
         boolean pagesRead;
         String answer = "";
         String injectionNote;
+
+        /** What the download step did, appended to the answer verbatim. */
+        String downloadNote;
     }
 
     /** Local time, so "read at" means something to the person reading it. */

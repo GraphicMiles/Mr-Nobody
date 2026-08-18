@@ -30,12 +30,20 @@ public final class DeterministicPlanner implements Planner {
             return Plan.of(Plan.Step.tool(Task.STEP_ACT, route.tool, route.request, route.reason));
         }
 
-        return Plan.of(
-                Plan.Step.tool(Task.STEP_SEARCH, "search",
-                        ToolRequest.of("search", "q", instruction == null ? "" : instruction.trim()),
-                        "find sources to answer from"),
-                Plan.Step.internal(Task.STEP_READ),
-                Plan.Step.internal(Task.STEP_ANSWER),
-                Plan.Step.internal(Task.STEP_VERIFY));
+        // A download asked by name, not by link ("download moci"): search for
+        // it, read the pages, resolve a file link from them, and download that —
+        // instead of the model inventing a URL the page never offered.
+        boolean wantsDownload = availableTools.contains("download")
+                && ToolRouter.isDownloadIntent(instruction);
+
+        java.util.List<Plan.Step> steps = new java.util.ArrayList<>();
+        steps.add(Plan.Step.tool(Task.STEP_SEARCH, "search",
+                ToolRequest.of("search", "q", instruction == null ? "" : instruction.trim()),
+                "find sources to answer from"));
+        steps.add(Plan.Step.internal(Task.STEP_READ));
+        if (wantsDownload) steps.add(Plan.Step.internal(Task.STEP_RESOLVE_DOWNLOAD));
+        steps.add(Plan.Step.internal(Task.STEP_ANSWER));
+        steps.add(Plan.Step.internal(Task.STEP_VERIFY));
+        return new Plan(steps);
     }
 }
