@@ -18,6 +18,7 @@ import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.agent.util.Hosts;
 import com.mrnobody.agent.tasks.Schedule;
+import com.mrnobody.agent.tasks.TaskStreamHub;
 import com.mrnobody.browser.MrNobodyApp;
 
 import java.util.ArrayList;
@@ -222,7 +223,7 @@ public final class DeterministicEngine implements AgentEngine {
             injectionNote = fenced.note();
             answer = askProvider(provider,
                     GroundedPrompt.build(instruction, fenced.fenced, pagesRead, nonce),
-                    cancellation);
+                    cancellation, task.id());
         } else {
             answer = search.result();
         }
@@ -426,15 +427,30 @@ public final class DeterministicEngine implements AgentEngine {
      * under a second rather than after the whole timeout. A blocking
      * {@code await(90s)} here is what made "cancel" mean "cancel, eventually".
      */
-    private String askProvider(AiProvider provider, String prompt, Cancellation cancellation) {
+    private String askProvider(AiProvider provider, String prompt, Cancellation cancellation,
+                               long taskId) {
         final CountDownLatch latch = new CountDownLatch(1);
         final String[] out = {"(no AI response)"};
         try {
-            provider.complete(SYSTEM_PROMPT, prompt, new AiProvider.CompletionCallback() {
-                @Override public void onResult(String text) { out[0] = text; latch.countDown(); }
+            // Stream, so the answer reaches the task chat as it is generated
+            // rather than all at once at the end. The same callback path that
+            // used to call complete() now forwards each token to the hub; the
+            // final text still comes back whole for verification. A provider
+            // that cannot stream falls back to one token, so nothing here
+            // branches on capability.
+            provider.stream(SYSTEM_PROMPT, prompt, new AiProvider.StreamCallback() {
+                @Override public void onToken(String token) {
+                    TaskStreamHub.instance().emitToken(taskId, token);
+                }
+                @Override public void onDone(String fullText) {
+                    out[0] = fullText;
+                    TaskStreamHub.instance().emitDone(taskId, fullText);
+                    latch.countDown();
+                }
                 @Override public void onError(String error) {
                     out[0] = "AI error: " + error;
                     com.mrnobody.debug.ErrorLog.record("AI provider: " + error);
+                    TaskStreamHub.instance().emitError(taskId, error);
                     latch.countDown();
                 }
             });

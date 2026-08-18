@@ -18,6 +18,7 @@ import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadRecord;
 import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.tasks.TaskEventStore;
+import com.mrnobody.agent.tasks.TaskStreamHub;
 import com.mrnobody.browser.net.EngineInfo;
 import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
@@ -42,6 +43,7 @@ import java.util.concurrent.Executors;
 
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
+import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodChannel;
 
 /**
@@ -64,6 +66,9 @@ public class MainActivity extends FlutterActivity {
 
     @Nullable
     private MethodChannel deeplinkChannel;
+
+    /** Task-stream listeners, keyed by task id, so {@code onCancel} can drop them. */
+    private final Map<Long, TaskStreamHub.Listener> streamListeners = new HashMap<>();
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
@@ -534,9 +539,59 @@ public class MainActivity extends FlutterActivity {
                     }
                 });
 
+        // Task answer stream: the worker emits tokens through TaskStreamHub as
+        // a remote provider generates them; this forwards them to the task chat
+        // so the reveal is real arrival rather than a timed replay of a
+        // finished string. Fire-and-forget — a token with no listener is
+        // dropped, and the finished answer still lands in the task row.
+        new EventChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "mrnobody/task-stream")
+                .setStreamHandler(new EventChannel.StreamHandler() {
+                    @Override
+                    public void onListen(Object arguments, EventChannel.EventSink events) {
+                        final long taskId = arguments instanceof Number
+                                ? ((Number) arguments).longValue() : -1L;
+                        if (taskId < 0) {
+                            events.error("bad_arg", "task id required", null);
+                            return;
+                        }
+                        TaskStreamHub.Listener listener = new TaskStreamHub.Listener() {
+                            @Override public void onToken(long id, String token) {
+                                events.success(streamEvent(id, "token", token));
+                            }
+                            @Override public void onDone(long id, String fullText) {
+                                events.success(streamEvent(id, "done", fullText));
+                            }
+                            @Override public void onError(long id, String error) {
+                                events.success(streamEvent(id, "error", error));
+                            }
+                        };
+                        streamListeners.put(taskId, listener);
+                        TaskStreamHub.instance().subscribe(taskId, listener);
+                    }
+
+                    @Override
+                    public void onCancel(Object arguments) {
+                        final long taskId = arguments instanceof Number
+                                ? ((Number) arguments).longValue() : -1L;
+                        TaskStreamHub.Listener listener = streamListeners.remove(taskId);
+                        if (listener != null) {
+                            TaskStreamHub.instance().unsubscribe(taskId, listener);
+                        }
+                    }
+                });
+
         // Deep-link channel: forward incoming intents to Dart.
         deeplinkChannel = new MethodChannel(
                 flutterEngine.getDartExecutor().getBinaryMessenger(), DEEPLINK);
+    }
+
+    /** One task-stream event, as the task chat expects it. */
+    private static Map<String, Object> streamEvent(long taskId, String type, String text) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("taskId", taskId);
+        m.put("type", type);
+        m.put("text", text);
+        return m;
     }
 
     /** Result of the system folder picker; see "pickDownloadFolder". */
