@@ -28,7 +28,13 @@ public final class TokenBudget {
     /** Estimate the token count of a string. Cheap, not exact. */
     public static long estimateTokens(String text) {
         if (text == null || text.isEmpty()) return 0;
-        return Math.max(1, Math.round(text.length() / CHARS_PER_TOKEN));
+        return estimateTokens(text.length());
+    }
+
+    /** Estimate the token count of {@code chars} characters. Cheap, not exact. */
+    public static long estimateTokens(long chars) {
+        if (chars <= 0) return 0;
+        return Math.max(1, Math.round(chars / CHARS_PER_TOKEN));
     }
 
     /** Rough context-window size per model family. */
