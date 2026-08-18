@@ -10,11 +10,17 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * A generic OpenAI-compatible chat-completions provider. Concrete providers
- * (Groq, and any OpenAI-compatible gateway) subclass this with their base URL
- * and default model. Gemini has its own native subclass; see GeminiProvider.
+ * A generic OpenAI-compatible chat-completions provider — Groq, OpenRouter,
+ * Together, a local llama.cpp server, anything that speaks the same shape.
+ *
+ * <p>Nothing about a specific model is baked in. The base URL comes from the
+ * user, the model comes from {@link #listModels} (the provider's own catalogue,
+ * fetched with the user's key), and a request with no model configured fails
+ * with a sentence that says so instead of a 404 from someone else's server.
  */
 public class OpenAiCompatibleProvider implements AiProvider {
 
@@ -48,6 +54,15 @@ public class OpenAiCompatibleProvider implements AiProvider {
     }
 
     private void doComplete(String system, String user, CompletionCallback callback) {
+        if (model == null || model.trim().isEmpty()) {
+            callback.onError("No model chosen for " + displayName
+                    + ". Open Settings → AI provider, refresh the model list and pick one.");
+            return;
+        }
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            callback.onError("No API key for " + displayName + ".");
+            return;
+        }
         try {
             JSONObject body = new JSONObject();
             body.put("model", model);
@@ -75,7 +90,7 @@ public class OpenAiCompatibleProvider implements AiProvider {
             InputStream in = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
             String response = readAll(in);
             if (code < 200 || code >= 300) {
-                callback.onError("HTTP " + code + ": " + truncate(response));
+                callback.onError(explain(code, response));
                 return;
             }
             String text = new JSONObject(response)
@@ -85,6 +100,70 @@ public class OpenAiCompatibleProvider implements AiProvider {
         } catch (Exception e) {
             callback.onError(e.getMessage());
         }
+    }
+
+    @Override
+    public void listModels(ModelsCallback callback) {
+        new Thread(() -> {
+            if (apiKey == null || apiKey.trim().isEmpty()) {
+                callback.onError("Add an API key first.");
+                return;
+            }
+            try {
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(baseUrl + "/models").openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(15_000);
+                conn.setReadTimeout(20_000);
+                conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+                int code = conn.getResponseCode();
+                InputStream in = (code >= 200 && code < 300)
+                        ? conn.getInputStream() : conn.getErrorStream();
+                String response = readAll(in);
+                if (code < 200 || code >= 300) {
+                    callback.onError(explain(code, response));
+                    return;
+                }
+                JSONArray data = new JSONObject(response).optJSONArray("data");
+                List<String> ids = new ArrayList<>();
+                if (data != null) {
+                    for (int i = 0; i < data.length(); i++) {
+                        JSONObject item = data.optJSONObject(i);
+                        if (item == null) continue;
+                        String id = item.optString("id", "");
+                        if (!id.isEmpty()) ids.add(id);
+                    }
+                }
+                callback.onModels(ModelCatalog.ordered(ids));
+            } catch (Exception e) {
+                callback.onError(message(e));
+            }
+        }, "models-" + id).start();
+    }
+
+    /** Turn a provider's HTTP failure into something a person can act on. */
+    private String explain(int code, String response) {
+        String detail = truncate(response);
+        switch (code) {
+            case 401:
+            case 403:
+                return "The API key was rejected by " + displayName + " (HTTP " + code + ").";
+            case 404:
+                if (detail != null && detail.contains("model")) {
+                    return "\"" + model + "\" is not available on this key. Refresh the model "
+                            + "list in Settings → AI provider and pick another.";
+                }
+                return "Not found at " + baseUrl + " (HTTP 404). Check the base URL.";
+            case 429:
+                return displayName + " is rate-limiting this key (HTTP 429). Try again shortly.";
+            default:
+                return "HTTP " + code + ": " + detail;
+        }
+    }
+
+    private static String message(Exception e) {
+        String m = e.getMessage();
+        return m == null || m.isEmpty() ? e.getClass().getSimpleName() : m;
     }
 
     private static String readAll(InputStream in) throws Exception {

@@ -10,6 +10,8 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Google Gemini via its native generateContent REST API (not the OpenAI
@@ -20,22 +22,23 @@ import java.nio.charset.StandardCharsets;
  */
 public final class GeminiProvider implements AiProvider {
 
-    /** Free-tier default (Google AI Studio). */
+    /** Google AI Studio's endpoint. Suggested, and still editable. */
     public static final String DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta";
-    public static final String DEFAULT_MODEL = "gemini-2.0-flash";
 
     private final String baseUrl;
     private final String model;
     private final String apiKey;
 
     public GeminiProvider(String apiKey) {
-        this(DEFAULT_BASE, DEFAULT_MODEL, apiKey);
+        this(DEFAULT_BASE, "", apiKey);
     }
 
     public GeminiProvider(String baseUrl, String model, String apiKey) {
         this.baseUrl = (baseUrl == null || baseUrl.trim().isEmpty())
                 ? DEFAULT_BASE : baseUrl.replaceAll("/+$", "");
-        this.model = (model == null || model.trim().isEmpty()) ? DEFAULT_MODEL : model;
+        // No default: model ids are the first thing a provider retires, so the
+        // list is fetched from the account and the user chooses.
+        this.model = model == null ? "" : ModelCatalog.stripPrefix(model.trim());
         this.apiKey = apiKey;
     }
 
@@ -54,6 +57,15 @@ public final class GeminiProvider implements AiProvider {
     }
 
     private void doComplete(String system, String user, CompletionCallback callback) {
+        if (model.isEmpty()) {
+            callback.onError("No model chosen for Gemini. Open Settings → AI provider, "
+                    + "refresh the model list and pick one.");
+            return;
+        }
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            callback.onError("No API key for Gemini.");
+            return;
+        }
         try {
             String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
 
@@ -84,7 +96,7 @@ public final class GeminiProvider implements AiProvider {
             InputStream in = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
             String response = readAll(in);
             if (code < 200 || code >= 300) {
-                callback.onError("HTTP " + code + ": " + truncate(response));
+                callback.onError(explain(code, response));
                 return;
             }
             String text = new JSONObject(response)
@@ -94,6 +106,77 @@ public final class GeminiProvider implements AiProvider {
             callback.onResult(text);
         } catch (Exception e) {
             callback.onError(e.getMessage());
+        }
+    }
+
+    @Override
+    public void listModels(ModelsCallback callback) {
+        new Thread(() -> {
+            if (apiKey == null || apiKey.trim().isEmpty()) {
+                callback.onError("Add an API key first.");
+                return;
+            }
+            try {
+                HttpURLConnection conn = (HttpURLConnection)
+                        new URL(baseUrl + "/models?key=" + apiKey).openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(15_000);
+                conn.setReadTimeout(20_000);
+                int code = conn.getResponseCode();
+                InputStream in = (code >= 200 && code < 300)
+                        ? conn.getInputStream() : conn.getErrorStream();
+                String response = readAll(in);
+                if (code < 200 || code >= 300) {
+                    callback.onError(explain(code, response));
+                    return;
+                }
+                JSONArray models = new JSONObject(response).optJSONArray("models");
+                List<String> ids = new ArrayList<>();
+                if (models != null) {
+                    for (int i = 0; i < models.length(); i++) {
+                        JSONObject m = models.optJSONObject(i);
+                        if (m == null) continue;
+                        // Only models that can answer a prompt: the same list
+                        // carries embedding and media models.
+                        JSONArray methods = m.optJSONArray("supportedGenerationMethods");
+                        boolean generates = methods == null;
+                        if (methods != null) {
+                            for (int j = 0; j < methods.length(); j++) {
+                                if ("generateContent".equals(methods.optString(j))) {
+                                    generates = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!generates) continue;
+                        String name = ModelCatalog.stripPrefix(m.optString("name", ""));
+                        if (!name.isEmpty()) ids.add(name);
+                    }
+                }
+                callback.onModels(ModelCatalog.ordered(ids));
+            } catch (Exception e) {
+                String m = e.getMessage();
+                callback.onError(m == null ? e.getClass().getSimpleName() : m);
+            }
+        }, "models-gemini").start();
+    }
+
+    /** Turn a Google API failure into something a person can act on. */
+    private String explain(int code, String response) {
+        String detail = truncate(response);
+        switch (code) {
+            case 400:
+                return "Gemini rejected the request (HTTP 400): " + detail;
+            case 401:
+            case 403:
+                return "The API key was rejected by Gemini (HTTP " + code + ").";
+            case 404:
+                return "\"" + model + "\" is not available on this key. Refresh the model list "
+                        + "in Settings → AI provider and pick another.";
+            case 429:
+                return "Gemini is rate-limiting this key (HTTP 429). Try again shortly.";
+            default:
+                return "HTTP " + code + ": " + detail;
         }
     }
 

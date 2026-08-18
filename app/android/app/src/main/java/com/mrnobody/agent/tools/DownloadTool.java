@@ -43,12 +43,18 @@ public final class DownloadTool implements Tool {
         try {
             DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
             if (dm == null) return ToolResult.fail("DownloadManager unavailable");
+            String name = com.mrnobody.browser.download.DownloadNaming.fileName(url, null, null);
             DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
+            req.setTitle(name);
+            req.setDescription("Downloaded by Mr Nobody");
+            req.setDestinationInExternalPublicDir(
+                    android.os.Environment.DIRECTORY_DOWNLOADS, name);
             req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             long id = dm.enqueue(req);
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("url", url);
             value.put("id", id);
+            value.put("name", name);
             return ToolResult.ok(value);
         } catch (Exception e) {
             return ToolResult.fail("download failed: " + e.getMessage());
