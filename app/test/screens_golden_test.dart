@@ -16,7 +16,6 @@ import 'package:mrnobody/screens/tabs_screen.dart';
 import 'package:mrnobody/screens/task_chat_screen.dart';
 import 'package:mrnobody/screens/tasks_screen.dart';
 import 'package:mrnobody/state/app_state.dart';
-import 'package:mrnobody/state/error_log.dart';
 import 'package:mrnobody/theme/app_theme.dart';
 import 'package:mrnobody/widgets/bottom_nav.dart';
 
@@ -52,14 +51,6 @@ void main() {
   });
 
   tearDownAll(() => BrowserTab.engineFactory = null);
-
-  // The ⓘ overlay's badge renders ErrorLog.instance.count, a process-wide
-  // singleton that an earlier screen (or an earlier test in this same isolate)
-  // can leave non-zero. A single leaked error flips the badge on every screen
-  // that follows — the exact sub-pixel drift this suite kept failing with — so
-  // reset it before each capture. This is what made the goldens deterministic
-  // rather than merely passing this run.
-  setUp(() => ErrorLog.instance.clear());
 
   Future<void> pumpScreen(WidgetTester tester, Widget child, String golden) async {
     tester.view.physicalSize = phone * 3;
@@ -335,10 +326,6 @@ void _mockCore() {
           ];
         case 'bookmarks':
           return <Map<String, Object>>[];
-        case 'debugLog':
-          // The overlay asks the core for its log so the badge can count
-          // core-side failures. In a test there are none by construction.
-          return {'entries': <String>[], 'count': 0};
         default:
           return null;
       }
