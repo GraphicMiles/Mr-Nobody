@@ -36,8 +36,12 @@ class _MemoryScreenState extends State<MemoryScreen> {
     );
     if (!mounted) return;
     setState(() {
+      // Each task is a raw Map<Object?, Object?> straight off the MethodChannel;
+      // a lazy .cast<Map<String, dynamic>>() throws on first read because that
+      // map type is not a subtype of Map<String, dynamic>. Copy each one.
       _tasks = ((info['tasks'] as List?) ?? const [])
-          .cast<Map<String, dynamic>>();
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
       _loading = false;
     });
   }
