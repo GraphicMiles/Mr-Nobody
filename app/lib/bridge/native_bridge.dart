@@ -104,6 +104,20 @@ class NativeBridge {
     return await _ch.invokeMethod('releaseTab', {'id': id}) as bool? ?? false;
   }
 
+  /// Which web engine is installed, and which privacy capabilities it actually
+  /// supports on this device.
+  ///
+  /// Mr Nobody hosts the system WebView rather than bundling an engine, so
+  /// multi-profile isolation, document-start scripts and proxy override are
+  /// properties of the *device*, not of our build. A user on an outdated
+  /// WebView gets genuinely weaker protection than one on a current WebView,
+  /// and showing both the same UI is how "private tabs: isolated storage" came
+  /// to be claimed when it was not true. This is the fact that lets the
+  /// dashboard stop guessing.
+  static Future<Map<String, dynamic>> engineInfo() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('engineInfo'));
+  }
+
   /// Download list from the app's own engine (name, size, status, folder).
   static Future<List<Map<String, dynamic>>> downloads() async {
     final r = await _ch.invokeMethod('downloads');
