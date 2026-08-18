@@ -194,6 +194,9 @@ class NativeWebViewEngine implements BrowserEngine {
   Future<void> applySettings() => _invoke<void>('applySettings').then((_) {});
 
   @override
+  Future<Uint8List?> captureThumbnail() => _invoke<Uint8List>('capture');
+
+  @override
   void dispose() {
     _disposed = true;
     _channel?.setMethodCallHandler(null);

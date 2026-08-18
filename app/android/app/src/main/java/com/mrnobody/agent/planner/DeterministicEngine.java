@@ -14,7 +14,9 @@ import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.browser.MrNobodyApp;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -37,9 +39,16 @@ import java.util.regex.Pattern;
 public final class DeterministicEngine implements AgentEngine {
 
     private static final String SYSTEM_PROMPT =
-            "You are Mr Nobody, a privacy-respecting web assistant. "
-            + "Answer the user's request using the provided context. "
-            + "Be concise and factual. Do not invent sources.";
+            "You are Mr Nobody, a privacy-respecting web assistant. You answer only from "
+            + "the sources given to you in the message, and you cite them by number. "
+            + "If the sources do not contain the answer, you say so plainly instead of "
+            + "recalling something plausible. An uncited claim is treated as a mistake.";
+
+    /** How many pages are worth reading before answering. */
+    private static final int MAX_SOURCES_READ = 3;
+
+    /** How much of each page the model sees. */
+    private static final int PER_SOURCE_CHARS = 2500;
 
     /** How long a remote provider gets before we give up on it. */
     private static final long PROVIDER_TIMEOUT_MS = 90_000L;
@@ -84,8 +93,9 @@ public final class DeterministicEngine implements AgentEngine {
         // can describe, never halfway through one.
         if (stopped(task, cancellation)) return;
 
-        // 1. Search — returns parsed results, never a page scrape.
-        task.setCurrentStep("Search");
+        // 1. Search — parsed results, never a page scrape. A refusal is a
+        //    failure: an answer with no sources is a guess with a citation.
+        task.setCurrentStep(Task.STEP_SEARCH);
         ToolResult search = callTool(context, "search",
                 ToolRequest.of("search", "q", instruction), cancellation);
         if (!search.isSuccess()) {
@@ -94,37 +104,113 @@ public final class DeterministicEngine implements AgentEngine {
         }
         if (stopped(task, cancellation)) return;
 
-        // 2. If the instruction names a URL, also extract that page's text so
-        //    the answer is grounded in the specific page the user asked about.
-        String namedUrl = findUrl(instruction);
-        String contextText = search.result();
-        if (namedUrl != null) {
-            task.setCurrentStep("Open page");
-            ToolResult page = callTool(context, "browser",
-                    ToolRequest.of("fetch", "url", namedUrl), cancellation);
-            if (page.isSuccess() && page.result().trim().length() > 0) {
-                contextText = contextText + "\n\nPage (" + namedUrl + "):\n"
-                        + truncate(page.result(), 2000);
-            }
+        List<Map<String, Object>> results = resultsOf(search);
+        if (results.isEmpty()) {
+            fail(task, ToolResult.fail("The search returned nothing to read, so there is "
+                    + "nothing to answer from."));
+            return;
         }
 
-        // 3. Result synthesis. A remote provider may summarize; the local
-        //    (deterministic) provider shows the parsed results directly.
+        // 2. Read the sources. This is the step that was missing: previously
+        //    only a URL typed by the user was ever opened, so an instruction
+        //    like "find the best X" reached the model as five snippets and a
+        //    blank cheque.
+        task.setCurrentStep(Task.STEP_READ);
+        List<String> readUrls = new ArrayList<>();
+        StringBuilder sources = new StringBuilder();
+        String namedUrl = findUrl(instruction);
+        if (namedUrl != null) {
+            String text = readPage(context, namedUrl, cancellation);
+            if (!text.isEmpty()) {
+                readUrls.add(namedUrl);
+                appendSource(sources, readUrls.size(), namedUrl, "the page you named", text);
+            }
+        }
+        for (Map<String, Object> result : results) {
+            if (readUrls.size() >= MAX_SOURCES_READ) break;
+            if (stopped(task, cancellation)) return;
+            String url = String.valueOf(result.get("url"));
+            String title = String.valueOf(result.get("title"));
+            if (url.isEmpty() || readUrls.contains(url)) continue;
+            String text = readPage(context, url, cancellation);
+            if (text.isEmpty()) continue;
+            readUrls.add(url);
+            appendSource(sources, readUrls.size(), url, title, text);
+        }
+
+        // Nothing readable: keep the snippets, but say what they are.
+        boolean pagesRead = !readUrls.isEmpty();
+        if (!pagesRead) {
+            for (Map<String, Object> result : results) {
+                if (readUrls.size() >= MAX_SOURCES_READ) break;
+                String url = String.valueOf(result.get("url"));
+                if (url.isEmpty()) continue;
+                readUrls.add(url);
+                appendSource(sources, readUrls.size(), url,
+                        String.valueOf(result.get("title")),
+                        String.valueOf(result.get("snippet")));
+            }
+        }
         if (stopped(task, cancellation)) return;
 
-        task.setCurrentStep("Summarize");
+        // 3. Answer. The local provider does not write prose — it shows what
+        //    was found, which is honest. A remote provider is asked to answer
+        //    strictly from the sources above.
+        task.setCurrentStep(Task.STEP_ANSWER);
         AiProvider provider = MrNobodyApp.activeProvider();
         String answer;
         if (provider.isRemote()) {
-            answer = askProvider(provider, instruction, truncate(contextText, 4000), cancellation);
+            answer = askProvider(provider,
+                    GroundedPrompt.build(instruction, sources.toString(), pagesRead), cancellation);
         } else {
-            answer = contextText;
+            answer = search.result();
         }
         if (stopped(task, cancellation)) return;
 
-        task.setResult(truncate(answer, 4000));
+        // 4. Verify what came back against what was read.
+        task.setStatus(Task.Status.VERIFYING);
+        task.setCurrentStep(Task.STEP_VERIFY);
+        if (provider.isRemote()) {
+            AnswerVerifier.Report report = AnswerVerifier.check(answer, readUrls);
+            String note = AnswerVerifier.note(report, readUrls);
+            if (!note.isEmpty()) answer = answer + "\n\n" + note;
+            if (report.hasProblems()) {
+                com.mrnobody.debug.ErrorLog.record("task " + task.id()
+                        + ": answer could not be verified against its sources");
+            }
+        }
+
+        task.setResult(truncate(answer, 6000));
         task.setStatus(Task.Status.COMPLETED);
     }
+
+    /** Fetch one page's readable text through the pipeline; empty on failure. */
+    private String readPage(Context context, String url, Cancellation cancellation) {
+        ToolResult page = callTool(context, "http", ToolRequest.of("fetch", "url", url), cancellation);
+        if (!page.isSuccess()) return "";
+        String text = page.result();
+        return text == null ? "" : text.trim();
+    }
+
+    private static void appendSource(StringBuilder sources, int number, String url,
+                                     String title, String text) {
+        sources.append("\n[").append(number).append("] ").append(title)
+                .append("\n").append(url).append("\n")
+                .append(truncate(text, PER_SOURCE_CHARS)).append("\n");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> resultsOf(ToolResult search) {
+        Object rows = search.value().get("results");
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (rows instanceof List) {
+            for (Object row : (List<Object>) rows) {
+                if (row instanceof Map) out.add((Map<String, Object>) row);
+            }
+        }
+        return out;
+    }
+
 
     /**
      * The single tool entry point (see {@link AgentEngine#callTool}): resolve
@@ -175,11 +261,9 @@ public final class DeterministicEngine implements AgentEngine {
      * under a second rather than after the whole timeout. A blocking
      * {@code await(90s)} here is what made "cancel" mean "cancel, eventually".
      */
-    private String askProvider(AiProvider provider, String instruction, String context,
-                               Cancellation cancellation) {
+    private String askProvider(AiProvider provider, String prompt, Cancellation cancellation) {
         final CountDownLatch latch = new CountDownLatch(1);
         final String[] out = {"(no AI response)"};
-        String prompt = instruction + "\n\nContext:\n" + truncate(context, 4000);
         try {
             provider.complete(SYSTEM_PROMPT, prompt, new AiProvider.CompletionCallback() {
                 @Override public void onResult(String text) { out[0] = text; latch.countDown(); }

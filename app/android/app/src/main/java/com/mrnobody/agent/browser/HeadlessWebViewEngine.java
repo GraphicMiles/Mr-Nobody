@@ -107,6 +107,36 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
     }
 
     @Override
+    public String loadAndEvaluate(String url, String script, long timeoutMs) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<String> result = new AtomicReference<>("");
+
+        onMain(() -> {
+            WebView wv = webView();
+            wv.setWebViewClient(new WebViewClient() {
+                @Override
+                public void onPageFinished(WebView view, String finishedUrl) {
+                    currentTitle = view.getTitle() == null ? "" : view.getTitle();
+                    // A results page often finishes loading before it finishes
+                    // rendering its results, so give the document a moment.
+                    view.postDelayed(() -> view.evaluateJavascript(script, value -> {
+                        result.set(unescapeJs(value));
+                        latch.countDown();
+                    }), 350);
+                }
+            });
+            wv.loadUrl(url);
+        });
+
+        try {
+            latch.await(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return result.get() == null ? "" : result.get();
+    }
+
+    @Override
     public boolean click(String selector) {
         return evalBool("(function(){var e=document.querySelector("
                 + jsString(selector) + ");if(!e)return false;e.click();return true})()");

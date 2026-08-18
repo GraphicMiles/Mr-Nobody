@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'browser_engine.dart';
@@ -40,6 +41,12 @@ class BrowserTab extends ChangeNotifier {
   /// Latest download notice: the file name, or an error to show the user.
   final ValueNotifier<String?> downloadNotice = ValueNotifier(null);
 
+  /// What the page looks like, for the tab grid. Memory only: never written to
+  /// disk, and never captured at all for a private tab.
+  Uint8List? thumbnail;
+
+  Timer? _captureAfterLoad;
+
   int _lastScrollY = 0;
 
   /// Injected in tests; production always builds the platform-view engine.
@@ -69,7 +76,13 @@ class BrowserTab extends ChangeNotifier {
         isLoading = l;
         if (l) error = null;
         notifyListeners();
-        if (!l) _syncHistory();
+        if (!l) {
+          _syncHistory();
+          // Let the page settle before photographing it — a capture taken the
+          // instant loading ends is usually a half-painted page.
+          _captureAfterLoad?.cancel();
+          _captureAfterLoad = Timer(const Duration(milliseconds: 700), captureThumbnail);
+        }
       }
       ..onError = (e) {
         error = e;
@@ -134,6 +147,15 @@ class BrowserTab extends ChangeNotifier {
 
   void showChrome() => chromeVisible.value = true;
 
+  /// Refresh the tab-grid preview. Cheap enough to call when leaving the page.
+  Future<void> captureThumbnail() async {
+    if (isPrivate) return;
+    final shot = await engine.captureThumbnail();
+    if (shot == null || shot.isEmpty) return;
+    thumbnail = shot;
+    notifyListeners();
+  }
+
   /// What the tab grid shows: page title, else the bare host, else "New tab".
   String get label {
     if (title.isNotEmpty) return title;
@@ -156,6 +178,8 @@ class BrowserTab extends ChangeNotifier {
 
   @override
   void dispose() {
+    _captureAfterLoad?.cancel();
+    thumbnail = null;
     chromeVisible.dispose();
     downloadNotice.dispose();
     engine.dispose();

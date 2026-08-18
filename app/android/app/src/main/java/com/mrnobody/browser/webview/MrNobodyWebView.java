@@ -2,6 +2,8 @@ package com.mrnobody.browser.webview;
 
 import android.annotation.SuppressLint;
 import android.app.DownloadManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -54,6 +56,9 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
     /** Blocked requests are answered with an empty 200, not an error page. */
     private static final String BLOCKED_MIME = "text/plain";
+
+    /** Width of a tab-grid thumbnail, in pixels. */
+    private static final int THUMBNAIL_WIDTH = 360;
 
     private final Context context;
     private final WebView webView;
@@ -344,6 +349,11 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 applySettings();
                 result.success(null);
                 return;
+            case "capture": {
+                // A tab card should show the page, not a drawing of one.
+                result.success(captureThumbnail());
+                return;
+            }
             case "extractText":
                 // Used by the agent path when it reads the visible page.
                 webView.evaluateJavascript("document.body ? document.body.innerText : ''",
@@ -351,6 +361,39 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 return;
             default:
                 result.notImplemented();
+        }
+    }
+
+    /**
+     * A small JPEG of what the page currently looks like, for the tab grid.
+     *
+     * <p>Never captured for a private tab: a thumbnail is a picture of what
+     * someone was reading, and a private tab exists precisely so that no such
+     * record is kept. The bytes are handed to Dart and held in memory only —
+     * nothing writes them to disk.
+     */
+    private byte[] captureThumbnail() {
+        if (isPrivate) return null;
+        try {
+            int width = webView.getWidth();
+            int height = webView.getHeight();
+            if (width <= 0 || height <= 0) return null;
+            float scale = (float) THUMBNAIL_WIDTH / width;
+            int outWidth = Math.max(1, Math.round(width * scale));
+            int outHeight = Math.max(1, Math.round(height * scale));
+            // RGB_565: a thumbnail does not need an alpha channel, and this is
+            // half the memory of ARGB_8888 per capture.
+            Bitmap bitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.RGB_565);
+            Canvas canvas = new Canvas(bitmap);
+            canvas.scale(scale, scale);
+            webView.draw(canvas);
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 55, out);
+            bitmap.recycle();
+            return out.toByteArray();
+        } catch (Throwable t) {
+            // A capture is a nicety; never let it take the page down.
+            return null;
         }
     }
 

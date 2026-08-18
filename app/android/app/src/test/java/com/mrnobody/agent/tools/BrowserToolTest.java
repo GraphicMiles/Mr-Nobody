@@ -23,6 +23,9 @@ public class BrowserToolTest {
         @Override public String extractText() { return "text"; }
         @Override public String title() { return "title"; }
         @Override public String loadAndExtract(String url, long timeoutMs) { return "body of " + url; }
+        @Override public String loadAndEvaluate(String url, String script, long timeoutMs) {
+            return "[]";
+        }
         @Override public boolean click(String selector) { lastClicked = selector; return true; }
         @Override public boolean type(String selector, String text) { lastTyped = selector + ":" + text; return true; }
         @Override public boolean scroll(String direction) { return true; }

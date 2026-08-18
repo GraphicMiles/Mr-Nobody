@@ -49,12 +49,18 @@ public final class Task {
     public String worker() { return worker; }
     public void setWorker(String w) { this.worker = w; }
 
+    public static final String STEP_SEARCH = "Search";
+    public static final String STEP_READ = "Read sources";
+    public static final String STEP_ANSWER = "Answer";
+    public static final String STEP_VERIFY = "Verify";
+
     /**
-     * The V1 plan, in order. Progress is derived from how far down this list
-     * the task has got, which is why the step label is persisted rather than a
-     * number: it survives process death with the rest of the task.
+     * The V1 plan, in order — and the actual one. Progress is derived from how
+     * far down this list the task has got, which is why the step label is
+     * persisted rather than a number: it survives process death with the rest
+     * of the task.
      */
-    public static final String[] PLAN = {"Search", "Open page", "Summarize"};
+    public static final String[] PLAN = {STEP_SEARCH, STEP_READ, STEP_ANSWER, STEP_VERIFY};
 
     /** Progress 0..100, derived from the current step's position in {@link #PLAN}. */
     public int progress() {

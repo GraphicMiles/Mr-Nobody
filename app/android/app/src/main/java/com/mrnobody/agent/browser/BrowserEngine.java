@@ -18,6 +18,17 @@ public interface BrowserEngine {
     /** Extract readable text from the current page (best-effort). */
     String extractText();
 
+    /**
+     * Load a page and evaluate a script against the rendered DOM, returning
+     * whatever the script produced.
+     *
+     * <p>This is how the agent reads a results page: the DOM after JavaScript
+     * has run, rather than a regex over the HTML that arrived. Markup churn
+     * breaks a regex; a selector against the live document survives it, and a
+     * page that renders results client-side is only visible this way at all.
+     */
+    String loadAndEvaluate(String url, String script, long timeoutMs);
+
     /** Extract the page title, or null. */
     String title();
 
