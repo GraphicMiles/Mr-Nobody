@@ -173,9 +173,17 @@ void _mockCore() {
             'js': true,
             'suggestions': false,
             'terminal': false,
+            'fingerprint': false,
             'profile': 'BALANCED',
             'searchEngine': 'https://duckduckgo.com/?q=',
             'provider': 'local',
+          };
+        case 'engineInfo':
+          return {
+            'engine': 'Android System WebView',
+            'multiProfile': true,
+            'documentStartScript': true,
+            'proxyOverride': true,
           };
         case 'privacyStats':
           return {
@@ -213,13 +221,41 @@ void _mockCore() {
           return {
             'id': 1,
             'instruction': 'Find laptops under 500000',
-            'status': 'RUNNING',
-            'step': 'Extracting prices',
-            'progress': 58,
-            'result': '',
+            'status': 'COMPLETED',
+            'step': '',
+            'progress': 100,
+            'result': 'I found current laptop listings under 500000 at '
+                'https://example.com/laptops',
             'error': '',
             'worker': 'local',
           };
+        case 'taskEvents':
+          return [
+            {
+              'seq': 1,
+              'type': 'tool.call',
+              'detail': 'search search laptops under 500000',
+              'at': 1755515100000,
+            },
+            {
+              'seq': 2,
+              'type': 'tool.result',
+              'detail': 'search ok in 840ms',
+              'at': 1755515100840,
+            },
+            {
+              'seq': 3,
+              'type': 'tool.call',
+              'detail': 'http fetch https://example.com/laptops',
+              'at': 1755515101100,
+            },
+            {
+              'seq': 4,
+              'type': 'tool.result',
+              'detail': 'http ok in 610ms',
+              'at': 1755515101710,
+            },
+          ];
         case 'providerConfig':
           return {
             'id': call.arguments['id'],
