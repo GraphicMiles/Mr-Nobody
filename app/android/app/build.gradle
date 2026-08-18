@@ -43,6 +43,10 @@ dependencies {
     // plain JVM without an Android runtime — these tests are the reason it
     // stays that way.
     testImplementation "junit:junit:4.13.2"
+
+    // org.json is an Android library, not part of plain Java — include it
+    // explicitly so JVM tests can compile and run SearchResultsJson tests.
+    testImplementation "org.json:json:20231013"
 }
 
 flutter {
