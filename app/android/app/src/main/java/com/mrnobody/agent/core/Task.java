@@ -46,6 +46,10 @@ public final class Task {
     public long updatedAt() { return updatedAt; }
     public int retryCount() { return retryCount; }
     public void bumpRetry() { this.retryCount++; this.updatedAt = System.currentTimeMillis(); }
+    /** A fresh execution cycle gets a fresh retry budget (recurring re-runs). */
+    public void resetRetry() { this.retryCount = 0; this.updatedAt = System.currentTimeMillis(); }
+    /** Restore the persisted value when a task is reloaded from storage. */
+    public void setRetryCount(int n) { this.retryCount = Math.max(0, n); }
     public String worker() { return worker; }
     public void setWorker(String w) { this.worker = w; }
 

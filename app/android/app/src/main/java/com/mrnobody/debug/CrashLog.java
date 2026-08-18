@@ -52,12 +52,16 @@ public final class CrashLog {
         });
     }
 
-    /** The last recorded crash, or null when there is none. */
+    /** The last recorded crash, or null when there is none. Bounded on purpose:
+     *  a pathological stack must not itself OOM the very read meant to report it. */
+    private static final int MAX_CRASH_BYTES = 64 * 1024;
+
     public static String read(Context context) {
         try {
             File f = new File(context.getFilesDir(), FILE);
             if (!f.exists()) return null;
-            byte[] bytes = new byte[(int) f.length()];
+            int len = (int) Math.min(f.length(), MAX_CRASH_BYTES);
+            byte[] bytes = new byte[len];
             try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
                 //noinspection ResultOfMethodCallIgnored
                 in.read(bytes);

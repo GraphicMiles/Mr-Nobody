@@ -157,7 +157,10 @@ class _AppShellState extends State<AppShell> {
         break;
       case 'search':
         final query = q['q'] ?? '';
-        if (query.isNotEmpty) _openBrowser(IntentRouter.toUrl(query));
+        // Route through the same classifier as the address bar, so a deep
+        // link that is actually a question ("what is X's age") reaches the
+        // agent instead of opening a raw results page.
+        if (query.isNotEmpty) _route(query);
         break;
       case 'task':
         final instruction = q['instruction'] ?? '';

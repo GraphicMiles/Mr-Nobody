@@ -117,7 +117,14 @@ public class MainActivity extends FlutterActivity {
                             t.setCurrentStep("");
                             t.setResult("");
                             t.setError("");
+                            t.resetRetry(); // a "check again" is a fresh run
                             MrNobodyApp.tasks().update(t);
+                            // Cancel the recurring schedule first, so the manual
+                            // re-check cannot race the periodic worker on the
+                            // same task row. The re-run itself re-registers the
+                            // schedule (applyRecurrence), giving a clean
+                            // "run now, then resume hourly".
+                            MrNobodyApp.scheduler().cancel(getApplicationContext(), t.id());
                             MrNobodyApp.scheduler().schedule(getApplicationContext(), t.id());
                             result.success(true);
                             return;
