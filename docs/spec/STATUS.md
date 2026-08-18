@@ -28,7 +28,7 @@ and `docs/spec/ARCHITECTURE_EXPLAINED.md`. Every claim below points at code.
 | 17 | Local ad/tracker blocking | Done | `webview/MrNobodyWebView.shouldInterceptRequest` → `FilterEngine`; per-page counters + `PrivacyReport` totals; live count next to the padlock |
 | 18 | Cookie/storage controls | Done | `CookieManager.setAcceptThirdPartyCookies(webView, false)`, no file/content access, mixed content blocked, `clearData` for the rest |
 | 19 | No analytics / no ads SDK / no account | Done | no SDKs in `app/android/app/build.gradle`; only network I/O is user-initiated |
-| 20 | Privacy regression tests | Done (static) | `tools/privacy_audit.py` runs in CI on every push; behavioural filter tests are still to write |
+| 20 | Privacy regression tests | Done (static) | `tools/privacy_audit.py` runs in CI on every push and now audits **every** Android tree it finds, not a hardcoded path — see §3.3; `tools/test_privacy_audit.py` gates the auditor itself. Behavioural filter tests are still to write |
 | 21 | APK size benchmark | Done | CI reports size; `tools/apk_size_check.py` |
 | 22 | GitHub Actions build/release | Done | `.github/workflows/flutter.yml` (analyze → tests → APK) |
 | 23 | UI parity with the approved prototype | Done | all 11 views built; `app/test/screens_golden_test.dart` gates drift |
@@ -107,10 +107,56 @@ without a schema migration.
 deep-linking into Tasks. `POST_NOTIFICATIONS` is requested the first time the
 user starts a task, not at launch where it would have no context.
 
-### 3.5 Still open
+### 3.5 The privacy audit was auditing dead code — FIXED
+
+The most serious finding of this pass, because it silently invalidated the
+evidence for item 20 above.
+
+`tools/privacy_audit.py` resolved its targets as `root/android/app/src/main`.
+The repository carries **two** Android trees:
+
+| Tree | Last touched | Status |
+|------|--------------|--------|
+| `android/` | `69f76e9` | legacy, not built by anything |
+| `app/android/` | `33a663b` | **the tree CI builds and ships** |
+
+Nothing references `android/` — not `flutter.yml`, not either `settings.gradle`.
+The audit was reading the abandoned copy and printing `CLEAN` on every push
+while the shipping app went unexamined.
+
+This was verified rather than assumed. Planting
+`addJavascriptInterface(this, "leak")` and `setAllowFileAccess(true)` into the
+live `MrNobodyWebView.java` — a remote-code-execution bridge and filesystem
+access in the actual browser view — still produced:
+
+```
+PRIVACY AUDIT — CLEAN
+CI exit code = 0
+```
+
+The audit now discovers every directory containing
+`src/main/AndroidManifest.xml`, scans `.kt` alongside `.java`, prunes
+`build/`-style noise, labels each violation with its tree, and fails loudly if
+it finds no manifest at all (a wrong path must not read as "clean"). The same
+four planted violations — JS bridge, `READ_CONTACTS`, a Firebase dependency,
+and an SSL bypass — now each exit 1.
+
+`tools/test_privacy_audit.py` locks this in with 9 tests that plant violations
+and require failure. They were confirmed to fail (3 failures) against the old
+auditor and pass against the new one, and they run in CI *before* the audit
+itself: the auditor is tested before it is trusted.
+
+**Caveat:** this restores the audit's reach; it does not broaden its rules. It
+remains a static grep for a known prohibited list. It cannot see behaviour, so
+the filter-engine gap below is still the real hole.
+
+### 3.6 Still open
 
 - Behavioural tests for the filter engine on a real page (the static privacy
   audit runs in CI; request-level assertions do not exist yet).
+- The duplicate `android/` tree is dead code that no build references. It
+  should be deleted, but that is a separate commit — it is 152 files and would
+  bury the audit fix. Until then the audit covers both trees.
 - The CONFIRM half of the policy gate has no approval UI, so those commands are
   refused rather than queued (V2 §11).
 - Per-tab cookie isolation: `CookieManager` is process-wide, so a private tab
