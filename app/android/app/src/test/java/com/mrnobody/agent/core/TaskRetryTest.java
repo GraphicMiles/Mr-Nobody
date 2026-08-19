@@ -45,6 +45,27 @@ public class TaskRetryTest {
     }
 
     @Test
+    public void persistedTimestampsSurviveRestoration() {
+        Task t = new Task(4, "old task", 1_000L, 4_000L);
+        assertEquals(1_000L, t.createdAt());
+        assertEquals(4_000L, t.updatedAt());
+
+        // Field setters are used while a cursor is decoded, then the durable
+        // update time is re-applied once restoration is complete.
+        t.setResult("restored");
+        t.restoreUpdatedAt(4_000L);
+        assertEquals(1_000L, t.createdAt());
+        assertEquals(4_000L, t.updatedAt());
+    }
+
+    @Test
+    public void invalidPersistedTimestampsFailToSaneValues() {
+        Task t = new Task(5, "x", 0L, 0L);
+        assertEquals(true, t.createdAt() > 0L);
+        assertEquals(t.createdAt(), t.updatedAt());
+    }
+
+    @Test
     public void theChangeMarkersAreTheExactStringsTheWorkerLooksFor() {
         // The worker's isNoChange() checks result.contains(NO_CHANGE); the
         // engine appends the same constant. Pinning the literal guards the two

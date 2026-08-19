@@ -29,11 +29,17 @@ public final class Task {
     private String planJson = "";
 
     public Task(long id, String instruction) {
+        this(id, instruction, System.currentTimeMillis(), System.currentTimeMillis());
+    }
+
+    /** Restore a durable task without replacing its timestamps with read time. */
+    public Task(long id, String instruction, long createdAt, long updatedAt) {
         this.id = id;
         this.instruction = instruction == null ? "" : instruction;
         this.status = Status.QUEUED;
-        this.createdAt = System.currentTimeMillis();
-        this.updatedAt = createdAt;
+        long now = System.currentTimeMillis();
+        this.createdAt = createdAt > 0 ? createdAt : now;
+        this.updatedAt = updatedAt > 0 ? updatedAt : this.createdAt;
         this.retryCount = 0;
         this.worker = "local";
     }
@@ -50,6 +56,10 @@ public final class Task {
     public void setError(String e) { this.error = e; this.updatedAt = System.currentTimeMillis(); }
     public long createdAt() { return createdAt; }
     public long updatedAt() { return updatedAt; }
+    /** Re-apply the database timestamp after restoring fields through setters. */
+    public void restoreUpdatedAt(long value) {
+        this.updatedAt = value > 0 ? value : createdAt;
+    }
     public int retryCount() { return retryCount; }
     public void bumpRetry() { this.retryCount++; this.updatedAt = System.currentTimeMillis(); }
     /** A fresh execution cycle gets a fresh retry budget (recurring re-runs). */
