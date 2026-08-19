@@ -231,6 +231,44 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('a parked upload offers a visible-tab prompt', (tester) async {
+    status = 'WAITING';
+    result = '';
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('mrnobody/core'),
+      (call) async {
+        calls.add(call);
+        if (call.method == 'task') {
+          return {
+            'id': 7,
+            'instruction': 'upload the form',
+            'status': 'WAITING',
+            'step': '',
+            'progress': 40,
+            'result': '',
+            'error':
+                'File upload needs a visible tab.\nhttps://example.com/form',
+            'pendingTool': 'upload',
+            'worker': 'local',
+            'createdAt': 1000,
+            'updatedAt': 4100,
+          };
+        }
+        if (call.method == 'taskEvents') return events;
+        return null;
+      },
+    );
+
+    await pump(tester);
+    expect(find.text('Needs a visible tab'), findsOneWidget);
+    expect(find.text('Open page'), findsOneWidget);
+    expect(find.text("I've finished"), findsOneWidget);
+    expect(find.text('Allow'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('polling stops once the task can no longer change',
       (tester) async {
     result = 'Done.';

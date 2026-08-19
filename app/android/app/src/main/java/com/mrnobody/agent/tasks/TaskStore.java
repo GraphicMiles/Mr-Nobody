@@ -384,6 +384,21 @@ public final class TaskStore extends SQLiteOpenHelper {
         // one-shot retries forever after every crash instead of once.
         try { t.setRetryCount(c.getInt(c.getColumnIndexOrThrow(C_RETRY))); }
         catch (Exception ignored) { }
+        // A reply, the shortlist, and the plan snapshot have to come back
+        // with the row. Missing them is how "download it" forgot the first
+        // turn and how the chat lost the cards after a process death.
+        try {
+            int i = c.getColumnIndex(C_FOLLOW_UP);
+            if (i >= 0) t.setFollowUp(c.getString(i));
+        } catch (Exception ignored) { }
+        try {
+            int i = c.getColumnIndex(C_ARTIFACTS);
+            if (i >= 0) t.setArtifacts(c.getString(i));
+        } catch (Exception ignored) { }
+        try {
+            int i = c.getColumnIndex(C_PLAN);
+            if (i >= 0) t.setPlanJson(c.getString(i));
+        } catch (Exception ignored) { }
         return t;
     }
 }

@@ -241,12 +241,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       taskId: id,
       title: instruction,
       instruction: instruction,
+      onOpenUrl: _openUrlFromTask,
     ));
   }
 
   void _openBrowser(String url) {
     final tab = _tabs.active ?? _tabs.newTab();
     if (url.isNotEmpty) tab.engine.loadUrl(url);
+    _pushBrowser();
+  }
+
+  /// A waiting task asked the user to finish something on a real page
+  /// (file upload, sign-in). Open it in a new tab so the chat stays
+  /// underneath and they can come back to tap "I've finished".
+  void _openUrlFromTask(String url) {
+    _tabs.newTab(url: url);
     _pushBrowser();
   }
 

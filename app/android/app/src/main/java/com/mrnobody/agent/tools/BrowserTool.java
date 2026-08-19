@@ -87,7 +87,9 @@ public final class BrowserTool implements Tool {
     public Tier tierFor(ToolRequest request) {
         String action = request.action();
         if (READ_ACTIONS.contains(action) || "review".equals(action)) return Tier.READ;
-        if ("save".equals(action)) return Tier.SANDBOX;
+        // Upload cannot be filled headless; the tool runs so it can park with
+        // an honest "open a tab" prompt rather than asking twice.
+        if ("save".equals(action) || "upload".equals(action)) return Tier.SANDBOX;
         ImpactKind kind = ImpactKind.of("browser", action,
                 request.param("text", "") + " " + request.param("url", ""));
         if (kind.alwaysConfirm() || kind == ImpactKind.SEND || kind == ImpactKind.PUBLISH) {
@@ -251,9 +253,93 @@ public final class BrowserTool implements Tool {
                         : ToolResult.fail("scroll failed");
             }
             case "wait": {
-                long ms = parseLong(request.param("ms"), 1000);
+                String waitSel = request.param("selector");
+                long ms = parseLong(request.param("ms"), 0);
+                if (ms <= 0) {
+                    ms = parseLong(request.param("timeout"),
+                            waitSel == null || waitSel.isEmpty() ? 1000 : 8000);
+                }
+                if (waitSel != null && !waitSel.isEmpty()) {
+                    boolean found = engine.waitForSelector(waitSel, ms);
+                    return found
+                            ? value("wait", "selector", waitSel, "ms", String.valueOf(ms),
+                                    "status", "appeared")
+                            : ToolResult.fail("timed out waiting for " + waitSel);
+                }
                 engine.waitFor(ms);
                 return value("wait", "ms", String.valueOf(ms), "status", "waited");
+            }
+            case "select": {
+                String sel = request.param("selector");
+                String option = request.param("option");
+                if (sel == null || sel.isEmpty()) {
+                    return ToolResult.fail("browser.select needs 'selector'");
+                }
+                if (option == null) option = "";
+                String staleSelect = checkAnchor(request);
+                if (staleSelect != null) return ToolResult.fail(staleSelect);
+                return engine.select(sel, option)
+                        ? value("select", "selector", sel, "option", option, "status", "selected")
+                        : ToolResult.fail("no option matched " + option);
+            }
+            case "review": {
+                String page = request.param("url");
+                if (page == null || page.isEmpty()) page = lastKnownUrl;
+                String msg = "Look at this page before I continue.";
+                if (page != null && !page.isEmpty()) msg = msg + "\n" + page;
+                return ToolResult.needsApproval("review", msg);
+            }
+            case "save": {
+                String saveUrl = request.param("url");
+                if (saveUrl == null || saveUrl.isEmpty()) {
+                    return ToolResult.fail("browser.save needs 'url'");
+                }
+                if (context == null) return ToolResult.fail("no context to save with");
+                try {
+                    String name = com.mrnobody.browser.download.DownloadNaming
+                            .fileName(saveUrl, null, null);
+                    com.mrnobody.browser.download.DownloadRecord record =
+                            com.mrnobody.browser.download.DownloadEngine.get(context)
+                                    .enqueue(saveUrl, name, null, null, lastKnownUrl);
+                    return value("save", "url", saveUrl,
+                            "id", String.valueOf(record.id),
+                            "name", record.fileName,
+                            "status", "queued");
+                } catch (Exception e) {
+                    return ToolResult.fail("save failed: " + e.getMessage());
+                }
+            }
+            case "upload": {
+                String sel = request.param("selector");
+                if (sel == null || sel.isEmpty()) {
+                    return ToolResult.fail("browser.upload needs 'selector'");
+                }
+                String path = request.param("path");
+                String abs = "";
+                if (path != null && !path.isEmpty()) {
+                    if (context == null) {
+                        return ToolResult.fail("no context to resolve the upload path");
+                    }
+                    java.io.File root = new java.io.File(context.getFilesDir(), "workspace");
+                    java.io.File file = WorkspacePath.resolveWithin(root, path);
+                    if (file == null) {
+                        return ToolResult.fail("upload path is outside the workspace");
+                    }
+                    if (!file.isFile()) {
+                        return ToolResult.fail("no file at " + path);
+                    }
+                    abs = file.getAbsolutePath();
+                }
+                if (engine.uploadFile(sel, abs)) {
+                    return value("upload", "selector", sel, "status", "uploaded");
+                }
+                String page = request.param("url");
+                if (page == null || page.isEmpty()) page = lastKnownUrl;
+                String msg = "File upload needs a visible tab. "
+                        + "Open the page and pick the file yourself — "
+                        + "a background browser cannot fill a file input.";
+                if (page != null && !page.isEmpty()) msg = msg + "\n" + page;
+                return ToolResult.needsApproval("upload", msg);
             }
             default:
                 return ToolResult.fail("unknown browser action: " + action);

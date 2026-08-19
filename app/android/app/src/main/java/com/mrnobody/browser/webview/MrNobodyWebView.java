@@ -380,6 +380,18 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             data.put("title", title == null ? "" : title);
             send("onTitle", data);
         }
+
+        /**
+         * A file input on a visible page. Headless sessions cannot do this —
+         * they have no window — so the agent parks and asks the user to open
+         * the page here, where Android's picker can actually run.
+         */
+        @Override
+        public boolean onShowFileChooser(WebView view,
+                                         android.webkit.ValueCallback<android.net.Uri[]> filePathCallback,
+                                         FileChooserParams fileChooserParams) {
+            return com.mrnobody.browser.FileChooserHost.prompt(filePathCallback, fileChooserParams);
+        }
     };
 
     // ------------------------------------------------------------- downloads

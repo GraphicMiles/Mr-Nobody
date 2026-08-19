@@ -51,6 +51,11 @@ public final class GroundedPrompt {
                 .append("- Prefer fewer, supported statements over a complete-looking answer.\n")
                 .append("- Rankings, reviews, and the word \"best\" are opinions, not facts.\n")
                 .append("- Say when you are inferring, rather than quoting a page.\n")
+                .append("- Start with a single heading line that begins with \"# \" and names the answer.\n")
+                .append("- Use **double asterisks** around names, dates, titles and key figures.\n")
+                .append("- Write short paragraphs. Use a markdown list when comparing more than two items.\n")
+                .append("- Cite with [n]. Do not paste raw URLs in the body.\n")
+                .append("- Do not wrap the answer in a code fence.\n")
                 .append("\nSources:\n").append(sources);
 
         return sb.toString();

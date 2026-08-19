@@ -827,6 +827,7 @@ public class MainActivity extends FlutterActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (FileChooserHost.deliver(requestCode, resultCode, data)) return;
         if (requestCode != REQUEST_PICK_FOLDER) return;
         MethodChannel.Result pending = pendingFolderResult;
         pendingFolderResult = null;
@@ -1044,6 +1045,14 @@ public class MainActivity extends FlutterActivity {
         m.put("result", t.result() == null ? "" : t.result());
         m.put("error", t.error() == null ? "" : t.error());
         m.put("worker", t.worker() == null ? "local" : t.worker());
+        m.put("createdAt", t.createdAt());
+        m.put("updatedAt", t.updatedAt());
+        m.put("artifacts", t.artifacts() == null ? "" : t.artifacts());
+        try {
+            m.put("pendingTool", MrNobodyApp.tasks().pendingTool(t.id()));
+        } catch (Throwable ignored) {
+            m.put("pendingTool", "");
+        }
         return m;
     }
 
@@ -1127,10 +1136,27 @@ public class MainActivity extends FlutterActivity {
             MrNobodyApp.tasks().update(t);
             return true;
         }
-        // network / grant parks are not "always allow this tool".
+        // The user finished a file upload in a visible tab. Re-running would
+        // try the headless input again and park forever.
+        if ("upload".equals(tool)) {
+            String note = "You finished the file upload in a visible tab.";
+            t.setStatus(Task.Status.COMPLETED);
+            t.setError("");
+            t.setCurrentStep("");
+            t.setResult(note);
+            MrNobodyApp.tasks().update(t);
+            try {
+                MrNobodyApp.taskEvents().append(t.id(), TaskEventStore.AGENT_ANSWER, note);
+            } catch (Throwable ignored) {
+            }
+            return true;
+        }
+        // network / grant / review / upload parks are not "always allow this tool".
         boolean sticky = !tool.isEmpty()
                 && !"network".equals(tool)
-                && !"grant".equals(tool);
+                && !"grant".equals(tool)
+                && !"review".equals(tool)
+                && !"upload".equals(tool);
         if (sticky && MrNobodyApp.approvalOverrides() != null) {
             MrNobodyApp.approvalOverrides().set(tool,
                     com.mrnobody.agent.policy.ApprovalPolicy.Rule.ALWAYS_ALLOW);
@@ -1168,17 +1194,20 @@ public class MainActivity extends FlutterActivity {
     protected void onResume() {
         super.onResume();
         ApprovalPrompt.setHost(this);
+        FileChooserHost.setHost(this);
     }
 
     @Override
     protected void onPause() {
         ApprovalPrompt.clearHost(this);
+        FileChooserHost.clearHost(this);
         super.onPause();
     }
 
     @Override
     protected void onDestroy() {
         ApprovalPrompt.clearHost(this);
+        FileChooserHost.clearHost(this);
         super.onDestroy();
     }
 }
