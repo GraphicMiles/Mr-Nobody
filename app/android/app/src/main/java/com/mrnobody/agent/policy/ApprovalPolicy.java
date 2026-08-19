@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Resolves a call's permission from three inputs, in a fixed order.
@@ -132,9 +133,12 @@ public final class ApprovalPolicy implements ToolPipeline.Approval {
         }
     }
 
-    /** An in-memory {@link Overrides}, for tests and for callers without storage. */
+    /**
+     * Process-session overrides. Concurrent because approval is written from
+     * the UI and read by WorkManager/tool threads.
+     */
     public static final class MapOverrides implements Overrides {
-        private final Map<String, Rule> byTool = new HashMap<>();
+        private final Map<String, Rule> byTool = new ConcurrentHashMap<>();
 
         @Override
         public Rule forTool(String tool) {
@@ -155,7 +159,7 @@ public final class ApprovalPolicy implements ToolPipeline.Approval {
         }
 
         public Map<String, Rule> all() {
-            return Collections.unmodifiableMap(byTool);
+            return Collections.unmodifiableMap(new HashMap<>(byTool));
         }
     }
 }

@@ -129,7 +129,7 @@ public class ApprovalPolicyTest {
     }
 
     /**
-     * The prompt records "always allow" and the policy reads it. If they hold
+     * The prompt records a session grant and the policy reads it. If they hold
      * different instances the user ticks the box and keeps being asked.
      */
     @Test
@@ -142,6 +142,19 @@ public class ApprovalPolicyTest {
         p.setOverrides(ov);
 
         assertTrue(p.decide(call("browser", Tier.WRITE)).isAllow());
+    }
+
+    @Test
+    public void overrideSnapshotsDoNotChangeUnderAReader() {
+        ApprovalPolicy.MapOverrides ov = new ApprovalPolicy.MapOverrides();
+        ov.set("browser", ApprovalPolicy.Rule.ALWAYS_ALLOW);
+        java.util.Map<String, ApprovalPolicy.Rule> snapshot = ov.all();
+
+        ov.set("terminal", ApprovalPolicy.Rule.NEVER);
+
+        assertEquals(1, snapshot.size());
+        assertFalse(snapshot.containsKey("terminal"));
+        assertEquals(2, ov.all().size());
     }
 
     // ---------------------------------------------------------------- safety

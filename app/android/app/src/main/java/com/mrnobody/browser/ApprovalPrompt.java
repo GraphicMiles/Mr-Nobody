@@ -98,7 +98,7 @@ public final class ApprovalPrompt implements ToolPipeline.Confirmer {
                             answeredByUser.set(true);
                         })
                         .setMultiChoiceItems(
-                                new CharSequence[]{"Always allow " + call.tool()},
+                                new CharSequence[]{"Allow " + call.tool() + " for this app session"},
                                 new boolean[]{false},
                                 (d, which, checked) -> always[0] = checked)
                         .setCancelable(true)
@@ -128,8 +128,8 @@ public final class ApprovalPrompt implements ToolPipeline.Confirmer {
         }
         boolean allowed = approved.get();
         if (allowed && Boolean.TRUE.equals(remember.get()) && overrides != null) {
-            // "Always allow" is a per-tool override, which is exactly the
-            // escape hatch that makes a cautious default liveable.
+            // Session-only by design: a process restart returns to the user's
+            // configured approval mode instead of retaining a silent grant.
             overrides.set(call.tool(), ApprovalPolicy.Rule.ALWAYS_ALLOW);
         }
         return allowed ? Confirmation.ALLOWED : Confirmation.DENIED;

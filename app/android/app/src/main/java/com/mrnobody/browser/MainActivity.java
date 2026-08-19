@@ -1147,8 +1147,8 @@ public class MainActivity extends FlutterActivity {
     }
 
     /**
-     * A WAITING task is answered. Allow re-runs with a one-tool override so
-     * the confirmer is not asked again for the same call; deny fails it.
+     * A WAITING task is answered. Allow re-runs with a process-session tool
+     * override so the same call can resume; deny fails it.
      */
     private boolean resolveApproval(long id, boolean allow) {
         Task t = MrNobodyApp.tasks().get(id);
