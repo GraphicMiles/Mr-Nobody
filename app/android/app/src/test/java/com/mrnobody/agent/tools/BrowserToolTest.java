@@ -16,6 +16,7 @@ public class BrowserToolTest {
         String opened;
         String lastClicked;
         String lastTyped;
+        boolean uploaded;
         @Override public void open(String url) { opened = url; }
         @Override public void back() { }
         @Override public void forward() { }
@@ -35,6 +36,10 @@ public class BrowserToolTest {
             return true;
         }
         @Override public boolean waitForSelector(String selector, long timeoutMs) {
+            return true;
+        }
+        @Override public boolean uploadFile(String selector, String absolutePath) {
+            uploaded = true;
             return true;
         }
         @Override public void close() { }
@@ -122,6 +127,88 @@ public class BrowserToolTest {
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("type", "selector", "#a")));
         assertEquals(com.mrnobody.agent.core.Tier.EXEC,
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("submit", "selector", "form")));
+        assertEquals(com.mrnobody.agent.core.Tier.SANDBOX,
+                tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("upload", "selector", "#file")));
+        assertEquals(com.mrnobody.agent.core.Tier.READ,
+                tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("review")));
+    }
+
+    @Test
+    public void selectDelegatesToEngine() {
+        FakeEngine engine = new FakeEngine();
+        BrowserTool tool = new BrowserTool(engine);
+        java.util.Map<String, String> params = new java.util.HashMap<>();
+        params.put("selector", "#country");
+        params.put("option", "NG");
+        ToolResult r = tool.execute(null,
+                new com.mrnobody.agent.core.ToolRequest("select", params));
+        assertTrue(r.isSuccess());
+        assertEquals("#country=NG", engine.lastClicked);
+    }
+
+    @Test
+    public void waitWithSelectorUsesTheEngine() {
+        BrowserTool tool = new BrowserTool(new FakeEngine());
+        java.util.Map<String, String> wait = new java.util.HashMap<>();
+        wait.put("selector", "#ready");
+        wait.put("ms", "200");
+        ToolResult r = tool.execute(null,
+                new com.mrnobody.agent.core.ToolRequest("wait", wait));
+        assertTrue(r.isSuccess());
+        assertEquals("appeared", r.value().get("status"));
+    }
+
+    @Test
+    public void reviewParksForAHuman() {
+        BrowserTool tool = new BrowserTool(new FakeEngine());
+        ToolResult r = tool.execute(null,
+                com.mrnobody.agent.core.ToolRequest.of("review", "url", "https://example.com"));
+        assertTrue(r.needsApproval());
+        assertEquals("review", r.pendingTool());
+        assertTrue(r.error().contains("https://example.com"));
+    }
+
+    @Test
+    public void uploadParksWhenTheEngineCannotFillAFileInput() {
+        BrowserTool tool = new BrowserTool(new BrowserEngine() {
+            @Override public void open(String url) { }
+            @Override public void back() { }
+            @Override public void forward() { }
+            @Override public void reload() { }
+            @Override public String extractText() { return ""; }
+            @Override public String title() { return ""; }
+            @Override public String loadAndExtract(String url, long timeoutMs) { return ""; }
+            @Override public String loadAndEvaluate(String url, String script, long timeoutMs) {
+                return "[]";
+            }
+            @Override public boolean click(String selector) { return false; }
+            @Override public boolean type(String selector, String text) { return false; }
+            @Override public boolean scroll(String direction) { return false; }
+            @Override public void waitFor(long millis) { }
+            @Override public boolean uploadFile(String selector, String absolutePath) {
+                return false;
+            }
+            @Override public void close() { }
+        });
+        java.util.Map<String, String> up = new java.util.HashMap<>();
+        up.put("selector", "input[type=file]");
+        up.put("url", "https://example.com/form");
+        ToolResult r = tool.execute(null,
+                new com.mrnobody.agent.core.ToolRequest("upload", up));
+        assertTrue(r.needsApproval());
+        assertEquals("upload", r.pendingTool());
+        assertTrue(r.error(), r.error().contains("visible tab"));
+        assertTrue(r.error(), r.error().contains("https://example.com/form"));
+    }
+
+    @Test
+    public void uploadSucceedsWhenTheEngineCanAttachAFile() {
+        FakeEngine engine = new FakeEngine();
+        BrowserTool tool = new BrowserTool(engine);
+        ToolResult r = tool.execute(null,
+                com.mrnobody.agent.core.ToolRequest.of("upload", "selector", "#cv"));
+        assertTrue(r.isSuccess());
+        assertTrue(engine.uploaded);
     }
 
     /** Through the pipeline, the model sees the rendered projection. */

@@ -694,7 +694,11 @@ class StreamToken {
   /// Render as an inline citation chip instead of a word.
   final AgentSource? cite;
 
-  const StreamToken(this.text, {this.cite});
+  final bool bold;
+  final bool italic;
+
+  const StreamToken(this.text,
+      {this.cite, this.bold = false, this.italic = false});
 }
 
 /// A page the agent read.
@@ -758,12 +762,14 @@ class StreamedAnswer extends StatelessWidget {
                   animate: caret && i >= shown.length - 3,
                 ),
               )
-            else
+              else
               WidgetSpan(
                 alignment: PlaceholderAlignment.baseline,
                 baseline: TextBaseline.alphabetic,
                 child: _Word(
                   text: shown[i].text,
+                  bold: shown[i].bold,
+                  italic: shown[i].italic,
                   animate: caret && i >= shown.length - 3,
                 ),
               ),

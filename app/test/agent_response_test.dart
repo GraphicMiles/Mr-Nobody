@@ -146,6 +146,19 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('a bold token is drawn, not wrapped in asterisks',
+        (tester) async {
+      await tester.pumpWidget(host(
+        const StreamedAnswer(
+          tokens: [StreamToken('The', bold: true), StreamToken('Boys')],
+          visible: 2,
+        ),
+      ));
+      await tester.pump();
+      expect(find.textContaining('**'), findsNothing);
+      expect(find.textContaining('The'), findsOneWidget);
+    });
   });
 
   group('trace', () {

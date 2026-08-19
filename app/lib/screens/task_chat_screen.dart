@@ -6,7 +6,8 @@ import 'package:flutter/services.dart';
 import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/agent_response.dart';
-import '../widgets/common.dart';
+import '../widgets/answer_document.dart';
+import '../widgets/answer_view.dart';
 import '../widgets/toast.dart';
 
 /// A task as a conversation.
@@ -27,11 +28,16 @@ class TaskChatScreen extends StatefulWidget {
   /// The instruction, shown as the first user message. Falls back to [title].
   final String? instruction;
 
+  /// Open a URL in a visible tab. Used when a file upload or login grant
+  /// needs the user to finish the step themselves.
+  final void Function(String url)? onOpenUrl;
+
   const TaskChatScreen({
     super.key,
     required this.title,
     this.taskId,
     this.instruction,
+    this.onOpenUrl,
   });
 
   @override
@@ -203,7 +209,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
         final isLast = answers.isNotEmpty && identical(e, answers.last);
         if (isLast && detail == current) continue;
         out.add(AgentTurn(
-          child: Text(detail, style: AppTheme.sans(size: 13.5, height: 1.55)),
+          child: AnswerView(document: AnswerDocument.parse(detail)),
         ));
         out.add(const SizedBox(height: AgentMetrics.turnGap));
       }
@@ -279,22 +285,49 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     });
   }
 
-  /// Split an answer into words, turning bare URLs into citation chips.
-  List<StreamToken> _tokenise(String text) {
-    final out = <StreamToken>[];
-    for (final word in text.split(RegExp(r'\s+'))) {
-      if (word.isEmpty) continue;
-      final m = RegExp(r'https?://([^/\s)]+)').firstMatch(word);
-      if (m != null) {
-        final domain = m.group(1)!.replaceFirst(RegExp(r'^www\.'), '');
-        out.add(StreamToken('',
-            cite: AgentSource(
-                title: domain, domain: domain, url: m.group(0)!)));
-      } else {
-        out.add(StreamToken(word));
-      }
+  /// Split an answer into words, turning markup and bare URLs into tokens.
+  List<StreamToken> _tokenise(String text) =>
+      AnswerDocument.parse(text).toStreamTokens();
+
+  AnswerDocument get _document {
+    final text = _revealedFrom.isNotEmpty
+        ? _revealedFrom
+        : (_streamBuf.isNotEmpty ? _streamBuf : '');
+    return AnswerDocument.parse(text);
+  }
+
+  List<EvidenceCardData> get _cards {
+    final raw = (_task['artifacts'] as String?) ?? '';
+    return EvidenceCardData.pick(
+      instruction: widget.instruction ??
+          _task['instruction'] as String? ??
+          widget.title,
+      answer: (_task['result'] as String?) ?? '',
+      artifacts: EvidenceCardData.fromArtifacts(raw),
+    );
+  }
+
+  String get _pendingKind {
+    final tool = (_task['pendingTool'] as String?) ?? '';
+    if (tool.isNotEmpty) return tool;
+    final error = (_task['error'] as String?) ?? '';
+    final lower = error.toLowerCase();
+    if (lower.contains('visible tab') || lower.contains('file upload')) {
+      return 'upload';
     }
-    return out;
+    if (lower.contains('signed-in') || lower.contains('grant the site')) {
+      return 'grant';
+    }
+    if (lower.contains('connection') || lower.contains('offline')) {
+      return 'network';
+    }
+    return '';
+  }
+
+  String? get _pendingUrl {
+    final error = (_task['error'] as String?) ?? '';
+    final m = RegExp(r'https?://[^\s]+').firstMatch(error);
+    return m?.group(0);
   }
 
   void _autoScroll() {
@@ -585,16 +618,32 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                                   color: AppColors.textMuted,
                                   w: FontWeight.w600)),
                         ],
-                        if (_tokens.isNotEmpty) ...[
+                        if (_tokens.isNotEmpty || _document.blocks.isNotEmpty) ...[
                           const SizedBox(height: 7),
-                          StreamedAnswer(
-                            tokens: _tokens,
+                          AnswerView(
+                            document: _document.isEmpty
+                                ? AnswerDocument.parse(_revealedFrom)
+                                : _document,
+                            cards: result.isNotEmpty && !streaming
+                                ? _cards
+                                : const [],
+                            sources: _sources,
                             visible: _revealed,
                             caret: streaming,
-                            onSourceTap: (s) => AppToast.show(context, s.url),
+                            onSourceTap: (s) {
+                              if (s.url.isNotEmpty) AppToast.show(context, s.url);
+                            },
+                            onCardTap: (c) {
+                              if (c.url.isEmpty) return;
+                              if (widget.onOpenUrl != null) {
+                                widget.onOpenUrl!(c.url);
+                              } else {
+                                AppToast.show(context, c.url);
+                              }
+                            },
                           ),
                         ],
-                        if (error.isNotEmpty) ...[
+                        if (error.isNotEmpty && status != 'WAITING') ...[
                           const SizedBox(height: 8),
                           Text(error,
                               style: AppTheme.sans(
@@ -604,17 +653,15 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                         ],
                         if (status == 'WAITING') ...[
                           const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ActionButton('Deny', onTap: () => _resolve(false)),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ActionButton('Allow',
-                                    solid: true, onTap: () => _resolve(true)),
-                              ),
-                            ],
+                          WaitingPrompt(
+                            kind: _pendingKind,
+                            message: error,
+                            url: _pendingUrl,
+                            onAllow: () => _resolve(true),
+                            onDeny: () => _resolve(false),
+                            onOpen: widget.onOpenUrl == null && _pendingUrl == null
+                                ? null
+                                : _openPending,
                           ),
                         ],
                         // The tail appears only once the answer has settled,
