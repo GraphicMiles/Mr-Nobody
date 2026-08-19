@@ -49,4 +49,18 @@ public class TaskArtifactTest {
     public void emptyFollowUpIsNull() {
         assertNull(TaskArtifact.resolve("tell me more about laptops in general", three()));
     }
+
+    @Test
+    public void imageSurvivesRoundTripAndAttach() {
+        TaskArtifact a = new TaskArtifact(1, "The Boys", "https://prime.example/boys",
+                "", "https://cdn.example/boys.jpg");
+        List<TaskArtifact> back = TaskArtifact.decode(TaskArtifact.encode(java.util.Collections.singletonList(a)));
+        assertEquals("https://cdn.example/boys.jpg", back.get(0).image);
+
+        java.util.Map<String, String> images = new java.util.HashMap<>();
+        images.put("https://a.example/1", "https://cdn.example/alpha.jpg");
+        List<TaskArtifact> attached = TaskArtifact.attachImages(three(), images);
+        assertEquals("https://cdn.example/alpha.jpg", attached.get(0).image);
+        assertEquals("", attached.get(1).image);
+    }
 }

@@ -55,6 +55,9 @@ abstract final class AgentMetrics {
 
   /// The library's easing, used for every entrance in this file.
   static const ease = Cubic(0.23, 1, 0.32, 1);
+
+  /// Sources, stamps, notes — secondary to the answer itself.
+  static const secondaryOpacity = 0.8;
 }
 
 /// Warm amber — the only non-grey in the palette, reserved for
@@ -163,8 +166,11 @@ class AgentStamp extends StatelessWidget {
         left: AgentMetrics.gutter + AgentMetrics.indent,
         top: AgentMetrics.stampGap,
       ),
-      child: Text(text,
-          style: AppTheme.mono(size: 9, color: AppColors.textMuted)),
+      child: Opacity(
+        opacity: AgentMetrics.secondaryOpacity,
+        child: Text(text,
+            style: AppTheme.mono(size: 9, color: AppColors.textMuted)),
+      ),
     );
   }
 }
@@ -791,8 +797,15 @@ class StreamedAnswer extends StatelessWidget {
 class _Word extends StatelessWidget {
   final String text;
   final bool animate;
+  final bool bold;
+  final bool italic;
 
-  const _Word({required this.text, required this.animate});
+  const _Word({
+    required this.text,
+    required this.animate,
+    this.bold = false,
+    this.italic = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -801,7 +814,8 @@ class _Word extends StatelessWidget {
       style: AppTheme.sans(
         size: AgentMetrics.bodySize,
         height: AgentMetrics.bodyHeight,
-      ),
+        w: bold ? FontWeight.w700 : FontWeight.w400,
+      ).copyWith(fontStyle: italic ? FontStyle.italic : FontStyle.normal),
     );
     if (!animate) return child;
 
@@ -1026,7 +1040,9 @@ class _AgentActionsState extends State<AgentActions> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Opacity(
+      opacity: AgentMetrics.secondaryOpacity,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -1136,6 +1152,7 @@ class _AgentActionsState extends State<AgentActions> {
           ),
         ),
       ],
+      ),
     );
   }
 

@@ -43,6 +43,10 @@ void main() {
           AgentMetrics.avatar + AgentMetrics.columnGap);
     });
 
+    test('secondary information is 80 percent opaque', () {
+      expect(AgentMetrics.secondaryOpacity, 0.8);
+    });
+
     testWidgets('the mark centres on the first line of the response',
         (tester) async {
       await tester.pumpWidget(host(

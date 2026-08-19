@@ -674,6 +674,11 @@ public final class DeterministicEngine implements AgentEngine {
         // An explicit http step (e.g. from an LLM plan) has no search-result
         // title; the URL itself is the honest label.
         appendSource(r.sources, r.readUrls.size(), url, r.titles.getOrDefault(url, url), text);
+        Object image = result.value().get("image");
+        if (image != null) {
+            String src = String.valueOf(image);
+            if (!src.isEmpty() && !"null".equals(src)) r.images.put(url, src);
+        }
         return true;
     }
 
@@ -948,6 +953,8 @@ public final class DeterministicEngine implements AgentEngine {
         final StringBuilder sources = new StringBuilder();
         final List<String> readUrls = new ArrayList<>();
         final Map<String, String> titles = new LinkedHashMap<>();
+        /** Page URL → preview image URL, from pages that actually read. */
+        final Map<String, String> images = new LinkedHashMap<>();
         String asked;
         TaskIntent intent;
         RecurrenceRequest.Request recurrence;

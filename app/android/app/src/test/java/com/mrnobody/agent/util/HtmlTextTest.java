@@ -48,4 +48,37 @@ public class HtmlTextTest {
         assertEquals("", HtmlText.toText(null));
         assertEquals("", HtmlText.toText(""));
     }
+
+    @Test
+    public void previewImagePrefersOpenGraph() {
+        String html = "<html><head>"
+                + "<meta property=\"og:image\" content=\"https://cdn.example/poster.jpg\">"
+                + "</head><body><img src=\"/icon.png\"></body></html>";
+        assertEquals("https://cdn.example/poster.jpg",
+                HtmlText.previewImage(html, "https://example.com/show"));
+    }
+
+    @Test
+    public void previewImageResolvesRelativeContentImages() {
+        String html = "<html><body><img src=\"/media/hero.webp\"></body></html>";
+        assertEquals("https://example.com/media/hero.webp",
+                HtmlText.previewImage(html, "https://example.com/page"));
+    }
+
+    @Test
+    public void previewImageSkipsChrome() {
+        String html = "<html><body>"
+                + "<img src=\"/favicon.ico\">"
+                + "<img src=\"https://example.com/pixel.gif\">"
+                + "<img src=\"https://example.com/photos/cast.jpg\">"
+                + "</body></html>";
+        assertEquals("https://example.com/photos/cast.jpg",
+                HtmlText.previewImage(html, "https://example.com"));
+    }
+
+    @Test
+    public void previewImageEmptyWhenNone() {
+        assertEquals("", HtmlText.previewImage("<p>no pictures</p>", "https://x"));
+        assertEquals("", HtmlText.previewImage(null, "https://x"));
+    }
 }

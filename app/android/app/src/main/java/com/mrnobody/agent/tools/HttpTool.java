@@ -105,6 +105,8 @@ public final class HttpTool implements Tool {
             if (com.mrnobody.agent.util.RobotsRules.looksLikeSitemap(body)) {
                 value.put("locs", com.mrnobody.agent.util.RobotsRules.locsFrom(body));
             }
+            String image = HtmlText.previewImage(body, url);
+            if (!image.isEmpty()) value.put("image", image);
             value.put("truncated", text.length() > MAX_RESULT);
             value.put("text", truncate(text, MAX_RESULT));
             return ToolResult.ok(value);

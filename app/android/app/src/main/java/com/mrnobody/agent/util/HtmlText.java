@@ -39,6 +39,59 @@ public final class HtmlText {
         return m.find() ? m.group(1) : null;
     }
 
+    /**
+     * The page's own preview image: {@code og:image}, Twitter card, JSON-LD
+     * {@code image}, or the first content {@code <img>} that is not chrome.
+     * Relative URLs are resolved against {@code pageUrl}. Empty when none.
+     */
+    public static String previewImage(String html, String pageUrl) {
+        if (html == null || html.isEmpty()) return "";
+        String[] patterns = {
+                "(?is)<meta[^>]+property=[\"']og:image(?::secure_url|:url)?[\"'][^>]+content=[\"']([^\"']+)[\"']",
+                "(?is)<meta[^>]+content=[\"']([^\"']+)[\"'][^>]+property=[\"']og:image(?::secure_url|:url)?[\"']",
+                "(?is)<meta[^>]+name=[\"']twitter:image(?::src)?[\"'][^>]+content=[\"']([^\"']+)[\"']",
+                "(?is)<meta[^>]+content=[\"']([^\"']+)[\"'][^>]+name=[\"']twitter:image(?::src)?[\"']",
+                "(?is)<link[^>]+rel=[\"']image_src[\"'][^>]+href=[\"']([^\"']+)[\"']",
+                "(?is)\"image\"\\s*:\\s*\"(https?:[^\"\\s]+)\"",
+        };
+        for (String pattern : patterns) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile(pattern).matcher(html);
+            if (m.find()) {
+                String resolved = UrlResolve.resolve(decodeAttr(m.group(1)), pageUrl);
+                if (usableImage(resolved)) return resolved;
+            }
+        }
+        java.util.regex.Matcher imgs = java.util.regex.Pattern
+                .compile("(?is)<img\\b[^>]*\\bsrc=[\"']([^\"']+)[\"']")
+                .matcher(html);
+        while (imgs.find()) {
+            String resolved = UrlResolve.resolve(decodeAttr(imgs.group(1)), pageUrl);
+            if (usableImage(resolved) && !looksLikeChrome(resolved)) return resolved;
+        }
+        return "";
+    }
+
+    private static String decodeAttr(String s) {
+        if (s == null) return "";
+        return s.replace("&amp;", "&").replace("&#38;", "&")
+                .replace("&quot;", "\"").trim();
+    }
+
+    static boolean usableImage(String url) {
+        if (url == null || url.length() < 12) return false;
+        String u = url.toLowerCase(java.util.Locale.ROOT);
+        if (!(u.startsWith("http://") || u.startsWith("https://"))) return false;
+        if (u.startsWith("data:")) return false;
+        return true;
+    }
+
+    static boolean looksLikeChrome(String url) {
+        String u = url.toLowerCase(java.util.Locale.ROOT);
+        return u.contains("favicon") || u.contains("sprite") || u.contains("pixel")
+                || u.contains("1x1") || u.contains("/icon") || u.contains("logo.")
+                || u.endsWith(".svg") || u.contains("tracking") || u.contains("badge");
+    }
+
     public static String toText(String html) {
         if (html == null || html.isEmpty()) return "";
         String s = html;

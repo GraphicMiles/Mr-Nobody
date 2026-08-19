@@ -335,12 +335,15 @@ class EvidenceCardData {
   final String domain;
   final String url;
   final String note;
+  /// Local path (downloaded through the privacy gate) or an https URL.
+  final String image;
 
   const EvidenceCardData({
     required this.title,
     required this.domain,
     required this.url,
     this.note = '',
+    this.image = '',
   });
 
   String get initial {
@@ -364,6 +367,7 @@ class EvidenceCardData {
           domain: _host(url),
           url: url,
           note: '${row['note'] ?? ''}',
+          image: '${row['image'] ?? ''}',
         ));
       }
       return out;
@@ -379,6 +383,17 @@ class EvidenceCardData {
     required String answer,
     required List<EvidenceCardData> artifacts,
   }) {
+    if (artifacts.isEmpty) return const [];
+    final pictured = artifacts.where((a) => a.image.isNotEmpty).toList();
+    if (pictured.isNotEmpty) {
+      final lower = answer.toLowerCase();
+      pictured.sort((a, b) {
+        final am = lower.contains(a.title.toLowerCase()) ? 0 : 1;
+        final bm = lower.contains(b.title.toLowerCase()) ? 0 : 1;
+        return am.compareTo(bm);
+      });
+      return pictured.take(3).toList();
+    }
     if (artifacts.length < 2) return const [];
     if (!_visual(instruction, answer)) return const [];
     return artifacts.take(3).toList();
