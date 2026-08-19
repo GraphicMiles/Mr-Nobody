@@ -11,6 +11,7 @@ import com.mrnobody.identity.DeviceIdentity;
 import com.mrnobody.remote.RemoteClient;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Executes a task on the remote worker: sign with the device identity, submit,
@@ -26,10 +27,15 @@ import java.util.UUID;
  */
 public final class RemoteWorker implements Worker {
 
-    private final String serverUrl;
+    private final Supplier<String> serverUrl;
 
     public RemoteWorker(String serverUrl) {
-        this.serverUrl = serverUrl == null ? "" : serverUrl.trim();
+        this(() -> serverUrl);
+    }
+
+    /** Resolve settings at dispatch time so changing the endpoint needs no restart. */
+    public RemoteWorker(Supplier<String> serverUrl) {
+        this.serverUrl = serverUrl == null ? () -> "" : serverUrl;
     }
 
     @Override
@@ -42,14 +48,16 @@ public final class RemoteWorker implements Worker {
         task.setWorker("remote");
         task.setStatus(Task.Status.RUNNING);
 
-        if (serverUrl.isEmpty()) {
-            task.setError("Remote worker is not configured. The task stayed on-device.");
+        String endpoint = serverUrl.get();
+        endpoint = endpoint == null ? "" : endpoint.trim();
+        if (endpoint.isEmpty()) {
+            task.setError("Remote worker is not configured. No task data was sent.");
             task.setStatus(Task.Status.FAILED);
             return;
         }
 
         final long taskId = task.id();
-        RemoteClient client = new RemoteClient(serverUrl, NetworkGate::openHttp);
+        RemoteClient client = new RemoteClient(endpoint, NetworkGate::openHttp);
         try {
             DeviceIdentity identity = AndroidKeyStoreIdentity.loadOrCreate();
             long remoteId = client.submit(identity, UUID.randomUUID().toString(), task.instruction());
