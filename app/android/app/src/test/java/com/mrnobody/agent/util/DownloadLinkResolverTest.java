@@ -22,6 +22,8 @@ public class DownloadLinkResolverTest {
         assertTrue(DownloadLinkResolver.isDownloadable("https://example.com/movie.mkv"));
         assertTrue(DownloadLinkResolver.isDownloadable("https://example.com/archive.zip?dl=1"));
         assertTrue(DownloadLinkResolver.isDownloadable("https://example.com/report.PDF"));
+        assertTrue(DownloadLinkResolver.isDownloadable("https://example.com/image.png"));
+        assertTrue(DownloadLinkResolver.isDownloadable("https://example.com/photo.jpeg"));
         assertFalse(DownloadLinkResolver.isDownloadable("https://example.com/page"));
         assertFalse(DownloadLinkResolver.isDownloadable("https://example.com/page.html"));
         assertFalse(DownloadLinkResolver.isDownloadable("example.com/file.zip")); // no scheme

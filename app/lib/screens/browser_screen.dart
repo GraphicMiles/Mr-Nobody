@@ -71,8 +71,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
     super.dispose();
   }
 
-  /// Downloads are handed to Android's DownloadManager by the engine; the user
-  /// still needs to be told one started (or that it could not).
+  /// Downloads are handed to Mr Nobody's own native engine; the user still
+  /// needs to be told one started (or that it could not).
   void _listenForDownloads(BrowserTab? tab) {
     if (identical(tab, _noticeTab)) return;
     _noticeTab?.downloadNotice.removeListener(_onDownloadNotice);

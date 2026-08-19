@@ -23,7 +23,8 @@ public final class DownloadLinkResolver {
             ".mkv", ".mp4", ".avi", ".mov", ".webm", ".mp3", ".m4a", ".flac",
             ".zip", ".rar", ".7z", ".tar", ".gz", ".iso", ".apk", ".pdf",
             ".epub", ".mobi", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-            ".csv", ".torrent",
+            ".csv", ".torrent", ".txt", ".json", ".xml",
+            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".heic",
     };
 
     private DownloadLinkResolver() {

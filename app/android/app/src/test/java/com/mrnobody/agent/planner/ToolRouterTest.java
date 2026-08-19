@@ -40,9 +40,11 @@ public class ToolRouterTest {
     }
 
     @Test
-    public void otherDownloadVerbsAlsoRoute() {
+    public void otherDownloadVerbsAndImageFilesAlsoRoute() {
         assertNotNull(ToolRouter.route("save https://example.test/a.zip", ALL));
         assertNotNull(ToolRouter.route("grab https://example.test/a.pdf", ALL));
+        assertNotNull(ToolRouter.route("download https://example.test/photo.png", ALL));
+        assertNotNull(ToolRouter.route("save https://example.test/photo.webp", ALL));
     }
 
     @Test
