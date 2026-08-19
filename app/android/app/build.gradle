@@ -3,6 +3,23 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Release signing is explicit. A release task without all four values fails
+// instead of silently falling back to Android's public debug key.
+def releaseStorePath = System.getenv("MRNOBODY_KEYSTORE")
+def releaseStorePassword = System.getenv("MRNOBODY_STORE_PASSWORD")
+def releaseKeyAlias = System.getenv("MRNOBODY_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("MRNOBODY_KEY_PASSWORD")
+def releaseSigningReady = [
+        releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
+].every { it != null && !it.trim().isEmpty() }
+def releaseRequested = gradle.startParameter.taskNames.any {
+    it.toLowerCase(java.util.Locale.ROOT).contains("release")
+}
+if (releaseRequested && !releaseSigningReady) {
+    throw new GradleException("Release signing is not configured. Set MRNOBODY_KEYSTORE, "
+            + "MRNOBODY_STORE_PASSWORD, MRNOBODY_KEY_ALIAS and MRNOBODY_KEY_PASSWORD.")
+}
+
 android {
     namespace = "com.mrnobody.browser"
     compileSdk = flutter.compileSdkVersion
@@ -22,9 +39,21 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (releaseSigningReady) {
+            release {
+                storeFile = file(releaseStorePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                storeType = "PKCS12"
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            if (releaseSigningReady) signingConfig = signingConfigs.release
         }
     }
 }
