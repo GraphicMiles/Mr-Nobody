@@ -6,13 +6,14 @@ Usage:
 
 Exit code 0 if the APK is within budget, 1 otherwise.
 
-The product target is at most 45 MiB. The hard gate (build-failing) defaults
-to 70 MiB, matching CI. See README.md and ROADMAP.md.
+Each ABI-specific APK must be at most 45 MiB. The build-failing default matches
+that product limit; CI does not keep a looser second ceiling. See README.md and
+ROADMAP.md.
 """
 import os
 import sys
 
-DEFAULT_MAX_MB = 70.0
+DEFAULT_MAX_MB = 45.0
 
 
 def human(n: int) -> str:
