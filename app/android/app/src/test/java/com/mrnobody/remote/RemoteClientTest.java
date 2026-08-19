@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,7 @@ public class RemoteClientTest {
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         final int code;
         final String response;
+        boolean disconnected;
 
         FakeConnection(int code, String response) throws Exception {
             super(new URL("https://example.invalid/"));
@@ -42,11 +44,18 @@ public class RemoteClientTest {
         }
 
         @Override public void connect() { }
-        @Override public void disconnect() { }
+        @Override public void disconnect() { disconnected = true; }
         @Override public boolean usingProxy() { return false; }
         @Override public int getResponseCode() { return code; }
         @Override public OutputStream getOutputStream() { return out; }
-        @Override public InputStream getInputStream() {
+        @Override public InputStream getInputStream() throws IOException {
+            if (code >= 400) throw new IOException("HTTP " + code);
+            return bytes();
+        }
+        @Override public InputStream getErrorStream() {
+            return code >= 400 ? bytes() : null;
+        }
+        private InputStream bytes() {
             return new ByteArrayInputStream(response.getBytes(StandardCharsets.UTF_8));
         }
     }
@@ -74,6 +83,7 @@ public class RemoteClientTest {
         assertEquals("find laptops", body.getString("payload"));
         assertTrue(body.has("timestamp"));
         assertTrue(body.has("signature"));
+        assertTrue(conn.disconnected);
     }
 
     @Test
@@ -95,6 +105,23 @@ public class RemoteClientTest {
         assertEquals("Hello ", events.get(0)[1]);
         assertEquals("done", events.get(2)[0]);
         assertEquals("Hello world", events.get(2)[1]);
+        assertTrue(conn.disconnected);
+    }
+
+    @Test
+    public void aRejectedStreamIncludesTheServerError() throws Exception {
+        FakeConnection conn = new FakeConnection(403, "{\"error\":\"expired\"}");
+        RemoteClient client = new RemoteClient("https://worker.example", url -> conn);
+
+        try {
+            client.stream(42, (type, text) -> { },
+                    com.mrnobody.agent.core.Cancellation.NONE);
+            org.junit.Assert.fail("expected IOException");
+        } catch (Exception expected) {
+            assertTrue(expected.getMessage().contains("403"));
+            assertTrue(expected.getMessage().contains("expired"));
+        }
+        assertTrue(conn.disconnected);
     }
 
     @Test
@@ -109,6 +136,8 @@ public class RemoteClientTest {
             org.junit.Assert.fail("expected IOException");
         } catch (Exception expected) {
             assertTrue(expected.getMessage().contains("401"));
+            assertTrue(expected.getMessage().contains("replay"));
         }
+        assertTrue(conn.disconnected);
     }
 }

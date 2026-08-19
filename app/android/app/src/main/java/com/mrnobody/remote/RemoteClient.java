@@ -67,21 +67,28 @@ public final class RemoteClient {
         body.put("signature", Base64.getEncoder().encodeToString(req.signature()));
 
         HttpURLConnection conn = connections.open(baseUrl + "/tasks");
-        conn.setRequestMethod("POST");
-        conn.setConnectTimeout(15_000);
-        conn.setReadTimeout(30_000);
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/json");
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(body.toString().getBytes(StandardCharsets.UTF_8));
-        }
+        try {
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(15_000);
+            conn.setReadTimeout(30_000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            }
 
-        int code = conn.getResponseCode();
-        String response = readAll(conn.getInputStream());
-        if (code < 200 || code >= 300) {
-            throw new IOException("remote worker rejected the task: HTTP " + code + " " + response);
+            int code = conn.getResponseCode();
+            boolean ok = code >= 200 && code < 300;
+            InputStream responseStream = ok ? conn.getInputStream() : conn.getErrorStream();
+            String response = responseStream == null ? "" : readAll(responseStream);
+            if (!ok) {
+                throw new IOException("remote worker rejected the task: HTTP "
+                        + code + (response.isEmpty() ? "" : " " + response));
+            }
+            return new JSONObject(response).getLong("taskId");
+        } finally {
+            conn.disconnect();
         }
-        return new JSONObject(response).getLong("taskId");
     }
 
     /**
@@ -90,22 +97,36 @@ public final class RemoteClient {
      */
     public void stream(long taskId, StreamListener listener, Cancellation cancellation)
             throws Exception {
+        if (cancellation != null && cancellation.isCancelled()) {
+            throw new IOException("cancelled");
+        }
         HttpURLConnection conn = connections.open(baseUrl + "/tasks/" + taskId + "/stream");
-        conn.setConnectTimeout(15_000);
-        conn.setReadTimeout(60_000);
-        try (InputStream in = conn.getInputStream();
-             Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
-            SseFrames.read(reader, json -> {
-                if (cancellation != null && cancellation.isCancelled()) {
-                    throw new IOException("cancelled");
-                }
-                try {
-                    JSONObject ev = new JSONObject(json);
-                    listener.onEvent(ev.optString("type", ""), ev.optString("text", ""));
-                } catch (org.json.JSONException e) {
-                    // A malformed frame is skipped, not fatal to the stream.
-                }
-            });
+        try {
+            conn.setConnectTimeout(15_000);
+            conn.setReadTimeout(60_000);
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                InputStream error = conn.getErrorStream();
+                String detail = error == null ? "" : readAll(error);
+                throw new IOException("remote stream rejected: HTTP " + code
+                        + (detail.isEmpty() ? "" : " " + detail));
+            }
+            try (InputStream in = conn.getInputStream();
+                 Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+                SseFrames.read(reader, json -> {
+                    if (cancellation != null && cancellation.isCancelled()) {
+                        throw new IOException("cancelled");
+                    }
+                    try {
+                        JSONObject ev = new JSONObject(json);
+                        listener.onEvent(ev.optString("type", ""), ev.optString("text", ""));
+                    } catch (org.json.JSONException e) {
+                        // A malformed frame is skipped, not fatal to the stream.
+                    }
+                });
+            }
+        } finally {
+            conn.disconnect();
         }
     }
 
