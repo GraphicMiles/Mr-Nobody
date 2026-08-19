@@ -216,7 +216,7 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                 onPressed: () async {
                   final text = _report();
                   await Clipboard.setData(ClipboardData(text: text));
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   AppToast.show(context, 'Report copied');
                 },
                 child: Text('COPY', style: AppTheme.mono(size: 9.5, w: FontWeight.w700)),
