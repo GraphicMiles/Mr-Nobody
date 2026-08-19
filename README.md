@@ -8,7 +8,7 @@ This is the repository's developer document. Product status and the next deliver
 
 ## Current snapshot
 
-Production-code audit baseline: `21a051f` on 2026-08-19.
+Production-code audit baseline: `0afd06a` on 2026-08-19.
 
 - App version: `1.0.0+1`
 - Android application ID: `com.mrnobody.browser`
@@ -16,10 +16,10 @@ Production-code audit baseline: `21a051f` on 2026-08-19.
 - UI: Flutter 3.24.5 in CI, Dart SDK constraint `^3.5.4`
 - Native core: Java 11 bytecode, built with JDK 17 in CI
 - Rendering engine: the installed Android System WebView; no browser engine is bundled
-- Latest audited CI run: successful, including analysis, Flutter tests, JVM tests, Gradle tests, privacy checks, release APK build, and size gate
-- Audited release APK: 48,370,906 bytes (46.13 MiB); below the 70 MiB hard gate but above the 45 MiB product target
-- Local JVM audit: 675 tests passing
-- Python privacy-auditor suite: 11 tests passing
+- Latest audited CI run: `32310388940`, successful across strict analysis, Flutter tests, JVM/Gradle tests, privacy checks, signed APK build, signature verification, and size gates
+- ABI-specific CI APKs: armeabi-v7a 14.62 MiB, arm64-v8a 17.06 MiB, x86_64 18.19 MiB; every artifact is below the 45 MiB limit
+- Java/JVM suite: 685 tests passing in CI
+- Python privacy-auditor suite: 13 tests passing
 
 The source contains substantial Android functionality, but the complete local-agent, WebView, background-work, download, and privacy-route flows have not yet been signed off on a physical device. Do not convert “implemented and tested off-device” into a runtime claim.
 
@@ -32,7 +32,9 @@ The source contains substantial Android functionality, but the complete local-ag
 - On-device ad/tracker filtering in `shouldInterceptRequest`, URL tracking-parameter stripping, local block counters, and a pinned bundled-list digest
 - History disabled by default, third-party cookies disabled, mixed content blocked, file/content access disabled, and backup disabled
 - App-owned downloads with destination selection, persistence, pause/resume/cancel, HTTP range validation, foreground-service support, and notifications
-- Persistent tasks backed by SQLite and Android WorkManager, including retries, cancellation, heartbeat/reconciliation, event logs, follow-ups, and recurring schedules
+- Persistent tasks backed by SQLite and Android WorkManager, including retries, cancellation, heartbeat/reconciliation, event logs, follow-ups, recurring schedules, and restored durable timestamps
+- Explicit task-scope propagation onto tool executor threads; local agent runs are deliberately serialized so mutable planner/tool state cannot cross tasks
+- Keystore-backed AES-GCM storage for provider API keys and user-granted account sessions, including plaintext migration and key removal
 - A local deterministic research path that searches, reads sources, produces an extractive answer, records evidence, and verifies citations/figures
 - Optional remote AI providers: Gemini, Groq, and an OpenAI-compatible endpoint
 - An autonomous observe/reason/act planner when a remote AI provider is selected
@@ -46,10 +48,9 @@ The source contains substantial Android functionality, but the complete local-ag
 - Physical-device validation is incomplete.
 - The remote-worker client has no deployed server in this repository and normal task creation currently persists `worker=local`; remote execution is therefore not an end-to-end user path.
 - Credits, payments, account recovery, and a remote credit ledger are not implemented.
-- Release builds still use debug signing.
-- AI-provider API keys are stored in app-private `SharedPreferences`, not in a Keystore-backed encrypted store.
+- Production release signing requires externally supplied protected key material. CI uses a fresh, disposable key and labels its APKs as test artifacts.
 - Several WebView privacy capabilities depend on the installed WebView version and can legitimately be unavailable on a device.
-- Oversized tool output is currently reduced to a preview with a synthetic `spill://` locator, but the full value is not persisted behind that locator. Do not claim it is retrievable until backing storage exists.
+- Oversized tool output is intentionally reduced to an honest, non-retrievable preview; no synthetic storage locator is advertised.
 - “Local” means a deterministic, no-model research path. It must not be described as an on-device LLM.
 - Privacy controls reduce browser-controlled tracking; they do not make a user anonymous. Nobody mode depends on a configured, available proxy or Orbot route.
 - Restricted tools shown in Settings are compiled off through `RestrictedTools.ACTIVE = false` and have no active payload.
@@ -128,7 +129,7 @@ Do not move filtering or browser security decisions into Dart. Subresource reque
 6. Every tool call goes through `ToolPipeline` before execution.
 7. Task state and events are persisted and streamed back to the Flutter task chat.
 
-The roadmap records a current risk in steps 5–6: task context is thread-local while tool bodies execute on a shared executor, and guard/browser state is shared by the singleton engine. Treat concurrent and headless-agent browser execution as unverified until that is corrected and regression-tested.
+`TaskScope` captures the task ID before a tool enters the shared executor and clears it after the call. The local worker also serializes runs and resets browser anchor state per task. This removes pooled-thread context loss and prevents concurrent tasks from sharing mutable planner, guard, or browser state; the end-to-end Android behavior remains part of device testing.
 
 ### Agent modes
 
@@ -172,11 +173,13 @@ Changes must preserve these rules:
 7. The blocklist digest is verified before parsing. An invalid list disables blocking and records the reason; it does not silently run untrusted rules.
 8. Tool selection never grants permission. Every selected tool still enters `ToolPipeline`.
 9. A missing approval UI or timed-out approval parks/refuses the action; it never defaults to allow.
-10. Credentials and page content must not be copied into memory summaries, logs, or model prompts outside their explicit task use.
-11. Private/isolated-profile claims must be capability-detected from the installed System WebView.
-12. Restricted tools remain hard-off unless a separate security and product decision deliberately changes source code and tests.
-13. The remote worker can see remotely executed task URLs and page content. Never claim otherwise.
-14. Android backup remains disabled unless every persisted secret and identity is re-audited.
+10. Provider keys and granted account-cookie values remain inside Keystore-backed encrypted preferences; plaintext credential persistence fails the privacy audit.
+11. Credentials and page content must not be copied into memory summaries, logs, or model prompts outside their explicit task use.
+12. Private/isolated-profile claims must be capability-detected from the installed System WebView.
+13. Approval tool grants are process-session only and return to the configured mode after restart.
+14. Restricted tools remain hard-off unless a separate security and product decision deliberately changes source code and tests.
+15. The remote worker can see remotely executed task URLs and page content. Never claim otherwise.
+16. Android backup remains disabled unless every persisted secret and identity is re-audited.
 
 Run `python3 tools/privacy_audit.py .` whenever code changes network, dependencies, the manifest, WebView policy, or persistence.
 
@@ -193,18 +196,26 @@ Run `python3 tools/privacy_audit.py .` whenever code changes network, dependenci
 ### Full local verification
 
 ```bash
+# Point these at protected signing material; never commit the values.
+export MRNOBODY_KEYSTORE=/secure/path/release.p12
+export MRNOBODY_STORE_PASSWORD='...'
+export MRNOBODY_KEY_ALIAS='...'
+export MRNOBODY_KEY_PASSWORD='...'
+
 cd app
 flutter pub get
-flutter analyze --no-fatal-infos
+flutter analyze
 flutter test
-flutter build apk --release
+flutter build apk --release --split-per-abi
 
 cd ..
 python3 tools/test_privacy_audit.py
 python3 tools/privacy_audit.py .
 python3 tools/filter_digest_check.py .
 tools/jvm_test.sh
-python3 tools/apk_size_check.py app/build/app/outputs/flutter-apk/app-release.apk 70
+for apk in app/build/app/outputs/flutter-apk/*-release.apk; do
+  python3 tools/apk_size_check.py "$apk" 45
+done
 ```
 
 After Flutter has prepared the Android project, the Gradle JVM suite can also be run with:
@@ -218,25 +229,25 @@ cd app/android
 
 ### Build only
 
+After setting the four `MRNOBODY_*` signing variables shown above:
+
 ```bash
 cd app
 flutter pub get
-flutter build apk --release
+flutter build apk --release --split-per-abi
 ```
 
-Output:
-
-```text
-app/build/app/outputs/flutter-apk/app-release.apk
-```
-
-The current Gradle release configuration uses debug signing. A CI-generated APK is therefore a test artifact, not a production release candidate.
+Outputs are `app-<abi>-release.apk` under
+`app/build/app/outputs/flutter-apk/`. A release task without complete signing
+configuration fails; it never falls back to the debug key. CI uses a disposable
+key, verifies every APK's v2 signature, and publishes explicitly named test
+artifacts.
 
 ## Test strategy
 
 | Layer | Command / location | What it proves |
 |---|---|---|
-| Static analysis | `flutter analyze --no-fatal-infos` | Dart/Flutter analysis |
+| Static analysis | `flutter analyze` | Strict Dart/Flutter analysis |
 | Flutter widgets | `flutter test` | UI behavior and bridge-facing state |
 | Golden tests | `app/test/goldens/` | Screen regression against committed images |
 | Fast JVM suite | `tools/jvm_test.sh` | Java compilation and unit behavior without Gradle/device |
@@ -269,7 +280,7 @@ Never edit one blocklist copy without the other.
 4. Route or plan to it explicitly; registration alone does not make it reachable.
 5. Verify the call enters `ToolPipeline` and cannot bypass approval or guards.
 6. Add contract, policy, failure, timeout, and adversarial tests.
-7. Check that outputs do not leak credentials. Until backed spill storage exists, large-output handling must not claim the full value is retrievable.
+7. Check that outputs do not leak credentials. Oversized values must remain bounded and explicitly state that omitted content was not retained.
 
 ### Adding a bridge method
 
@@ -300,19 +311,23 @@ Never edit one blocklist copy without the other.
 `.github/workflows/flutter.yml` runs on pushes to `main`, pull requests, and manual dispatch. The gate order is:
 
 1. Documentation-surface check (exactly `README.md` and `ROADMAP.md`)
-2. Flutter dependency resolution
-3. Static analysis
-4. Privacy-auditor self-tests
-5. Repository privacy audit
-6. Fast JVM suite
-7. Filter digest check
-8. Flutter widget/golden tests
-9. Release APK build
-10. Gradle Android unit tests
-11. 70 MiB APK size gate
-12. APK artifact upload
+2. Build-dependency policy (no unused Kotlin plugin)
+3. Flutter dependency resolution
+4. Strict static analysis
+5. Privacy-auditor self-tests
+6. Repository privacy audit, including encrypted credential owners
+7. Fast JVM suite
+8. Filter digest check
+9. Flutter widget/golden tests
+10. Ephemeral CI signing-key generation
+11. ABI-specific APK build
+12. APK signature verification
+13. Gradle Android unit tests
+14. 45 MiB size gate on every ABI APK
+15. Explicitly named CI test-artifact upload
 
-The 70 MiB gate is a regression cliff, not the product goal. The target remains at or below 45 MiB; the audited 46.13 MiB artifact requires size work in the next phase.
+There is one size limit: 45 MiB per installable ABI artifact. The current
+artifacts are 14.62–18.19 MiB.
 
 ## Commit and review expectations
 
