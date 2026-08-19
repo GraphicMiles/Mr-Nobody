@@ -14,6 +14,7 @@ import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.policy.ApprovalPolicy;
 import com.mrnobody.agent.policy.BudgetGuard;
 import com.mrnobody.agent.policy.RepeatCallGuard;
+import com.mrnobody.agent.tools.BrowserTool;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.agent.util.DownloadLinkResolver;
@@ -108,14 +109,6 @@ public final class DeterministicEngine implements AgentEngine {
             new ToolPipeline(policy).addGuard(repeatGuard).addGuard(budgetGuard);
 
     /**
-     * The deterministic planner, used on the local (no-model) path — the
-     * research cascade, or a one-step routed action. A remote provider instead
-     * runs the autonomous observe→act loop in {@link #runAutonomous}, so this
-     * field serves only the path that has no model to reason with.
-     */
-    private Planner planner = new DeterministicPlanner();
-
-    /**
      * How many source candidates the read phase will try. Larger than
      * {@link #MAX_SOURCES_READ} on purpose: a candidate that fails to read must
      * not consume the budget, so a later candidate is tried. Bounded by the
@@ -162,6 +155,10 @@ public final class DeterministicEngine implements AgentEngine {
         // inherited by the next one.
         repeatGuard.reset();
         budgetGuard.reset();
+        Tool browser = tools.get("browser");
+        if (browser instanceof BrowserTool) {
+            ((BrowserTool) browser).resetForTask();
+        }
 
         // Cancellation is observed between steps: the task stops in a state we
         // can describe, never halfway through one.
@@ -192,7 +189,7 @@ public final class DeterministicEngine implements AgentEngine {
             return;
         }
 
-        planner = new DeterministicPlanner();
+        Planner planner = new DeterministicPlanner();
         Plan plan;
         if (pointed != null && TaskArtifact.isPointerFollowUp(task.followUp())) {
             // Search already happened. Opening "the second one" is a read of

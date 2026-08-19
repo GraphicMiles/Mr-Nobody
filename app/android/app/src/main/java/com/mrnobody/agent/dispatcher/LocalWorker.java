@@ -17,6 +17,13 @@ public final class LocalWorker implements Worker {
 
     private final AgentEngine engine;
 
+    /**
+     * The current engine owns mutable planner, guard and tool state. Run one
+     * local task at a time until those objects become per-run values. This is
+     * deliberate back-pressure, not accidental WorkManager concurrency.
+     */
+    private final Object executionLock = new Object();
+
     public LocalWorker(AgentEngine engine) {
         this.engine = engine;
     }
@@ -29,25 +36,24 @@ public final class LocalWorker implements Worker {
     @Override
     public void execute(Context context, Task task, Cancellation cancellation) {
         task.setWorker("local");
-        task.setStatus(Task.Status.RUNNING);
 
-        // The pipeline is shared and deliberately knows nothing about tasks,
-        // so the task id travels on the thread. Without this every tool call
-        // would be logged against task 0 and the event log could not say which
-        // task did what. Cleared in a finally: a leaked binding would file the
-        // next task's calls under this one.
-        EventLogRecorder.bind(task.id());
-        HeadlessSessions.acquire(context, task.id());
-        com.mrnobody.agent.tasks.CompletionStats.beginRun();
-        try {
-            engine.run(context, task, cancellation);
-        } finally {
-            com.mrnobody.agent.tasks.CompletionStats.endRun(
-                    task.status() == Task.Status.COMPLETED);
-            EventLogRecorder.clear();
-            // Per-task engine: close this task's jar even if another task is
-            // still running. Isolation is the point; sharing was the bug.
-            HeadlessSessions.release(task.id());
+        synchronized (executionLock) {
+            task.setStatus(Task.Status.RUNNING);
+
+            // TaskScope is propagated by ToolPipeline onto its executor. The
+            // worker still owns the outer binding and always clears it, so a
+            // reused WorkManager thread cannot inherit the next task's id.
+            EventLogRecorder.bind(task.id());
+            HeadlessSessions.acquire(context, task.id());
+            com.mrnobody.agent.tasks.CompletionStats.beginRun();
+            try {
+                engine.run(context, task, cancellation);
+            } finally {
+                com.mrnobody.agent.tasks.CompletionStats.endRun(
+                        task.status() == Task.Status.COMPLETED);
+                EventLogRecorder.clear();
+                HeadlessSessions.release(task.id());
+            }
         }
     }
 }

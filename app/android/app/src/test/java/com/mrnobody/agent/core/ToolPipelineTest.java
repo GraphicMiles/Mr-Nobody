@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The pipeline is where every promise the agent makes is actually kept, so
@@ -373,6 +374,36 @@ public class ToolPipelineTest {
         assertTrue(decisions.get(0).isDeny());
         assertEquals(ApprovalDecision.Source.GUARD, decisions.get(0).source());
         assertNotNull(decisions.get(0).reason());
+    }
+
+    // ---------------------------------------------------------- task scope
+
+    @Test
+    public void taskScopeIsPropagatedToTheToolExecutorAndThenCleared() {
+        AtomicLong seen = new AtomicLong(-1L);
+        FakeTool tool = new FakeTool(readSpec()) {
+            @Override
+            public ToolResult execute(Context context, ToolRequest request) {
+                seen.set(TaskScope.currentTask());
+                return super.execute(context, request);
+            }
+        };
+        ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
+
+        TaskScope.bind(42L);
+        try {
+            ToolResult result = pipeline.run(NO_CONTEXT, tool, goodRequest());
+            assertTrue(result.isSuccess());
+            assertEquals(42L, seen.get());
+        } finally {
+            TaskScope.clear();
+        }
+
+        seen.set(-1L);
+        ToolResult outside = pipeline.run(NO_CONTEXT, tool, goodRequest());
+        assertTrue(outside.isSuccess());
+        assertEquals("a reused executor thread must not leak the prior task",
+                TaskScope.NO_TASK, seen.get());
     }
 
     // ----------------------------------------------------------------- misc

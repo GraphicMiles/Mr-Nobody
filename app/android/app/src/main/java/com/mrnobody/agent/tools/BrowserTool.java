@@ -51,8 +51,13 @@ public final class BrowserTool implements Tool {
             java.util.Set.of("open", "fetch", "extract", "title", "links",
                     "forms", "scroll", "wait");
 
-    /** The last URL this tool navigated to, for anchoring. */
+    /** The last URL this tool navigated to, for anchoring the current task. */
     private volatile String lastKnownUrl = "";
+
+    /** Start a task with no navigation inherited from the previous run. */
+    public void resetForTask() {
+        lastKnownUrl = "";
+    }
 
     private static final ToolSpec SPEC = ToolSpec.named("browser")
             .describedAs("Open, navigate and extract text from a web page.")
