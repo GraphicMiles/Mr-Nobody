@@ -1,6 +1,7 @@
 package com.mrnobody.agent.policy;
 
 import com.mrnobody.agent.core.ApprovalDecision;
+import com.mrnobody.agent.core.ImpactKind;
 import com.mrnobody.agent.core.ToolCall;
 import com.mrnobody.agent.core.ToolPipeline;
 
@@ -82,6 +83,15 @@ public final class ApprovalPolicy implements ToolPipeline.Approval {
     public ApprovalDecision decide(ToolCall call) {
         if (call == null) {
             return ApprovalDecision.deny(ApprovalDecision.Source.DEFAULT, "no call to judge");
+        }
+
+        ImpactKind impact = ImpactKind.of(call.tool(), call.action(),
+                call.params() == null ? "" : String.valueOf(call.params()));
+        if (impact.alwaysConfirm()) {
+            return ApprovalDecision.confirm(ApprovalDecision.Source.TIER,
+                    impact == ImpactKind.DELETE
+                            ? "deletes content"
+                            : "spends money or checks out");
         }
 
         Rule rule = overrides.forTool(call.tool());

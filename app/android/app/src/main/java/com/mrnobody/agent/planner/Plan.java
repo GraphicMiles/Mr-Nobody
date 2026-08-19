@@ -161,6 +161,11 @@ public final class Plan {
     }
 
     /** The plan as a readable line, for the task detail view. */
+    /** Cursor plus labels — enough to reconstruct after a process death. */
+    public String snapshot() {
+        return cursor + "\t" + describe();
+    }
+
     public String describe() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < steps.size(); i++) {

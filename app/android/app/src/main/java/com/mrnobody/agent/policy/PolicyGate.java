@@ -18,7 +18,8 @@ public final class PolicyGate {
     // denied or require confirmation. Matching is by the command's first word
     // (the binary), so bare "ls" and "ls -la" are both allowed.
     private static final Set<String> ALLOWED = new HashSet<>(Arrays.asList(
-            "sha256", "md5", "hash", "list", "ls", "cat", "head", "stat", "identify"));
+            "sha256", "md5", "hash", "list", "ls", "cat", "head", "stat", "identify",
+            "unzip", "file", "wc", "inspect"));
 
     private static final String[] DENIED = {
             "rm -rf", "dd ", "mkfs", "su ", "sudo ", "chmod", "chown", "mount", "reboot",

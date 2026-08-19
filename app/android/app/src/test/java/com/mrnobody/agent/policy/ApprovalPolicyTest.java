@@ -53,6 +53,17 @@ public class ApprovalPolicyTest {
     }
 
     @Test
+    public void deleteAndPayStillConfirmUnderTrusting() {
+        ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.TRUSTING, ApprovalPolicy.Overrides.NONE);
+        ToolCall del = ToolCall.of("browser",
+                ToolRequest.of("click", "text", "delete post"), Tier.WRITE);
+        assertTrue(p.decide(del).needsConfirmation());
+        ToolCall pay = ToolCall.of("browser",
+                ToolRequest.of("click", "text", "place order"), Tier.WRITE);
+        assertTrue(p.decide(pay).needsConfirmation());
+    }
+
+    @Test
     public void theReasonIsWrittenForAPersonNotForALog() {
         ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.CAUTIOUS, ApprovalPolicy.Overrides.NONE);
         String reason = p.decide(call("terminal", Tier.EXEC)).reason();

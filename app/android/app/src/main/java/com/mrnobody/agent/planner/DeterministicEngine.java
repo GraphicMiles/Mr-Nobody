@@ -175,6 +175,12 @@ public final class DeterministicEngine implements AgentEngine {
         // local provider has no model to reason with, so it stays on the
         // deterministic path.
         String asked = task.conversation();
+        TaskArtifact pointed = TaskArtifact.resolve(task.followUp(),
+                TaskArtifact.decode(task.artifacts()));
+        if (pointed != null) {
+            asked = asked + "\n\nThe user is referring to [" + pointed.index + "] "
+                    + pointed.title + " " + pointed.url;
+        }
 
         AiProvider provider = MrNobodyApp.activeProvider();
         IntentClassifier.Decision classified = IntentClassifier.classify(provider, asked);
@@ -187,6 +193,7 @@ public final class DeterministicEngine implements AgentEngine {
 
         planner = new DeterministicPlanner();
         Plan plan = planner.plan(asked, tools.keySet());
+        task.setPlanJson(plan.snapshot());
         if (plan.size() == 0 || plan.isAbandoned()) {
             fail(task, ToolResult.fail("No plan for this instruction."));
             return;
@@ -265,6 +272,7 @@ public final class DeterministicEngine implements AgentEngine {
                         return;
                     }
                     r.results = resultsOf(result);
+                    task.setArtifacts(TaskArtifact.encode(TaskArtifact.fromSearch(r.results)));
                     if (r.results.isEmpty()) {
                         fail(task, ToolResult.fail("The search returned nothing to read, so "
                                 + "there is nothing to answer from."));
@@ -389,6 +397,9 @@ public final class DeterministicEngine implements AgentEngine {
             if (stopped(task, cancellation)) return;
             if (parkIfNeeded(task, result)) return;
             applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
+            if ("search".equals(step.tool) && result.isSuccess()) {
+                task.setArtifacts(TaskArtifact.encode(TaskArtifact.fromSearch(resultsOf(result))));
+            }
 
             // The transcript is the one unbounded thing in the loop. Trim it to
             // the budget so a long task never overflows the model's context
@@ -697,6 +708,10 @@ public final class DeterministicEngine implements AgentEngine {
      * enqueue a download step for it.
      *
      * <p>The order is the honest one: a search result that is itself a file
+     * wins; otherwise the pages are re-read through the headless browser to
+     * collect their links, and the best file is chosen — preferring the user's
+     * own named site. When nothing is downloadable the answer step says so
+     * plainly instead of inventing a URLnest one: a search result that is itself a file
      * wins; otherwise the pages are re-read through the headless browser to
      * collect their links, and the best file is chosen — preferring the user's
      * own named site. When nothing is downloadable the answer step says so

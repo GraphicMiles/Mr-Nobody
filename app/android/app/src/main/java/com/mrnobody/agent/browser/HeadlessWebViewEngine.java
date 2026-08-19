@@ -243,6 +243,38 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
     }
 
     @Override
+    public boolean select(String selector, String option) {
+        return evalBool("(function(){var e=document.querySelector("
+                + jsString(selector) + ");if(!e||!e.options)return false;"
+                + "var want=" + jsString(option) + ";"
+                + "for(var i=0;i<e.options.length;i++){"
+                + "if(e.options[i].value===want||e.options[i].text===want){"
+                + "e.selectedIndex=i;"
+                + "e.dispatchEvent(new Event('change',{bubbles:true}));"
+                + "return true;}}return false})()");
+    }
+
+    @Override
+    public boolean waitForSelector(String selector, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(200, timeoutMs);
+        while (System.currentTimeMillis() < deadline) {
+            if (evalBool("(function(){return !!document.querySelector("
+                    + jsString(selector) + ")})()")) {
+                return true;
+            }
+            waitFor(200);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean uploadFile(String selector, String absolutePath) {
+        // Headless WebView cannot attach a real file chooser. The tool
+        // refuses honestly rather than pretending the input was filled.
+        return false;
+    }
+
+    @Override
     public String evaluate(String script, long timeoutMs) {
         synchronized (loadLock) {
             final CountDownLatch latch = new CountDownLatch(1);

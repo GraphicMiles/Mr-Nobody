@@ -61,5 +61,23 @@ public interface BrowserEngine {
 
     void waitFor(long millis);
 
+    /** Pick an option in a {@code <select>} by value or visible text. */
+    default boolean select(String selector, String option) {
+        return false;
+    }
+
+    /** Poll until {@code selector} matches, or {@code timeoutMs} elapses. */
+    default boolean waitForSelector(String selector, long timeoutMs) {
+        return false;
+    }
+
+    /**
+     * Attach a local file to a file input. {@code absolutePath} is already
+     * confined to the workspace by the caller.
+     */
+    default boolean uploadFile(String selector, String absolutePath) {
+        return false;
+    }
+
     void close();
 }
