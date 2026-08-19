@@ -1,8 +1,10 @@
 package com.mrnobody.agent.planner;
 
+import com.mrnobody.agent.util.FeedDiscover;
 import com.mrnobody.agent.util.Hosts;
 import com.mrnobody.agent.util.SearchUrls;
 import com.mrnobody.agent.util.TitleMatch;
+import com.mrnobody.agent.util.XQuery;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,8 +37,19 @@ public final class NamedSiteSkill {
 
         String host = Hosts.firstIn(src.fetchUrl);
         String query = TitleMatch.queryFrom(instruction, host);
-        if (host != null && !query.isEmpty() && looksLikeRoot(src.fetchUrl)) {
+        String handle = src.written.startsWith("@") ? src.written : "";
+        if (handle.isEmpty() && XQuery.isXHost(host)) {
+            handle = XQuery.clean(src.fetchUrl);
+        }
+        if (!handle.isEmpty() && (XQuery.isXHost(host) || src.written.startsWith("@"))) {
+            pages.addAll(XQuery.pages(handle, query));
+        } else if (host != null && !query.isEmpty() && looksLikeRoot(src.fetchUrl)) {
             pages.addAll(SearchUrls.forHost(host, query));
+        }
+        if (host != null && looksLikeRoot(src.fetchUrl)) {
+            for (String feed : FeedDiscover.candidates(host, null)) {
+                if (!pages.contains(feed)) pages.add(feed);
+            }
         }
         if (!pages.contains(src.fetchUrl)) pages.add(src.fetchUrl);
         return pages;

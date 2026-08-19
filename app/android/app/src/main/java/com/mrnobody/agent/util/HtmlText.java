@@ -13,6 +13,32 @@ public final class HtmlText {
     private HtmlText() {
     }
 
+    /**
+     * Prefer the article body when the page has one. Home chrome and nav
+     * otherwise drown the work the user asked about.
+     */
+    public static String article(String html) {
+        if (html == null || html.isEmpty()) return "";
+        String[] tags = {
+                "article", "main",
+        };
+        for (String tag : tags) {
+            String inner = firstElement(html, tag);
+            if (inner != null) {
+                String text = toText(inner);
+                if (text.length() >= 40) return text;
+            }
+        }
+        return toText(html);
+    }
+
+    private static String firstElement(String html, String tag) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+                "(?is)<" + tag + "\\b[^>]*>([\\s\\S]*?)</" + tag + ">")
+                .matcher(html);
+        return m.find() ? m.group(1) : null;
+    }
+
     public static String toText(String html) {
         if (html == null || html.isEmpty()) return "";
         String s = html;

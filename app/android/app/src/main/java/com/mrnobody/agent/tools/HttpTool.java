@@ -9,7 +9,10 @@ import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
+import com.mrnobody.agent.util.EmbeddedJson;
+import com.mrnobody.agent.util.FeedDiscover;
 import com.mrnobody.agent.util.HtmlText;
+import com.mrnobody.agent.util.PageKind;
 import com.mrnobody.browser.net.NetworkGate;
 
 import java.io.BufferedReader;
@@ -59,18 +62,32 @@ public final class HttpTool implements Tool {
                 return ToolResult.fail("HTTP " + code + " for " + url);
             }
             String body = readBounded(conn.getInputStream());
-            // Markup is stripped here, not later: the canonical value of this
-            // tool is readable text, and the page never becomes the result.
-            String text = HtmlText.toText(body);
+            PageKind.Kind kind = PageKind.classify(body);
+            String text = extract(kind, body);
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("url", url);
             value.put("status", code);
+            value.put("kind", kind.name());
+            value.put("needsBrowser", kind.needsBrowser());
             value.put("truncated", text.length() > MAX_RESULT);
             value.put("text", truncate(text, MAX_RESULT));
             return ToolResult.ok(value);
         } catch (Exception e) {
             return ToolResult.fail("http fetch failed: " + e.getMessage());
         }
+    }
+
+    private static String extract(PageKind.Kind kind, String body) {
+        if (kind == PageKind.Kind.EMBEDDED_JSON) {
+            String json = EmbeddedJson.readable(body);
+            if (!json.isEmpty()) return json;
+        }
+        if (kind == PageKind.Kind.FEED) {
+            String feed = FeedDiscover.toText(body);
+            if (!feed.isEmpty()) return feed;
+        }
+        String article = HtmlText.article(body);
+        return article.isEmpty() ? HtmlText.toText(body) : article;
     }
 
     private static String readBounded(InputStream in) throws Exception {
