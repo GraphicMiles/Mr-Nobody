@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Keep durable project documentation consolidated in the developer guide
       # and roadmap. Run before dependency resolution so generated files cannot
@@ -34,7 +34,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -83,7 +83,7 @@ jobs:
 
       - name: Upload golden diffs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: golden-failures
           path: app/test/failures
@@ -146,7 +146,7 @@ jobs:
           test "$found" -eq 1
 
       - name: Upload ABI-specific APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mrnobody-ci-test-apks
           path: app/build/app/outputs/flutter-apk/*-release.apk

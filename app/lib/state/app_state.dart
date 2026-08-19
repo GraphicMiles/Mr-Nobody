@@ -14,7 +14,7 @@ class AiProviderOption {
   const AiProviderOption(this.id, this.name, this.tag);
 
   static const all = [
-    AiProviderOption('local', 'Local (on-device)', ''),
+    AiProviderOption('local', 'Local (no model)', 'on-device'),
     AiProviderOption('gemini', 'Gemini', 'free tier'),
     AiProviderOption('groq', 'Groq', 'free tier'),
     AiProviderOption('openai', 'OpenAI-compatible', 'OpenRouter :free'),
