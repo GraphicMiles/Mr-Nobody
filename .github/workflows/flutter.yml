@@ -25,6 +25,15 @@ jobs:
             exit 1
           fi
 
+      # This repository has no Kotlin source. Keeping the Kotlin Gradle plugin
+      # adds a build-cache deserialization surface for no product capability.
+      - name: Build dependency policy
+        run: |
+          if git grep -n -E 'kotlin-android|org\.jetbrains\.kotlin\.android' -- 'app/android/*.gradle' 'app/android/**/*.gradle'; then
+            echo "Kotlin plugin present without a reviewed Kotlin requirement" >&2
+            exit 1
+          fi
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
