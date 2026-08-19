@@ -3,7 +3,7 @@
 > **Nobody's watching.**
 
 A small, **native** Android privacy browser. No ads, no trackers, no history by default.
-
+<img src="image.jpg">
 Mr Nobody is a native Android app: a **Java core** (agent, filters, WebView,
 privacy, downloads) and **Flutter chrome**. Rendering is delegated to the
 **smallest practical engine** — Android System WebView — so the APK stays
