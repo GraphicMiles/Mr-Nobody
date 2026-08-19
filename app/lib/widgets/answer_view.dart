@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
@@ -32,27 +34,33 @@ class AnswerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (document.isEmpty) return const SizedBox.shrink();
-    if (document.isPlain) {
-      return StreamedAnswer(
-        tokens: document.toStreamTokens(),
-        visible: visible,
-        caret: caret,
-        onSourceTap: onSourceTap,
-      );
-    }
-
+    if (document.isEmpty && cards.isEmpty) return const SizedBox.shrink();
+    final body = document.isEmpty
+        ? const SizedBox.shrink()
+        : document.isPlain
+            ? StreamedAnswer(
+                tokens: document.toStreamTokens(),
+                visible: visible,
+                caret: caret,
+                onSourceTap: onSourceTap,
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < document.blocks.length; i++) ...[
+                    if (i > 0)
+                      SizedBox(height: _gapAfter(document.blocks[i - 1])),
+                    _block(document.blocks[i]),
+                  ],
+                ],
+              );
+    if (cards.isEmpty) return body;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < document.blocks.length; i++) ...[
-          if (i > 0) SizedBox(height: _gapAfter(document.blocks[i - 1])),
-          _block(document.blocks[i]),
-        ],
-        if (cards.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          EvidenceStrip(cards: cards, onTap: onCardTap),
-        ],
+        body,
+        const SizedBox(height: 14),
+        EvidenceStrip(cards: cards, onTap: onCardTap),
       ],
     );
   }
@@ -125,14 +133,17 @@ class AnswerView extends StatelessWidget {
       );
     }
     if (block is AnswerNote) {
-      return _RichLine(
-        spans: _bound(block.spans),
-        style: AppTheme.sans(
-          size: 11.5,
-          color: AppColors.textFaint,
-          height: 1.5,
+      return Opacity(
+        opacity: AgentMetrics.secondaryOpacity,
+        child: _RichLine(
+          spans: _bound(block.spans),
+          style: AppTheme.sans(
+            size: 11.5,
+            color: AppColors.textFaint,
+            height: 1.5,
+          ),
+          onSourceTap: onSourceTap,
         ),
-        onSourceTap: onSourceTap,
       );
     }
     return _RichLine(
@@ -192,22 +203,25 @@ class _MiniCite extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = source.url.isEmpty ? source.domain : source.domain;
-    return GestureDetector(
-      onTap: onTap == null ? null : () => onTap!(source),
-      child: Container(
-        height: 16,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 5),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.surface2,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.line),
-        ),
-        child: Text(
-          label,
-          style: AppTheme.mono(size: 10, color: AppColors.textDim),
+    final label = source.domain;
+    return Opacity(
+      opacity: AgentMetrics.secondaryOpacity,
+      child: GestureDetector(
+        onTap: onTap == null ? null : () => onTap!(source),
+        child: Container(
+          height: 16,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 5),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surface2,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Text(
+            label,
+            style: AppTheme.mono(size: 10, color: AppColors.textDim),
+          ),
         ),
       ),
     );
@@ -216,8 +230,8 @@ class _MiniCite extends StatelessWidget {
 
 /// Two or three visual cards for the entities the answer is about.
 ///
-/// Drawn, never fetched: a network image per card would leak the reading
-/// list to every image host, which the privacy audit exists to prevent.
+/// The picture is the page's own preview (og:image), fetched through the
+/// privacy gate when the agent read the page. A monogram is only the fallback.
 class EvidenceStrip extends StatelessWidget {
   final List<EvidenceCardData> cards;
   final void Function(EvidenceCardData card)? onTap;
@@ -263,28 +277,10 @@ class _EvidenceCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
+            SizedBox(
               height: 78,
               width: double.infinity,
-              color: AppColors.surface2,
-              alignment: Alignment.center,
-              child: Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.surface3,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  card.initial,
-                  style: AppTheme.sans(
-                    size: 16,
-                    w: FontWeight.w700,
-                    color: AppColors.textDim,
-                  ),
-                ),
-              ),
+              child: _CardImage(card: card),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
@@ -302,14 +298,75 @@ class _EvidenceCard extends StatelessWidget {
             if (card.domain.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 3, 10, 8),
-                child: Text(
-                  card.domain,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.mono(size: 10, color: AppColors.textMuted),
+                child: Opacity(
+                  opacity: AgentMetrics.secondaryOpacity,
+                  child: Text(
+                    card.domain,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.mono(size: 10, color: AppColors.textMuted),
+                  ),
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Paints the page's own preview image. Prefers a file the agent already
+/// fetched through [NetworkGate]; falls back to the remote URL; monogram
+/// only when neither can be shown.
+class _CardImage extends StatelessWidget {
+  final EvidenceCardData card;
+  const _CardImage({required this.card});
+
+  @override
+  Widget build(BuildContext context) {
+    final src = card.image;
+    if (src.isEmpty) return _monogram();
+    if (src.startsWith('/') || src.startsWith('file:')) {
+      final path = src.startsWith('file://') ? src.substring(7) : src;
+      return Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 78,
+        errorBuilder: (_, __, ___) => _monogram(),
+      );
+    }
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      return Image.network(
+        src,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 78,
+        errorBuilder: (_, __, ___) => _monogram(),
+      );
+    }
+    return _monogram();
+  }
+
+  Widget _monogram() {
+    return Container(
+      color: AppColors.surface2,
+      alignment: Alignment.center,
+      child: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.surface3,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          card.initial,
+          style: AppTheme.sans(
+            size: 16,
+            w: FontWeight.w700,
+            color: AppColors.textDim,
+          ),
         ),
       ),
     );

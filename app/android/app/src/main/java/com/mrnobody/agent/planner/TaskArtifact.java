@@ -21,12 +21,19 @@ public final class TaskArtifact {
     public final String title;
     public final String url;
     public final String note;
+    /** Preview image: a remote URL, or a local path after {@link com.mrnobody.agent.util.PageImage#download}. */
+    public final String image;
 
     public TaskArtifact(int index, String title, String url, String note) {
+        this(index, title, url, note, "");
+    }
+
+    public TaskArtifact(int index, String title, String url, String note, String image) {
         this.index = index;
         this.title = title == null ? "" : title;
         this.url = url == null ? "" : url;
         this.note = note == null ? "" : note;
+        this.image = image == null ? "" : image;
     }
 
     public JSONObject toJson() {
@@ -36,6 +43,7 @@ public final class TaskArtifact {
             o.put("title", title);
             o.put("url", url);
             o.put("note", note);
+            if (!image.isEmpty()) o.put("image", image);
         } catch (Exception ignored) {
         }
         return o;
@@ -47,7 +55,8 @@ public final class TaskArtifact {
                 o.optInt("n", 0),
                 o.optString("title", ""),
                 o.optString("url", ""),
-                o.optString("note", ""));
+                o.optString("note", ""),
+                o.optString("image", ""));
     }
 
     public static String encode(List<TaskArtifact> items) {
@@ -124,5 +133,48 @@ public final class TaskArtifact {
             out.add(new TaskArtifact(n++, title, url, snippet));
         }
         return out;
+    }
+
+    /**
+     * Copy {@code images} (page URL → preview URL) onto matching artifacts.
+     * Pages we read that were not in the search shortlist are appended.
+     */
+    public static List<TaskArtifact> attachImages(List<TaskArtifact> items,
+                                                 java.util.Map<String, String> images) {
+        List<TaskArtifact> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        if (items != null) {
+            for (TaskArtifact a : items) {
+                String img = a.image;
+                if (img.isEmpty() && images != null) {
+                    img = lookup(images, a.url);
+                }
+                out.add(new TaskArtifact(a.index, a.title, a.url, a.note, img));
+                if (!a.url.isEmpty()) seen.add(a.url);
+            }
+        }
+        if (images == null) return out;
+        int n = out.size() + 1;
+        for (java.util.Map.Entry<String, String> e : images.entrySet()) {
+            if (e.getKey() == null || e.getKey().isEmpty() || seen.contains(e.getKey())) continue;
+            if (e.getValue() == null || e.getValue().isEmpty()) continue;
+            out.add(new TaskArtifact(n++, e.getKey(), e.getKey(), "", e.getValue()));
+            if (out.size() >= 8) break;
+        }
+        return out;
+    }
+
+    private static String lookup(java.util.Map<String, String> images, String url) {
+        if (url == null || url.isEmpty()) return "";
+        String direct = images.get(url);
+        if (direct != null && !direct.isEmpty()) return direct;
+        for (java.util.Map.Entry<String, String> e : images.entrySet()) {
+            String key = e.getKey();
+            if (key == null) continue;
+            if (url.startsWith(key) || key.startsWith(url)) {
+                return e.getValue() == null ? "" : e.getValue();
+            }
+        }
+        return "";
     }
 }

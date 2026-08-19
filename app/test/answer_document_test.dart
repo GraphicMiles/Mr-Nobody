@@ -102,6 +102,30 @@ void main() {
       expect(cards, hasLength(1));
       expect(cards.first.domain, 'primevideo.com');
     });
+
+    test('prefers artifacts that already have a preview image', () {
+      final cards = EvidenceCardData.pick(
+        instruction: 'what is on tonight',
+        answer: 'The Boys is the one to watch.',
+        artifacts: const [
+          EvidenceCardData(
+              title: 'Unrelated', domain: 'x.com', url: 'https://x'),
+          EvidenceCardData(
+              title: 'The Boys',
+              domain: 'primevideo.com',
+              url: 'https://prime',
+              image: 'https://cdn.example/boys.jpg'),
+          EvidenceCardData(
+              title: 'Fallout',
+              domain: 'primevideo.com',
+              url: 'https://fallout',
+              image: '/data/cards/fallout.jpg'),
+        ],
+      );
+      expect(cards.length, 2);
+      expect(cards.first.title, 'The Boys');
+      expect(cards.first.image, contains('boys.jpg'));
+    });
   });
 
   group('renderer', () {
