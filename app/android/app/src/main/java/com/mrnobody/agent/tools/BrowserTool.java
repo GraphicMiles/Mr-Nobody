@@ -4,6 +4,7 @@ import android.content.Context;
 
 import com.mrnobody.agent.browser.BrowserEngine;
 import com.mrnobody.agent.browser.PageAnchor;
+import com.mrnobody.agent.core.ImpactKind;
 import com.mrnobody.agent.core.OutputSpec;
 import com.mrnobody.agent.core.ParamSpec;
 import com.mrnobody.agent.core.Tier;
@@ -60,10 +61,12 @@ public final class BrowserTool implements Tool {
             .tier(Tier.WRITE)
             .param(ParamSpec.enumOf("action", false, "What to do with the page.",
                     "open", "fetch", "back", "forward", "reload", "extract", "title", "links",
-                    "forms", "submit",
-                    "click", "type", "scroll", "wait"))
+                    "forms", "submit", "review",
+                    "click", "type", "select", "scroll", "wait", "upload", "save"))
             .param(ParamSpec.url("url", false, "Page to open or fetch."))
-            .param(ParamSpec.string("selector", false, "CSS selector to click or type into."))
+            .param(ParamSpec.string("selector", false, "CSS selector to click, type, select, or wait for."))
+            .param(ParamSpec.string("option", false, "Option value or label for select."))
+            .param(ParamSpec.string("path", false, "Workspace-relative file for upload."))
             .param(ParamSpec.text("text", false, "Text to type.", 4096))
             .param(ParamSpec.enumOf("direction", false, "Scroll direction.", "up", "down"))
             .param(ParamSpec.integer("ms", false, "Milliseconds to wait."))
@@ -82,7 +85,15 @@ public final class BrowserTool implements Tool {
 
     @Override
     public Tier tierFor(ToolRequest request) {
-        return READ_ACTIONS.contains(request.action()) ? Tier.READ : Tier.WRITE;
+        String action = request.action();
+        if (READ_ACTIONS.contains(action) || "review".equals(action)) return Tier.READ;
+        if ("save".equals(action)) return Tier.SANDBOX;
+        ImpactKind kind = ImpactKind.of("browser", action,
+                request.param("text", "") + " " + request.param("url", ""));
+        if (kind.alwaysConfirm() || kind == ImpactKind.SEND || kind == ImpactKind.PUBLISH) {
+            return Tier.EXEC;
+        }
+        return Tier.WRITE;
     }
 
     /**

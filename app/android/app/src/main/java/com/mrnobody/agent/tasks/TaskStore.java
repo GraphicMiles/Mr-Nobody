@@ -22,10 +22,10 @@ public final class TaskStore extends SQLiteOpenHelper {
      * v2 adds {@code cancel_requested}; v3 adds heartbeat and schedule; v4 adds
      * {@code prev_result} for recurring-task change detection; v5 adds
      * {@code pending_tool} so a WAITING task knows what to resume; v6 adds
-     * {@code follow_up} so a reply stays on this task. Every bump needs a
-     * real onUpgrade.
+     * {@code follow_up} so a reply stays on this task; v7 adds artifacts and
+     * the plan snapshot. Every bump needs a real onUpgrade.
      */
-    private static final int VERSION = 6;
+    private static final int VERSION = 7;
 
     private static final String T = "tasks";
     private static final String C_ID = "_id";
@@ -48,6 +48,8 @@ public final class TaskStore extends SQLiteOpenHelper {
     /** Tool that is waiting for a human, or null. */
     private static final String C_PENDING_TOOL = "pending_tool";
     private static final String C_FOLLOW_UP = "follow_up";
+    private static final String C_ARTIFACTS = "artifacts";
+    private static final String C_PLAN = "plan_json";
 
     public TaskStore(Context context) {
         super(context, DB, null, VERSION);
@@ -72,7 +74,9 @@ public final class TaskStore extends SQLiteOpenHelper {
                 + C_LAST_RUN + " INTEGER DEFAULT 0, "
                 + C_PREV_RESULT + " TEXT, "
                 + C_PENDING_TOOL + " TEXT, "
-                + C_FOLLOW_UP + " TEXT)");
+                + C_FOLLOW_UP + " TEXT, "
+                + C_ARTIFACTS + " TEXT, "
+                + C_PLAN + " TEXT)");
     }
 
     @Override
@@ -98,6 +102,10 @@ public final class TaskStore extends SQLiteOpenHelper {
         if (oldVersion < 6) {
             db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_FOLLOW_UP + " TEXT");
         }
+        if (oldVersion < 7) {
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_ARTIFACTS + " TEXT");
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_PLAN + " TEXT");
+        }
     }
 
     public long insert(String instruction) {
@@ -122,6 +130,8 @@ public final class TaskStore extends SQLiteOpenHelper {
         v.put(C_RETRY, task.retryCount());
         v.put(C_WORKER, task.worker());
         v.put(C_FOLLOW_UP, task.followUp());
+        v.put(C_ARTIFACTS, task.artifacts());
+        v.put(C_PLAN, task.planJson());
         getWritableDatabase().update(T, v, C_ID + "=?", new String[]{String.valueOf(task.id())});
     }
 

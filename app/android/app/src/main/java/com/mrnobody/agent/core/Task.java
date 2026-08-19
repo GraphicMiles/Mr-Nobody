@@ -23,6 +23,10 @@ public final class Task {
     private String worker; // "local" | "remote" | "user" — which worker runs it
     /** Latest follow-up in this thread, or empty. Does not replace instruction. */
     private String followUp = "";
+    /** JSON shortlist the next turn can address by index. */
+    private String artifacts = "";
+    /** Last plan snapshot so a kill mid-run is reconstructable. */
+    private String planJson = "";
 
     public Task(long id, String instruction) {
         this.id = id;
@@ -57,6 +61,18 @@ public final class Task {
     public String followUp() { return followUp == null ? "" : followUp; }
     public void setFollowUp(String text) {
         this.followUp = text == null ? "" : text;
+        this.updatedAt = System.currentTimeMillis();
+    }
+
+    public String artifacts() { return artifacts == null ? "" : artifacts; }
+    public void setArtifacts(String json) {
+        this.artifacts = json == null ? "" : json;
+        this.updatedAt = System.currentTimeMillis();
+    }
+
+    public String planJson() { return planJson == null ? "" : planJson; }
+    public void setPlanJson(String json) {
+        this.planJson = json == null ? "" : json;
         this.updatedAt = System.currentTimeMillis();
     }
 

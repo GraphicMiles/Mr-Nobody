@@ -1127,7 +1127,11 @@ public class MainActivity extends FlutterActivity {
             MrNobodyApp.tasks().update(t);
             return true;
         }
-        if (!tool.isEmpty() && MrNobodyApp.approvalOverrides() != null) {
+        // network / grant parks are not "always allow this tool".
+        boolean sticky = !tool.isEmpty()
+                && !"network".equals(tool)
+                && !"grant".equals(tool);
+        if (sticky && MrNobodyApp.approvalOverrides() != null) {
             MrNobodyApp.approvalOverrides().set(tool,
                     com.mrnobody.agent.policy.ApprovalPolicy.Rule.ALWAYS_ALLOW);
         }

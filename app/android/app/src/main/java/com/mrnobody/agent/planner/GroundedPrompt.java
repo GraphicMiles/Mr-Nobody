@@ -49,6 +49,8 @@ public final class GroundedPrompt {
                 .append("Do not fill the gap from memory.\n")
                 .append("- Do not name a source that is not listed below.\n")
                 .append("- Prefer fewer, supported statements over a complete-looking answer.\n")
+                .append("- Rankings, reviews, and the word \"best\" are opinions, not facts.\n")
+                .append("- Say when you are inferring, rather than quoting a page.\n")
                 .append("\nSources:\n").append(sources);
 
         return sb.toString();

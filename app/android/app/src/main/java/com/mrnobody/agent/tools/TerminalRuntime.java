@@ -74,6 +74,12 @@ public final class TerminalRuntime {
         if (cmd.startsWith("sha256 ") || cmd.startsWith("md5 ") || cmd.startsWith("hash ")) {
             return hash(workspace, cmd);
         }
+        if (cmd.startsWith("unzip ") || cmd.equals("unzip")) {
+            return unzip(workspace, cmd);
+        }
+        if (cmd.startsWith("inspect ") || cmd.startsWith("file ") || cmd.startsWith("wc ")) {
+            return inspect(workspace, cmd);
+        }
 
         return runProcess(workspace, cmd);
     }
@@ -100,6 +106,60 @@ public final class TerminalRuntime {
         } catch (Exception e) {
             return Result.fail("hash failed: " + e.getMessage());
         }
+    }
+
+    /** Unzip a workspace zip into a workspace folder. Zip-slip is refused. */
+    private static Result unzip(File workspace, String cmd) {
+        String rest = cmd.length() > 6 ? cmd.substring(6).trim() : "";
+        if (rest.isEmpty()) return Result.fail("unzip needs a zip path");
+        String[] bits = rest.split("\\s+");
+        File zip = WorkspacePath.resolveWithin(workspace, bits[0]);
+        if (zip == null || !zip.isFile()) return Result.fail("zip is outside the workspace or missing");
+        File dest = bits.length > 1
+                ? WorkspacePath.resolveWithin(workspace, bits[1])
+                : new File(workspace, stripExt(zip.getName()));
+        if (dest == null) return Result.fail("destination escapes the workspace");
+        dest.mkdirs();
+        int n = 0;
+        try (java.util.zip.ZipInputStream in = new java.util.zip.ZipInputStream(
+                new java.io.FileInputStream(zip))) {
+            java.util.zip.ZipEntry e;
+            byte[] buf = new byte[8192];
+            while ((e = in.getNextEntry()) != null) {
+                File out = WorkspacePath.resolveWithin(dest, e.getName());
+                if (out == null) return Result.fail("refused zip entry that escapes: " + e.getName());
+                if (e.isDirectory()) {
+                    out.mkdirs();
+                    continue;
+                }
+                out.getParentFile().mkdirs();
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+                    int r;
+                    while ((r = in.read(buf)) != -1) fos.write(buf, 0, r);
+                }
+                n++;
+                if (n > 200) return Result.fail("zip has too many entries");
+            }
+        } catch (Exception ex) {
+            return Result.fail("unzip failed: " + ex.getMessage());
+        }
+        return Result.ok("extracted " + n + " file(s) to " + dest.getName());
+    }
+
+    private static Result inspect(File workspace, String cmd) {
+        int sp = cmd.indexOf(' ');
+        String path = sp < 0 ? "" : cmd.substring(sp + 1).trim();
+        if (path.isEmpty()) return Result.fail("inspect needs a path");
+        File f = WorkspacePath.resolveWithin(workspace, path);
+        if (f == null) return Result.fail("path is outside the workspace: " + path);
+        if (!f.exists()) return Result.fail("not found: " + path);
+        String kind = f.isDirectory() ? "directory" : "file";
+        return Result.ok(kind + " " + f.getName() + " " + f.length() + " bytes");
+    }
+
+    private static String stripExt(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name + "-out";
     }
 
     /** {@code ls}/{@code cat}/{@code head}/{@code stat}, run in the workspace. */

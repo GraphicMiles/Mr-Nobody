@@ -30,6 +30,13 @@ public class BrowserToolTest {
         @Override public boolean type(String selector, String text) { lastTyped = selector + ":" + text; return true; }
         @Override public boolean scroll(String direction) { return true; }
         @Override public void waitFor(long millis) { }
+        @Override public boolean select(String selector, String option) {
+            lastClicked = selector + "=" + option;
+            return true;
+        }
+        @Override public boolean waitForSelector(String selector, long timeoutMs) {
+            return true;
+        }
         @Override public void close() { }
     }
 
@@ -113,7 +120,7 @@ public class BrowserToolTest {
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("click", "selector", "#a")));
         assertEquals(com.mrnobody.agent.core.Tier.WRITE,
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("type", "selector", "#a")));
-        assertEquals(com.mrnobody.agent.core.Tier.WRITE,
+        assertEquals(com.mrnobody.agent.core.Tier.EXEC,
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("submit", "selector", "form")));
     }
 

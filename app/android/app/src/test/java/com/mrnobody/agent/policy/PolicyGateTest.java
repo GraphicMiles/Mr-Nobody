@@ -19,6 +19,8 @@ public class PolicyGateTest {
         assertEquals(PolicyGate.Decision.ALLOW, gate.classify("sha256 report.pdf"));
         assertEquals(PolicyGate.Decision.ALLOW, gate.classify("ls"));
         assertEquals(PolicyGate.Decision.ALLOW, gate.classify("cat note.txt"));
+        assertEquals(PolicyGate.Decision.ALLOW, gate.classify("unzip pack.zip"));
+        assertEquals(PolicyGate.Decision.ALLOW, gate.classify("inspect a.txt"));
     }
 
     @Test

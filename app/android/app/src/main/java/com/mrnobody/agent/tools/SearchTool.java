@@ -89,6 +89,9 @@ public final class SearchTool implements Tool {
             return ToolResult.fail("search requires a 'q' parameter");
         }
         String q = query.trim();
+        if (!NetworkGate.canConnect()) {
+            return ToolResult.needsApproval("network", NetworkGate.blockedReason());
+        }
         List<String> refused = new ArrayList<>();
 
         // 1. The cheap path.

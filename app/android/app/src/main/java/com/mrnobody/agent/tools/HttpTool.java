@@ -51,6 +51,9 @@ public final class HttpTool implements Tool {
     @Override
     public ToolResult execute(Context context, ToolRequest request) {
         String url = request.param("url");
+        if (!NetworkGate.canConnect()) {
+            return ToolResult.needsApproval("network", NetworkGate.blockedReason());
+        }
         String host = com.mrnobody.agent.util.Hosts.firstIn(url);
         if (!com.mrnobody.agent.util.HostRateLimit.tryAcquire(host)) {
             return ToolResult.fail(com.mrnobody.agent.util.HostRateLimit.denyMessage(host));
