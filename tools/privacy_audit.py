@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Static privacy audit for the Mr Nobody codebase.
 
-Checks for the things the product must never contain (see docs/PRIVACY.md):
+Checks for the things the product must never contain (see README.md):
   - prohibited Android permissions (contacts, SMS, phone, ...)
   - prohibited dependency coordinates (analytics/ad SDKs)
   - addJavascriptInterface / JS bridge usage

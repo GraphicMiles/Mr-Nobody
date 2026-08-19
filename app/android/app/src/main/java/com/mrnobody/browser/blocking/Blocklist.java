@@ -23,7 +23,7 @@ import java.util.Set;
  * Element-hiding rules (##, #@#) are not network rules and are ignored here.
  *
  * A malformed rule is skipped; a malformed list must never crash the browser
- * (see docs/ARCHITECTURE.md — failure model).
+ * (see README.md — privacy and security invariants).
  */
 public final class Blocklist {
 

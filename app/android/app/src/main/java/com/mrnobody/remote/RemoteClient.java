@@ -20,7 +20,7 @@ import java.util.Base64;
  * The client half of remote execution: submits a signed task to the remote
  * worker and streams the result back.
  *
- * <p>This is the device side of the contract in {@code docs/spec/REMOTE_SERVER.md}.
+ * <p>This is the device side of the remote-worker contract in {@code README.md}.
  * It signs with the device identity (the private key never leaves the device),
  * posts the signed request, then reads the SSE result stream with the same
  * {@link SseFrames} parser the AI providers use, forwarding token / done /
