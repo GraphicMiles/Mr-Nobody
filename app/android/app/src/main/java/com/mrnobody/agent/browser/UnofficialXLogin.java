@@ -20,9 +20,10 @@ public final class UnofficialXLogin {
     private UnofficialXLogin() {
     }
 
-    /** Always false. The compiled default cannot be overridden. */
+    /** Always false. Delegates to the restricted catalog (active=false). */
     public static boolean isEnabled() {
-        return false;
+        return com.mrnobody.agent.policy.RestrictedTools.isActive(
+                com.mrnobody.agent.policy.RestrictedTools.TWIKIT);
     }
 
     /**
@@ -30,7 +31,7 @@ public final class UnofficialXLogin {
      * read Settings cannot accidentally enable login by passing it through.
      */
     public static boolean isEnabled(boolean userPref) {
-        return false;
+        return isEnabled() && userPref;
     }
 
     /** Why a Twikit-style action was refused. Safe to show in the UI. */

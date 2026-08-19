@@ -206,7 +206,17 @@ void _mockCore() {
           };
         case 'listMonitors':
         case 'listAccounts':
+        case 'listRestrictedTools':
           return <Map<String, Object>>[];
+        case 'runRestrictedTool':
+          return {
+            'id': 'twikit',
+            'ran': true,
+            'ok': false,
+            'active': false,
+            'grade': 'off',
+            'reason': 'off (active=false)',
+          };
         case 'recentTasks':
           return [
             {

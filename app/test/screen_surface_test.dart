@@ -9,6 +9,7 @@ import 'package:mrnobody/screens/clear_data_screen.dart';
 import 'package:mrnobody/screens/downloads_screen.dart';
 import 'package:mrnobody/screens/home_screen.dart';
 import 'package:mrnobody/screens/privacy_screen.dart';
+import 'package:mrnobody/screens/restricted_tools_screen.dart';
 import 'package:mrnobody/screens/settings_screen.dart';
 import 'package:mrnobody/screens/tabs_screen.dart';
 import 'package:mrnobody/screens/tasks_screen.dart';
@@ -100,6 +101,7 @@ void main() {
     'Privacy': () => const PrivacyScreen(),
     'Clear data': () => const ClearDataScreen(),
     'AI provider': () => const AiProviderScreen(initialProvider: 'local'),
+    'Restricted tools': () => const RestrictedToolsScreen(),
   };
 
   screens.forEach((name, build) {
@@ -153,8 +155,18 @@ void _mockCore() {
         case 'recentTasks':
         case 'listMonitors':
         case 'listAccounts':
+        case 'listRestrictedTools':
         case 'bookmarks':
           return <Map<String, dynamic>>[];
+        case 'runRestrictedTool':
+          return {
+            'id': 'twikit',
+            'ran': true,
+            'ok': false,
+            'active': false,
+            'grade': 'off',
+            'reason': 'off (active=false)',
+          };
         case 'providerConfig':
           return {'provider': 'local', 'model': '', 'hasKey': false};
         case 'debugLog':

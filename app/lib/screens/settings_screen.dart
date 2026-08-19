@@ -9,6 +9,7 @@ import 'ai_provider_screen.dart';
 import 'clear_data_screen.dart';
 import 'downloads_screen.dart';
 import 'privacy_screen.dart';
+import 'restricted_tools_screen.dart';
 
 /// Settings (S6) — three groups, exactly as in `#v-settings`:
 /// Browsing (toggles), Agent (profile / provider / terminal), Data.
@@ -308,6 +309,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               .push(MaterialPageRoute(builder: (_) => const PrivacyScreen())),
                         ),
                         SettingRow(label: 'About', onTap: _about),
+                      ]),
+                    ),
+                  ),
+                  const SectionLabel('Developer'),
+                  AppCard(
+                    child: Column(
+                      children: withDividers([
+                        SettingRow(
+                          label: 'Restricted tools',
+                          value: 'off',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const RestrictedToolsScreen(),
+                            ),
+                          ),
+                        ),
                       ]),
                     ),
                   ),

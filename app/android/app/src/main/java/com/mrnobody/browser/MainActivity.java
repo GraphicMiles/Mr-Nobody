@@ -17,6 +17,7 @@ import com.mrnobody.browser.download.DownloadDestination;
 import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadRecord;
 import com.mrnobody.agent.policy.ApprovalMode;
+import com.mrnobody.agent.policy.RestrictedTools;
 import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.agent.tasks.TaskStreamHub;
 import com.mrnobody.browser.net.EngineInfo;
@@ -255,6 +256,15 @@ public class MainActivity extends FlutterActivity {
                             String host = call.argument("host");
                             result.success(MrNobodyApp.accounts() != null
                                     && MrNobodyApp.accounts().revoke(host));
+                            return;
+                        }
+                        case "listRestrictedTools": {
+                            result.success(RestrictedTools.list());
+                            return;
+                        }
+                        case "runRestrictedTool": {
+                            String toolId = call.argument("id");
+                            result.success(RestrictedTools.execute(toolId));
                             return;
                         }
                         case "privacyStats": {
