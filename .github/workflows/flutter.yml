@@ -89,9 +89,34 @@ jobs:
           path: app/test/failures
           if-no-files-found: ignore
 
-      - name: Build release APK
+      # CI signs with a fresh disposable key so the artifact is installable but
+      # cannot be confused with a production release. Production signing uses
+      # protected environment values with the same four-variable contract.
+      - name: Create ephemeral CI signing key
+        run: |
+          pass=$(openssl rand -hex 24)
+          echo "::add-mask::$pass"
+          keytool -genkeypair -noprompt \
+            -keystore "$RUNNER_TEMP/mrnobody-ci.p12" -storetype PKCS12 \
+            -storepass "$pass" -keypass "$pass" -alias mrnobody-ci \
+            -keyalg RSA -keysize 3072 -validity 2 \
+            -dname "CN=Mr Nobody CI,OU=Ephemeral,O=CI,L=None,C=NG"
+          echo "MRNOBODY_KEYSTORE=$RUNNER_TEMP/mrnobody-ci.p12" >> "$GITHUB_ENV"
+          echo "MRNOBODY_STORE_PASSWORD=$pass" >> "$GITHUB_ENV"
+          echo "MRNOBODY_KEY_ALIAS=mrnobody-ci" >> "$GITHUB_ENV"
+          echo "MRNOBODY_KEY_PASSWORD=$pass" >> "$GITHUB_ENV"
+
+      - name: Build signed CI APK
         working-directory: app
         run: flutter build apk --release
+
+      - name: Verify APK signature
+        working-directory: app
+        run: |
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+          test -n "$apksigner"
+          "$apksigner" verify --verbose --print-certs "$apk"
 
       # The Java agent core (routing, filtering, policy, reconciliation) is
       # written to run on a plain JVM precisely so it can be tested without a
@@ -115,5 +140,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mrnobody-flutter-apk
+          name: mrnobody-ci-test-apk
           path: app/build/app/outputs/flutter-apk/app-release.apk
