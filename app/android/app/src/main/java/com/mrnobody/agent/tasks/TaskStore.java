@@ -371,9 +371,12 @@ public final class TaskStore extends SQLiteOpenHelper {
     }
 
     private Task fromCursor(Cursor c) {
+        long persistedUpdatedAt = c.getLong(c.getColumnIndexOrThrow(C_UPDATED));
         Task t = new Task(
                 c.getLong(c.getColumnIndexOrThrow(C_ID)),
-                c.getString(c.getColumnIndexOrThrow(C_INSTRUCTION)));
+                c.getString(c.getColumnIndexOrThrow(C_INSTRUCTION)),
+                c.getLong(c.getColumnIndexOrThrow(C_CREATED)),
+                persistedUpdatedAt);
         try { t.setStatus(Task.Status.valueOf(c.getString(c.getColumnIndexOrThrow(C_STATUS)))); }
         catch (Exception ignored) { }
         t.setCurrentStep(c.getString(c.getColumnIndexOrThrow(C_STEP)));
@@ -399,6 +402,9 @@ public final class TaskStore extends SQLiteOpenHelper {
             int i = c.getColumnIndex(C_PLAN);
             if (i >= 0) t.setPlanJson(c.getString(i));
         } catch (Exception ignored) { }
+        // The restoration setters above update the in-memory timestamp. Put
+        // the durable value back after every field has been loaded.
+        t.restoreUpdatedAt(persistedUpdatedAt);
         return t;
     }
 }
