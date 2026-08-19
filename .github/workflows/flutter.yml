@@ -48,9 +48,9 @@ jobs:
         working-directory: app
         run: flutter pub get
 
-      - name: Static analysis
+      - name: Static analysis (strict)
         working-directory: app
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze
 
       # The auditor is tested before it is trusted. It previously scanned a
       # hardcoded path and reported CLEAN without ever reading the shipping

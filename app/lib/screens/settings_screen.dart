@@ -540,6 +540,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final port = int.tryParse(portCtrl.text.trim()) ?? 0;
     hostCtrl.dispose();
     portCtrl.dispose();
+    if (!context.mounted) return null;
     if (ok != true) return null;
     if (host.isEmpty) {
       AppToast.show(context, 'A proxy needs a host.');
