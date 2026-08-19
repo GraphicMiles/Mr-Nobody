@@ -8,6 +8,7 @@ import com.mrnobody.agent.ai.GeminiProvider;
 import com.mrnobody.agent.ai.GroqProvider;
 import com.mrnobody.agent.ai.LocalProvider;
 import com.mrnobody.agent.ai.OpenAiCompatibleProvider;
+import com.mrnobody.agent.browser.AccountStore;
 import com.mrnobody.agent.browser.HeadlessSessions;
 import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.dispatcher.LocalWorker;
@@ -59,6 +60,7 @@ public final class MrNobodyApp extends Application {
     private static PrivacyReport privacyReport;
     private static PermissionStore permissionStore;
     private static PerSiteSettings perSiteSettings;
+    private static AccountStore accountStore;
 
     // Agent stack
     private static AgentEngine agentEngine;
@@ -100,6 +102,7 @@ public final class MrNobodyApp extends Application {
         privacyReport = new PrivacyReport(this);
         permissionStore = new PermissionStore(this);
         perSiteSettings = new PerSiteSettings(this);
+        accountStore = new AccountStore(this);
 
         historyStore.setEnabled(settings.isHistoryEnabled());
 
@@ -215,6 +218,7 @@ public final class MrNobodyApp extends Application {
     public static PrivacyReport report() { return privacyReport; }
     public static PermissionStore permissions() { return permissionStore; }
     public static PerSiteSettings perSite() { return perSiteSettings; }
+    public static AccountStore accounts() { return accountStore; }
 
     public static AgentEngine agent() { return agentEngine; }
 

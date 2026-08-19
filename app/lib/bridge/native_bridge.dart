@@ -38,6 +38,28 @@ class NativeBridge {
     return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
+  /// Hosts the user granted a session for. Cookie values never cross this channel.
+  static Future<List<Map<String, dynamic>>> listAccounts() async {
+    final r = await _ch.invokeMethod('listAccounts');
+    return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  static Future<Map<String, dynamic>> importAccount(String host, String cookies) async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('importAccount', {
+      'host': host,
+      'cookies': cookies,
+    }) as Map);
+  }
+
+  static Future<Map<String, dynamic>> captureAccount(String url) async {
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('captureAccount', {'url': url}) as Map);
+  }
+
+  static Future<bool> revokeAccount(String host) async {
+    return await _ch.invokeMethod('revokeAccount', {'host': host}) as bool? ?? false;
+  }
+
   /// A single task by id (status, step, progress, result) for the detail screen.
   static Future<Map<String, dynamic>?> task(int id) async {
     final r = await _ch.invokeMethod('task', {'id': id});

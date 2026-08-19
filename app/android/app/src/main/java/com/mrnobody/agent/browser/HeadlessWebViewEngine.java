@@ -90,7 +90,18 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
 
     @Override
     public void open(String url) {
-        onMain(() -> webView().loadUrl(url));
+        onMain(() -> {
+            WebView wv = webView();
+            applyGrantedCookies(wv, url);
+            wv.loadUrl(url);
+        });
+    }
+
+    private static void applyGrantedCookies(WebView wv, String url) {
+        try {
+            com.mrnobody.browser.MrNobodyApp.accounts().applyTo(wv, url);
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
@@ -144,6 +155,7 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
                                 });
                     }
                 });
+                applyGrantedCookies(wv, url);
                 wv.loadUrl(url);
             });
 
@@ -181,6 +193,7 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
                         }), 350);
                     }
                 });
+                applyGrantedCookies(wv, url);
                 wv.loadUrl(url);
             });
 

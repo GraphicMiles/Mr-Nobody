@@ -7,6 +7,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.mrnobody.agent.ai.AiProvider;
+import com.mrnobody.agent.browser.AccountGrant;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
@@ -195,6 +196,65 @@ public class MainActivity extends FlutterActivity {
                                 out.add(m);
                             }
                             result.success(out);
+                            return;
+                        }
+                        case "listAccounts": {
+                            List<Map<String, Object>> out = new ArrayList<>();
+                            if (MrNobodyApp.accounts() != null) {
+                                for (AccountGrant g : MrNobodyApp.accounts().list()) {
+                                    Map<String, Object> m = new HashMap<>();
+                                    m.put("host", g.host);
+                                    m.put("names", g.names);
+                                    m.put("source", g.source.name());
+                                    m.put("at", g.grantedAt);
+                                    out.add(m);
+                                }
+                            }
+                            result.success(out);
+                            return;
+                        }
+                        case "importAccount": {
+                            String host = call.argument("host");
+                            String raw = call.argument("cookies");
+                            AccountGrant g = AccountGrant.parse(raw, host, AccountGrant.Source.PASTED);
+                            if (g == null) {
+                                result.error("bad_arg", "could not read cookies for that site", null);
+                                return;
+                            }
+                            MrNobodyApp.accounts().grant(g);
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("host", g.host);
+                            m.put("names", g.names);
+                            result.success(m);
+                            return;
+                        }
+                        case "captureAccount": {
+                            String url = call.argument("url");
+                            if (url == null || url.trim().isEmpty()) {
+                                result.error("bad_arg", "url required", null);
+                                return;
+                            }
+                            String header = CookieManager.getInstance().getCookie(url);
+                            AccountGrant g = AccountGrant.parse(header, url, AccountGrant.Source.TAB);
+                            if (g == null) {
+                                Map<String, Object> miss = new HashMap<>();
+                                miss.put("ok", false);
+                                miss.put("reason", "no cookies on this tab");
+                                result.success(miss);
+                                return;
+                            }
+                            MrNobodyApp.accounts().grant(g);
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("ok", true);
+                            m.put("host", g.host);
+                            m.put("names", g.names);
+                            result.success(m);
+                            return;
+                        }
+                        case "revokeAccount": {
+                            String host = call.argument("host");
+                            result.success(MrNobodyApp.accounts() != null
+                                    && MrNobodyApp.accounts().revoke(host));
                             return;
                         }
                         case "privacyStats": {
@@ -990,6 +1050,11 @@ public class MainActivity extends FlutterActivity {
                     case "cookies":
                         CookieManager.getInstance().removeAllCookies(null);
                         CookieManager.getInstance().flush();
+                        if (MrNobodyApp.accounts() != null) {
+                            for (AccountGrant g : new ArrayList<>(MrNobodyApp.accounts().list())) {
+                                MrNobodyApp.accounts().revoke(g.host);
+                            }
+                        }
                         cleared.put("cookies", true);
                         break;
                     case "cache":
