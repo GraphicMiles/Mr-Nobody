@@ -94,13 +94,19 @@ public final class TabWebViews {
 
     /** Every tab closed at once (Clear data, "close all tabs"). */
     public static void releaseAll() {
+        java.util.List<Page> pages = new java.util.ArrayList<>(LIVE.values());
+        boolean hadPrivate = false;
         for (Integer tabId : LIVE.keySet()) {
             if (tabId != null) MrNobodyWebView.releaseChannel(tabId);
         }
-        for (Page page : LIVE.values()) {
-            destroy(page);
-        }
+        // Clear ownership before teardown so the last-private check cannot see
+        // already-destroyed pages as still live.
         LIVE.clear();
+        for (Page page : pages) {
+            if (page != null && page.isPrivate) hadPrivate = true;
+            destroy(page, false);
+        }
+        if (hadPrivate) ProfileManager.destroyPrivate();
     }
 
     /** How many pages are being held. Exposed for tests and the debug log. */
@@ -124,6 +130,10 @@ public final class TabWebViews {
     }
 
     private static void destroy(@Nullable Page page) {
+        destroy(page, true);
+    }
+
+    private static void destroy(@Nullable Page page, boolean managePrivateProfile) {
         if (page == null) return;
         WebView webView = page.webView;
         try {
@@ -150,7 +160,7 @@ public final class TabWebViews {
         // so this runs after destroy() and only when the last private tab has
         // gone. Where multi-profile is unsupported it is a no-op and the
         // clear-on-close above remains the only defence.
-        if (page.isPrivate && !hasPrivatePages()) {
+        if (managePrivateProfile && page.isPrivate && !hasPrivatePages()) {
             ProfileManager.destroyPrivate();
         }
     }

@@ -1076,6 +1076,19 @@ public class MainActivity extends FlutterActivity {
     private Map<String, Object> clearData(@Nullable List<String> buckets) {
         Map<String, Object> cleared = new HashMap<>();
         if (buckets == null) return cleared;
+
+        boolean clearsBrowserState = buckets.contains("cookies")
+                || buckets.contains("cache") || buckets.contains("sitedata");
+        if (clearsBrowserState) {
+            // A live WebView can retain cookies/storage in memory and an
+            // isolated profile cannot be deleted while a WebView owns it.
+            // Tear down both visible and agent browsers before clearing the
+            // default stores, then retry deletion of the private profile.
+            com.mrnobody.browser.webview.TabWebViews.releaseAll();
+            com.mrnobody.agent.browser.HeadlessSessions.releaseAll();
+            com.mrnobody.browser.net.ProfileManager.destroyPrivate();
+        }
+
         for (String bucket : buckets) {
             try {
                 switch (bucket) {
