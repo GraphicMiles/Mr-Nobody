@@ -60,6 +60,19 @@ class NativeBridge {
     return await _ch.invokeMethod('revokeAccount', {'host': host}) as bool? ?? false;
   }
 
+  /// Restricted tools catalog. {@code active} is always false.
+  static Future<List<Map<String, dynamic>>> listRestrictedTools() async {
+    final r = await _ch.invokeMethod('listRestrictedTools');
+    return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  /// Runs a restricted tool. The method executes; the payload is refused
+  /// while {@code active} is false.
+  static Future<Map<String, dynamic>> runRestrictedTool(String id) async {
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('runRestrictedTool', {'id': id}) as Map);
+  }
+
   /// A single task by id (status, step, progress, result) for the detail screen.
   static Future<Map<String, dynamic>?> task(int id) async {
     final r = await _ch.invokeMethod('task', {'id': id});
