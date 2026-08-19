@@ -16,16 +16,16 @@ import com.mrnobody.agent.core.Tier;
 public enum ApprovalMode {
 
     /**
-     * Ask before anything that is not purely observational.
+     * Ask before acting on a live page or running a command.
      *
-     * <p>The safe default for a browser that can run downloads and shell
-     * commands on someone's phone.
+     * <p>Search, read, monitor, and a download into the app sandbox go
+     * ahead. Click / type / submit and irreversible EXEC still stop.
      */
     CAUTIOUS("Ask before acting", Tier.WRITE),
 
     /**
-     * Local changes go ahead; anything reaching beyond this device, or running
-     * a command, asks first.
+     * Sandbox writes and page reads go ahead. Only commands that leave
+     * the sandbox, or cannot be undone, ask first.
      */
     BALANCED("Ask before commands", Tier.EXEC),
 

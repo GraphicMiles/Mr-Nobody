@@ -266,8 +266,8 @@ public final class Settings {
     }
 
     /**
-     * Approval mode. CAUTIOUS by default: an agent that can download files and
-     * run commands on someone's phone should ask first until told otherwise.
+     * Approval mode. CAUTIOUS by default: search/read/sandbox-download go
+     * ahead; click/submit and irreversible commands still ask.
      */
     public String approvalMode() {
         return prefs.getString(KEY_APPROVAL_MODE, "CAUTIOUS");

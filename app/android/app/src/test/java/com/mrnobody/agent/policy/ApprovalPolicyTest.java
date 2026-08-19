@@ -28,11 +28,12 @@ public class ApprovalPolicyTest {
     // ----------------------------------------------------------- tier × mode
 
     @Test
-    public void cautiousAsksBeforeAnythingThatIsNotJustLooking() {
+    public void cautiousLetsSandboxDownloadsThroughAndAsksBeforeActingOnAPage() {
         ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.CAUTIOUS, ApprovalPolicy.Overrides.NONE);
 
         assertTrue(p.decide(call("search", Tier.READ)).isAllow());
-        assertTrue(p.decide(call("download", Tier.WRITE)).needsConfirmation());
+        assertTrue(p.decide(call("download", Tier.SANDBOX)).isAllow());
+        assertTrue(p.decide(call("browser", Tier.WRITE)).needsConfirmation());
         assertTrue(p.decide(call("terminal", Tier.EXEC)).needsConfirmation());
     }
 
@@ -40,7 +41,8 @@ public class ApprovalPolicyTest {
     public void balancedOnlyAsksBeforeCommands() {
         ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.BALANCED, ApprovalPolicy.Overrides.NONE);
 
-        assertTrue(p.decide(call("download", Tier.WRITE)).isAllow());
+        assertTrue(p.decide(call("download", Tier.SANDBOX)).isAllow());
+        assertTrue(p.decide(call("browser", Tier.WRITE)).isAllow());
         assertTrue(p.decide(call("terminal", Tier.EXEC)).needsConfirmation());
     }
 
@@ -63,10 +65,10 @@ public class ApprovalPolicyTest {
     @Test
     public void theModeCanChangeAtRuntime() {
         ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.CAUTIOUS, ApprovalPolicy.Overrides.NONE);
-        assertTrue(p.decide(call("download", Tier.WRITE)).needsConfirmation());
+        assertTrue(p.decide(call("browser", Tier.WRITE)).needsConfirmation());
 
         p.setMode(ApprovalMode.TRUSTING);
-        assertTrue(p.decide(call("download", Tier.WRITE)).isAllow());
+        assertTrue(p.decide(call("browser", Tier.WRITE)).isAllow());
     }
 
     // -------------------------------------------------------- per-tool rules
@@ -74,10 +76,10 @@ public class ApprovalPolicyTest {
     @Test
     public void alwaysAllowRelaxesTheModeForOneToolOnly() {
         ApprovalPolicy.MapOverrides ov = new ApprovalPolicy.MapOverrides();
-        ov.set("download", ApprovalPolicy.Rule.ALWAYS_ALLOW);
+        ov.set("browser", ApprovalPolicy.Rule.ALWAYS_ALLOW);
         ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.CAUTIOUS, ov);
 
-        ApprovalDecision allowed = p.decide(call("download", Tier.WRITE));
+        ApprovalDecision allowed = p.decide(call("browser", Tier.WRITE));
         assertTrue(allowed.isAllow());
         assertEquals(ApprovalDecision.Source.USER_OVERRIDE, allowed.source());
 
@@ -97,22 +99,22 @@ public class ApprovalPolicyTest {
     @Test
     public void clearingARuleHandsTheDecisionBackToTheMode() {
         ApprovalPolicy.MapOverrides ov = new ApprovalPolicy.MapOverrides();
-        ov.set("download", ApprovalPolicy.Rule.ALWAYS_ALLOW);
+        ov.set("browser", ApprovalPolicy.Rule.ALWAYS_ALLOW);
         ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.CAUTIOUS, ov);
-        assertTrue(p.decide(call("download", Tier.WRITE)).isAllow());
+        assertTrue(p.decide(call("browser", Tier.WRITE)).isAllow());
 
-        ov.set("download", ApprovalPolicy.Rule.ASK_EACH_TIME);
-        assertTrue(p.decide(call("download", Tier.WRITE)).needsConfirmation());
+        ov.set("browser", ApprovalPolicy.Rule.ASK_EACH_TIME);
+        assertTrue(p.decide(call("browser", Tier.WRITE)).needsConfirmation());
     }
 
     @Test
     public void toolNamesAreMatchedCaseInsensitively() {
         ApprovalPolicy.MapOverrides ov = new ApprovalPolicy.MapOverrides();
-        ov.set("Download", ApprovalPolicy.Rule.ALWAYS_ALLOW);
+        ov.set("Browser", ApprovalPolicy.Rule.ALWAYS_ALLOW);
         ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.CAUTIOUS, ov);
 
-        assertTrue(p.decide(call("download", Tier.WRITE)).isAllow());
-        assertTrue(p.decide(call("DOWNLOAD", Tier.WRITE)).isAllow());
+        assertTrue(p.decide(call("browser", Tier.WRITE)).isAllow());
+        assertTrue(p.decide(call("BROWSER", Tier.WRITE)).isAllow());
     }
 
     /**
@@ -122,13 +124,13 @@ public class ApprovalPolicyTest {
     @Test
     public void overridesCanBeBoundAfterConstruction() {
         ApprovalPolicy p = new ApprovalPolicy(ApprovalMode.CAUTIOUS, ApprovalPolicy.Overrides.NONE);
-        assertTrue(p.decide(call("download", Tier.WRITE)).needsConfirmation());
+        assertTrue(p.decide(call("browser", Tier.WRITE)).needsConfirmation());
 
         ApprovalPolicy.MapOverrides ov = new ApprovalPolicy.MapOverrides();
-        ov.set("download", ApprovalPolicy.Rule.ALWAYS_ALLOW);
+        ov.set("browser", ApprovalPolicy.Rule.ALWAYS_ALLOW);
         p.setOverrides(ov);
 
-        assertTrue(p.decide(call("download", Tier.WRITE)).isAllow());
+        assertTrue(p.decide(call("browser", Tier.WRITE)).isAllow());
     }
 
     // ---------------------------------------------------------------- safety

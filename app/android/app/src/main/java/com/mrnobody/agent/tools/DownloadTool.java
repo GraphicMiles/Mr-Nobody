@@ -26,9 +26,9 @@ public final class DownloadTool implements Tool {
 
     private static final ToolSpec SPEC = ToolSpec.named("download")
             .describedAs("Download a file from a URL to the user's download folder.")
-            // Writes to the device. Reading a page is not the same as leaving a
-            // file on someone's phone.
-            .tier(Tier.WRITE)
+            // Sandbox write: a new file in the app's download folder. Not a
+            // click on a live page, not an overwrite of the user's documents.
+            .tier(Tier.SANDBOX)
             .param(ParamSpec.url("url", true, "The http(s) file URL to download."))
             .returns(OutputSpec.of(
                     value -> "Download started: " + value.get("url"), "url", "id"))

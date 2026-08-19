@@ -23,11 +23,18 @@ import com.mrnobody.agent.core.ToolPipeline;
  */
 public final class BudgetGuard implements ToolPipeline.Guard {
 
-    /** Total calls of any kind per task. */
-    public static final int DEFAULT_TOTAL = 40;
+    /**
+     * Total calls of any kind per task. Sized for a real research run
+     * (search + named-site prefetch + a handful of reads + one download)
+     * with headroom, not for a stuck loop. ~3× a typical finished task.
+     */
+    public static final int DEFAULT_TOTAL = 80;
 
-    /** Calls that change something, per task. */
-    public static final int DEFAULT_CONSEQUENTIAL = 8;
+    /**
+     * Calls that mutate the open web or leave the sandbox, per task.
+     * Sandbox downloads do not spend this budget.
+     */
+    public static final int DEFAULT_CONSEQUENTIAL = 16;
 
     private final int maxTotal;
     private final int maxConsequential;
@@ -52,6 +59,8 @@ public final class BudgetGuard implements ToolPipeline.Guard {
         // still been attempted, and not counting it would let a task sit on
         // the limit issuing refused calls forever.
         total++;
+        // SANDBOX (download into the app folder) is not the same risk as
+        // clicking submit. Only WRITE and EXEC spend the tight budget.
         boolean changes = call.tier() != null && call.tier().atLeast(Tier.WRITE);
         if (changes) consequential++;
 

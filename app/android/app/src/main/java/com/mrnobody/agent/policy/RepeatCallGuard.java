@@ -27,8 +27,14 @@ import java.util.Map;
  */
 public final class RepeatCallGuard implements ToolPipeline.Guard {
 
-    /** How many identical calls are allowed before refusing. */
-    public static final int DEFAULT_LIMIT = 3;
+    /**
+     * How many identical calls are allowed before refusing.
+     *
+     * <p>Three was tight for a flaky fetch that legitimately retries.
+     * Six still stops a stuck loop; a different URL or param is progress
+     * and does not spend this counter.
+     */
+    public static final int DEFAULT_LIMIT = 6;
 
     /** Distinct signatures remembered. Bounded so a long task cannot grow it. */
     private static final int MAX_TRACKED = 64;

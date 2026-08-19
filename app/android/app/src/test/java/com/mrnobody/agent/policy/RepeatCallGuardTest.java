@@ -24,6 +24,11 @@ public class RepeatCallGuardTest {
     }
 
     @Test
+    public void theDefaultCeilingIsLooseEnoughForAFlakyRetry() {
+        assertTrue(RepeatCallGuard.DEFAULT_LIMIT >= 6);
+    }
+
+    @Test
     public void identicalCallsAreAllowedUpToTheLimitThenRefused() {
         RepeatCallGuard guard = new RepeatCallGuard(3);
         ToolCall same = get("https://example.test/a");

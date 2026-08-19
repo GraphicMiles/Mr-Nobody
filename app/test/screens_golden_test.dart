@@ -208,6 +208,14 @@ void _mockCore() {
         case 'listAccounts':
         case 'listRestrictedTools':
           return <Map<String, Object>>[];
+        case 'completionStats':
+          return {
+            'finished': 0,
+            'unattended': 0,
+            'interrupted': 0,
+            'target': 0.9,
+            'rate': null,
+          };
         case 'runRestrictedTool':
           return {
             'id': 'twikit',

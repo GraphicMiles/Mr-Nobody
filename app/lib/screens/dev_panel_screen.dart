@@ -44,6 +44,7 @@ class DevPanelScreen extends StatefulWidget {
 class _DevPanelScreenState extends State<DevPanelScreen> {
   List<BenchmarkResult> _results = const [];
   bool _running = false;
+  Map<String, dynamic> _completion = const {};
 
   /// Manual observations, keyed by id: null = unanswered.
   final Map<String, bool?> _manual = {};
@@ -73,6 +74,17 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
     super.initState();
     _run();
     _loadDataSaver();
+    _loadCompletion();
+  }
+
+  Future<void> _loadCompletion() async {
+    final s = await NativeBridge.guard(
+      NativeBridge.completionStats,
+      const <String, dynamic>{},
+      'completion stats unavailable',
+    );
+    if (!mounted || s.isEmpty) return;
+    setState(() => _completion = s);
   }
 
   Future<void> _loadDataSaver() async {
@@ -250,6 +262,13 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                     ]),
                   ),
                 ),
+                const SectionLabel('Unattended completion'),
+                AppCard(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    child: _completionBlock(),
+                  ),
+                ),
                 const SectionLabel('Data Saver'),
                 AppCard(
                   child: Padding(
@@ -289,6 +308,31 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _completionBlock() {
+    final finished = (_completion['finished'] as num?)?.toInt() ?? 0;
+    final unattended = (_completion['unattended'] as num?)?.toInt() ?? 0;
+    final interrupted = (_completion['interrupted'] as num?)?.toInt() ?? 0;
+    final rate = _completion['rate'];
+    final pct = rate is num ? '${(rate * 100).toStringAsFixed(0)}%' : 'no data yet';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Share of completed tasks that never stopped for CONFIRM. '
+          'Target ~90%, never 100%.',
+          style: AppTheme.sans(size: 11.5, color: AppColors.textDim, height: 1.5),
+        ),
+        const SizedBox(height: 10),
+        Text(pct, style: AppTheme.mono(size: 18, w: FontWeight.w700, color: AppColors.text)),
+        const SizedBox(height: 6),
+        Text(
+          '$unattended unattended · $interrupted interrupted · $finished finished this week',
+          style: AppTheme.mono(size: 10, color: AppColors.textFaint),
+        ),
+      ],
     );
   }
 

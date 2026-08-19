@@ -68,7 +68,8 @@ public final class DeterministicEngine implements AgentEngine {
      * is the local analogue of the remote credit system's CFO gate; it becomes
      * a Settings/credit value once payments land.
      */
-    private static final double MAX_RUN_USD = 1.00;
+    private static final double MAX_RUN_USD =
+            com.mrnobody.agent.ai.SpendCap.DEFAULT_RUN_USD;
 
     /** How much of each page the model sees. */
     private static final int PER_SOURCE_CHARS = 2500;

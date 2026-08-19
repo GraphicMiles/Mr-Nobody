@@ -38,9 +38,12 @@ public final class LocalWorker implements Worker {
         // next task's calls under this one.
         EventLogRecorder.bind(task.id());
         HeadlessSessions.acquire(context, task.id());
+        com.mrnobody.agent.tasks.CompletionStats.beginRun();
         try {
             engine.run(context, task, cancellation);
         } finally {
+            com.mrnobody.agent.tasks.CompletionStats.endRun(
+                    task.status() == Task.Status.COMPLETED);
             EventLogRecorder.clear();
             // Per-task engine: close this task's jar even if another task is
             // still running. Isolation is the point; sharing was the bug.
