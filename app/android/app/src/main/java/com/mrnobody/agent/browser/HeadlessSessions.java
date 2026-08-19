@@ -54,6 +54,13 @@ public final class HeadlessSessions {
         return acquire(appContext, id);
     }
 
+    /** Close every live task browser before clearing browsing data. */
+    public static void releaseAll() {
+        for (Long taskId : new java.util.ArrayList<>(LIVE.keySet())) {
+            if (taskId != null) release(taskId);
+        }
+    }
+
     /** Close and forget the engine. Deletes the ephemeral profile. */
     public static void release(long taskId) {
         HeadlessWebViewEngine engine = LIVE.remove(taskId);
