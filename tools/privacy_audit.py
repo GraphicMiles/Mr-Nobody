@@ -6,6 +6,7 @@ Checks for the things the product must never contain (see README.md):
   - prohibited dependency coordinates (analytics/ad SDKs)
   - addJavascriptInterface / JS bridge usage
   - disableWebViewUrlCheck / clearTextTraffic / debug cert overrides
+  - plaintext provider credentials or granted account-cookie storage
 
 Usage:
     python3 tools/privacy_audit.py [repo_root]
@@ -51,6 +52,15 @@ ALLOWED_PERMISSIONS = {
 # hypothetical.
 GATE_FILE = "NetworkGate.java"
 UNGATED_CONNECT = "openConnection("
+
+# These classes persist credentials and must use the Keystore-backed seam.
+# Naming the exact owners keeps this check precise instead of flagging benign
+# SharedPreferences such as theme or block counters.
+CREDENTIAL_STORES = {
+    "Settings.java": "provider API keys",
+    "AccountStore.java": "granted account cookies",
+}
+SECURE_STORE = "EncryptedPreferences"
 
 
 SKIP_DIRS = {".git", "build", ".dart_tool", ".gradle", "node_modules", ".idea"}
@@ -134,6 +144,12 @@ def main() -> int:
                 problems.append(
                     f"[{label}] {src.name} calls openConnection() directly -- "
                     f"route it through NetworkGate or a privacy route will leak")
+
+            # 3c. Credential owners must not regress to plaintext preferences.
+            if src.name in CREDENTIAL_STORES and SECURE_STORE not in stext:
+                problems.append(
+                    f"[{label}] {src.name} stores {CREDENTIAL_STORES[src.name]} "
+                    f"without {SECURE_STORE}")
 
     if problems:
         print("PRIVACY AUDIT — VIOLATIONS FOUND:")
