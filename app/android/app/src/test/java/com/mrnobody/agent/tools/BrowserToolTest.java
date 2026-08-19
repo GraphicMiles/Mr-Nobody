@@ -107,10 +107,14 @@ public class BrowserToolTest {
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("fetch", "url", "https://x.com")));
         assertEquals(com.mrnobody.agent.core.Tier.READ,
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("extract")));
+        assertEquals(com.mrnobody.agent.core.Tier.READ,
+                tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("forms")));
         assertEquals(com.mrnobody.agent.core.Tier.WRITE,
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("click", "selector", "#a")));
         assertEquals(com.mrnobody.agent.core.Tier.WRITE,
                 tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("type", "selector", "#a")));
+        assertEquals(com.mrnobody.agent.core.Tier.WRITE,
+                tool.tierFor(com.mrnobody.agent.core.ToolRequest.of("submit", "selector", "form")));
     }
 
     /** Through the pipeline, the model sees the rendered projection. */

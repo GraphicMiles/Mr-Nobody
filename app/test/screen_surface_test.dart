@@ -158,6 +158,14 @@ void _mockCore() {
         case 'listRestrictedTools':
         case 'bookmarks':
           return <Map<String, dynamic>>[];
+        case 'completionStats':
+          return {
+            'finished': 0,
+            'unattended': 0,
+            'interrupted': 0,
+            'target': 0.9,
+            'rate': null,
+          };
         case 'runRestrictedTool':
           return {
             'id': 'twikit',

@@ -171,7 +171,10 @@ public class ToolSpecTest {
     @Test
     public void tiersAreOrderedByConsequence() {
         assertTrue(Tier.EXEC.atLeast(Tier.WRITE));
+        assertTrue(Tier.WRITE.atLeast(Tier.SANDBOX));
+        assertTrue(Tier.SANDBOX.atLeast(Tier.READ));
         assertTrue(Tier.WRITE.atLeast(Tier.READ));
         assertFalse(Tier.READ.atLeast(Tier.WRITE));
+        assertFalse(Tier.SANDBOX.atLeast(Tier.WRITE));
     }
 }

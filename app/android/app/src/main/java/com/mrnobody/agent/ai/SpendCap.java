@@ -23,6 +23,13 @@ public final class SpendCap {
     /** A never-triggering cap (the default when no ceiling is configured). */
     public static final double NO_LIMIT = Double.MAX_VALUE;
 
+    /**
+     * Per-run dollar ceiling. ~3× a typical hosted research task, so a
+     * normal browse does not trip it and a runaway loop still cannot
+     * empty a key.
+     */
+    public static final double DEFAULT_RUN_USD = 3.00;
+
     private final double capUsd;
     private final ModelPricing.Price price;
 

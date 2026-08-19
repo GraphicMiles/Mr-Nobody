@@ -53,6 +53,18 @@ public final class TerminalTool implements Tool {
         return SPEC;
     }
 
+    /**
+     * Read-only workspace commands are observational. Only a command the
+     * gate cannot classify as safe stays EXEC and hits CONFIRM. DENY is
+     * still refused inside {@link #execute}, never confirmed-and-allowed.
+     */
+    @Override
+    public Tier tierFor(ToolRequest request) {
+        String cmd = request.param("cmd");
+        if (policy.classify(cmd) == PolicyGate.Decision.ALLOW) return Tier.READ;
+        return Tier.EXEC;
+    }
+
     @Override
     public ToolResult execute(Context context, ToolRequest request) {
         String command = request.param("cmd");

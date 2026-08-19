@@ -57,6 +57,12 @@ public final class EventLogRecorder implements ToolPipeline.Recorder {
     @Override
     public void onResult(ToolCall call, ToolResult result,
                          ApprovalDecision decision, long durationMs) {
+        if (result != null && result.needsApproval()) {
+            CompletionStats.markConfirm();
+        } else if (decision != null && decision.needsConfirmation()) {
+            CompletionStats.markConfirm();
+        }
+
         boolean refused = decision != null && decision.isDeny();
         String type = refused ? TaskEventStore.TOOL_DENIED : TaskEventStore.TOOL_RESULT;
 

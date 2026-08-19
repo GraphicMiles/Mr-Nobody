@@ -443,6 +443,10 @@ public class MainActivity extends FlutterActivity {
                             result.success(m);
                             return;
                         }
+                        case "completionStats": {
+                            result.success(com.mrnobody.agent.tasks.CompletionStats.snapshot());
+                            return;
+                        }
                         case "diagnostics": {
                             // The Phase 1 device benchmark: every subsystem
                             // reports pass/fail so a real-device run is a list

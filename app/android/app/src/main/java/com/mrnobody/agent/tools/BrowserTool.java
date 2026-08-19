@@ -47,7 +47,8 @@ public final class BrowserTool implements Tool {
      * agent nags the user for doing its job.
      */
     private static final java.util.Set<String> READ_ACTIONS =
-            java.util.Set.of("open", "fetch", "extract", "title", "links");
+            java.util.Set.of("open", "fetch", "extract", "title", "links",
+                    "forms", "scroll", "wait");
 
     /** The last URL this tool navigated to, for anchoring. */
     private volatile String lastKnownUrl = "";

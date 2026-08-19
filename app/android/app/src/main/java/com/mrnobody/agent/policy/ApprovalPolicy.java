@@ -113,7 +113,9 @@ public final class ApprovalPolicy implements ToolPipeline.Approval {
             case EXEC:
                 return "runs a command or acts outside this device";
             case WRITE:
-                return "changes something on this device";
+                return "acts on a live page (click, type, or submit)";
+            case SANDBOX:
+                return "writes a file into this app's sandbox";
             case READ:
             default:
                 return "reads data";

@@ -58,6 +58,15 @@ public class BudgetGuardTest {
     }
 
     @Test
+    public void sandboxDownloadsDoNotSpendTheChangeBudget() {
+        BudgetGuard g = new BudgetGuard(50, 1);
+        assertNull(g.denyReason(call("download", Tier.SANDBOX, "a")));
+        assertNull(g.denyReason(call("download", Tier.SANDBOX, "b")));
+        assertNull("a sandbox write must not consume the consequential allowance",
+                g.denyReason(call("http", Tier.WRITE, "f")));
+    }
+
+    @Test
     public void readsDoNotSpendTheChangeBudget() {
         BudgetGuard g = new BudgetGuard(50, 1);
         for (int i = 0; i < 10; i++) g.denyReason(call("http", Tier.READ, "u" + i));
