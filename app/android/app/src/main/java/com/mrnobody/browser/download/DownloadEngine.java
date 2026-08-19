@@ -446,6 +446,14 @@ public final class DownloadEngine {
             if (record.referrer != null && !record.referrer.isEmpty()) {
                 conn.setRequestProperty("Referer", record.referrer);
             }
+            try {
+                String cookie = com.mrnobody.browser.MrNobodyApp.accounts()
+                        .headerForUrl(record.url);
+                if (cookie != null && !cookie.isEmpty()) {
+                    conn.setRequestProperty("Cookie", cookie);
+                }
+            } catch (Throwable ignored) {
+            }
             // Without this the client advertises gzip and decompresses
             // silently, so Content-Length describes the compressed body while
             // we count expanded bytes -- two different measurements either

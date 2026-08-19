@@ -205,6 +205,7 @@ void _mockCore() {
             'score': 92,
           };
         case 'listMonitors':
+        case 'listAccounts':
           return <Map<String, Object>>[];
         case 'recentTasks':
           return [

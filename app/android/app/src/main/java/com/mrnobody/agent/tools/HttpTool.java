@@ -107,6 +107,14 @@ public final class HttpTool implements Tool {
         return sb.toString();
     }
 
+    private static String cookieHeader(String url) {
+        try {
+            return com.mrnobody.browser.MrNobodyApp.accounts().headerForUrl(url);
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
     private static String truncate(String s, int max) {
         return s != null && s.length() > max ? s.substring(0, max) + "…" : s;
     }

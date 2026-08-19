@@ -152,6 +152,7 @@ void _mockCore() {
           };
         case 'recentTasks':
         case 'listMonitors':
+        case 'listAccounts':
         case 'bookmarks':
           return <Map<String, dynamic>>[];
         case 'providerConfig':
