@@ -560,8 +560,21 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   void _copy() {
     final result = _task['result'] as String? ?? '';
     if (result.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: result));
+    final plain = AnswerDocument.parse(result).plainText;
+    Clipboard.setData(ClipboardData(text: plain.isEmpty ? result : plain));
     AppToast.show(context, 'Copied');
+  }
+
+  /// Open the parked page in a visible tab so the user can finish a file
+  /// upload or sign-in. The chat stays underneath.
+  void _openPending() {
+    final url = _pendingUrl;
+    if (url == null || url.isEmpty) return;
+    if (widget.onOpenUrl != null) {
+      widget.onOpenUrl!(url);
+      return;
+    }
+    AppToast.show(context, url);
   }
 
   // ----------------------------------------------------------------- build
