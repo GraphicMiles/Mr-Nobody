@@ -25,6 +25,12 @@ public final class SearchChallenge {
             "challenge-platform",      // Cloudflare
             "cf-browser-verification",
             "just a moment...",
+            "attention required! | cloudflare",
+            "performing security verification",
+            "cdn-cgi/challenge-platform",
+            "gokuprops",               // AWS WAF
+            "awswafcookiedomainlist",
+            "cf-chl-bypass",
             "access denied",
             "rate limit",
     };

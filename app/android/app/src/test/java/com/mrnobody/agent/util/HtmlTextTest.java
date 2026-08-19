@@ -34,6 +34,16 @@ public class HtmlTextTest {
     }
 
     @Test
+    public void articlePrefersTheArticleTag() {
+        String html = "<nav>Home About</nav><article><p>"
+                + "This is the actual story the user asked to read about today."
+                + "</p></article><footer>copyright</footer>";
+        String text = HtmlText.article(html);
+        assertTrue(text.contains("actual story"));
+        assertFalse(text.contains("copyright"));
+    }
+
+    @Test
     public void nullAndEmptySafe() {
         assertEquals("", HtmlText.toText(null));
         assertEquals("", HtmlText.toText(""));

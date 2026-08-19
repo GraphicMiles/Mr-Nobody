@@ -575,7 +575,9 @@ public final class DeterministicEngine implements AgentEngine {
         if (url.isEmpty() || r.readUrls.contains(url) || r.readUrls.size() >= MAX_SOURCES_READ) {
             return false;
         }
-        String text = result.isSuccess() ? result.result() : null;
+        if (result == null || !result.isSuccess()) return false;
+        if (Boolean.TRUE.equals(result.value().get("needsBrowser"))) return false;
+        String text = result.result();
         if (text == null || text.trim().isEmpty()) return false;
         r.readUrls.add(url);
         // An explicit http step (e.g. from an LLM plan) has no search-result

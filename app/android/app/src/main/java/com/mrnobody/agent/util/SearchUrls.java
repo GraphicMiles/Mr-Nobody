@@ -35,9 +35,11 @@ public final class SearchUrls {
         }
         String enc = urlEncode(q);
 
-        if (h.equals("x.com") || h.equals("twitter.com")) {
-            out.add("https://x.com/search?q=" + enc + "&f=live");
-            out.add("https://x.com/search?q=" + enc);
+        if (XQuery.isXHost(h)) {
+            out.addAll(XQuery.pages("", q));
+            if (out.isEmpty()) {
+                out.add("https://x.com/search?q=" + enc + "&f=live");
+            }
             return out;
         }
         if (h.equals("reddit.com")) {
