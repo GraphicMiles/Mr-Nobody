@@ -82,6 +82,25 @@ public final class TaskArtifact {
     }
 
     /**
+     * True when the follow-up is pointing at a known result rather than
+     * asking a new question. "Open the second one" must not start a fresh
+     * search — it must open that page.
+     */
+    public static boolean isPointerFollowUp(String followUp) {
+        if (followUp == null) return false;
+        String t = followUp.toLowerCase(Locale.ROOT).trim();
+        if (t.isEmpty() || t.length() > 80) return false;
+        if (t.contains(" and ") || t.contains("?")) return false;
+        return t.contains("first") || t.contains("1st")
+                || t.contains("second") || t.contains("2nd")
+                || t.contains("third") || t.contains("3rd")
+                || t.contains("fourth") || t.contains("4th")
+                || t.contains("fifth") || t.contains("5th")
+                || t.matches(".*(?:#|no\\.?\\s*|number\\s+)\\d+.*")
+                || t.matches(".*\\b(it|that|this|that one|the one|this one)\\b.*");
+    }
+
+    /**
      * Which item a follow-up is talking about. "the second one", "it",
      * "#3", or a title fragment. Null when the message is not pointing.
      */

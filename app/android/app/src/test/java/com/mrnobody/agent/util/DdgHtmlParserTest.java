@@ -64,4 +64,17 @@ public class DdgHtmlParserTest {
         assertFalse(results.get(0).title.contains("<b>"));
         assertFalse(results.get(0).title.contains("</b>"));
     }
+
+    @Test
+    public void parseLiteReadsResultLinks() {
+        String lite = "<html><body><table>"
+                + "<tr><td><a class='result-link' href='https://example.com/a'>Lite Title</a></td></tr>"
+                + "<tr><td class='result-snippet'>A lite snippet.</td></tr>"
+                + "</table></body></html>";
+        List<SearchResult> results = DdgHtmlParser.parseLite(lite, 5);
+        assertEquals(1, results.size());
+        assertEquals("Lite Title", results.get(0).title);
+        assertEquals("https://example.com/a", results.get(0).url);
+        assertTrue(results.get(0).snippet.contains("lite snippet"));
+    }
 }

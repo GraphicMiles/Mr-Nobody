@@ -187,12 +187,27 @@ public final class DeterministicEngine implements AgentEngine {
         if (stopIfAsked(context, task, provider)) return;
 
         if (provider.isRemote()) {
-            runAutonomous(context, task, provider, cancellation, asked, classified.intent);
+            runAutonomous(context, task, provider, cancellation, asked, classified.intent,
+                    pointed);
             return;
         }
 
         planner = new DeterministicPlanner();
-        Plan plan = planner.plan(asked, tools.keySet());
+        Plan plan;
+        if (pointed != null && TaskArtifact.isPointerFollowUp(task.followUp())) {
+            // Search already happened. Opening "the second one" is a read of
+            // that URL, not a new query that throws the shortlist away.
+            boolean wantsDownload = tools.containsKey("download")
+                    && ToolRouter.isDownloadIntent(asked);
+            java.util.List<Plan.Step> steps = new java.util.ArrayList<>();
+            steps.add(Plan.Step.internal(Task.STEP_READ));
+            if (wantsDownload) steps.add(Plan.Step.internal(Task.STEP_RESOLVE_DOWNLOAD));
+            steps.add(Plan.Step.internal(Task.STEP_ANSWER));
+            steps.add(Plan.Step.internal(Task.STEP_VERIFY));
+            plan = new Plan(steps);
+        } else {
+            plan = planner.plan(asked, tools.keySet());
+        }
         task.setPlanJson(plan.snapshot());
         if (plan.size() == 0 || plan.isAbandoned()) {
             fail(task, ToolResult.fail("No plan for this instruction."));
@@ -203,7 +218,7 @@ public final class DeterministicEngine implements AgentEngine {
             executeRouted(context, task, plan.steps().get(0), cancellation);
             return;
         }
-        executeResearch(context, task, plan, cancellation, asked, classified.intent);
+        executeResearch(context, task, plan, cancellation, asked, classified.intent, pointed);
     }
 
     /** A routed action is the whole task: one tool call whose result is the answer. */
@@ -247,11 +262,14 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private void executeResearch(Context context, Task task, Plan plan,
                                  Cancellation cancellation, String asked,
-                                 TaskIntent intent) {
+                                 TaskIntent intent, TaskArtifact pointed) {
         Research r = new Research();
         r.asked = asked;
         r.intent = intent;
-        r.namedUrl = findUrl(asked);
+        // A pointed follow-up names the page. findUrl() would otherwise pick
+        // an earlier hostname from the original instruction and open the wrong one.
+        r.namedUrl = pointed != null ? pointed.url : findUrl(asked);
+        if (pointed != null) r.titles.put(pointed.url, pointed.title);
         r.recurrence = resolveRecurrence(task, asked, intent);
 
         while (!plan.isFinished()) {
@@ -326,6 +344,7 @@ public final class DeterministicEngine implements AgentEngine {
                     break;
                 case Task.STEP_ANSWER:
                     task.setCurrentStep(Task.STEP_ANSWER);
+                    persistEvidence(context, task, r);
                     answerStep(context, task, cancellation, r);
                     break;
                 case Task.STEP_VERIFY:
@@ -353,11 +372,12 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private void runAutonomous(Context context, Task task, AiProvider provider,
                                Cancellation cancellation, String asked,
-                               TaskIntent intent) {
+                               TaskIntent intent, TaskArtifact pointed) {
         Research r = new Research();
         r.asked = asked;
         r.intent = intent;
-        r.namedUrl = findUrl(asked);
+        r.namedUrl = pointed != null ? pointed.url : findUrl(asked);
+        if (pointed != null) r.titles.put(pointed.url, pointed.title);
         r.recurrence = resolveRecurrence(task, asked, intent);
         r.provider = provider;
         r.cap = new com.mrnobody.agent.ai.SpendCap(MAX_RUN_USD,
@@ -418,6 +438,7 @@ public final class DeterministicEngine implements AgentEngine {
             if (stopped(task, cancellation) || parkIfNeeded(task, r.lastResult)) return;
         }
 
+        persistEvidence(context, task, r);
         answerStep(context, task, cancellation, r);
         if (stopped(task, cancellation)) return;
         verifyStep(context, task, cancellation, r);
@@ -507,6 +528,9 @@ public final class DeterministicEngine implements AgentEngine {
             // (click/type/scroll) are just status.
             String action = step.request == null ? "" : step.request.action();
             pageContent = "fetch".equals(action) || "extract".equals(action) || "links".equals(action);
+            if ("fetch".equals(action) || "extract".equals(action)) {
+                readOne(r, step, result);
+            }
         }
 
         transcript.add(autonomousLine(step, effective, pageContent, nonce));
@@ -556,7 +580,7 @@ public final class DeterministicEngine implements AgentEngine {
                     ? "the page you named" : "search on the site you named");
             reads.add(readStep(page));
         }
-        for (Map<String, Object> result : r.results) {
+        if (r.results != null) for (Map<String, Object> result : r.results) {
             if (reads.size() >= MAX_READ_CANDIDATES) break;
             String url = String.valueOf(result.get("url"));
             if (url.isEmpty()) continue;
@@ -682,14 +706,55 @@ public final class DeterministicEngine implements AgentEngine {
         return true;
     }
 
+    /**
+     * Attach preview images to the shortlist and persist it so the next turn
+     * and the answer cards see the same 2–3 pictures the pages actually had.
+     */
+    private void persistEvidence(Context context, Task task, Research r) {
+        List<TaskArtifact> items = TaskArtifact.decode(task.artifacts());
+        if (items.isEmpty() && r.results != null) {
+            items = TaskArtifact.fromSearch(r.results);
+        }
+        items = TaskArtifact.attachImages(items, r.images);
+        int downloaded = 0;
+        List<TaskArtifact> out = new ArrayList<>();
+        for (TaskArtifact a : items) {
+            String img = a.image;
+            if (!img.isEmpty() && downloaded < 3 && context != null
+                    && com.mrnobody.agent.util.HtmlText.usableImage(img)) {
+                String local = com.mrnobody.agent.util.PageImage.download(context, img);
+                if (!local.isEmpty()) {
+                    img = local;
+                    downloaded++;
+                }
+            }
+            out.add(new TaskArtifact(a.index, a.title, a.url, a.note, img));
+            if (out.size() >= 8) break;
+        }
+        task.setArtifacts(TaskArtifact.encode(out));
+        try {
+            MrNobodyApp.tasks().update(task);
+        } catch (Throwable ignored) {
+            // Tests and a missing store must not sink the answer.
+        }
+    }
+
     /** Record a download's outcome as a user-facing note (shared by both paths). */
     private void applyDownloadNote(Research r, ToolResult result) {
         if (result.isSuccess()) {
             Map<String, Object> v = result.value();
-            r.downloadNote = "Downloaded " + v.get("name") + " to " + v.get("folder") + ".";
-            if (!Boolean.TRUE.equals(v.get("customFolder"))) {
-                r.downloadNote += " No download folder is set — files go to system "
-                        + "Downloads. Pick one in Settings → Downloads.";
+            String status = String.valueOf(v.get("status"));
+            if ("COMPLETED".equals(status)) {
+                r.downloadNote = "Downloaded " + v.get("name") + " to " + v.get("folder") + ".";
+                if (!Boolean.TRUE.equals(v.get("customFolder"))) {
+                    r.downloadNote += " No download folder is set — files go to system "
+                            + "Downloads. Pick one in Settings → Downloads.";
+                }
+            } else if ("RUNNING".equals(status) || "QUEUED".equals(status)) {
+                r.downloadNote = "Download still in progress: " + v.get("name")
+                        + " (not finished yet).";
+            } else {
+                r.downloadNote = result.result();
             }
         } else {
             r.downloadNote = "Download failed: " + result.error() + ".";
@@ -713,10 +778,6 @@ public final class DeterministicEngine implements AgentEngine {
      * enqueue a download step for it.
      *
      * <p>The order is the honest one: a search result that is itself a file
-     * wins; otherwise the pages are re-read through the headless browser to
-     * collect their links, and the best file is chosen — preferring the user's
-     * own named site. When nothing is downloadable the answer step says so
-     * plainly instead of inventing a URLnest one: a search result that is itself a file
      * wins; otherwise the pages are re-read through the headless browser to
      * collect their links, and the best file is chosen — preferring the user's
      * own named site. When nothing is downloadable the answer step says so
@@ -834,14 +895,13 @@ public final class DeterministicEngine implements AgentEngine {
                     }
                 }
             }
-        } else if (r.search != null) {
-            r.answer = r.search.result();
         } else {
-            // No search step ran (an LLM plan that never searched). The sources
-            // that were read are the answer's substance.
-            r.answer = r.sources.length() == 0
-                    ? "(nothing to report)"
-                    : "Read:\n" + r.sources.toString();
+            // No remote model: extract from pages that were actually read.
+            // Dumping the search listing here was the bug that made Local look
+            // like an AI agent while it was just reprinting DuckDuckGo.
+            r.answer = ExtractiveAnswer.compose(
+                    r.asked != null ? r.asked : task.conversation(),
+                    r.sources.toString(), r.pagesRead, r.results);
         }
 
         // The download is an action the engine took, not a claim the model

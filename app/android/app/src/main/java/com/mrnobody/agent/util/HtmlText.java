@@ -77,7 +77,7 @@ public final class HtmlText {
                 .replace("&quot;", "\"").trim();
     }
 
-    static boolean usableImage(String url) {
+    public static boolean usableImage(String url) {
         if (url == null || url.length() < 12) return false;
         String u = url.toLowerCase(java.util.Locale.ROOT);
         if (!(u.startsWith("http://") || u.startsWith("https://"))) return false;

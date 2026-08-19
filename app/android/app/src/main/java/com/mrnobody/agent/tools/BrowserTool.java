@@ -149,7 +149,7 @@ public final class BrowserTool implements Tool {
                 engine.open(url);
                 lastKnownUrl = url;
                 return value("open", "url", url, "status", "opened");
-            case "fetch":
+            case "fetch": {
                 // Load + extract in one blocking call (the agent's extraction path).
                 String fetchUrl = request.param("url");
                 if (fetchUrl == null || fetchUrl.isEmpty()) {
@@ -158,7 +158,17 @@ public final class BrowserTool implements Tool {
                 long timeout = parseLong(request.param("timeout"), 20_000);
                 String text = engine.loadAndExtract(fetchUrl, timeout);
                 lastKnownUrl = fetchUrl;
-                return value("fetch", "url", fetchUrl, "text", text);
+                String image = previewImage(engine, fetchUrl);
+                if (image.isEmpty()) {
+                    return value("fetch", "url", fetchUrl, "text", text);
+                }
+                java.util.Map<String, Object> fetched = new java.util.LinkedHashMap<>();
+                fetched.put("action", "fetch");
+                fetched.put("url", fetchUrl);
+                fetched.put("text", text);
+                fetched.put("image", image);
+                return ToolResult.ok(fetched);
+            }
             case "back":
                 engine.back();
                 return value("back", "status", "navigated back");
@@ -168,8 +178,16 @@ public final class BrowserTool implements Tool {
             case "reload":
                 engine.reload();
                 return value("reload", "status", "reloaded");
-            case "extract":
-                return value("extract", "text", engine.extractText());
+            case "extract": {
+                String extracted = engine.extractText();
+                String preview = previewImage(engine, lastKnownUrl);
+                if (preview.isEmpty()) return value("extract", "text", extracted);
+                java.util.Map<String, Object> extractedVal = new java.util.LinkedHashMap<>();
+                extractedVal.put("action", "extract");
+                extractedVal.put("text", extracted);
+                extractedVal.put("image", preview);
+                return ToolResult.ok(extractedVal);
+            }
             case "links": {
                 // Every anchor the rendered page exposes, as absolute URLs.
                 // This is how the agent finds the file to download: it reads
@@ -345,6 +363,37 @@ public final class BrowserTool implements Tool {
                 return ToolResult.fail("unknown browser action: " + action);
         }
     }
+
+    /**
+     * The page's own preview image, resolved against {@code pageUrl}. Empty
+     * when the document has none — never a guessed CDN path.
+     */
+    private static String previewImage(BrowserEngine engine, String pageUrl) {
+        if (engine == null) return "";
+        try {
+            String raw = engine.evaluate(OG_IMAGE_JS, 3_000);
+            if (raw == null || raw.trim().isEmpty() || "null".equalsIgnoreCase(raw.trim())) {
+                return "";
+            }
+            String resolved = com.mrnobody.agent.util.UrlResolve.resolve(raw.trim(), pageUrl);
+            return com.mrnobody.agent.util.HtmlText.usableImage(resolved) ? resolved : "";
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    private static final String OG_IMAGE_JS =
+            "(function(){try{"
+                    + "function attr(sel,a){var e=document.querySelector(sel);return e?e.getAttribute(a):'';}"
+                    + "var u=attr('meta[property=\"og:image\"]','content')"
+                    + "||attr('meta[property=\"og:image:url\"]','content')"
+                    + "||attr('meta[name=\"twitter:image\"]','content')"
+                    + "||attr('meta[name=\"twitter:image:src\"]','content')"
+                    + "||attr('link[rel=\"image_src\"]','href')||'';"
+                    + "if(!u){var img=document.querySelector('article img[src],main img[src],img[src]');"
+                    + "if(img)u=img.src||'';}"
+                    + "return u||'';"
+                    + "}catch(e){return ''}})()";
 
     /** Build the canonical value: the action, plus whatever that action produced. */
     private static ToolResult value(String action, String... pairs) {

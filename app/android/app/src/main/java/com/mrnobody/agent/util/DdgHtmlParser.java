@@ -100,4 +100,48 @@ public final class DdgHtmlParser {
     public static List<SearchResult> parse(String html) {
         return parse(html, 8);
     }
+
+    // lite.duckduckgo.com/lite/ uses result-link / result-snippet, not result__a.
+    private static final Pattern LITE_LINK = Pattern.compile(
+            "<a[^>]*class=['\"]result-link['\"][^>]*href=['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    private static final Pattern LITE_SNIPPET = Pattern.compile(
+            "<(?:td|a)[^>]*class=['\"]result-snippet['\"][^>]*>(.*?)</(?:td|a)>",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    /**
+     * DuckDuckGo Lite HTML. A second cheap HTTP path: the /html/ endpoint is
+     * often challenged, and Lite still answers a plain fetch.
+     */
+    public static List<SearchResult> parseLite(String html, int max) {
+        List<SearchResult> results = new ArrayList<>();
+        if (html == null || html.isEmpty()) return results;
+
+        List<String> titles = new ArrayList<>();
+        List<String> hrefs = new ArrayList<>();
+        Matcher tm = LITE_LINK.matcher(html);
+        while (tm.find() && titles.size() < max) {
+            hrefs.add(tm.group(1));
+            titles.add(HtmlText.toText(tm.group(2)));
+        }
+
+        List<String> snippets = new ArrayList<>();
+        Matcher sm = LITE_SNIPPET.matcher(html);
+        while (sm.find() && snippets.size() < max) {
+            snippets.add(HtmlText.toText(sm.group(1)));
+        }
+
+        for (int i = 0; i < titles.size(); i++) {
+            String realUrl = decodeRedirect(hrefs.get(i));
+            if (realUrl == null || realUrl.isEmpty()) {
+                String href = hrefs.get(i);
+                realUrl = href != null && href.startsWith("http") ? href : "";
+            }
+            if (realUrl.isEmpty()) continue;
+            String snippet = i < snippets.size() ? snippets.get(i) : "";
+            results.add(new SearchResult(titles.get(i), realUrl, snippet));
+        }
+        return results;
+    }
 }
