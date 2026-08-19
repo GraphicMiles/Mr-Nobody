@@ -19,6 +19,14 @@ public final class FetchLadder {
         return kind.needsBrowser() ? Step.BROWSER : Step.HTTP;
     }
 
+    /**
+     * Where to start for a host we have seen before. Scrapling remembers
+     * the last fetcher; two challenge/SPA hits in a row skip HTTP.
+     */
+    public static Step firstStep(String host) {
+        return SiteMemory.preferBrowser(host) ? Step.BROWSER : Step.HTTP;
+    }
+
     /** True when an HTTP result should be thrown away and the page re-read. */
     public static boolean escalate(ToolHint hint) {
         return hint != null && hint.needsBrowser;

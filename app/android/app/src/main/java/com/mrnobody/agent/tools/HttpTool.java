@@ -51,24 +51,57 @@ public final class HttpTool implements Tool {
     @Override
     public ToolResult execute(Context context, ToolRequest request) {
         String url = request.param("url");
+        String host = com.mrnobody.agent.util.Hosts.firstIn(url);
+        if (!com.mrnobody.agent.util.HostRateLimit.tryAcquire(host)) {
+            return ToolResult.fail(com.mrnobody.agent.util.HostRateLimit.denyMessage(host));
+        }
         try {
-            HttpURLConnection conn = NetworkGate.openHttp(url);
-            conn.setConnectTimeout(10_000);
-            conn.setReadTimeout(15_000);
-            conn.setRequestProperty("User-Agent", "MrNobody/1.0");
-            conn.setInstanceFollowRedirects(true);
-            int code = conn.getResponseCode();
-            if (code < 200 || code >= 300) {
-                return ToolResult.fail("HTTP " + code + " for " + url);
+            int code = 0;
+            String body = "";
+            for (int attempt = 0; attempt < com.mrnobody.agent.util.FetchRetry.MAX_ATTEMPTS; attempt++) {
+                if (attempt > 0 && !com.mrnobody.agent.util.HostRateLimit.tryAcquire(host)) {
+                    return ToolResult.fail(com.mrnobody.agent.util.HostRateLimit.denyMessage(host));
+                }
+                HttpURLConnection conn = NetworkGate.openHttp(url);
+                conn.setConnectTimeout(10_000);
+                conn.setReadTimeout(15_000);
+                conn.setRequestProperty("User-Agent", "MrNobody/1.0");
+                conn.setInstanceFollowRedirects(true);
+                String cookie = cookieHeader(url);
+                if (!cookie.isEmpty()) conn.setRequestProperty("Cookie", cookie);
+                code = conn.getResponseCode();
+                if (com.mrnobody.agent.util.FetchRetry.shouldRetry(code)
+                        && com.mrnobody.agent.util.FetchRetry.hasAttemptsLeft(attempt)) {
+                    sleepQuietly(com.mrnobody.agent.util.FetchRetry.delayMs(
+                            attempt, conn.getHeaderField("Retry-After")));
+                    conn.disconnect();
+                    continue;
+                }
+                if (code < 200 || code >= 300) {
+                    return ToolResult.fail("HTTP " + code + " for " + url);
+                }
+                body = readBounded(conn.getInputStream());
+                break;
             }
-            String body = readBounded(conn.getInputStream());
             PageKind.Kind kind = PageKind.classify(body);
-            String text = extract(kind, body);
+            com.mrnobody.agent.util.SiteMemory.remember(host, kind);
+            String text = extract(url, kind, body);
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("url", url);
             value.put("status", code);
             value.put("kind", kind.name());
             value.put("needsBrowser", kind.needsBrowser());
+            value.put("preferBrowser", com.mrnobody.agent.util.SiteMemory.preferBrowser(host));
+            if (com.mrnobody.agent.util.RobotsRules.looksLikeRobots(body)) {
+                com.mrnobody.agent.util.RobotsRules robots =
+                        com.mrnobody.agent.util.RobotsRules.parse(body);
+                value.put("sitemaps", robots.sitemaps());
+                value.put("crawlDelay", robots.crawlDelaySeconds());
+                if (text.isEmpty()) text = robots.toText();
+            }
+            if (com.mrnobody.agent.util.RobotsRules.looksLikeSitemap(body)) {
+                value.put("locs", com.mrnobody.agent.util.RobotsRules.locsFrom(body));
+            }
             value.put("truncated", text.length() > MAX_RESULT);
             value.put("text", truncate(text, MAX_RESULT));
             return ToolResult.ok(value);
@@ -77,7 +110,19 @@ public final class HttpTool implements Tool {
         }
     }
 
-    private static String extract(PageKind.Kind kind, String body) {
+    private static String extract(String url, PageKind.Kind kind, String body) {
+        if (com.mrnobody.agent.util.RobotsRules.looksLikeRobots(body)) {
+            return com.mrnobody.agent.util.RobotsRules.parse(body).toText();
+        }
+        if (com.mrnobody.agent.util.RobotsRules.looksLikeSitemap(body)) {
+            String map = com.mrnobody.agent.util.RobotsRules.sitemapToText(body);
+            if (!map.isEmpty()) return map;
+        }
+        String host = com.mrnobody.agent.util.Hosts.firstIn(url);
+        if (com.mrnobody.agent.util.XQuery.isXHost(host)) {
+            String tweets = com.mrnobody.agent.util.XTimeline.toMarkdown(body);
+            if (!tweets.isEmpty()) return tweets;
+        }
         if (kind == PageKind.Kind.EMBEDDED_JSON) {
             String json = EmbeddedJson.readable(body);
             if (!json.isEmpty()) return json;
@@ -88,6 +133,15 @@ public final class HttpTool implements Tool {
         }
         String article = HtmlText.article(body);
         return article.isEmpty() ? HtmlText.toText(body) : article;
+    }
+
+    private static void sleepQuietly(long ms) {
+        if (ms <= 0) return;
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static String readBounded(InputStream in) throws Exception {

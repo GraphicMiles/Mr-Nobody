@@ -17,7 +17,11 @@ import com.mrnobody.agent.policy.RepeatCallGuard;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
 import com.mrnobody.agent.util.DownloadLinkResolver;
+import com.mrnobody.agent.util.FetchLadder;
 import com.mrnobody.agent.util.Hosts;
+import com.mrnobody.agent.util.RobotsRules;
+import com.mrnobody.agent.util.TitleMatch;
+import com.mrnobody.agent.util.XQuery;
 import com.mrnobody.agent.memory.MemoryDigest;
 import com.mrnobody.agent.tasks.ChangeDetector;
 import com.mrnobody.agent.tasks.Schedule;
@@ -276,13 +280,7 @@ public final class DeterministicEngine implements AgentEngine {
                     // real browser; if that fails too, skip this source and
                     // move on — the answer step falls back to whatever was
                     // actually read, plus the snippets.
-                    boolean read = readOne(r, step, result);
-                    if (!read) {
-                        ToolResult escalated = readViaBrowser(context, step, cancellation);
-                        if (escalated != null) {
-                            readOne(r, step, escalated);
-                        }
-                    }
+                    readBestEffort(context, r, step, result, cancellation);
                     plan.advance();
                     continue;
                 }
@@ -311,7 +309,7 @@ public final class DeterministicEngine implements AgentEngine {
             switch (step.label) {
                 case Task.STEP_READ:
                     task.setCurrentStep(Task.STEP_READ);
-                    planReads(plan, r);
+                    planReads(context, plan, r, cancellation);
                     break;
                 case Task.STEP_RESOLVE_DOWNLOAD:
                     task.setCurrentStep(Task.STEP_RESOLVE_DOWNLOAD);
@@ -420,11 +418,12 @@ public final class DeterministicEngine implements AgentEngine {
         java.util.List<String> pages = NamedSiteSkill.pagesToOpen(
                 r.asked != null ? r.asked : "");
         if (pages.isEmpty() && original != null) pages.add(original);
+        discoverFromRobots(context, r, pages, cancellation);
         for (String page : pages) {
             Plan.Step step = readStep(page);
             r.titles.put(page, page.equals(original) || original == null
                     ? "the page you named" : "search on the site you named");
-            ToolResult result = callTool(context, "http", step.request, cancellation);
+            ToolResult result = fetchPage(context, step, cancellation);
             r.lastResult = result;
             if (result != null && result.needsApproval()) return;
             applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
@@ -486,14 +485,8 @@ public final class DeterministicEngine implements AgentEngine {
         } else if ("http".equals(step.tool)) {
             // A read is best-effort; escalate to the headless browser on a
             // block, exactly as the deterministic path does.
-            boolean read = readOne(r, step, result);
-            if (!read) {
-                ToolResult escalated = readViaBrowser(context, step, cancellation);
-                if (escalated != null) {
-                    readOne(r, step, escalated);
-                    effective = escalated;
-                }
-            }
+            ToolResult used = readBestEffort(context, r, step, result, cancellation);
+            if (used != null) effective = used;
             pageContent = true;
         } else if ("download".equals(step.tool)) {
             applyDownloadNote(r, result);
@@ -539,11 +532,13 @@ public final class DeterministicEngine implements AgentEngine {
      * then each result in order. The read steps are inserted to run before the
      * Answer and Verify steps that already follow.
      */
-    private void planReads(Plan plan, Research r) {
+    private void planReads(Context context, Plan plan, Research r,
+                           Cancellation cancellation) {
         List<Plan.Step> reads = new ArrayList<>();
         java.util.List<String> named = NamedSiteSkill.pagesToOpen(
                 r.asked != null ? r.asked : "");
         if (named.isEmpty() && r.namedUrl != null) named.add(r.namedUrl);
+        discoverFromRobots(context, r, named, cancellation);
         for (String page : named) {
             r.titles.put(page, page.equals(r.namedUrl)
                     ? "the page you named" : "search on the site you named");
@@ -567,6 +562,90 @@ public final class DeterministicEngine implements AgentEngine {
     private static Plan.Step readStep(String url) {
         return Plan.Step.tool("Read", "http", ToolRequest.of("fetch", "url", url),
                 "read a source");
+    }
+
+    /**
+     * HTTP first, unless this host already proved it needs a browser
+     * (scrapling site-memory). Never treats a challenge page as a source.
+     */
+    private ToolResult readBestEffort(Context context, Research r, Plan.Step step,
+                                      ToolResult httpResult, Cancellation cancellation) {
+        String url = step.request == null ? "" : step.request.param("url", "");
+        String host = Hosts.firstIn(url);
+        if (FetchLadder.firstStep(host) == FetchLadder.Step.BROWSER) {
+            ToolResult browser = readViaBrowser(context, step, cancellation);
+            if (browser != null && readOne(r, step, browser)) return browser;
+        }
+        if (readOne(r, step, httpResult)) return httpResult;
+        ToolResult escalated = readViaBrowser(context, step, cancellation);
+        if (escalated != null && readOne(r, step, escalated)) return escalated;
+        return httpResult;
+    }
+
+    /** Skip HTTP when SiteMemory says this host is a challenge/SPA. */
+    private ToolResult fetchPage(Context context, Plan.Step step,
+                                 Cancellation cancellation) {
+        String url = step.request == null ? "" : step.request.param("url", "");
+        if (FetchLadder.firstStep(Hosts.firstIn(url)) == FetchLadder.Step.BROWSER) {
+            ToolResult browser = readViaBrowser(context, step, cancellation);
+            if (browser != null) return browser;
+        }
+        return callTool(context, "http", step.request, cancellation);
+    }
+
+    /**
+     * web-scraper Phase 0: fetch robots.txt, then sitemap locs that match
+     * the work the user named. Discovery only — robots itself is not a source.
+     */
+    private void discoverFromRobots(Context context, Research r, List<String> pages,
+                                    Cancellation cancellation) {
+        if (context == null || pages == null) return;
+        String host = r.namedUrl != null ? Hosts.firstIn(r.namedUrl) : Hosts.firstIn(r.asked);
+        if (host == null || host.isEmpty() || XQuery.isXHost(host)) return;
+        String query = NamedSiteSkill.query(r.asked);
+        if (query.isEmpty()) return;
+        try {
+            String robotsUrl = RobotsRules.urlFor(host);
+            if (robotsUrl.isEmpty()) return;
+            ToolResult robots = callTool(context, "http",
+                    ToolRequest.of("fetch", "url", robotsUrl), cancellation);
+            if (robots == null || !robots.isSuccess()) return;
+            List<String> sitemaps = new ArrayList<>();
+            Object listed = robots.value().get("sitemaps");
+            if (listed instanceof List) {
+                for (Object o : (List<?>) listed) {
+                    if (o instanceof String) sitemaps.add((String) o);
+                }
+            }
+            if (sitemaps.isEmpty()) {
+                sitemaps.addAll(RobotsRules.parse(robots.result()).sitemaps());
+            }
+            int added = 0;
+            for (String sm : sitemaps) {
+                if (added >= 4 || sm == null || sm.isEmpty()) continue;
+                ToolResult map = callTool(context, "http",
+                        ToolRequest.of("fetch", "url", sm), cancellation);
+                if (map == null || !map.isSuccess()) continue;
+                List<String> locs = new ArrayList<>();
+                Object raw = map.value().get("locs");
+                if (raw instanceof List) {
+                    for (Object o : (List<?>) raw) {
+                        if (o instanceof String) locs.add((String) o);
+                    }
+                }
+                if (locs.isEmpty()) locs.addAll(RobotsRules.locsFrom(map.result()));
+                for (String loc : locs) {
+                    if (TitleMatch.matches(loc, query) && !pages.contains(loc)) {
+                        pages.add(loc);
+                        added++;
+                    }
+                    if (added >= 4) break;
+                }
+                if (added >= 4) break;
+            }
+        } catch (Throwable ignored) {
+            // Discovery must not sink the task.
+        }
     }
 
     /** Record one source that actually read, or skip it silently when it failed. */
