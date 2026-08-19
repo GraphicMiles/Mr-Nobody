@@ -238,11 +238,17 @@ class EvidenceStrip extends StatelessWidget {
 
   const EvidenceStrip({super.key, required this.cards, this.onTap});
 
+  /// Landscape 4×2 frame. Width is twice the picture height so a poster
+  /// or still sits wide and short, not as a tall tile.
+  static const cardWidth = 168.0;
+  static const imageHeight = cardWidth * 2 / 4;
+  static const stripHeight = imageHeight + 40;
+
   @override
   Widget build(BuildContext context) {
     if (cards.isEmpty) return const SizedBox.shrink();
     return SizedBox(
-      height: 148,
+      height: stripHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: cards.length,
@@ -267,7 +273,7 @@ class _EvidenceCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap == null ? null : () => onTap!(card),
       child: Container(
-        width: 148,
+        width: EvidenceStrip.cardWidth,
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
@@ -278,7 +284,7 @@ class _EvidenceCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              height: 78,
+              height: EvidenceStrip.imageHeight,
               width: double.infinity,
               child: _CardImage(card: card),
             ),
@@ -286,7 +292,7 @@ class _EvidenceCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
               child: Text(
                 card.title,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTheme.sans(
                   size: 12,
