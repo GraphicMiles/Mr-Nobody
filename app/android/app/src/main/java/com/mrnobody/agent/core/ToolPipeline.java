@@ -229,12 +229,10 @@ public final class ToolPipeline {
         // truncates the middle -- which is worse than refusing, because the
         // model then answers confidently from half a document without knowing
         // the other half existed.
-        if (OutputSpill.shouldSpill(rendered)) {
-            String locator = OutputSpill.locatorFor(
-                    spec.name(), TaskScope.currentTask(), System.nanoTime());
-            OutputSpill.Decision decision = OutputSpill.decide(rendered, locator);
-            ErrorLog.record("tool " + spec.name() + " output spilled ("
-                    + decision.originalLength + " chars) -> " + locator);
+        if (OutputPreview.shouldTruncate(rendered)) {
+            OutputPreview.Decision decision = OutputPreview.decide(rendered);
+            ErrorLog.record("tool " + spec.name() + " output previewed ("
+                    + decision.originalLength + " chars; full value not retained)");
             return result.renderedAs(decision.inline);
         }
 
