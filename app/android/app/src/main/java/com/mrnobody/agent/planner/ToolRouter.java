@@ -51,7 +51,9 @@ public final class ToolRouter {
     private static final String[] FILE_HINTS = {
             ".mkv", ".mp4", ".avi", ".mov", ".webm", ".mp3", ".m4a", ".flac",
             ".zip", ".rar", ".7z", ".tar", ".gz", ".iso", ".apk", ".pdf",
-            ".epub", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".csv"
+            ".epub", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".csv",
+            ".txt", ".json", ".xml", ".jpg", ".jpeg", ".png", ".gif", ".webp",
+            ".bmp", ".svg", ".heic"
     };
 
     private ToolRouter() {

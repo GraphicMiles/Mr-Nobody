@@ -28,11 +28,17 @@ import com.mrnobody.browser.net.FingerprintDefence;
 import com.mrnobody.browser.net.ProfileManager;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.blocking.TrackingParams;
+import com.mrnobody.browser.download.BlobSourceResolver;
 import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadNaming;
 import com.mrnobody.browser.download.DownloadRecord;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -408,21 +414,53 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      */
     private void onDownloadRequested(String url, String userAgent, String contentDisposition,
                                      String mimeType, long contentLength) {
-        Map<String, Object> data = new HashMap<>();
-        if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) {
-            // blob:/data: downloads need a page-side reader; refuse clearly
-            // instead of appearing to start and silently doing nothing.
-            data.put("error", "This download type isn't supported yet");
-            send("onDownload", data);
+        if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+            enqueueNetworkDownload(url, userAgent, contentDisposition, mimeType,
+                    webView.getUrl());
             return;
         }
+        if (url != null && url.startsWith("blob:")) {
+            recoverBlobDownload(userAgent, contentDisposition, mimeType, webView.getUrl());
+            return;
+        }
+
+        // This is a URL-mechanism limitation, not a file-type limitation. HTTP
+        // downloads accept arbitrary MIME types; only a page-private URL with
+        // no recoverable source has to be refused.
+        sendDownloadError("This page did not expose a downloadable file link");
+    }
+
+    /**
+     * A site may fetch an ordinary file, turn it into a temporary blob: URL and
+     * click that. The blob exists only inside the page and cannot be opened by
+     * Android's HTTP stack. Ask the page for strong source candidates, then let
+     * pure Java ranking choose rather than guessing or special-casing a host.
+     */
+    private void recoverBlobDownload(String userAgent, String contentDisposition,
+                                     String mimeType, String referrer) {
+        webView.evaluateJavascript(BLOB_SOURCE_JS, raw -> {
+            if (destroyed) return;
+            String source = BlobSourceResolver.resolve(parseBlobCandidates(raw), mimeType);
+            if (source == null) {
+                sendDownloadError("This page created an in-memory file but did not expose "
+                        + "a safe source link");
+                return;
+            }
+            enqueueNetworkDownload(source, userAgent, contentDisposition, mimeType, referrer);
+        });
+    }
+
+    private void enqueueNetworkDownload(String url, String userAgent,
+                                        String contentDisposition, String mimeType,
+                                        String referrer) {
+        Map<String, Object> data = new HashMap<>();
         // Not URLUtil.guessFileName: it answers "downloadfile.bin" whenever the
-        // server says octet-stream, which is how an .mkv arrives unopenable.
-        // The engine refines this again from the response headers.
+        // server says octet-stream. The engine refines the name again from the
+        // real response headers.
         String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
         try {
             DownloadRecord record = DownloadEngine.get(context)
-                    .enqueue(url, name, mimeType, userAgent, webView.getUrl());
+                    .enqueue(url, name, mimeType, userAgent, referrer);
             data.put("name", record.fileName);
             data.put("id", record.id);
             data.put("folder", record.destLabel);
@@ -431,6 +469,46 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
         send("onDownload", data);
     }
+
+    private void sendDownloadError(String message) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("error", message);
+        send("onDownload", data);
+    }
+
+    static List<BlobSourceResolver.Candidate> parseBlobCandidates(String raw) {
+        List<BlobSourceResolver.Candidate> out = new ArrayList<>();
+        if (raw == null || raw.isEmpty() || "null".equals(raw)) return out;
+        try {
+            JSONArray array = new JSONArray(raw);
+            for (int i = 0; i < array.length() && out.size() < 256; i++) {
+                JSONObject item = array.optJSONObject(i);
+                if (item == null) continue;
+                String url = item.optString("url", "");
+                String kind = item.optString("kind", "");
+                if (!url.isEmpty()) out.add(new BlobSourceResolver.Candidate(url, kind));
+            }
+        } catch (Exception e) {
+            com.mrnobody.debug.ErrorLog.record("blob download source list was invalid");
+        }
+        return out;
+    }
+
+    private static final String BLOB_SOURCE_JS =
+            "(function(){try{var out=[],seen={};"
+                    + "function add(u,k){try{u=new URL(u,document.baseURI).href;}catch(e){return;}"
+                    + "if(!/^https?:/i.test(u)||seen[u])return;seen[u]=1;"
+                    + "out.push({url:u,kind:k});}"
+                    + "document.querySelectorAll('link[itemprop=\\\"contentUrl\\\"][href]')"
+                    + ".forEach(function(e){add(e.href,'content');});"
+                    + "document.querySelectorAll('meta[property=\\\"og:image\\\"][content],"
+                    + "meta[name=\\\"twitter:image\\\"][content]')"
+                    + ".forEach(function(e){add(e.content,'content');});"
+                    + "document.querySelectorAll('a[download][href]')"
+                    + ".forEach(function(e){add(e.href,'download');});"
+                    + "var r=performance.getEntriesByType('resource');"
+                    + "for(var i=r.length-1;i>=0;i--)add(r[i].name,'resource');"
+                    + "return out;}catch(e){return [];}})()";
 
     // -------------------------------------------------------------- commands
 
