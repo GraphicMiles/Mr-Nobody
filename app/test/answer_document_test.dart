@@ -103,6 +103,11 @@ void main() {
       expect(cards.first.domain, 'primevideo.com');
     });
 
+    test('the card frame is height 2 to width 4', () {
+      expect(EvidenceStrip.imageHeight, EvidenceStrip.cardWidth * 2 / 4);
+      expect(EvidenceStrip.imageHeight, lessThan(EvidenceStrip.cardWidth));
+    });
+
     test('prefers artifacts that already have a preview image', () {
       final cards = EvidenceCardData.pick(
         instruction: 'what is on tonight',
