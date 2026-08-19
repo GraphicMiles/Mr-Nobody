@@ -48,7 +48,7 @@ The source contains substantial Android functionality, but the complete local-ag
 - Physical-device validation is incomplete.
 - The remote-worker client has no deployed server in this repository and normal task creation currently persists `worker=local`; remote execution is therefore not an end-to-end user path.
 - Credits, payments, account recovery, and a remote credit ledger are not implemented.
-- Production release signing requires externally supplied protected key material. CI uses a fresh, disposable key and labels its APKs as test artifacts.
+- Production release signing requires externally supplied protected key material. CI uses a stable, public test-only key so patched builds can upgrade in place; its APKs are explicitly test artifacts.
 - Several WebView privacy capabilities depend on the installed WebView version and can legitimately be unavailable on a device.
 - Oversized tool output is intentionally reduced to an honest, non-retrievable preview; no synthetic storage locator is advertised.
 - “Local” means a deterministic, no-model research path. It must not be described as an on-device LLM.
@@ -239,9 +239,10 @@ flutter build apk --release --split-per-abi
 
 Outputs are `app-<abi>-release.apk` under
 `app/build/app/outputs/flutter-apk/`. A release task without complete signing
-configuration fails; it never falls back to the debug key. CI uses a disposable
-key, verifies every APK's v2 signature, and publishes explicitly named test
-artifacts.
+configuration fails; it never falls back to the debug key. CI uses the public
+`.github/ci-test-signing.p12` key so successive test builds can upgrade in
+place, verifies every APK's v2 signature, and publishes explicitly named test
+artifacts. That public key must never sign a production release.
 
 ## Test strategy
 
@@ -319,7 +320,7 @@ Never edit one blocklist copy without the other.
 7. Fast JVM suite
 8. Filter digest check
 9. Flutter widget/golden tests
-10. Ephemeral CI signing-key generation
+10. Stable public CI test-signing configuration
 11. ABI-specific APK build
 12. APK signature verification
 13. Gradle Android unit tests

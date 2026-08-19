@@ -37,7 +37,7 @@ Automated success does not prove System WebView, Keystore, Storage Access Framew
 | Documentation surface | **Passed** — only `README.md` and `ROADMAP.md` |
 | Physical-device matrix | **Not yet completed** |
 
-CI signing is intentionally ephemeral and produces test artifacts. Production signing requires protected external key material and never falls back to Android's debug key.
+CI uses a stable, public test-only signing key so successive patched APKs can upgrade in place during device testing. Production signing requires protected external key material, never uses that public key, and never falls back to Android's debug key.
 
 ## Completed hardening work
 
@@ -53,7 +53,7 @@ CI signing is intentionally ephemeral and produces test artifacts. Production si
 | Approval “always” grant was in-memory and race-prone | Made overrides concurrent and labelled them accurately as process-session grants | `b8763d9` |
 | Remote HTTP errors lost response bodies/config was stale | Added error-stream handling, disconnect guarantees, cancellation precheck, tests, and dispatch-time endpoint lookup | `6f1a55c` |
 | Async `BuildContext` risks were ignored by permissive analysis | Fixed lifecycle guards and made `flutter analyze` strict | `00789cc`, `0afd06a` |
-| Release build used debug signing | Added fail-closed external signing contract; CI uses a disposable key and verifies signatures | `0be9f69` |
+| Release build used debug signing | Added fail-closed external signing; CI uses a clearly public test key for upgradeable test builds and verifies signatures | `0be9f69` |
 | Fat APK missed the 45 MiB target | Build ABI-specific APKs and enforce 45 MiB on each installable artifact | `579d376` |
 
 ## Current system status
