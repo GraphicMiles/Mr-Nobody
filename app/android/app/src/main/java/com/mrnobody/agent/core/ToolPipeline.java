@@ -2,7 +2,6 @@ package com.mrnobody.agent.core;
 
 import android.content.Context;
 
-import com.mrnobody.agent.tasks.EventLogRecorder;
 import com.mrnobody.debug.ErrorLog;
 
 import java.util.ArrayList;
@@ -176,7 +175,13 @@ public final class ToolPipeline {
 
     private ToolResult execute(Context context, Tool tool, ToolRequest request,
                                ToolSpec spec, Cancellation cancellation) {
-        Future<ToolResult> future = EXECUTOR.submit(() -> tool.execute(context, request));
+        // Tool bodies run on pooled threads. Capture and explicitly propagate
+        // the task identity; a plain ThreadLocal set by WorkManager is absent
+        // on a reused executor thread, which previously made task-scoped
+        // browser suppliers resolve to null.
+        long taskId = TaskScope.currentTask();
+        Future<ToolResult> future = EXECUTOR.submit(
+                () -> TaskScope.callAs(taskId, () -> tool.execute(context, request)));
         long deadline = System.currentTimeMillis() + spec.timeoutMs();
         try {
             while (true) {
@@ -226,7 +231,7 @@ public final class ToolPipeline {
         // the other half existed.
         if (OutputSpill.shouldSpill(rendered)) {
             String locator = OutputSpill.locatorFor(
-                    spec.name(), EventLogRecorder.currentTask(), System.nanoTime());
+                    spec.name(), TaskScope.currentTask(), System.nanoTime());
             OutputSpill.Decision decision = OutputSpill.decide(rendered, locator);
             ErrorLog.record("tool " + spec.name() + " output spilled ("
                     + decision.originalLength + " chars) -> " + locator);

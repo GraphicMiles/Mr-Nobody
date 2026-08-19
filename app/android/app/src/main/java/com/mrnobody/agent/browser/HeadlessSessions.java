@@ -2,7 +2,7 @@ package com.mrnobody.agent.browser;
 
 import android.content.Context;
 
-import com.mrnobody.agent.tasks.EventLogRecorder;
+import com.mrnobody.agent.core.TaskScope;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -14,9 +14,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * already named the isolated profile; this is the missing owner that actually
  * constructs and tears it down.
  *
- * <p>Tools look up the engine for the task bound on this thread (see
- * {@link EventLogRecorder#bind(long)}). A tool called outside a task gets
- * nothing, which is a failed call rather than a silent shared jar.
+ * <p>Tools look up the engine for the explicitly propagated
+ * {@link TaskScope}. A tool called outside a task gets nothing, which is a
+ * failed call rather than a silent shared jar.
  */
 public final class HeadlessSessions {
 
@@ -47,8 +47,8 @@ public final class HeadlessSessions {
      * This is what {@code BrowserTool} / {@code SearchTool} call.
      */
     public static BrowserEngine current() {
-        long id = EventLogRecorder.currentTask();
-        if (id == EventLogRecorder.NO_TASK) return null;
+        long id = TaskScope.currentTask();
+        if (id == TaskScope.NO_TASK) return null;
         HeadlessWebViewEngine existing = LIVE.get(id);
         if (existing != null) return existing;
         return acquire(appContext, id);

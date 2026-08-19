@@ -4,6 +4,7 @@ import com.mrnobody.agent.core.ApprovalDecision;
 import com.mrnobody.agent.core.ToolCall;
 import com.mrnobody.agent.core.ToolPipeline;
 import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.core.TaskScope;
 
 /**
  * Writes the pipeline's calls into {@link TaskEventStore}.
@@ -17,17 +18,14 @@ import com.mrnobody.agent.core.ToolResult;
  * left a record that it was attempted. Logging only on completion would lose
  * exactly the calls worth investigating.
  *
- * <p>Which task a call belongs to is thread-local, because the pipeline is
- * shared and deliberately knows nothing about tasks. A worker marks the thread
- * for the duration of a task; calls from anywhere else are recorded against
- * task 0 rather than being dropped or guessed at.
+ * <p>Which task a call belongs to comes from {@link TaskScope}. The tool
+ * pipeline explicitly propagates that scope onto its executor thread; calls
+ * made outside a task are recorded against task 0 rather than guessed at.
  */
 public final class EventLogRecorder implements ToolPipeline.Recorder {
 
     /** Calls made outside any task still get recorded, under this id. */
-    public static final long NO_TASK = 0L;
-
-    private static final ThreadLocal<Long> CURRENT_TASK = new ThreadLocal<>();
+    public static final long NO_TASK = TaskScope.NO_TASK;
 
     private final TaskEventStore store;
 
@@ -37,16 +35,15 @@ public final class EventLogRecorder implements ToolPipeline.Recorder {
 
     /** Mark this thread as running {@code taskId}. Always paired with {@link #clear()}. */
     public static void bind(long taskId) {
-        CURRENT_TASK.set(taskId);
+        TaskScope.bind(taskId);
     }
 
     public static void clear() {
-        CURRENT_TASK.remove();
+        TaskScope.clear();
     }
 
     public static long currentTask() {
-        Long id = CURRENT_TASK.get();
-        return id == null ? NO_TASK : id;
+        return TaskScope.currentTask();
     }
 
     @Override
