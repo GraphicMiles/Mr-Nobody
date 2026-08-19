@@ -644,6 +644,19 @@ public class MainActivity extends FlutterActivity {
                             });
                             return;
                         }
+                        case "removeProviderKey": {
+                            String id = call.argument("id");
+                            if (id == null || id.trim().isEmpty()) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            MrNobodyApp.settings().removeApiKey(id);
+                            if (id.equals(MrNobodyApp.activeAiProviderId())) {
+                                MrNobodyApp.setActiveAiProviderId("local");
+                            }
+                            result.success(null);
+                            return;
+                        }
                         case "saveProvider": {
                             String id = call.argument("id");
                             if (id == null || id.trim().isEmpty()) {

@@ -1,12 +1,12 @@
 package com.mrnobody.agent.browser;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
 
 import com.mrnobody.agent.util.Hosts;
 import com.mrnobody.browser.net.ProfileManager;
+import com.mrnobody.security.EncryptedPreferences;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -26,17 +26,19 @@ public final class AccountStore {
     private static final String PREFS = "mrnobody_accounts";
     private static final String KEY = "grants";
 
-    private final SharedPreferences prefs;
+    private final EncryptedPreferences secrets;
 
     public AccountStore(Context context) {
-        this.prefs = context.getApplicationContext()
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        // Cookie headers are credentials. The old plaintext JSON under KEY is
+        // migrated in place to a Keystore-backed AES-GCM envelope on first read.
+        this.secrets = new EncryptedPreferences(context, PREFS,
+                "mrnobody_account_credentials_v1");
     }
 
     public synchronized List<AccountGrant> list() {
         List<AccountGrant> out = new ArrayList<>();
         try {
-            JSONArray arr = new JSONArray(prefs.getString(KEY, "[]"));
+            JSONArray arr = new JSONArray(secrets.getString(KEY, "[]"));
             for (int i = 0; i < arr.length(); i++) {
                 AccountGrant g = AccountGrant.fromStored(arr.optJSONObject(i));
                 if (g != null) out.add(g);
@@ -106,6 +108,6 @@ public final class AccountStore {
     private void save(List<AccountGrant> grants) {
         JSONArray arr = new JSONArray();
         for (AccountGrant g : grants) arr.put(g.toJson());
-        prefs.edit().putString(KEY, arr.toString()).apply();
+        secrets.putString(KEY, arr.toString());
     }
 }

@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.mrnobody.browser.net.ResourcePolicy;
+import com.mrnobody.security.EncryptedPreferences;
 
 /**
  * Single source of truth for user settings. Every default favors privacy:
@@ -51,10 +52,15 @@ public final class Settings {
     public static final String THEME_LIGHT = "light";
 
     private final SharedPreferences prefs;
+    private final EncryptedPreferences secrets;
 
     public Settings(Context context) {
         prefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        // Same preference file for an in-place migration: legacy plaintext
+        // api_key_* values become AES-GCM envelopes on their first read.
+        secrets = new EncryptedPreferences(context, PREFS,
+                "mrnobody_provider_credentials_v1");
     }
 
     public boolean isFirstLaunchDone() {
@@ -163,14 +169,19 @@ public final class Settings {
     }
 
     // ------------------------------------------------------- AI provider keys
-    // Stored locally; never used unless the user enables a remote provider.
+    // Encrypted with an Android Keystore AES key and never used unless the user
+    // enables a remote provider. Legacy plaintext values migrate on first read.
 
     public String apiKey(String provider) {
-        return prefs.getString("api_key_" + provider, "");
+        return secrets.getString("api_key_" + provider, "");
     }
 
     public void setApiKey(String provider, String key) {
-        prefs.edit().putString("api_key_" + provider, key).apply();
+        secrets.putString("api_key_" + provider, key == null ? "" : key);
+    }
+
+    public void removeApiKey(String provider) {
+        secrets.remove("api_key_" + provider);
     }
 
     public String apiBase(String provider) {

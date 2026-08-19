@@ -140,6 +140,21 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _removeKey() async {
+    await NativeBridge.guard(
+      () => NativeBridge.removeProviderKey(_selected),
+      null,
+      'could not remove provider key',
+    );
+    await _state.load();
+    if (!mounted) return;
+    setState(() {
+      _hasStoredKey = false;
+      _key.clear();
+    });
+    AppToast.show(context, 'Saved API key removed');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -177,6 +192,11 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
             padding: const EdgeInsets.all(16),
             child: ActionButton('Save', solid: true, onTap: _save),
           ),
+          if (!_isLocal && _hasStoredKey)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: ActionButton('Remove saved key', onTap: _removeKey),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             child: Text(

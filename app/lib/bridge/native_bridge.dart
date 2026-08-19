@@ -140,6 +140,12 @@ class NativeBridge {
     });
   }
 
+  /// Delete a saved provider credential. If it was active, the core falls
+  /// back to the local no-model provider.
+  static Future<void> removeProviderKey(String id) async {
+    await _ch.invokeMethod('removeProviderKey', {'id': id});
+  }
+
   /// First-launch flag (persisted by the core).
   static Future<bool> isFirstLaunchDone() async {
     return await _ch.invokeMethod('isFirstLaunchDone') as bool;

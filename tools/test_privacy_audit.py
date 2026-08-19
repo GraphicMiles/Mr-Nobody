@@ -175,6 +175,32 @@ class PrivacyAuditTest(unittest.TestCase):
         code, out = run_audit(self.tmp)
         self.assertEqual(code, 0, "the gate must not flag itself:\n" + out)
 
+    # ------------------------------------------------------ credential storage
+
+    def test_detects_plaintext_provider_key_store(self):
+        tree = make_tree(self.tmp, "android")
+        settings = tree / "src" / "main" / "java" / "com" / "example" / "Settings.java"
+        settings.write_text(
+            'class Settings { android.content.SharedPreferences prefs; '
+            'void save(String key) { prefs.edit().putString("api_key", key).apply(); } }')
+
+        code, out = run_audit(self.tmp)
+        self.assertEqual(code, 1, out)
+        self.assertIn("EncryptedPreferences", out)
+        self.assertIn("provider API keys", out)
+
+    def test_detects_plaintext_account_cookie_store(self):
+        tree = make_tree(self.tmp, "android")
+        accounts = tree / "src" / "main" / "java" / "com" / "example" / "AccountStore.java"
+        accounts.write_text(
+            'class AccountStore { android.content.SharedPreferences prefs; '
+            'void save(String cookies) { prefs.edit().putString("grants", cookies).apply(); } }')
+
+        code, out = run_audit(self.tmp)
+        self.assertEqual(code, 1, out)
+        self.assertIn("EncryptedPreferences", out)
+        self.assertIn("granted account cookies", out)
+
     # ---------------------------------------------------------------- hygiene
 
     def test_build_output_is_not_scanned(self):
