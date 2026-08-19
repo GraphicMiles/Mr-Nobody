@@ -12,6 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Keep durable project documentation consolidated in the developer guide
+      # and roadmap. Run before dependency resolution so generated files cannot
+      # affect the tracked-file check.
+      - name: Documentation surface
+        run: |
+          expected=$(printf 'README.md\nROADMAP.md')
+          actual=$(git ls-files '*.md' '*.mdx' '*.html' '*.htm' '*.rst' '*.adoc' '*.asciidoc' | sort)
+          if [ "$actual" != "$expected" ]; then
+            echo "Expected exactly README.md and ROADMAP.md; found:" >&2
+            printf '%s\n' "$actual" >&2
+            exit 1
+          fi
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -53,8 +66,8 @@ jobs:
       - name: Filter digest pin
         run: python3 tools/filter_digest_check.py .
 
-      # Widget + golden tests. The goldens are the UI-parity gate against
-      # prototype/interactive-wireframe.html: if a screen drifts, this fails.
+      # Widget + golden tests. The committed screen images are the UI
+      # regression gate: if a screen drifts, this fails.
       - name: Tests (widgets + screen goldens)
         working-directory: app
         run: flutter test

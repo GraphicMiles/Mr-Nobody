@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Monochrome black & white design system, transcribed 1:1 from the approved
-/// wireframe's CSS custom properties (`prototype/interactive-wireframe.html`).
-/// One accent (white), near-black surface tiers, hairline borders, no shadows.
+/// Monochrome black & white design system used by the production UI and its
+/// committed golden tests. One accent (white), near-black surface tiers,
+/// hairline borders, no shadows.
 abstract final class AppColors {
   static const bg = Color(0xFF000000); // --bg / --s-0
   static const surface = Color(0xFF101010); // --s-1

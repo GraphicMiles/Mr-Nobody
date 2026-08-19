@@ -6,9 +6,8 @@ Usage:
 
 Exit code 0 if the APK is within budget, 1 otherwise.
 
-The product target is 20–45 MB; typical APK is ~2–8 MB (System WebView).
-The hard gate (build-failing) defaults to 70 MB, matching CI. See
-docs/ENGINE_DECISION.md §6.
+The product target is at most 45 MiB. The hard gate (build-failing) defaults
+to 70 MiB, matching CI. See README.md and ROADMAP.md.
 """
 import os
 import sys

@@ -91,7 +91,7 @@ public class HostsTest {
     public void filenamesAndPathsAreNotHosts() {
         assertNull(Hosts.firstIn("open config.json"));
         assertNull(Hosts.firstIn("see MrNobodyWebView.java"));
-        assertNull(Hosts.firstIn("read docs/spec/V2_SPEC.md"));
+        assertNull(Hosts.firstIn("read ROADMAP.md"));
         assertNull(Hosts.firstIn("blocklist.txt was compiled"));
     }
 

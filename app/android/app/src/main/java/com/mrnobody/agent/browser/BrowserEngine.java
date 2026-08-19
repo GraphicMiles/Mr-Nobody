@@ -3,7 +3,7 @@ package com.mrnobody.agent.browser;
 /**
  * Engine-independent browser capability, used by the BrowserTool. The visible
  * WebView and the headless engine both satisfy this; the agent depends on the
- * interface, never a concrete engine (see docs/ARCHITECTURE.md).
+ * interface, never a concrete engine (see the architecture in README.md).
  */
 public interface BrowserEngine {
 
