@@ -30,6 +30,20 @@ public class DownloadLinkResolverTest {
     }
 
     @Test
+    public void aDownloadEndpointDoesNotNeedAFileExtension() {
+        assertTrue(DownloadLinkResolver.isDownloadable(
+                "https://cdn.example.com/download/abc123"));
+        assertTrue(DownloadLinkResolver.isDownloadable(
+                "https://drive.google.com/uc?export=download&id=1abc"));
+        assertTrue(DownloadLinkResolver.isDownloadable(
+                "https://files.example.com/getfile?id=99"));
+        assertTrue(DownloadLinkResolver.isDownloadable(
+                "https://cdn.example.com/objects/a1b2c3d4e5f67890abcdef"));
+        assertFalse("a generic page is still a page",
+                DownloadLinkResolver.isDownloadable("https://example.com/about"));
+    }
+
+    @Test
     public void resolvesTheFirstDownloadableLink() {
         List<String> links = Arrays.asList(
                 "https://example.com/", "https://example.com/film.mkv", "https://example.com/other.mp4");

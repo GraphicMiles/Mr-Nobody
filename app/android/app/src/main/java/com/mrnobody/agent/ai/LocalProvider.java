@@ -1,10 +1,11 @@
 package com.mrnobody.agent.ai;
 
 /**
- * On-device "AI" — V1's deterministic provider. It performs no real reasoning
- * and makes no network call; it echoes the instruction so the vertical slice
- * works end-to-end without any external dependency. V2 can replace this with an
- * on-device model behind the same interface.
+ * The no-model provider. It performs no reasoning and makes no network call.
+ *
+ * <p>Research answers on this path are extractive ({@code ExtractiveAnswer}),
+ * not this echo. The echo exists so a caller that hits {@code complete()}
+ * still gets a string instead of hanging. Do not describe this as an AI agent.
  */
 public final class LocalProvider implements AiProvider {
 
@@ -15,7 +16,7 @@ public final class LocalProvider implements AiProvider {
 
     @Override
     public String displayName() {
-        return "Local (on-device)";
+        return "Local (no model)";
     }
 
     @Override

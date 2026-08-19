@@ -119,9 +119,18 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
         onMain(() -> { if (webView != null) webView.reload(); });
     }
 
+    /**
+     * Readable body text of the page that is already loaded.
+     *
+     * <p>Returning {@link #currentTitle} here was the bug: {@code browser.extract}
+     * and page-anchor checks then saw only the tab title, so a fetched article
+     * looked empty and a follow-up click had nothing to anchor to.
+     */
     @Override
     public String extractText() {
-        return currentTitle;
+        String text = evaluate(EXTRACT_JS, 8_000);
+        if (text == null || text.trim().isEmpty()) return currentTitle;
+        return text;
     }
 
     @Override
@@ -141,18 +150,22 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<String> result = new AtomicReference<>("");
 
+            final java.util.concurrent.atomic.AtomicBoolean released =
+                    new java.util.concurrent.atomic.AtomicBoolean(false);
+
             onMain(() -> {
                 WebView wv = webView();
                 wv.setWebViewClient(new WebViewClient() {
                     @Override
                     public void onPageFinished(WebView view, String finishedUrl) {
+                        if (isBlankNavigation(finishedUrl)) return;
                         currentTitle = view.getTitle() == null ? "" : view.getTitle();
-                        view.evaluateJavascript(
-                                "(function(){try{return document.body?document.body.innerText:''}catch(e){return ''}})()",
-                                value -> {
-                                    result.set(unescapeJs(value));
-                                    latch.countDown();
-                                });
+                        // Same delay as loadAndEvaluate: onPageFinished often
+                        // fires before the body (or a JS-rendered article) exists.
+                        view.postDelayed(() -> view.evaluateJavascript(EXTRACT_JS, value -> {
+                            result.set(unescapeJs(value));
+                            if (released.compareAndSet(false, true)) latch.countDown();
+                        }), 400);
                     }
                 });
                 applyGrantedCookies(wv, url);
@@ -184,13 +197,14 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
                 wv.setWebViewClient(new WebViewClient() {
                     @Override
                     public void onPageFinished(WebView view, String finishedUrl) {
+                        if (isBlankNavigation(finishedUrl)) return;
                         currentTitle = view.getTitle() == null ? "" : view.getTitle();
                         // A results page often finishes loading before it finishes
                         // rendering its results, so give the document a moment.
                         view.postDelayed(() -> view.evaluateJavascript(script, value -> {
                             result.set(unescapeJs(value));
                             latch.countDown();
-                        }), 350);
+                        }), 400);
                     }
                 });
                 applyGrantedCookies(wv, url);
@@ -355,6 +369,43 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
     private void onMain(Runnable r) {
         if (Looper.myLooper() == Looper.getMainLooper()) r.run();
         else mainHandler.post(r);
+    }
+
+    /**
+     * Readable text of the rendered document. Prefers {@code innerText} so
+     * scripts and chrome stay out; falls back to a main/article node when the
+     * body is still empty (a JS-rendered page that finished too early).
+     */
+    static final String EXTRACT_JS =
+            "(function(){try{"
+                    + "var b=document.body;if(!b)return '';"
+                    + "var t=b.innerText||b.textContent||'';"
+                    + "if(!t||t.replace(/\\s+/g,'').length<20){"
+                    + "var main=document.querySelector('article,main,[role=main]');"
+                    + "if(main)t=main.innerText||main.textContent||t;"
+                    + "}"
+                    + "return t;"
+                    + "}catch(e){return ''}})()";
+
+    /** The page's own preview image, for evidence cards. */
+    static final String OG_IMAGE_JS =
+            "(function(){try{"
+                    + "function attr(sel,a){var e=document.querySelector(sel);return e?e.getAttribute(a):'';}"
+                    + "var u=attr('meta[property=\"og:image\"]','content')"
+                    + "||attr('meta[property=\"og:image:url\"]','content')"
+                    + "||attr('meta[name=\"twitter:image\"]','content')"
+                    + "||attr('meta[name=\"twitter:image:src\"]','content')"
+                    + "||attr('link[rel=\"image_src\"]','href')||'';"
+                    + "if(!u){var img=document.querySelector('article img[src],main img[src],img[src]');"
+                    + "if(img)u=img.src||'';}"
+                    + "return u||'';"
+                    + "}catch(e){return ''}})()";
+
+    /** about:blank and empty callbacks are not a finished page. */
+    static boolean isBlankNavigation(String url) {
+        if (url == null || url.isEmpty()) return true;
+        String u = url.toLowerCase(java.util.Locale.ROOT);
+        return u.startsWith("about:") || u.startsWith("data:text/html");
     }
 
     /** Strip the JSON string wrapper and basic escapes evaluateJavascript adds. */

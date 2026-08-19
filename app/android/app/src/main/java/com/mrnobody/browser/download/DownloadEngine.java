@@ -111,6 +111,30 @@ public final class DownloadEngine {
     // ------------------------------------------------------------- commands
 
     /**
+     * Block until {@code id} reaches a terminal status, or {@code timeoutMs}
+     * elapses. Used by the agent: "downloaded" must mean COMPLETED, not queued.
+     *
+     * @return the latest record, which may still be running if time ran out
+     */
+    @Nullable
+    public DownloadRecord awaitTerminal(long id, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(250L, timeoutMs);
+        DownloadRecord latest = store.find(id);
+        while (System.currentTimeMillis() < deadline) {
+            latest = store.find(id);
+            if (latest == null) return null;
+            if (latest.status != null && latest.status.isTerminal()) return latest;
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return latest;
+            }
+        }
+        return latest;
+    }
+
+    /**
      * Accept a new download. Returns immediately with a persisted record, so
      * the UI can show the row before a single byte has arrived.
      */

@@ -94,7 +94,8 @@ public final class SearchTool implements Tool {
         }
         List<String> refused = new ArrayList<>();
 
-        // 1. The cheap path.
+        // 1. The cheap path. html.duckduckgo.com is often challenged; Lite
+        // still answers a plain fetch, so try both before paying for a WebView.
         try {
             String html = fetch("https://html.duckduckgo.com/html/?q="
                     + SearchProviders.encode(q));
@@ -104,8 +105,18 @@ public final class SearchTool implements Tool {
         } catch (Exception e) {
             refused.add("DuckDuckGo (" + e.getMessage() + ")");
         }
+        try {
+            String html = fetch("https://lite.duckduckgo.com/lite/?q="
+                    + SearchProviders.encode(q));
+            List<SearchResult> results = DdgHtmlParser.parseLite(html, MAX_RESULTS);
+            if (!results.isEmpty()) return value(q, results, "DuckDuckGo Lite");
+            if (SearchChallenge.isChallenge(html)) refused.add("DuckDuckGo Lite");
+        } catch (Exception e) {
+            refused.add("DuckDuckGo Lite (" + e.getMessage() + ")");
+        }
 
-        // 2. The browser path, engine by engine.
+        // 2. The browser path, engine by engine. A challenged HTTP fetch must
+        // escalate here rather than killing the research task.
         BrowserEngine engine = engines.get();
         if (engine != null) {
             String preferred = safeSearchEngineSetting();

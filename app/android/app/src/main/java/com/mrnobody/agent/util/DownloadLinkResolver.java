@@ -30,28 +30,78 @@ public final class DownloadLinkResolver {
     }
 
     /**
-     * True when {@code url} is an http(s) URL whose path names a file. A URL
-     * with no scheme, or one whose path does not end in a known extension, is
-     * not something the downloader should be handed.
+     * True when {@code url} is an http(s) URL that is plainly a file, or a
+     * download endpoint that does not advertise an extension.
+     *
+     * <p>Requiring {@code .mp4}/{@code .mkv} was the bug: CDNs, signed URLs
+     * and {@code /download?id=} links are real files and were skipped, so the
+     * agent reported "no downloadable file" on pages that had one.
      */
     public static boolean isDownloadable(String url) {
         if (url == null) return false;
-        String lower = url.toLowerCase(Locale.ROOT);
+        String raw = url.trim();
+        String lower = raw.toLowerCase(Locale.ROOT);
         if (!lower.startsWith("http://") && !lower.startsWith("https://")) return false;
-        int q = lower.indexOf('?');
-        if (q >= 0) lower = lower.substring(0, q);
-        int h = lower.indexOf('#');
-        if (h >= 0) lower = lower.substring(0, h);
+
+        String path = pathOf(lower);
         // A download *page* named film.mkv.html is not a file. The watch-party
         // resolver learned this the hard way: those URLs returned HTML.
-        if (lower.endsWith(".html") || lower.endsWith(".htm")
-                || lower.endsWith(".php") || lower.endsWith(".aspx")) {
-            return false;
+        if (path.endsWith(".html") || path.endsWith(".htm")
+                || path.endsWith(".php") || path.endsWith(".aspx")
+                || path.endsWith(".jsp") || path.endsWith(".asp")) {
+            return hasDownloadSignal(lower, path);
         }
         for (String ext : FILE_EXTENSIONS) {
-            if (lower.endsWith(ext)) return true;
+            if (path.endsWith(ext)) return true;
+        }
+        return hasDownloadSignal(lower, path);
+    }
+
+    /**
+     * Path/query/host signals that a URL is a file even without an extension.
+     * Conservative on purpose: a generic {@code /page} must stay a page.
+     */
+    static boolean hasDownloadSignal(String lowerUrl, String path) {
+        if (lowerUrl.contains("export=download")
+                || lowerUrl.contains("download=1")
+                || lowerUrl.contains("download=true")
+                || lowerUrl.contains("attachment=1")
+                || lowerUrl.contains("dl=1")
+                || lowerUrl.contains("dl=true")) {
+            return true;
+        }
+        if (path.contains("/download") || path.contains("/dl/")
+                || path.contains("/getfile") || path.contains("/file/download")
+                || path.contains("/media/download")) {
+            return true;
+        }
+        // Signed / ranged CDN objects: a long hex-ish last segment, no page suffix.
+        String last = lastSegment(path);
+        if (last.length() >= 16 && last.matches("[a-z0-9._-]{16,}")
+                && (lowerUrl.contains("cdn.") || lowerUrl.contains("storage.")
+                || lowerUrl.contains("s3.") || lowerUrl.contains("blob."))) {
+            return true;
         }
         return false;
+    }
+
+    static String pathOf(String url) {
+        String u = url;
+        int scheme = u.indexOf("://");
+        if (scheme >= 0) u = u.substring(scheme + 3);
+        int slash = u.indexOf('/');
+        u = slash >= 0 ? u.substring(slash) : "/";
+        int q = u.indexOf('?');
+        if (q >= 0) u = u.substring(0, q);
+        int h = u.indexOf('#');
+        if (h >= 0) u = u.substring(0, h);
+        return u;
+    }
+
+    static String lastSegment(String path) {
+        if (path == null || path.isEmpty()) return "";
+        int slash = path.lastIndexOf('/');
+        return slash >= 0 ? path.substring(slash + 1) : path;
     }
 
     /**

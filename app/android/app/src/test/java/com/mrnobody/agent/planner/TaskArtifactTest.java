@@ -1,6 +1,7 @@
 package com.mrnobody.agent.planner;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -48,6 +49,17 @@ public class TaskArtifactTest {
     @Test
     public void emptyFollowUpIsNull() {
         assertNull(TaskArtifact.resolve("tell me more about laptops in general", three()));
+    }
+
+    @Test
+    public void pointerFollowUpIsRecognisedAndANewQuestionIsNot() {
+        assertTrue(TaskArtifact.isPointerFollowUp("open the second one"));
+        assertTrue(TaskArtifact.isPointerFollowUp("the first one"));
+        assertTrue(TaskArtifact.isPointerFollowUp("#2"));
+        assertFalse(TaskArtifact.isPointerFollowUp(
+                "tell me more about laptops in general"));
+        assertFalse(TaskArtifact.isPointerFollowUp(
+                "compare the first and the third on price"));
     }
 
     @Test
