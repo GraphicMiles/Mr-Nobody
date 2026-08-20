@@ -46,7 +46,15 @@ public final class FollowUpScope {
         if (task == null) return new Decision(Kind.NONE, "", "");
         String follow = clean(task.followUp());
         if (follow.isEmpty()) {
-            return new Decision(Kind.NONE, clean(task.instruction()), "");
+            // A brand-new task can itself be a greeting or acknowledgement —
+            // a deep link or unified input line such as "hi" must answer
+            // locally, not start a research run that looks the word up.
+            String instruction = clean(task.instruction());
+            String direct = conversationalReply(instruction);
+            if (direct != null) {
+                return new Decision(Kind.CONVERSATIONAL, instruction, direct);
+            }
+            return new Decision(Kind.NONE, instruction, "");
         }
 
         String direct = conversationalReply(follow);
