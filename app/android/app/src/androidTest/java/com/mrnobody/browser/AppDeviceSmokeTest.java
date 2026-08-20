@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 
+import com.mrnobody.browser.core.Settings;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -60,22 +62,29 @@ public final class AppDeviceSmokeTest {
         launchMain();
         UiObject2 start = device.wait(Until.findObject(By.text("Start browsing")), 8_000);
         if (start != null) start.click();
-        requireText("Active tasks", UI_TIMEOUT);
-        requireText("No active tasks", UI_TIMEOUT);
-
-        // UI → native settings write, then a cold Activity relaunch.
+        // The shell is ready when its persistent navigation is exposed. The
+        // scrollable Home sections are deliberately not used as launch gates:
+        // their accessibility visibility depends on emulator viewport height.
         requireText("Settings", UI_TIMEOUT).click();
+
+        // UI → native settings write, then an Activity relaunch.
         requireText("Save browsing history", UI_TIMEOUT);
         requireText("Search suggestions", UI_TIMEOUT).click();
         assertNotNull("settings write should acknowledge ON",
                 device.wait(Until.findObject(By.textContains("Suggestions ON")), 5_000));
+        assertTrue("UI toggle should persist suggestions ON",
+                waitForSuggestions(true, 5_000));
         device.pressHome();
         Thread.sleep(1_000);
         launchMain();
         requireText("Settings", UI_TIMEOUT);
+        assertTrue("suggestions should remain ON after Activity relaunch",
+                waitForSuggestions(true, 5_000));
         requireText("Search suggestions", UI_TIMEOUT).click(); // restore OFF
         assertNotNull("settings write should acknowledge OFF",
                 device.wait(Until.findObject(By.textContains("Suggestions OFF")), 5_000));
+        assertTrue("UI toggle should persist suggestions OFF",
+                waitForSuggestions(false, 5_000));
 
         // MainActivity is alive, so this exercises singleTop onNewIntent and
         // the production deep-link channel rather than a test-only entry point.
@@ -115,6 +124,15 @@ public final class AppDeviceSmokeTest {
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         target.startActivity(launch);
         device.waitForIdle();
+    }
+
+    private boolean waitForSuggestions(boolean expected, long timeout) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeout;
+        do {
+            if (new Settings(target).areSuggestionsEnabled() == expected) return true;
+            Thread.sleep(100);
+        } while (System.currentTimeMillis() < deadline);
+        return false;
     }
 
     private UiObject2 requireText(String text, long timeout) {
