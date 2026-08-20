@@ -16,6 +16,7 @@ import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.download.DownloadDestination;
 import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadRecord;
+import com.mrnobody.browser.core.Settings;
 import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.policy.RestrictedTools;
 import com.mrnobody.agent.tasks.TaskEventDetail;
@@ -310,6 +311,25 @@ public class MainActivity extends FlutterActivity {
                         case "setFirstLaunchDone": {
                             MrNobodyApp.settings().setFirstLaunchDone();
                             result.success(null);
+                            return;
+                        }
+                        case "resetDeviceSmokeState": {
+                            // Flutter integration tests run in the shipping
+                            // Activity/engine. Give debug APKs one deterministic
+                            // reset point without exposing it in release builds.
+                            if ((getApplicationInfo().flags
+                                    & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+                                result.notImplemented();
+                                return;
+                            }
+                            getSharedPreferences("mrnobody_prefs", MODE_PRIVATE)
+                                    .edit()
+                                    .remove(Settings.KEY_FIRST_LAUNCH_DONE)
+                                    .putBoolean(Settings.KEY_SUGGESTIONS_ENABLED, false)
+                                    .commit();
+                            MrNobodyApp.tasks().clear();
+                            MrNobodyApp.taskEvents().clearAll();
+                            result.success(true);
                             return;
                         }
                         case "search": {
