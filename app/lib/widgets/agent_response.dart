@@ -1262,61 +1262,32 @@ class AgentFollowUps extends StatelessWidget {
                   size: 11.5, w: FontWeight.w500, color: AppColors.textFaint)),
           const SizedBox(height: 3),
           for (var i = 0; i < items.length; i++)
-            _FadeUp(
-              delay: Duration(milliseconds: i * 90),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onTap(items[i]),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    border: i == items.length - 1
-                        ? null
-                        : const Border(
-                            bottom: BorderSide(color: AppColors.line)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.subdirectory_arrow_left,
-                          size: 12, color: AppColors.textMuted),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(items[i],
-                            style: AppTheme.sans(size: 12.5, height: 1.4)),
-                      ),
-                    ],
-                  ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onTap(items[i]),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  border: i == items.length - 1
+                      ? null
+                      : const Border(
+                          bottom: BorderSide(color: AppColors.line)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.subdirectory_arrow_left,
+                        size: 12, color: AppColors.textMuted),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(items[i],
+                          style: AppTheme.sans(size: 12.5, height: 1.4)),
+                    ),
+                  ],
                 ),
               ),
             ),
         ],
       ),
-    );
-  }
-}
-
-/// Rise-and-fade entrance, the library's `fade-up`.
-class _FadeUp extends StatelessWidget {
-  final Widget child;
-  final Duration delay;
-
-  const _FadeUp({required this.child, this.delay = Duration.zero});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 350) + delay,
-      curve: Interval(
-        delay.inMilliseconds / (350 + delay.inMilliseconds),
-        1,
-        curve: AgentMetrics.ease,
-      ),
-      builder: (context, t, c) => Opacity(
-        opacity: t,
-        child: Transform.translate(offset: Offset(0, 5 * (1 - t)), child: c),
-      ),
-      child: child,
     );
   }
 }
