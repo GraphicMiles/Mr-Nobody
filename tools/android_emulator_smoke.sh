@@ -6,20 +6,26 @@ api_level="${1:-unknown}"
 evidence="$GITHUB_WORKSPACE/emulator-artifacts/api-$api_level"
 mkdir -p "$evidence" || exit 1
 
+adb_bounded() {
+  # An emulator can go offline after a failed instrumentation run. Never let
+  # one diagnostic command hold the matrix job indefinitely.
+  timeout 15s adb "$@"
+}
+
 collect_evidence() {
-  adb logcat -d -v threadtime > "$evidence/logcat.txt" 2>&1 || true
-  adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
-  adb pull /sdcard/window.xml "$evidence/window.xml" >/dev/null 2>&1 || true
-  adb exec-out screencap -p > "$evidence/final-screen.png" 2>/dev/null || true
-  adb pull /sdcard/device-smoke.png \
+  adb_bounded logcat -d -v threadtime > "$evidence/logcat.txt" 2>&1 || true
+  adb_bounded shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+  adb_bounded pull /sdcard/window.xml "$evidence/window.xml" >/dev/null 2>&1 || true
+  adb_bounded exec-out screencap -p > "$evidence/final-screen.png" 2>/dev/null || true
+  adb_bounded pull /sdcard/device-smoke.png \
     "$evidence/device-smoke.png" >/dev/null 2>&1 || true
-  adb pull /sdcard/device-smoke-failure.png \
+  adb_bounded pull /sdcard/device-smoke-failure.png \
     "$evidence/device-smoke-failure.png" >/dev/null 2>&1 || true
-  adb pull /sdcard/device-smoke-failure.xml \
+  adb_bounded pull /sdcard/device-smoke-failure.xml \
     "$evidence/device-smoke-failure.xml" >/dev/null 2>&1 || true
-  adb shell dumpsys activity processes > "$evidence/activity-processes.txt" 2>&1 || true
-  adb shell dumpsys jobscheduler > "$evidence/jobscheduler.txt" 2>&1 || true
-  adb shell dumpsys notification > "$evidence/notifications.txt" 2>&1 || true
+  adb_bounded shell dumpsys activity processes > "$evidence/activity-processes.txt" 2>&1 || true
+  adb_bounded shell dumpsys jobscheduler > "$evidence/jobscheduler.txt" 2>&1 || true
+  adb_bounded shell dumpsys notification > "$evidence/notifications.txt" 2>&1 || true
 }
 
 status=0
