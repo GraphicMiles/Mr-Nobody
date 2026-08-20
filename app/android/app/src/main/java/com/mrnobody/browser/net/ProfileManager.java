@@ -1,5 +1,7 @@
 package com.mrnobody.browser.net;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
 
@@ -9,6 +11,9 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import com.mrnobody.debug.ErrorLog;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Real storage isolation for private tabs, where the device supports it.
@@ -34,6 +39,10 @@ public final class ProfileManager {
 
     /** Profile name for the ephemeral private session. */
     private static final String PRIVATE_PROFILE = "mrnobody-private";
+
+    /** WebView releases profile ownership asynchronously after destroy(). */
+    private static final long[] DELETE_RETRY_MS = {100L, 250L, 500L, 1_000L, 2_000L, 4_000L};
+    private static final Set<String> DELETE_PENDING = new HashSet<>();
 
     private ProfileManager() {
     }
@@ -90,43 +99,62 @@ public final class ProfileManager {
     }
 
     /**
-     * Destroy a named profile and everything in it.
+     * Delete a profile after WebView has actually released it.
      *
-     * <p>For ephemeral sessions this is what makes "ephemeral" true rather
-     * than aspirational; skipping it leaves the data on disk under a name
-     * nothing will ever reuse.
+     * <p>{@code WebView.destroy()} returns before Chromium drops profile
+     * ownership. Deleting in the same stack therefore reports a false
+     * "profile still in use" failure. Retry quietly on the main queue and log
+     * only if the profile remains live after the bounded retry window.
      */
-    public static boolean destroyProfile(String profileName) {
-        if (profileName == null || profileName.trim().isEmpty()) return false;
-        if (!isSupported()) return false;
+    public static void destroyProfileWhenIdle(String profileName) {
+        if (profileName == null || profileName.trim().isEmpty() || !isSupported()) return;
+        String name = profileName.trim();
+        synchronized (DELETE_PENDING) {
+            if (!DELETE_PENDING.add(name)) return;
+        }
+        scheduleDelete(name, 0);
+    }
+
+    public static void destroyPrivateWhenIdle() {
+        destroyProfileWhenIdle(PRIVATE_PROFILE);
+    }
+
+    private static void scheduleDelete(String profileName, int attempt) {
+        long delay = DELETE_RETRY_MS[Math.min(attempt, DELETE_RETRY_MS.length - 1)];
+        new Handler(Looper.getMainLooper()).postDelayed(
+                () -> tryDeleteWhenIdle(profileName, attempt), delay);
+    }
+
+    private static void tryDeleteWhenIdle(String profileName, int attempt) {
         try {
-            return ProfileStore.getInstance().deleteProfile(profileName);
-        } catch (IllegalStateException e) {
-            ErrorLog.record("profile " + profileName + " still in use: " + e);
-            return false;
+            // false also means "already absent", which is the desired state.
+            ProfileStore.getInstance().deleteProfile(profileName);
+            finishDelete(profileName);
+        } catch (IllegalStateException inUse) {
+            int next = attempt + 1;
+            if (next < DELETE_RETRY_MS.length) {
+                scheduleDelete(profileName, next);
+            } else {
+                finishDelete(profileName);
+                ErrorLog.record("profile remained in use after cleanup retries: " + profileName);
+            }
         } catch (Throwable t) {
-            ErrorLog.record("deleteProfile failed: " + t);
-            return false;
+            finishDelete(profileName);
+            ErrorLog.record("profile cleanup failed for " + profileName + ": "
+                    + t.getClass().getSimpleName());
         }
     }
 
-    /**
-     * Destroy the private profile and everything in it.
-     *
-     * <p>Called when the last private tab closes. No-op when unsupported,
-     * where the existing clear-on-close path remains the only defence.
-     */
-    public static boolean destroyPrivate() {
-        if (!isSupported()) return false;
-        try {
-            return ProfileStore.getInstance().deleteProfile(PRIVATE_PROFILE);
-        } catch (IllegalStateException e) {
-            // Thrown when the profile is still in use by a live WebView.
-            ErrorLog.record("private profile still in use, not deleted: " + e);
-            return false;
-        } catch (Throwable t) {
-            ErrorLog.record("deleteProfile failed: " + t);
-            return false;
+    private static void finishDelete(String profileName) {
+        synchronized (DELETE_PENDING) {
+            DELETE_PENDING.remove(profileName);
+        }
+    }
+
+    /** Visible for diagnostics and tests without exposing profile contents. */
+    public static boolean isDeletionPending(String profileName) {
+        synchronized (DELETE_PENDING) {
+            return DELETE_PENDING.contains(profileName);
         }
     }
 

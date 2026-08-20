@@ -356,10 +356,7 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
                 // while a live WebView still holds the profile, so doing this
                 // first would silently leave the session's data on disk.
                 if (isolated && scope.isEphemeral()) {
-                    boolean gone = ProfileManager.destroyProfile(scope.profileName());
-                    if (!gone) {
-                        ErrorLog.record("ephemeral session not deleted: " + scope.profileName());
-                    }
+                    ProfileManager.destroyProfileWhenIdle(scope.profileName());
                 }
                 isolated = false;
             });

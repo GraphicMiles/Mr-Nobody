@@ -65,6 +65,15 @@ void main() {
     engine.dispose();
   });
 
+  test('latest URL is reused when clear data recreates the native page', () async {
+    final engine = NativeWebViewEngine(tabId: 8);
+
+    await engine.loadUrl('https://httpbin.org/cookies');
+
+    expect(engine.recreationUrl, 'https://httpbin.org/cookies');
+    engine.dispose();
+  });
+
   test('different tabs have different platform-view keys', () {
     final first = NativeWebViewEngine(tabId: 3, initialUrl: 'https://old.example');
     final created = NativeWebViewEngine(tabId: 4);

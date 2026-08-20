@@ -106,7 +106,7 @@ public final class TabWebViews {
             if (page != null && page.isPrivate) hadPrivate = true;
             destroy(page, false);
         }
-        if (hadPrivate) ProfileManager.destroyPrivate();
+        if (hadPrivate) ProfileManager.destroyPrivateWhenIdle();
     }
 
     /** How many pages are being held. Exposed for tests and the debug log. */
@@ -161,7 +161,7 @@ public final class TabWebViews {
         // gone. Where multi-profile is unsupported it is a no-op and the
         // clear-on-close above remains the only defence.
         if (managePrivateProfile && page.isPrivate && !hasPrivatePages()) {
-            ProfileManager.destroyPrivate();
+            ProfileManager.destroyPrivateWhenIdle();
         }
     }
 
