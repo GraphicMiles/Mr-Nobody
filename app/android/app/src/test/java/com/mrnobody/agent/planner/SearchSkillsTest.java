@@ -19,7 +19,8 @@ public final class SearchSkillsTest {
                 "latest video on youtube from Screen Crush channel");
         assertEquals(SearchSkills.Kind.LATEST_YOUTUBE, skill.kind);
         assertTrue(skill.listingOnly);
-        assertTrue(skill.query.contains("site:youtube.com/watch"));
+        assertEquals("youtube", skill.provider);
+        assertTrue(skill.query.contains("youtube"));
     }
 
     @Test
@@ -27,7 +28,8 @@ public final class SearchSkillsTest {
         SearchSkills.Skill skill = SearchSkills.route(
                 "search youtube for Lagos travel videos");
         assertEquals(SearchSkills.Kind.YOUTUBE, skill.kind);
-        assertTrue(skill.query.contains("site:youtube.com/watch"));
+        assertEquals("youtube", skill.provider);
+        assertTrue(skill.query.contains("youtube"));
         assertFalse(skill.query.toLowerCase().contains("facebook"));
     }
 

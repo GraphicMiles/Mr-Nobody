@@ -25,13 +25,18 @@ public final class SearchResultsJson {
     }
 
     public static List<SearchResult> parse(String json, int max) {
+        return parse(json, max, true);
+    }
+
+    /** Platform searches may legitimately return several items from one host. */
+    public static List<SearchResult> parse(String json, int max, boolean onePerHost) {
         List<SearchResult> results = new ArrayList<>();
         if (json == null) return results;
         String trimmed = json.trim();
         if (trimmed.isEmpty() || trimmed.equals("null")) return results;
         try {
             JSONArray array = new JSONArray(trimmed);
-            Set<String> seenHosts = new LinkedHashSet<>();
+            Set<String> seen = new LinkedHashSet<>();
             for (int i = 0; i < array.length() && results.size() < max; i++) {
                 JSONObject item = array.optJSONObject(i);
                 if (item == null) continue;
@@ -40,9 +45,10 @@ public final class SearchResultsJson {
                 if (url.isEmpty() || title.isEmpty()) continue;
 
                 String host = hostOf(url);
-                // One result per site: five headlines from one blog is one
-                // source, and the agent should read five different places.
-                if (!host.isEmpty() && !seenHosts.add(host)) continue;
+                // General research uses one result per site. A platform skill
+                // such as YouTube needs several distinct items from one host.
+                String key = onePerHost && !host.isEmpty() ? host : url;
+                if (!seen.add(key)) continue;
 
                 results.add(new SearchResult(title, url, tidy(item.optString("snippet", ""))));
             }

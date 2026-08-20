@@ -26,7 +26,7 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | GitHub Actions run | **Passed** — `32310388940` |
 | Strict Flutter analysis | **Passed** |
 | Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **752 tests passed locally** for the current unpushed tree |
+| Java/JVM suite | **754 tests passed locally** for the current unpushed tree |
 | Android Gradle unit suite | **Passed** |
 | Privacy-auditor suite | **13 tests passed** |
 | Repository privacy audit | **Clean** |

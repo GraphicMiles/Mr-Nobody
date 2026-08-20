@@ -22,7 +22,8 @@ public final class LatestVideoSkillTest {
         assertTrue(LatestVideoSkill.matches(ASK));
         String query = LatestVideoSkill.searchQuery(ASK);
         assertTrue(query, query.contains("screen crush"));
-        assertTrue(query, query.contains("site:youtube.com/watch"));
+        assertTrue(query, query.contains("youtube"));
+        assertFalse(query, query.contains("site:youtube.com/watch"));
         assertFalse(query, query.contains("sky"));
     }
 

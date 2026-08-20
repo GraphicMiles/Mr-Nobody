@@ -316,12 +316,17 @@ public final class DeterministicEngine implements AgentEngine {
                         return;
                     }
                     r.results = resultsOf(result);
+                    if (!r.skill.isGeneric()) {
+                        enterActivity(task, Task.STEP_SEARCH, "Checking result relevance",
+                                "skill.filter", "Keep only results allowed by " + r.skill.id + ".");
+                    }
                     r.results = r.skill.filter(r.results);
                     r.latestVideo = LatestVideoSkill.find(asked, r.results);
                     task.setArtifacts(TaskArtifact.encode(TaskArtifact.fromSearch(r.results)));
                     if (r.results.isEmpty()) {
-                        fail(task, ToolResult.fail("The search returned nothing to read, so "
-                                + "there is nothing to answer from."));
+                        fail(task, ToolResult.fail(r.skill.isGeneric()
+                                ? "The search returned nothing to read, so there is nothing to answer from."
+                                : r.skill.emptyMessage()));
                         return;
                     }
                     plan.advance();

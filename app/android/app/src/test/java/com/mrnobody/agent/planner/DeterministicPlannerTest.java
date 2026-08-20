@@ -52,7 +52,7 @@ public class DeterministicPlannerTest {
                 "the latest video on youtube from screen crush channel", TOOLS);
         String query = plan.steps().get(0).request.param("q");
         assertTrue(query, query.contains("screen crush"));
-        assertTrue(query, query.contains("site:youtube.com/watch"));
+        assertEquals("youtube", plan.steps().get(0).request.param("provider"));
     }
 
     @Test

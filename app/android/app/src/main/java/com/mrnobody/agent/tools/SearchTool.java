@@ -153,7 +153,8 @@ public final class SearchTool implements Tool {
                     String json = engine.loadAndEvaluate(
                             provider.url(q), provider.script(MAX_RESULTS),
                             Math.min(PER_ENGINE_TIMEOUT_MS, left));
-                    List<SearchResult> results = SearchResultsJson.parse(json, MAX_RESULTS);
+                    List<SearchResult> results = SearchResultsJson.parse(
+                            json, MAX_RESULTS, !"youtube".equals(requestedProvider));
                     if (results.size() >= SearchProviders.ENOUGH) {
                         return value(q, results, provider.name);
                     }
