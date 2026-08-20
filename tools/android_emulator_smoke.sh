@@ -11,8 +11,12 @@ collect_evidence() {
   adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
   adb pull /sdcard/window.xml "$evidence/window.xml" >/dev/null 2>&1 || true
   adb exec-out screencap -p > "$evidence/final-screen.png" 2>/dev/null || true
-  adb pull /sdcard/Android/data/com.mrnobody.browser/files/device-smoke.png \
+  adb pull /sdcard/device-smoke.png \
     "$evidence/device-smoke.png" >/dev/null 2>&1 || true
+  adb pull /sdcard/device-smoke-failure.png \
+    "$evidence/device-smoke-failure.png" >/dev/null 2>&1 || true
+  adb pull /sdcard/device-smoke-failure.xml \
+    "$evidence/device-smoke-failure.xml" >/dev/null 2>&1 || true
   adb shell dumpsys activity processes > "$evidence/activity-processes.txt" 2>&1 || true
   adb shell dumpsys jobscheduler > "$evidence/jobscheduler.txt" 2>&1 || true
   adb shell dumpsys notification > "$evidence/notifications.txt" 2>&1 || true
