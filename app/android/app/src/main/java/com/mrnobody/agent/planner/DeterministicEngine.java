@@ -289,6 +289,9 @@ public final class DeterministicEngine implements AgentEngine {
         Research r = new Research();
         r.asked = asked;
         r.intent = intent;
+        r.skill = SearchSkills.route(asked);
+        enterActivity(task, Task.STEP_SEARCH, "Selecting a research skill",
+                "skill." + r.skill.id, r.skill.decision());
         // A pointed follow-up names the page. findUrl() would otherwise pick
         // an earlier hostname from the original instruction and open the wrong one.
         r.namedUrl = pointed != null ? pointed.url : findUrl(asked);
@@ -313,6 +316,7 @@ public final class DeterministicEngine implements AgentEngine {
                         return;
                     }
                     r.results = resultsOf(result);
+                    r.results = r.skill.filter(r.results);
                     r.latestVideo = LatestVideoSkill.find(asked, r.results);
                     task.setArtifacts(TaskArtifact.encode(TaskArtifact.fromSearch(r.results)));
                     if (r.results.isEmpty()) {
@@ -361,10 +365,11 @@ public final class DeterministicEngine implements AgentEngine {
                 case Task.STEP_READ:
                     enterActivity(task, Task.STEP_READ, "Choosing source pages", "source_select",
                             "Turn the discovered candidates into bounded read steps.");
-                    // A matched latest-video request is answered from the
-                    // bounded search listing. A YouTube watch page is an app
-                    // shell/configuration document, not article evidence.
-                    if (r.latestVideo == null) {
+                    // Listing skills (YouTube, public Facebook and materials)
+                    // are answered from bounded result metadata. Their targets
+                    // are app shells, login walls or binary documents rather
+                    // than article evidence.
+                    if (!r.skill.listingOnly) {
                         planReads(context, plan, r, cancellation);
                     }
                     break;
@@ -935,6 +940,8 @@ public final class DeterministicEngine implements AgentEngine {
             }
         } else if (r.latestVideo != null) {
             r.answer = r.latestVideo.answer();
+        } else if (r.skill != null && r.skill.listingOnly) {
+            r.answer = r.skill.listingAnswer(r.results);
         } else {
             // No remote model: extract from pages that were actually read.
             // Dumping the search listing here was the bug that made Local look
@@ -1059,6 +1066,7 @@ public final class DeterministicEngine implements AgentEngine {
         final Map<String, String> images = new LinkedHashMap<>();
         String asked;
         TaskIntent intent;
+        SearchSkills.Skill skill;
         RecurrenceRequest.Request recurrence;
         String namedUrl;
         /** Last tool result, so a parked CONFIRM during prefetch is visible. */

@@ -76,6 +76,8 @@ public final class SearchTool implements Tool {
             .describedAs("Search the web and return parsed results (title, URL, snippet).")
             .tier(Tier.READ)
             .param(ParamSpec.string("q", true, "What to search for."))
+            .param(ParamSpec.string("provider", false,
+                    "Optional provider explicitly requested by the user."))
             .returns(OutputSpec.of(SearchTool::render, "query", "results"))
             .timeout(45_000)
             .build();
@@ -92,46 +94,49 @@ public final class SearchTool implements Tool {
             return ToolResult.fail("search requires a 'q' parameter");
         }
         String q = query.trim();
+        String requestedProvider = request.param("provider", "").trim().toLowerCase(
+                java.util.Locale.ROOT);
         long deadline = System.currentTimeMillis() + SEARCH_BUDGET_MS;
         if (!NetworkGate.canConnect()) {
             return ToolResult.needsApproval("network", NetworkGate.blockedReason());
         }
         List<String> refused = new ArrayList<>();
 
-        // 1. The cheap path. html.duckduckgo.com is often challenged; Lite
-        // still answers a plain fetch, so try both before paying for a WebView.
-        try {
-            String html = fetch("https://html.duckduckgo.com/html/?q="
-                    + SearchProviders.encode(q));
-            List<SearchResult> results = DdgHtmlParser.parse(html, MAX_RESULTS);
-            if (!results.isEmpty()) return value(q, results, "DuckDuckGo");
-            if (SearchChallenge.isChallenge(html)) refused.add("DuckDuckGo");
-        } catch (Exception e) {
-            refused.add("DuckDuckGo (" + e.getMessage() + ")");
-        }
-        if (remaining(deadline) > 6_000) {
+        if (requestedProvider.isEmpty()) {
+            // 1. Cheap paths before paying for a WebView.
             try {
-                String html = fetch("https://lite.duckduckgo.com/lite/?q="
+                String html = fetch("https://html.duckduckgo.com/html/?q="
                         + SearchProviders.encode(q));
-                List<SearchResult> results = DdgHtmlParser.parseLite(html, MAX_RESULTS);
-                if (!results.isEmpty()) return value(q, results, "DuckDuckGo Lite");
-                if (SearchChallenge.isChallenge(html)) refused.add("DuckDuckGo Lite");
+                List<SearchResult> results = DdgHtmlParser.parse(html, MAX_RESULTS);
+                if (!results.isEmpty()) return value(q, results, "DuckDuckGo");
+                if (SearchChallenge.isChallenge(html)) refused.add("DuckDuckGo");
             } catch (Exception e) {
-                refused.add("DuckDuckGo Lite (" + e.getMessage() + ")");
+                refused.add("DuckDuckGo (" + e.getMessage() + ")");
             }
-        }
+            if (remaining(deadline) > 6_000) {
+                try {
+                    String html = fetch("https://lite.duckduckgo.com/lite/?q="
+                            + SearchProviders.encode(q));
+                    List<SearchResult> results = DdgHtmlParser.parseLite(html, MAX_RESULTS);
+                    if (!results.isEmpty()) return value(q, results, "DuckDuckGo Lite");
+                    if (SearchChallenge.isChallenge(html)) refused.add("DuckDuckGo Lite");
+                } catch (Exception e) {
+                    refused.add("DuckDuckGo Lite (" + e.getMessage() + ")");
+                }
+            }
 
-        // A bounded RSS endpoint is a useful non-WebView fallback on devices
-        // that throttle rendered pages in the background.
-        if (remaining(deadline) > 6_000) {
-            try {
-                String xml = fetch("https://www.bing.com/search?format=rss&count=10&q="
-                        + SearchProviders.encode(q));
-                List<SearchResult> results = SearchFeedParser.parse(xml, MAX_RESULTS);
-                if (!results.isEmpty()) return value(q, results, "Bing RSS");
-                refused.add("Bing RSS");
-            } catch (Exception e) {
-                refused.add("Bing RSS (" + e.getMessage() + ")");
+            // A bounded RSS endpoint is a useful non-WebView fallback on devices
+            // that throttle rendered pages in the background.
+            if (remaining(deadline) > 6_000) {
+                try {
+                    String xml = fetch("https://www.bing.com/search?format=rss&count=10&q="
+                            + SearchProviders.encode(q));
+                    List<SearchResult> results = SearchFeedParser.parse(xml, MAX_RESULTS);
+                    if (!results.isEmpty()) return value(q, results, "Bing RSS");
+                    refused.add("Bing RSS");
+                } catch (Exception e) {
+                    refused.add("Bing RSS (" + e.getMessage() + ")");
+                }
             }
         }
 
@@ -140,7 +145,8 @@ public final class SearchTool implements Tool {
         BrowserEngine engine = engines.get();
         if (engine != null) {
             String preferred = safeSearchEngineSetting();
-            for (SearchProviders.Provider provider : SearchProviders.chain(preferred)) {
+            for (SearchProviders.Provider provider
+                    : SearchProviders.chainRequested(requestedProvider, preferred)) {
                 long left = remaining(deadline);
                 if (left < 1_500) break;
                 try {

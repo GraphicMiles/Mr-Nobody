@@ -482,6 +482,13 @@ class _ToolAttempt {
       [tool, action].where((s) => s.isNotEmpty).join('.'),
       _stateLabel(state),
     ];
+    if (subject.isNotEmpty) {
+      final host = Uri.tryParse(subject)
+              ?.host
+              .replaceFirst(RegExp(r'^www\.'), '') ??
+          '';
+      parts.add(host.isNotEmpty ? host : _short(subject, 72));
+    }
     if (count != null && unit.isNotEmpty) parts.add('$count $unit');
     if (durationMs > 0) parts.add(_duration(durationMs));
     if (reason.isNotEmpty) parts.add(reason);

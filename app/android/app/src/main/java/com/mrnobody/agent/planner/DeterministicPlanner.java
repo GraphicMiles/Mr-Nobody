@@ -37,10 +37,13 @@ public final class DeterministicPlanner implements Planner {
                 && ToolRouter.isDownloadIntent(instruction);
 
         java.util.List<Plan.Step> steps = new java.util.ArrayList<>();
-        String searchQuery = LatestVideoSkill.searchQuery(instruction);
+        SearchSkills.Skill skill = SearchSkills.route(instruction);
+        java.util.Map<String, String> searchParams = new java.util.LinkedHashMap<>();
+        searchParams.put("q", skill.query);
+        if (!skill.provider.isEmpty()) searchParams.put("provider", skill.provider);
         steps.add(Plan.Step.tool(Task.STEP_SEARCH, "search",
-                ToolRequest.of("search", "q", searchQuery),
-                "find sources to answer from"));
+                new ToolRequest("search", searchParams),
+                "find sources with " + skill.id));
         steps.add(Plan.Step.internal(Task.STEP_READ));
         if (wantsDownload) steps.add(Plan.Step.internal(Task.STEP_RESOLVE_DOWNLOAD));
         steps.add(Plan.Step.internal(Task.STEP_ANSWER));

@@ -26,7 +26,7 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | GitHub Actions run | **Passed** — `32310388940` |
 | Strict Flutter analysis | **Passed** |
 | Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **737 tests passed locally** for the current unpushed tree |
+| Java/JVM suite | **746 tests passed locally** for the current unpushed tree |
 | Android Gradle unit suite | **Passed** |
 | Privacy-auditor suite | **13 tests passed** |
 | Repository privacy audit | **Clean** |
@@ -94,6 +94,7 @@ Privacy is not anonymity. A remote AI provider receives the task context sent to
 |---|---|---|
 | Deterministic local no-model research | **Built, device-unverified** | End-to-end search, rendered extraction, evidence and answer |
 | Adaptive semantic task pipeline and conditional response blocks | **Built, device-unverified** | Flutter analysis/widget/golden CI, then research/download/browser/failure-recovery checks on a phone |
+| Specialised search-skill router (YouTube, fresh info, public Facebook, materials/explicit Google) | **Built, device-unverified** | Live provider/result quality, host constraints, login walls and recency checks |
 | Task-scoped headless browser resolution | **Verified off-device** | Real WebView executor behavior on Android |
 | Cross-task state isolation | **Verified structurally/off-device** | Back-to-back and queued task tests on a phone |
 | Remote-provider autonomous planner | **Verified off-device** | Live provider/model matrix, timeout and cancellation |
@@ -199,6 +200,10 @@ Screenshot or screen recording:
 - Force a direct-page read to fail and rendered-browser extraction to succeed; confirm the activity becomes `recovered` and the failed tool remains subordinate detail.
 - Confirm source controls, numbered citations and evidence cards include only cited or directly linked pages successfully used by the answer, not every attempted read.
 - Request the latest video from a named YouTube channel; confirm the query is channel/site-restricted and no `ytcfg`, `EXPERIMENT_FLAGS`, JavaScript or configuration dump reaches the answer.
+- Search YouTube generally and confirm only watch/short results are presented.
+- Search Facebook and confirm only public indexed results appear, with no claim of private/login access.
+- Find a PDF learning material using explicit Google search; confirm the Google provider path, direct-document results and safety/licensing limitation.
+- Ask for current/latest information and confirm the current-year query bias, read timestamps and source verification.
 - Ask an unrelated standalone follow-up (for example, sky research followed by “who created bitcoin”); confirm the new search contains no prior-topic terms and the previous answer keeps its own “Thought for …” trace and citations.
 - Send “thanks” and confirm it replies locally without search or page reads.
 - Tap a generated follow-up and confirm it continues the same task with the displayed text.
