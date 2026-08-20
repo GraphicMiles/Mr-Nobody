@@ -8,8 +8,6 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.os.SystemClock;
-import android.view.MotionEvent;
 
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.tasks.TaskEventStore;
@@ -88,7 +86,9 @@ public final class AppDeviceSmokeTest {
                 waitForFirstLaunch(true, 5_000));
         tap(0.90, 0.90); // Settings destination, above the system navigation inset
         Thread.sleep(700);
+        checkpoint("settings-before-toggle");
         tap(0.50, 0.25); // Search suggestions row
+        checkpoint("settings-after-toggle");
         assertTrue("UI toggle should persist suggestions ON",
                 waitForSuggestions(true, 5_000));
 
@@ -181,22 +181,22 @@ public final class AppDeviceSmokeTest {
         assertTrue("Mr Nobody MainActivity should be resumed", resumed[0]);
     }
 
-    private void tap(double xFraction, double yFraction) {
-        float x = (float) (device.getDisplayWidth() * xFraction);
-        float y = (float) (device.getDisplayHeight() * yFraction);
-        long downTime = SystemClock.uptimeMillis();
-        MotionEvent down = MotionEvent.obtain(downTime, downTime,
-                MotionEvent.ACTION_DOWN, x, y, 0);
-        MotionEvent up = MotionEvent.obtain(downTime, downTime + 80,
-                MotionEvent.ACTION_UP, x, y, 0);
-        try {
-            instrumentation.sendPointerSync(down);
-            instrumentation.sendPointerSync(up);
-            instrumentation.waitForIdleSync();
-        } finally {
-            down.recycle();
-            up.recycle();
-        }
+    private void tap(double xFraction, double yFraction) throws Exception {
+        int x = (int) (device.getDisplayWidth() * xFraction);
+        int y = (int) (device.getDisplayHeight() * yFraction);
+        // Android 14 rejects Instrumentation.sendPointerSync when a transient
+        // system window owns the touched coordinate. The shell input path is
+        // the same external interaction a physical test driver performs.
+        device.executeShellCommand("input tap " + x + " " + y);
+        instrumentation.waitForIdleSync();
+    }
+
+    private void checkpoint(String name) throws Exception {
+        File dir = target.getExternalFilesDir(null);
+        assertNotNull(dir);
+        File screenshot = new File(dir, name + ".png");
+        assertTrue(name + " screenshot", device.takeScreenshot(screenshot));
+        copyForEvidence(screenshot, "/sdcard/" + name + ".png");
     }
 
     private boolean waitForFirstLaunch(boolean expected, long timeout)

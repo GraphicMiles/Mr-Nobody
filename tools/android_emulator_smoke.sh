@@ -23,6 +23,10 @@ collect_evidence() {
     "$evidence/device-smoke-collapsed.png" >/dev/null 2>&1 || true
   adb_bounded pull /sdcard/device-smoke-expanded.png \
     "$evidence/device-smoke-expanded.png" >/dev/null 2>&1 || true
+  adb_bounded pull /sdcard/settings-before-toggle.png \
+    "$evidence/settings-before-toggle.png" >/dev/null 2>&1 || true
+  adb_bounded pull /sdcard/settings-after-toggle.png \
+    "$evidence/settings-after-toggle.png" >/dev/null 2>&1 || true
   adb_bounded shell dumpsys activity processes > "$evidence/activity-processes.txt" 2>&1 || true
   adb_bounded shell dumpsys jobscheduler > "$evidence/jobscheduler.txt" 2>&1 || true
   adb_bounded shell dumpsys notification > "$evidence/notifications.txt" 2>&1 || true
