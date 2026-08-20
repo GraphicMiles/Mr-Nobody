@@ -2,6 +2,23 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 
+/// A native download that must not start until the user makes a decision.
+class BrowserDownloadRequest {
+  final String id;
+  final String name;
+  final String mime;
+  final String sourceHost;
+  final String warning;
+
+  const BrowserDownloadRequest({
+    required this.id,
+    required this.name,
+    required this.mime,
+    required this.sourceHost,
+    required this.warning,
+  });
+}
+
 /// The engine-independent browser capability used by the visible browser and,
 /// in the agent path, by the BrowserTool.
 ///
@@ -34,6 +51,9 @@ abstract class BrowserEngine {
   /// of what someone was reading is exactly what must not exist.
   Future<Uint8List?> captureThumbnail();
 
+  /// Resolve a harmful-looking download request previously raised by native.
+  Future<bool> resolveDownload(String requestId, bool allow);
+
   /// Called with true/false as navigation begins/ends (loading state).
   ValueChanged<bool>? onLoadingChanged;
 
@@ -55,6 +75,9 @@ abstract class BrowserEngine {
 
   /// Called when a download starts, or fails to start ([error] set).
   void Function(String? name, String? error)? onDownload;
+
+  /// Called before a potentially harmful download is allowed to start.
+  ValueChanged<BrowserDownloadRequest>? onDownloadApproval;
 
   /// Called with the load progress 0..100.
   ValueChanged<int>? onProgress;

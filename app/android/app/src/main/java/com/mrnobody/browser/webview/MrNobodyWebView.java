@@ -32,15 +32,18 @@ import com.mrnobody.browser.download.BlobSourceResolver;
 import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadNaming;
 import com.mrnobody.browser.download.DownloadRecord;
+import com.mrnobody.browser.download.DownloadRisk;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
@@ -132,7 +135,10 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             if (ch != null) ch.setMethodCallHandler(null);
         }
         MrNobodyWebView v = ACTIVE.remove(tabId);
-        if (v != null) v.destroyed = true;
+        if (v != null) {
+            v.destroyed = true;
+            v.pendingDownloads.clear();
+        }
     }
 
     /** True when this tab genuinely has its own cookie/storage jar. */
@@ -140,6 +146,28 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
     private int lastReportedScrollY;
     private boolean destroyed;
+
+    /** Harmful-looking downloads waiting for an explicit Flutter decision. */
+    private final Map<String, PendingDownload> pendingDownloads = new LinkedHashMap<>();
+
+    private static final class PendingDownload {
+        final String url;
+        final String userAgent;
+        final String contentDisposition;
+        final String mimeType;
+        final String referrer;
+        final String fileName;
+
+        PendingDownload(String url, String userAgent, String contentDisposition,
+                        String mimeType, String referrer, String fileName) {
+            this.url = url;
+            this.userAgent = userAgent;
+            this.contentDisposition = contentDisposition;
+            this.mimeType = mimeType;
+            this.referrer = referrer;
+            this.fileName = fileName;
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     MrNobodyWebView(@NonNull Context context, @NonNull BinaryMessenger messenger, int viewId,
@@ -415,7 +443,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     private void onDownloadRequested(String url, String userAgent, String contentDisposition,
                                      String mimeType, long contentLength) {
         if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
-            enqueueNetworkDownload(url, userAgent, contentDisposition, mimeType,
+            offerNetworkDownload(url, userAgent, contentDisposition, mimeType,
                     webView.getUrl());
             return;
         }
@@ -446,17 +474,45 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                         + "a safe source link");
                 return;
             }
-            enqueueNetworkDownload(source, userAgent, contentDisposition, mimeType, referrer);
+            offerNetworkDownload(source, userAgent, contentDisposition, mimeType, referrer);
         });
     }
 
-    private void enqueueNetworkDownload(String url, String userAgent,
-                                        String contentDisposition, String mimeType,
-                                        String referrer) {
-        Map<String, Object> data = new HashMap<>();
+    private void offerNetworkDownload(String url, String userAgent,
+                                      String contentDisposition, String mimeType,
+                                      String referrer) {
         // Not URLUtil.guessFileName: it answers "downloadfile.bin" whenever the
         // server says octet-stream. The engine refines the name again from the
         // real response headers.
+        String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
+        DownloadRisk.Assessment risk = DownloadRisk.assess(name, mimeType, url);
+        if (!risk.requiresConfirmation) {
+            startNetworkDownload(url, userAgent, contentDisposition, mimeType, referrer);
+            return;
+        }
+
+        if (pendingDownloads.size() >= 8) {
+            String oldest = pendingDownloads.keySet().iterator().next();
+            pendingDownloads.remove(oldest);
+        }
+        String requestId = UUID.randomUUID().toString();
+        pendingDownloads.put(requestId, new PendingDownload(
+                url, userAgent, contentDisposition, mimeType, referrer, name));
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", requestId);
+        data.put("name", name);
+        data.put("mime", mimeType == null ? "" : mimeType);
+        String host = Uri.parse(url).getHost();
+        data.put("host", host == null ? "" : host);
+        data.put("warning", risk.reason);
+        send("onDownloadApproval", data);
+    }
+
+    private void startNetworkDownload(String url, String userAgent,
+                                      String contentDisposition, String mimeType,
+                                      String referrer) {
+        Map<String, Object> data = new HashMap<>();
         String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
         try {
             DownloadRecord record = DownloadEngine.get(context)
@@ -519,6 +575,25 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             return;
         }
         switch (call.method) {
+            case "resolveDownload": {
+                String requestId = call.argument("id");
+                Boolean allow = call.argument("allow");
+                if (requestId == null || allow == null) {
+                    result.error("bad_arg", "id and allow required", null);
+                    return;
+                }
+                PendingDownload pending = pendingDownloads.remove(requestId);
+                if (pending == null) {
+                    result.success(false);
+                    return;
+                }
+                if (allow) {
+                    startNetworkDownload(pending.url, pending.userAgent,
+                            pending.contentDisposition, pending.mimeType, pending.referrer);
+                }
+                result.success(true);
+                return;
+            }
             case "loadUrl": {
                 String url = call.argument("url");
                 if (url == null || url.isEmpty()) {
@@ -668,6 +743,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         if (tabId < 0) {
             // No tab identity to retain against: this view owned its page.
             destroyed = true;
+            pendingDownloads.clear();
             channel.setMethodCallHandler(null);
             webView.stopLoading();
             webView.loadUrl("about:blank");

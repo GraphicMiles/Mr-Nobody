@@ -67,8 +67,9 @@ public final class DownloadNaming {
                     + "mp3,m4a,aac,flac,wav,ogg,opus,"
                     + "jpg,jpeg,png,gif,webp,bmp,svg,heic,"
                     + "pdf,epub,mobi,djvu,txt,csv,json,xml,html,htm,md,"
-                    + "zip,rar,7z,gz,tar,bz2,xz,iso,apk,exe,dmg,deb,"
-                    + "srt,ass,sub,vtt,torrent,doc,docx,xls,xlsx,ppt,pptx";
+                    + "zip,rar,7z,gz,tar,bz2,xz,iso,apk,aab,apks,xapk,exe,msi,dmg,deb,rpm,"
+                    + "sh,bash,zsh,bat,cmd,ps1,jar,js,mjs,vbs,reg,dex,dll,so,"
+                    + "srt,ass,sub,vtt,torrent,doc,docx,docm,xls,xlsx,xlsm,ppt,pptx,pptm";
 
     private DownloadNaming() {
     }

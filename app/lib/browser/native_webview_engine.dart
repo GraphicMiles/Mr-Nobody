@@ -51,6 +51,8 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   void Function(String? name, String? error)? onDownload;
   @override
+  ValueChanged<BrowserDownloadRequest>? onDownloadApproval;
+  @override
   ValueChanged<int>? onProgress;
 
   NativeWebViewEngine({this.tabId = -1, this.initialUrl = '', this.isPrivate = false});
@@ -150,6 +152,18 @@ class NativeWebViewEngine implements BrowserEngine {
       case 'onDownload':
         onDownload?.call(args['name'] as String?, args['error'] as String?);
         break;
+      case 'onDownloadApproval':
+        final id = args['id'] as String? ?? '';
+        if (id.isNotEmpty) {
+          onDownloadApproval?.call(BrowserDownloadRequest(
+            id: id,
+            name: args['name'] as String? ?? 'download',
+            mime: args['mime'] as String? ?? '',
+            sourceHost: args['host'] as String? ?? '',
+            warning: args['warning'] as String? ?? 'This file may be harmful.',
+          ));
+        }
+        break;
     }
     return null;
   }
@@ -210,6 +224,10 @@ class NativeWebViewEngine implements BrowserEngine {
 
   @override
   Future<Uint8List?> captureThumbnail() => _invoke<Uint8List>('capture');
+
+  @override
+  Future<bool> resolveDownload(String requestId, bool allow) async =>
+      await _invoke<bool>('resolveDownload', {'id': requestId, 'allow': allow}) ?? false;
 
   /// The tab is closed for good: let the native side destroy the page it has
   /// been holding. Disposing the widget alone must not do this — that is the

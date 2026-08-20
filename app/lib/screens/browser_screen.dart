@@ -45,10 +45,13 @@ class BrowserScreen extends StatefulWidget {
 class _BrowserScreenState extends State<BrowserScreen> {
   final _address = TextEditingController();
   final _addressFocus = FocusNode();
+  final _deleteKey = GlobalKey();
 
   BrowserTab? get _tab => widget.tabs.active;
 
   BrowserTab? _noticeTab;
+  BrowserTab? _approvalTab;
+  bool _approvalShowing = false;
 
   @override
   void initState() {
@@ -58,6 +61,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
     _addressFocus.addListener(() {
       // Editing the address should never happen behind a hidden bar.
       if (_addressFocus.hasFocus) _tab?.showChrome();
+      if (mounted) setState(() {}); // show/hide the one-character delete icon
     });
   }
 
@@ -66,6 +70,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
     // Leaving the browser is exactly when the grid's picture should be current.
     _tab?.captureThumbnail();
     _noticeTab?.downloadNotice.removeListener(_onDownloadNotice);
+    _approvalTab?.downloadApproval.removeListener(_onDownloadApproval);
     _address.dispose();
     _addressFocus.dispose();
     super.dispose();
@@ -74,10 +79,16 @@ class _BrowserScreenState extends State<BrowserScreen> {
   /// Downloads are handed to Mr Nobody's own native engine; the user still
   /// needs to be told one started (or that it could not).
   void _listenForDownloads(BrowserTab? tab) {
-    if (identical(tab, _noticeTab)) return;
+    if (identical(tab, _noticeTab) && identical(tab, _approvalTab)) return;
     _noticeTab?.downloadNotice.removeListener(_onDownloadNotice);
+    _approvalTab?.downloadApproval.removeListener(_onDownloadApproval);
     _noticeTab = tab;
+    _approvalTab = tab;
     tab?.downloadNotice.addListener(_onDownloadNotice);
+    tab?.downloadApproval.addListener(_onDownloadApproval);
+    if (tab?.downloadApproval.value != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onDownloadApproval());
+    }
   }
 
   void _onDownloadNotice() {
@@ -85,6 +96,65 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (notice == null || !mounted) return;
     AppToast.show(context, notice);
     _noticeTab?.downloadNotice.value = null;
+  }
+
+  Future<void> _onDownloadApproval() async {
+    if (_approvalShowing) return;
+    final tab = _approvalTab;
+    final request = tab?.downloadApproval.value;
+    if (tab == null || request == null) return;
+    _approvalShowing = true;
+
+    final host = request.sourceHost;
+    final allowed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: Text('Potentially harmful file',
+                style: AppTheme.sans(size: 16, w: FontWeight.w700)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(request.name, style: AppTheme.mono(size: 12.5, color: AppColors.text)),
+                const SizedBox(height: 12),
+                Text(request.warning,
+                    style: AppTheme.sans(size: 12, color: AppColors.textDim, height: 1.45)),
+                const SizedBox(height: 8),
+                Text('Only continue if you trust the website and expected this file.',
+                    style: AppTheme.sans(size: 11, color: AppColors.textFaint, height: 1.45)),
+                if (host.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text('Source: $host',
+                      style: AppTheme.mono(size: 10, color: AppColors.textMuted)),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text('Reject', style: AppTheme.sans(size: 13, color: AppColors.textDim)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text('Go ahead',
+                    style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w700)),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!mounted) return;
+    final resolved = await tab.resolveDownload(request, allowed);
+    if (mounted) {
+      AppToast.show(context, allowed && resolved ? 'Download allowed' : 'Download rejected');
+    }
+    _approvalShowing = false;
+    if (mounted && tab.downloadApproval.value != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onDownloadApproval());
+    }
   }
 
   /// Keep the field in sync with the tab, but never fight the user's typing.
@@ -102,6 +172,58 @@ class _BrowserScreenState extends State<BrowserScreen> {
     // dispatched to the agent: the agent is driven from Home, so the address
     // bar never surprises the user with a background task.
     tab.load(IntentRouter.toUrl(input));
+  }
+
+  void _deleteAddressCharacter() {
+    final value = _address.value;
+    final text = value.text;
+    if (text.isEmpty) return;
+    int start = value.selection.start;
+    int end = value.selection.end;
+    if (start < 0 || end < 0) start = end = text.length;
+    if (start > end) {
+      final swap = start;
+      start = end;
+      end = swap;
+    }
+    if (start == end) {
+      if (start == 0) return;
+      start--;
+      // Keep a UTF-16 surrogate pair together so one tap never leaves half an emoji.
+      if (start > 0 && _isLowSurrogate(text.codeUnitAt(start))
+          && _isHighSurrogate(text.codeUnitAt(start - 1))) {
+        start--;
+      }
+    }
+    _address.value = TextEditingValue(
+      text: text.replaceRange(start, end, ''),
+      selection: TextSelection.collapsed(offset: start),
+    );
+  }
+
+  static bool _isHighSurrogate(int value) => value >= 0xD800 && value <= 0xDBFF;
+  static bool _isLowSurrogate(int value) => value >= 0xDC00 && value <= 0xDFFF;
+
+  Future<void> _showClearAllTooltip() async {
+    final button = _deleteKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (button == null || overlay == null) return;
+    final topLeft = button.localToGlobal(Offset.zero, ancestor: overlay);
+    final selected = await showMenu<String>(
+      context: context,
+      color: AppColors.surface2,
+      position: RelativeRect.fromRect(topLeft & button.size, Offset.zero & overlay.size),
+      items: [
+        PopupMenuItem<String>(
+          value: 'clear',
+          child: Text('Clear all', style: AppTheme.sans(size: 12.5)),
+        ),
+      ],
+    );
+    if (selected == 'clear') {
+      _address.clear();
+      _addressFocus.requestFocus();
+    }
   }
 
   @override
@@ -232,12 +354,39 @@ class _BrowserScreenState extends State<BrowserScreen> {
               onSubmitted: _navigate,
             ),
           ),
+          if (_addressFocus.hasFocus)
+            GestureDetector(
+              onTap: _deleteAddressCharacter,
+              onLongPress: _showClearAllTooltip,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                key: _deleteKey,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: const Icon(Icons.close, key: ValueKey('address-delete'),
+                    size: 15, color: AppColors.textFaint),
+              ),
+            ),
           GestureDetector(
+            key: const ValueKey('refresh-button'),
             onTap: tab.reload,
             behavior: HitTestBehavior.opaque,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Icon(Icons.refresh, size: 15, color: AppColors.textFaint),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150),
+                child: tab.isLoading
+                    ? const SizedBox(
+                        key: ValueKey('refresh-loading'),
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.6,
+                          color: AppColors.textFaint,
+                        ),
+                      )
+                    : const Icon(Icons.refresh, key: ValueKey('refresh-idle'),
+                        size: 15, color: AppColors.textFaint),
+              ),
             ),
           ),
           GestureDetector(

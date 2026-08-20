@@ -41,6 +41,9 @@ class BrowserTab extends ChangeNotifier {
   /// Latest download notice: the file name, or an error to show the user.
   final ValueNotifier<String?> downloadNotice = ValueNotifier(null);
 
+  /// A potentially harmful file waiting for an explicit user decision.
+  final ValueNotifier<BrowserDownloadRequest?> downloadApproval = ValueNotifier(null);
+
   /// What the page looks like, for the tab grid. Memory only: never written to
   /// disk, and never captured at all for a private tab.
   Uint8List? thumbnail;
@@ -98,6 +101,9 @@ class BrowserTab extends ChangeNotifier {
       }
       ..onDownload = (name, err) {
         downloadNotice.value = err ?? (name == null ? null : 'Downloading $name');
+      }
+      ..onDownloadApproval = (request) {
+        downloadApproval.value = request;
       };
   }
 
@@ -115,8 +121,14 @@ class BrowserTab extends ChangeNotifier {
 
   Future<void> reload() async {
     error = null;
+    isLoading = true;
     notifyListeners();
     await engine.reload();
+  }
+
+  Future<bool> resolveDownload(BrowserDownloadRequest request, bool allow) async {
+    if (downloadApproval.value?.id == request.id) downloadApproval.value = null;
+    return engine.resolveDownload(request.id, allow);
   }
 
   Future<void> goBack() async {
@@ -184,6 +196,7 @@ class BrowserTab extends ChangeNotifier {
     thumbnail = null;
     chromeVisible.dispose();
     downloadNotice.dispose();
+    downloadApproval.dispose();
     engine.dispose();
     super.dispose();
   }
