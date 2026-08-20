@@ -71,6 +71,15 @@ public final class TaskEventDetailTest {
     }
 
     @Test
+    public void presentationKeepsAValidArtifactSnapshot() throws Exception {
+        String artifacts = "[{\"n\":1,\"title\":\"Example\","
+                + "\"url\":\"https://example.com\"}]";
+        JSONObject o = new JSONObject(TaskEventDetail.presentation(artifacts));
+        assertEquals("turn_presentation", o.getString("shape"));
+        assertEquals(artifacts, o.getString("artifacts"));
+    }
+
+    @Test
     public void approvalAndDenialRemainDistinct() throws Exception {
         ToolCall call = ToolCall.of("download",
                 ToolRequest.of("download", "url", "https://example.com/a.zip"), Tier.SANDBOX);

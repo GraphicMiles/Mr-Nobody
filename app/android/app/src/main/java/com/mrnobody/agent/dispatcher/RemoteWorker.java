@@ -81,6 +81,8 @@ public final class RemoteWorker implements Worker {
                         task.setResult(text);
                         task.setStatus(Task.Status.COMPLETED);
                         append(task, TaskEventStore.AGENT_ANSWER, text);
+                        append(task, TaskEventStore.TURN_PRESENTATION,
+                                TaskEventDetail.presentation(task.artifacts()));
                         append(task, TaskEventStore.TASK_FINISHED, "COMPLETED");
                         TaskStreamHub.instance().emitDone(taskId, text);
                         break;

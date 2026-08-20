@@ -111,6 +111,20 @@ public final class TaskEventDetail {
         }
     }
 
+    /** Snapshot of optional response modules so an older turn keeps its cards. */
+    public static String presentation(String artifacts) {
+        try {
+            JSONObject o = base("turn_presentation");
+            String value = artifacts == null ? "" : artifacts.trim();
+            if (!value.isEmpty() && value.length() <= 20_000) {
+                o.put("artifacts", value);
+            }
+            return o.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     private static JSONObject base(String shape) throws Exception {
         JSONObject o = new JSONObject();
         o.put("v", VERSION);

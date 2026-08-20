@@ -18,6 +18,7 @@ import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadRecord;
 import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.policy.RestrictedTools;
+import com.mrnobody.agent.tasks.TaskEventDetail;
 import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.agent.tasks.TaskStreamHub;
 import com.mrnobody.browser.net.EngineInfo;
@@ -144,16 +145,26 @@ public class MainActivity extends FlutterActivity {
                             }
                             String prior = t.result();
                             if (prior != null && !prior.isEmpty()) {
-                                boolean already = false;
-                                for (TaskEventStore.Event e : MrNobodyApp.taskEvents().eventsFor(t.id())) {
+                                boolean hasAnswer = false;
+                                boolean lastAnswerHasPresentation = false;
+                                for (TaskEventStore.Event e
+                                        : MrNobodyApp.taskEvents().eventsFor(t.id())) {
                                     if (TaskEventStore.AGENT_ANSWER.equals(e.type)) {
-                                        already = true;
-                                        break;
+                                        hasAnswer = true;
+                                        lastAnswerHasPresentation = false;
+                                    } else if (TaskEventStore.TURN_PRESENTATION.equals(e.type)
+                                            && hasAnswer) {
+                                        lastAnswerHasPresentation = true;
                                     }
                                 }
-                                if (!already) {
+                                if (!hasAnswer) {
                                     MrNobodyApp.taskEvents().append(t.id(),
                                             TaskEventStore.AGENT_ANSWER, prior);
+                                }
+                                if (!lastAnswerHasPresentation) {
+                                    MrNobodyApp.taskEvents().append(t.id(),
+                                            TaskEventStore.TURN_PRESENTATION,
+                                            TaskEventDetail.presentation(t.artifacts()));
                                 }
                             }
                             MrNobodyApp.taskEvents().append(t.id(),
@@ -1175,6 +1186,8 @@ public class MainActivity extends FlutterActivity {
             MrNobodyApp.tasks().update(t);
             try {
                 MrNobodyApp.taskEvents().append(t.id(), TaskEventStore.AGENT_ANSWER, note);
+                MrNobodyApp.taskEvents().append(t.id(), TaskEventStore.TURN_PRESENTATION,
+                        TaskEventDetail.presentation(t.artifacts()));
             } catch (Throwable ignored) {
             }
             return true;

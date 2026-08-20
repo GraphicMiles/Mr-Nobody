@@ -24,6 +24,15 @@ public class ExtractiveAnswerTest {
     }
 
     @Test
+    public void headingDropsResearchDirectivesAndKeepsTheSubject() {
+        String heading = ExtractiveAnswer.heading(
+                "Research why the sky appears blue. Use at least two reliable sources "
+                        + "and include citations.");
+        assertTrue(heading, heading.equals("Why the sky appears blue"));
+        assertFalse(heading, heading.contains("include citations"));
+    }
+
+    @Test
     public void unreadPagesAreLabelledAsListingsNotAnAnswer() {
         List<Map<String, Object>> rows = new ArrayList<>();
         Map<String, Object> row = new LinkedHashMap<>();

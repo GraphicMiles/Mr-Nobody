@@ -113,7 +113,14 @@ public final class ExtractiveAnswer {
             String extra = q.substring(follow + "\n\nFollow-up from the user:".length()).trim();
             if (!extra.isEmpty()) q = extra;
         }
+        // Operational constraints belong to the plan, not the answer title.
+        q = q.replaceFirst("(?i)^research\\s+", "").trim();
+        Matcher directive = Pattern.compile(
+                "(?i)(?:[.!?]\\s+|\\s+)(?:use at least|include citations|and include|"
+                        + "with citations|cite sources).*$").matcher(q);
+        if (directive.find()) q = q.substring(0, directive.start()).trim();
         if (q.length() > 80) q = q.substring(0, 77) + "…";
+        if (!q.isEmpty()) q = Character.toUpperCase(q.charAt(0)) + q.substring(1);
         return q;
     }
 

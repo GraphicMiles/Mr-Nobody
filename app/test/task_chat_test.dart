@@ -86,6 +86,9 @@ void main() {
           case 'cancelTask':
             status = 'CANCELLED';
             return true;
+          case 'followUpTask':
+            status = 'QUEUED';
+            return true;
           case 'runTask':
             return {'id': 8};
           default:
@@ -207,8 +210,121 @@ void main() {
     await pump(tester);
     await tester.pump(const Duration(seconds: 2));
 
-    // One http fetch in the log, so one source — not one per search result.
+    // One successful HTTP read in the log, so one source — not one per
+    // search result — and the settled grounded turn can offer a relevant
+    // follow-up rather than a seeded section on every response.
     expect(find.text('1 source'), findsOneWidget);
+    expect(find.text('Follow-ups'), findsOneWidget);
+    expect(find.text('Find another source about track the bitcoin price'),
+        findsOneWidget);
+  });
+
+  testWidgets('tapping a generated follow-up continues the same task',
+      (tester) async {
+    result = 'Done.';
+    status = 'COMPLETED';
+    events.add({
+      'seq': 4,
+      'type': 'tool.result',
+      'detail': 'http ok in 120ms',
+      'at': 2020,
+    });
+    await pump(tester);
+    await tester.pump(const Duration(seconds: 2));
+
+    const suggestion = 'Find another source about track the bitcoin price';
+    await tester.tap(find.text(suggestion));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final follow = calls.where((call) => call.method == 'followUpTask');
+    expect(follow, isNotEmpty);
+    expect((follow.last.arguments as Map)['id'], 7);
+    expect((follow.last.arguments as Map)['text'], suggestion);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets('a previous answer keeps its own thought trace and citations',
+      (tester) async {
+    status = 'RUNNING';
+    result = '';
+    events = [
+      {
+        'seq': 1,
+        'type': 'task.started',
+        'detail': 'local',
+        'at': 1000,
+      },
+      {
+        'seq': 2,
+        'type': 'step.changed',
+        'detail':
+            '{"label":"Reading source pages","kind":"http.fetch"}',
+        'at': 1100,
+      },
+      {
+        'seq': 3,
+        'type': 'tool.call',
+        'detail':
+            '{"id":"read-1","tool":"http","action":"fetch","url":"https://sky.example/source"}',
+        'at': 1200,
+      },
+      {
+        'seq': 4,
+        'type': 'tool.result',
+        'detail':
+            '{"id":"read-1","tool":"http","action":"fetch","state":"done","url":"https://sky.example/source","durationMs":200}',
+        'at': 1400,
+      },
+      {
+        'seq': 5,
+        'type': 'agent.answer',
+        'detail': 'The earlier sky answer [1].',
+        'at': 1500,
+      },
+      {
+        'seq': 6,
+        'type': 'turn.presentation',
+        'detail': '{"shape":"turn_presentation","artifacts":"[]"}',
+        'at': 1510,
+      },
+      {
+        'seq': 7,
+        'type': 'task.finished',
+        'detail': 'COMPLETED',
+        'at': 1520,
+      },
+      {
+        'seq': 8,
+        'type': 'user.followup',
+        'detail': 'who created bitcoin',
+        'at': 2000,
+      },
+      {
+        'seq': 9,
+        'type': 'task.started',
+        'detail': 'local',
+        'at': 2010,
+      },
+      {
+        'seq': 10,
+        'type': 'step.changed',
+        'detail':
+            '{"label":"Searching broadly","kind":"search"}',
+        'at': 2020,
+      },
+    ];
+
+    await pump(tester);
+
+    expect(find.byType(UserTurn), findsNWidgets(2));
+    expect(find.text('who created bitcoin'), findsOneWidget);
+    expect(find.textContaining('Thought for'), findsOneWidget,
+        reason: 'the prior turn must retain its completed trace');
+    expect(find.textContaining('earlier'), findsWidgets);
+    expect(find.text('sky.example'), findsWidgets,
+        reason: 'the prior citation must remain bound to its own sources');
   });
 
   testWidgets('a streamed answer arrives as the tokens land', (tester) async {
