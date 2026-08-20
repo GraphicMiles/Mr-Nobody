@@ -92,6 +92,10 @@
 ||bannerflow.com^
 ||fiftyt.com^
 ||widespace.com^
+! Device-confirmed ad endpoints; keep CDN/same-origin rules path-scoped.
+||an.yandex.ru^
+||ymatuhin.ru/ads/
+||adblock-tester.com/banners/pr_advertising_ads_banner
 
 [TRACKERS]
 ||google-analytics.com^
@@ -166,7 +170,10 @@
 ||logrocket.com^
 ||rollbar.com^
 ||sentry.io^
+! Error-monitoring SDK CDNs confirmed by the device test.
+||sentry-cdn.com^
 ||bugsnag.com^
+||d2wy8f7a9ursnm.cloudfront.net/v4/bugsnag
 ||raygun.io^
 ||trackjs.com^
 ||hotjar.io^
