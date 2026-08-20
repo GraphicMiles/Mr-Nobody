@@ -19,10 +19,10 @@ collect_evidence() {
   adb_bounded exec-out screencap -p > "$evidence/final-screen.png" 2>/dev/null || true
   adb_bounded pull /sdcard/device-smoke.png \
     "$evidence/device-smoke.png" >/dev/null 2>&1 || true
-  adb_bounded pull /sdcard/device-smoke-failure.png \
-    "$evidence/device-smoke-failure.png" >/dev/null 2>&1 || true
-  adb_bounded pull /sdcard/device-smoke-failure.xml \
-    "$evidence/device-smoke-failure.xml" >/dev/null 2>&1 || true
+  adb_bounded pull /sdcard/device-smoke-collapsed.png \
+    "$evidence/device-smoke-collapsed.png" >/dev/null 2>&1 || true
+  adb_bounded pull /sdcard/device-smoke-expanded.png \
+    "$evidence/device-smoke-expanded.png" >/dev/null 2>&1 || true
   adb_bounded shell dumpsys activity processes > "$evidence/activity-processes.txt" 2>&1 || true
   adb_bounded shell dumpsys jobscheduler > "$evidence/jobscheduler.txt" 2>&1 || true
   adb_bounded shell dumpsys notification > "$evidence/notifications.txt" 2>&1 || true

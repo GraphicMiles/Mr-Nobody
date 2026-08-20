@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import 'bridge/native_bridge.dart';
@@ -22,17 +21,8 @@ import 'widgets/bottom_nav.dart';
 import 'widgets/debug_fab.dart';
 import 'widgets/toast.dart';
 
-SemanticsHandle? _debugSemanticsHandle;
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Native UI smoke tests query Flutter's virtual accessibility tree. Keep
-  // that tree alive in debug APKs even when a headless emulator has no screen
-  // reader enabled. Assertions and this handle are omitted from release builds.
-  assert(() {
-    _debugSemanticsHandle ??= SemanticsBinding.instance.ensureSemantics();
-    return _debugSemanticsHandle != null;
-  }());
   // Framework errors land in the in-app debug overlay: this app has no crash
   // reporter, so the user's own copy button is the only report channel.
   final previous = FlutterError.onError;
