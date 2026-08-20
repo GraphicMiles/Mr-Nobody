@@ -137,7 +137,45 @@ public final class HttpTool implements Tool {
             if (!feed.isEmpty()) return feed;
         }
         String article = HtmlText.article(body);
-        return article.isEmpty() ? HtmlText.toText(body) : article;
+        return ensureText(article.isEmpty() ? HtmlText.toText(body) : article);
+    }
+
+    /**
+     * Last line of the output contract: this tool promises markup-stripped
+     * text, and a truncated or malformed document can defeat the structured
+     * extractors above (observed on-device as "result carries raw markup in
+     * \"text\""). If tags survived extraction, strip them mechanically rather
+     * than smuggling the raw page through and failing the whole read.
+     */
+    static String ensureText(String text) {
+        if (text == null || text.isEmpty()) return "";
+        if (!looksLikeMarkup(text)) return text;
+        String stripped = text
+                .replaceAll("(?is)<script[^>]*>.*?</script>", " ")
+                .replaceAll("(?is)<style[^>]*>.*?</style>", " ")
+                .replaceAll("(?s)<[^>]{0,300}>", " ")
+                .replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return stripped;
+    }
+
+    private static boolean looksLikeMarkup(String text) {
+        String head = text.substring(0, Math.min(text.length(), 4_000));
+        String lower = head.toLowerCase(java.util.Locale.ROOT);
+        if (lower.contains("<html") || lower.contains("<!doctype")
+                || lower.contains("<body") || lower.contains("<div")
+                || lower.contains("<script")) {
+            return true;
+        }
+        int closes = 0;
+        int idx = 0;
+        while ((idx = head.indexOf("</", idx)) >= 0) {
+            closes++;
+            idx += 2;
+        }
+        return closes >= 3;
     }
 
     private static void sleepQuietly(long ms) {

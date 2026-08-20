@@ -58,4 +58,30 @@ void main() {
     );
     expect(items, isEmpty);
   });
+
+  test('stacked verbs and URLs are not copied into chips (BUG-8)', () {
+    final items = FollowUpSuggestions.build(
+      instruction:
+          'Please read and summarize https://en.wikipedia.org/wiki/Rayleigh_scattering in 5 bullets',
+      answer: 'A grounded summary.',
+      sourceCount: 1,
+      activityKinds: const ['http.fetch'],
+    );
+    final joined = items.join(' ');
+    expect(joined, isNot(contains('Please')));
+    expect(joined, isNot(contains('summarize')));
+    expect(joined, isNot(contains('https://')));
+    expect(joined, isNot(contains('in 5 bullets')));
+    expect(items.first, contains('en.wikipedia.org'));
+  });
+
+  test('a topicless instruction yields no chips instead of a mangled one', () {
+    final items = FollowUpSuggestions.build(
+      instruction: 'please do it',
+      answer: 'Done.',
+      sourceCount: 1,
+      activityKinds: const ['http.fetch'],
+    );
+    expect(items, isEmpty);
+  });
 }

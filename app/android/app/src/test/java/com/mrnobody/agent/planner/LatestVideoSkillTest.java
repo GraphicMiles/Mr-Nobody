@@ -33,6 +33,29 @@ public final class LatestVideoSkillTest {
     }
 
     @Test
+    public void channelPhrasingsBeyondFromAreUnderstood() {
+        // BUG-2: only "from … channel" was recognised; every other phrasing
+        // sent a junk query to search.
+        assertEquals("mkbhd", LatestVideoSkill.channel(
+                "find the latest video on the mkbhd channel"));
+        assertEquals("veritasium", LatestVideoSkill.channel(
+                "newest video by veritasium channel"));
+        assertEquals("mkbhd", LatestVideoSkill.channel(
+                "get the latest video on mkbhd's youtube channel"));
+    }
+
+    @Test
+    public void noChannelFallbackQueryDropsTheQuestionWrapper() {
+        String query = LatestVideoSkill.searchQuery(
+                "Can you find me the latest video about quantum computing on youtube?");
+        assertTrue(query, query.contains("quantum computing"));
+        assertTrue(query, query.contains("youtube"));
+        assertFalse(query, query.toLowerCase().contains("can you"));
+        assertFalse(query, query.toLowerCase().contains("find me"));
+        assertFalse(query, query.contains("?"));
+    }
+
+    @Test
     public void answerUsesListingMetadataNotWatchPageJavascript() {
         List<Map<String, Object>> rows = new ArrayList<>();
         Map<String, Object> wrong = new LinkedHashMap<>();

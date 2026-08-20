@@ -34,4 +34,38 @@ void main() {
     expect(IntentRouter.route('arsenal'), IntentType.search);
     expect(IntentRouter.route('latest arsenal result'), IntentType.search);
   });
+
+  test('research, read and use phrasings route to the agent (BUG-7)', () {
+    expect(IntentRouter.route('research the tallest buildings in Africa'),
+        IntentType.task);
+    expect(IntentRouter.route('read example.com/article and summarize it'),
+        IntentType.task);
+    expect(IntentRouter.route('use google search to find cheap flights'),
+        IntentType.task);
+    expect(IntentRouter.route('look for the best laptops of 2026'),
+        IntentType.task);
+  });
+
+  test('slash commands force their type', () {
+    expect(IntentRouter.route('/agent latest arsenal result'), IntentType.task);
+    expect(IntentRouter.route('/task check the weather'), IntentType.task);
+    expect(IntentRouter.route('/download https://example.com/f.pdf'),
+        IntentType.task);
+    expect(IntentRouter.route('/search what is the weather'), IntentType.search);
+    expect(IntentRouter.route('/open example page'), IntentType.url);
+  });
+
+  test('slash payload strips the command word', () {
+    expect(IntentRouter.payload('/agent find laptops'), 'find laptops');
+    expect(IntentRouter.payload('/search what is love'), 'what is love');
+    expect(IntentRouter.payload('/open example.com'), 'example.com');
+    expect(IntentRouter.payload('/download https://example.com/f.pdf'),
+        'download https://example.com/f.pdf');
+    expect(IntentRouter.payload('  plain text '), 'plain text');
+  });
+
+  test('a bare slash word is not a command', () {
+    expect(IntentRouter.slashCommand('/agent'), isNull);
+    expect(IntentRouter.slashCommand('/searching habits'), isNull);
+  });
 }

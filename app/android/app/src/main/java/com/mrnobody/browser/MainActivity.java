@@ -1120,6 +1120,12 @@ public class MainActivity extends FlutterActivity {
             com.mrnobody.browser.webview.TabWebViews.releasePrivate();
             com.mrnobody.agent.browser.HeadlessSessions.releaseAll();
             com.mrnobody.browser.net.ProfileManager.destroyPrivateWhenIdle();
+            // Deletion can be refused while Chromium still owns the profile,
+            // and the default-profile CookieManager below never touches an
+            // isolated jar. Wipe the private profile's own cookies/storage
+            // NOW so the selected buckets are honestly gone even when the
+            // profile object itself outlives this clear.
+            com.mrnobody.browser.net.ProfileManager.wipePrivateData();
         }
 
         for (String bucket : buckets) {
@@ -1141,7 +1147,15 @@ public class MainActivity extends FlutterActivity {
                         break;
                     case "cache":
                         deleteRecursive(getCacheDir());
-                        new WebView(this).clearCache(true);
+                        // clearCache is per-engine global; use a throwaway
+                        // WebView and destroy it — the previous code leaked a
+                        // live WebView on every cache clear.
+                        WebView cacheClearer = new WebView(this);
+                        try {
+                            cacheClearer.clearCache(true);
+                        } finally {
+                            cacheClearer.destroy();
+                        }
                         cleared.put("cache", true);
                         break;
                     case "sitedata":

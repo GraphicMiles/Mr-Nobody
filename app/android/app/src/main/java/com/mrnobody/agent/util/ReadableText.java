@@ -53,6 +53,7 @@ public final class ReadableText {
                 || lower.contains("\\u003") || lower.contains("client_canary_state")) {
             return false;
         }
+        if (boilerplateSentence(lower)) return false;
         int braces = 0;
         int quotes = 0;
         int letters = 0;
@@ -63,5 +64,46 @@ public final class ReadableText {
             if (c == '"') quotes++;
         }
         return letters > 12 && braces < 6 && quotes < Math.max(8, letters / 8);
+    }
+
+    /**
+     * Anti-bot walls, consent chrome, reader comments and navigation rails are
+     * page furniture, not page content. Quoting them as an answer — "Please
+     * enable JavaScript or switch to a supported browser", a site's cookie
+     * banner, or a spec's table of contents — was observed on-device and is
+     * worse than saying nothing.
+     *
+     * @param lower the sentence, already lower-cased
+     */
+    static boolean boilerplateSentence(String lower) {
+        if (lower.contains("enable javascript")
+                || lower.contains("javascript is disabled")
+                || lower.contains("javascript is required")
+                || lower.contains("supported browser")
+                || lower.contains("browser is out of date")
+                || lower.contains("browser is not supported")
+                || lower.contains("we use cookies")
+                || lower.contains("accept all cookies")
+                || lower.contains("cookie preferences")
+                || lower.contains("cookie settings")
+                || lower.contains("subscribe to our newsletter")
+                || lower.contains("sign in to continue")
+                || lower.contains("log in to continue")
+                || lower.contains("full output was not retained")
+                || lower.contains("characters omitted")) {
+            return true;
+        }
+        // Navigation/table-of-contents runs: "Table of contents 1 Introduction
+        // 2 Common infrastructure 3 Semantics …" — many bare-number tokens in
+        // one "sentence" is a link rail, not prose.
+        String[] tokens = lower.split("\\s+");
+        if (tokens.length >= 8) {
+            int numeric = 0;
+            for (String token : tokens) {
+                if (token.matches("\\d{1,3}")) numeric++;
+            }
+            if (numeric >= 4 && numeric * 4 >= tokens.length) return true;
+        }
+        return lower.contains("table of contents");
     }
 }
