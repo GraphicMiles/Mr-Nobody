@@ -134,8 +134,13 @@ CP="$JARS/json-20240303.jar:$(ls "$JARS"/*.jar | grep -v json-20240303 | tr '\n'
 
 echo "==> compiling main"
 rm -rf "$OUT"; mkdir -p "$OUT"
+# Flutter rewrites this registrant after `pub get`; test-only plugins such as
+# integration_test are compiled by Gradle from their own Android projects and
+# are intentionally not part of this standalone production-source javac pass.
 ( cd "$MODULE/src/main/java" && javac -encoding UTF-8 -nowarn -proc:none \
-    -cp "$CP" -d "$OUT" $(find . -name '*.java') "$GEN/com/mrnobody/browser/R.java" )
+    -cp "$CP" -d "$OUT" \
+    $(find . -name '*.java' ! -path './io/flutter/plugins/GeneratedPluginRegistrant.java') \
+    "$GEN/com/mrnobody/browser/R.java" )
 echo "    $(find "$OUT" -name '*.class' | wc -l) classes"
 
 echo "==> compiling tests"

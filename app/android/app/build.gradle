@@ -66,6 +66,9 @@ android {
 dependencies {
     // Background task resumption for the Java agent core (spec §13).
     implementation "androidx.work:work-runtime:2.9.1"
+    // Worker's public API extends ListenableFuture. Keep the compile contract
+    // explicit when test plugins alter Gradle's transitive dependency graph.
+    implementation "com.google.guava:listenablefuture:1.0"
 
     // Compat wrapper over the *system* WebView -- no browser engine is bundled,
     // so this costs kilobytes, not megabytes. It is what provides genuine
