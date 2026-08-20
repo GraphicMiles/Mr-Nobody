@@ -7,7 +7,7 @@ import 'package:mrnobody/theme/app_theme.dart';
 import 'package:mrnobody/widgets/toast.dart';
 
 void main() {
-  final core = const MethodChannel('mrnobody/core');
+  const core = MethodChannel('mrnobody/core');
   final events = <String>[];
 
   setUp(() {
