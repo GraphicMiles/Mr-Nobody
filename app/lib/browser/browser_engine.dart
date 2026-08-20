@@ -73,6 +73,9 @@ abstract class BrowserEngine {
   /// Called with the ads/trackers refused on the current page.
   void Function(int ads, int trackers)? onBlockedCountChanged;
 
+  /// Called with a transient, non-error browser notice for the user.
+  ValueChanged<String>? onNotice;
+
   /// Called when a download starts, or fails to start ([error] set).
   void Function(String? name, String? error)? onDownload;
 

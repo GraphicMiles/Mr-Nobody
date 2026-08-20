@@ -94,6 +94,49 @@ public class FilterEngineBehaviourTest {
                 engine.shouldBlock("https://google-analytics.com/collect"));
     }
 
+    @Test
+    public void topLevelAdAndTrackerNavigationsAreBlockedOnce() {
+        engine.resetPageCounters();
+        assertEquals(FilterEngine.Category.AD, NavigationGuard.evaluate(
+                engine, "https://publisher.example/article",
+                "https://googleadservices.com/pagead/aclk", true));
+        assertEquals(FilterEngine.Category.TRACKER, NavigationGuard.evaluate(
+                engine, "https://publisher.example/article",
+                "https://google-analytics.com/collect", true));
+        assertEquals(1, engine.getPageAdsBlocked());
+        assertEquals(1, engine.getPageTrackersBlocked());
+    }
+
+    @Test
+    public void crossSiteBettingNavigationUsesTheMainFramePolicy() {
+        engine.resetPageCounters();
+        assertEquals(FilterEngine.Category.AD, NavigationGuard.evaluate(
+                engine, "https://publisher.example/watch",
+                "https://stake.com/casino", true));
+        assertEquals(1, engine.getPageAdsBlocked());
+    }
+
+    @Test
+    public void disablingBlockingAlsoDisablesNavigationPolicy() {
+        engine.setEnabled(false);
+        assertEquals(FilterEngine.Category.NONE, NavigationGuard.evaluate(
+                engine, "https://publisher.example/watch",
+                "https://stake.com/casino", true));
+        assertEquals(FilterEngine.Category.NONE, NavigationGuard.evaluate(
+                engine, "https://publisher.example/watch",
+                "https://doubleclick.net/ad", true));
+    }
+
+    @Test
+    public void mainFramePolicyLeavesSubresourcesAndOrdinaryLinksAlone() {
+        assertEquals(FilterEngine.Category.NONE, NavigationGuard.evaluate(
+                engine, "https://publisher.example", "https://stake.com/pixel.js", false));
+        assertEquals(FilterEngine.Category.NONE, NavigationGuard.evaluate(
+                engine, "https://publisher.example", "https://wikipedia.org", true));
+        assertEquals(FilterEngine.Category.NONE, NavigationGuard.evaluate(
+                engine, "https://stake.com/home", "https://stake.com/sports", true));
+    }
+
     // ------------------------------------------------------------------
     // Requests as a page actually makes them
     // ------------------------------------------------------------------
@@ -257,6 +300,18 @@ public class FilterEngineBehaviourTest {
         assertEquals("a new page starts from zero", 0, engine.getPageAdsBlocked());
         assertEquals("lifetime totals survive navigation",
                 totalAfterFirst, engine.getTotalAdsBlocked());
+    }
+
+    @Test
+    public void policyBlockedRedirectsUseTheSameCountersAndSwitch() {
+        engine.resetPageCounters();
+        engine.recordBlocked(FilterEngine.Category.AD);
+        assertEquals(1, engine.getPageAdsBlocked());
+
+        engine.setEnabled(false);
+        engine.recordBlocked(FilterEngine.Category.AD);
+        assertEquals("the blocking switch also controls redirect policy", 1,
+                engine.getPageAdsBlocked());
     }
 
     /** The listener is what pushes live counts to the UI. */

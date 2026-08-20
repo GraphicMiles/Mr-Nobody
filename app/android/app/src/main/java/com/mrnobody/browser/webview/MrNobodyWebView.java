@@ -28,6 +28,7 @@ import com.mrnobody.browser.MrNobodyApp;
 import com.mrnobody.browser.net.FingerprintDefence;
 import com.mrnobody.browser.net.ProfileManager;
 import com.mrnobody.browser.blocking.FilterEngine;
+import com.mrnobody.browser.blocking.NavigationGuard;
 import com.mrnobody.browser.blocking.TrackingParams;
 import com.mrnobody.browser.download.BlobSourceResolver;
 import com.mrnobody.browser.download.DownloadEngine;
@@ -290,6 +291,12 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         s.setAllowFileAccessFromFileURLs(false);
         s.setAllowUniversalAccessFromFileURLs(false);
         s.setMediaPlaybackRequiresUserGesture(true);
+        // Advertisers commonly attach a popup/pop-under to an otherwise valid
+        // tap. Route every separate-window request through onCreateWindow so
+        // it can never become a second surface; an ordinary link may instead
+        // be opened safely in this tab.
+        s.setJavaScriptCanOpenWindowsAutomatically(false);
+        s.setSupportMultipleWindows(true);
         // Off on purpose: Safe Browsing sends visited URLs to Google. That is
         // the opposite of the privacy spec. Malware protection is the OS /
         // Play Protect job, not a reason for this browser to phone home.
@@ -330,18 +337,18 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             // Runs off the UI thread, once per request. Keep it cheap.
-            if (request.isForMainFrame()) {
-                // A new document: the per-page counters start again.
+            boolean mainFrame = request.isForMainFrame();
+            if (mainFrame) {
+                // A new document: the per-page counters start again. Main-frame
+                // ad hosts must still be checked; returning here was how
+                // doubleclick.net escaped into a Google marketing redirect.
                 MrNobodyApp.filters().resetPageCounters();
-                return null;
             }
             String url = request.getUrl() == null ? null : request.getUrl().toString();
             FilterEngine.Category category = MrNobodyApp.filters().shouldBlock(url);
             if (category == FilterEngine.Category.NONE) return null;
 
-            MrNobodyApp.report().increment(
-                    category == FilterEngine.Category.AD ? "ads" : "trackers");
-            send("onBlocked", counters(category));
+            reportBlocked(category, mainFrame);
             return new WebResourceResponse(BLOCKED_MIME, "utf-8",
                     new ByteArrayInputStream(new byte[0]));
         }
@@ -351,19 +358,21 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             Uri uri = request.getUrl();
             if (uri == null) return false;
             String url = uri.toString();
-            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
 
-            // Anything that is not the web belongs to another app (tel:, mailto:,
-            // intent:). Hand it over instead of failing to render it.
-            if (!scheme.equals("http") && !scheme.equals("https")) {
-                try {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    context.startActivity(intent);
-                } catch (ActivityNotFoundException | SecurityException ignored) {
-                    // No app handles it — do nothing rather than crash.
+            // Anything that is not the web belongs to another app (tel:,
+            // mailto:, intent:). Hand it over instead of trying to render it.
+            if (openExternallyIfRequired(uri)) return true;
+
+            // Decide before a blocked main document starts. The request
+            // interceptor below is the defence-in-depth backstop for paths that
+            // do not invoke this callback.
+            if (request.isForMainFrame()) {
+                FilterEngine.Category category = NavigationGuard.evaluate(
+                        MrNobodyApp.filters(), view.getUrl(), url, true);
+                if (category != FilterEngine.Category.NONE) {
+                    reportBlocked(category, true);
+                    return true;
                 }
-                return true;
             }
 
             // Strip known tracking parameters from top-level navigations.
@@ -427,6 +436,31 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             Map<String, Object> data = new HashMap<>();
             data.put("title", title == null ? "" : title);
             send("onTitle", data);
+        }
+
+        @Override
+        public boolean onCreateWindow(WebView view, boolean isDialog,
+                                      boolean isUserGesture,
+                                      android.os.Message resultMsg) {
+            // Never create the requested second WebView: that is the popup /
+            // pop-under surface. A normal target=_blank anchor is still useful,
+            // so resolve its focused href and open an allowed one in this tab.
+            // Script-created windows and button-triggered ads have no focused
+            // anchor and are refused with a non-error notice.
+            if (!isUserGesture) {
+                sendNotice("Popup blocked");
+                return false;
+            }
+            android.os.Handler hrefHandler = new android.os.Handler(
+                    android.os.Looper.getMainLooper()) {
+                @Override
+                public void handleMessage(android.os.Message message) {
+                    String target = message.getData().getString("url");
+                    handlePopupTarget(view, target);
+                }
+            };
+            view.requestFocusNodeHref(hrefHandler.obtainMessage());
+            return false;
         }
 
         /**
@@ -714,7 +748,79 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
     }
 
+    private boolean openExternallyIfRequired(@Nullable Uri uri) {
+        if (uri == null) return false;
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        if (scheme.equals("http") || scheme.equals("https")) return false;
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } catch (ActivityNotFoundException | SecurityException ignored) {
+            // No app handles it — do nothing rather than crash.
+        }
+        return true;
+    }
+
+    private void handlePopupTarget(WebView source, @Nullable String target) {
+        if (target == null || target.trim().isEmpty()) {
+            sendNotice("Popup blocked");
+            return;
+        }
+        String resolvedTarget = target.trim();
+        Uri uri = Uri.parse(resolvedTarget);
+        if (uri.getScheme() == null && source.getUrl() != null) {
+            try {
+                resolvedTarget = new java.net.URI(source.getUrl())
+                        .resolve(resolvedTarget).toString();
+                uri = Uri.parse(resolvedTarget);
+            } catch (Exception ignored) {
+                sendNotice("Popup blocked");
+                return;
+            }
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        if (scheme.equals("javascript") || scheme.equals("data")
+                || scheme.equals("about") || scheme.equals("blob")
+                || scheme.equals("file") || scheme.equals("content")) {
+            sendNotice("Popup blocked");
+            return;
+        }
+        if (openExternallyIfRequired(uri)) return;
+
+        String webUrl = uri.toString();
+        FilterEngine.Category category = NavigationGuard.evaluate(
+                MrNobodyApp.filters(), source.getUrl(), webUrl, true);
+        if (category != FilterEngine.Category.NONE) {
+            reportBlocked(category, true);
+            return;
+        }
+        if (MrNobodyApp.settings().isParamStrippingEnabled()) {
+            String stripped = TrackingParams.strip(webUrl);
+            if (stripped != null) webUrl = stripped;
+        }
+        source.loadUrl(webUrl);
+    }
+
     // ---------------------------------------------------------------- plumbing
+
+    private void reportBlocked(FilterEngine.Category category,
+                               boolean mainFrame) {
+        MrNobodyApp.report().increment(
+                category == FilterEngine.Category.AD ? "ads" : "trackers");
+        send("onBlocked", counters(category));
+        if (mainFrame) {
+            sendNotice(category == FilterEngine.Category.TRACKER
+                    ? "Tracker navigation blocked"
+                    : "Ad redirect blocked");
+        }
+    }
+
+    private void sendNotice(String message) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("message", message);
+        send("onNotice", data);
+    }
 
     private Map<String, Object> counters(@Nullable FilterEngine.Category category) {
         Map<String, Object> data = new HashMap<>();

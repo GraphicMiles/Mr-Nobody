@@ -37,6 +37,8 @@ class FakeBrowserEngine implements BrowserEngine {
   @override
   void Function(int ads, int trackers)? onBlockedCountChanged;
   @override
+  ValueChanged<String>? onNotice;
+  @override
   void Function(String? name, String? error)? onDownload;
   @override
   ValueChanged<BrowserDownloadRequest>? onDownloadApproval;

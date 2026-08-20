@@ -72,6 +72,15 @@ void main() {
       tab.engine.onScroll!(5);
       expect(tab.chromeVisible.value, isTrue);
     });
+
+    test('blocked navigation is exposed as a notice, not an error', () {
+      final tab = BrowserTab(1);
+
+      tab.engine.onNotice!('Ad redirect blocked');
+
+      expect(tab.notice.value, 'Ad redirect blocked');
+      expect(tab.error, isNull);
+    });
   });
 
   test('closing a tab disposes it exactly once', () {

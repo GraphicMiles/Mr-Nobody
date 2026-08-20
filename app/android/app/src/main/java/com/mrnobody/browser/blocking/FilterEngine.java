@@ -136,22 +136,29 @@ public final class FilterEngine {
         String target = host + path;
 
         if (matchesCategory(blocklist.ads, host, path, target)) {
-            synchronized (this) {
-                pageAds++;
-                totalAds++;
-            }
-            notifyBlocked(Category.AD);
+            recordBlocked(Category.AD);
             return Category.AD;
         }
         if (matchesCategory(blocklist.trackers, host, path, target)) {
-            synchronized (this) {
-                pageTrackers++;
-                totalTrackers++;
-            }
-            notifyBlocked(Category.TRACKER);
+            recordBlocked(Category.TRACKER);
             return Category.TRACKER;
         }
         return Category.NONE;
+    }
+
+    /** Record a policy-blocked navigation that did not come from a list rule. */
+    public void recordBlocked(Category category) {
+        if (category == null || category == Category.NONE || !isBlocking()) return;
+        synchronized (this) {
+            if (category == Category.AD) {
+                pageAds++;
+                totalAds++;
+            } else if (category == Category.TRACKER) {
+                pageTrackers++;
+                totalTrackers++;
+            }
+        }
+        notifyBlocked(category);
     }
 
     private void notifyBlocked(Category category) {

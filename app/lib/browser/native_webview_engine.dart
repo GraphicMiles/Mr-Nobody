@@ -53,6 +53,8 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   void Function(int ads, int trackers)? onBlockedCountChanged;
   @override
+  ValueChanged<String>? onNotice;
+  @override
   void Function(String? name, String? error)? onDownload;
   @override
   ValueChanged<BrowserDownloadRequest>? onDownloadApproval;
@@ -164,6 +166,10 @@ class NativeWebViewEngine implements BrowserEngine {
           (args['ads'] as num?)?.toInt() ?? 0,
           (args['trackers'] as num?)?.toInt() ?? 0,
         );
+        break;
+      case 'onNotice':
+        final message = args['message'] as String?;
+        if (message != null && message.isNotEmpty) onNotice?.call(message);
         break;
       case 'onDownload':
         onDownload?.call(args['name'] as String?, args['error'] as String?);

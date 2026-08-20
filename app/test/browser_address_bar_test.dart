@@ -7,6 +7,7 @@ import 'package:mrnobody/browser/tab_manager.dart';
 import 'package:mrnobody/screens/browser_screen.dart';
 import 'package:mrnobody/theme/app_theme.dart';
 import 'package:mrnobody/widgets/bottom_nav.dart';
+import 'package:mrnobody/widgets/toast.dart';
 
 import 'fake_browser_engine.dart';
 
@@ -40,6 +41,19 @@ void main() {
     ));
     await tester.pump();
   }
+
+  testWidgets('blocked navigation notice is visible without an error page',
+      (tester) async {
+    await pumpBrowser(tester);
+
+    engine.onNotice?.call('Ad redirect blocked');
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('Ad redirect blocked'), findsOneWidget);
+    expect(tabs.active!.error, isNull);
+    AppToast.dismiss();
+    await tester.pump();
+  });
 
   testWidgets('delete icon is visible only while the address field is focused',
       (tester) async {
