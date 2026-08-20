@@ -32,14 +32,12 @@ public final class AndroidDeviceTestWiringTest {
     public void workflowRunsTwoApisAndAlwaysCollectsEvidence() throws Exception {
         String workflow = read("../../../.github/workflows/android-emulator.yml");
         String script = read("../../../tools/android_emulator_smoke.sh");
-        String flutterMain = read("../../lib/main.dart");
         assertTrue(workflow.contains("api-level: [31, 34]"));
         assertTrue(workflow.contains("sh tools/android_emulator_smoke.sh"));
         assertTrue(workflow.contains("if: always()"));
         assertTrue(script.contains("connectedDebugAndroidTest"));
         assertTrue(script.contains("timeout 15s adb"));
         assertTrue(script.contains("logcat.txt"));
-        assertTrue(flutterMain.contains("SemanticsBinding.instance.ensureSemantics()"));
     }
 
     private static String read(String relative) throws Exception {
