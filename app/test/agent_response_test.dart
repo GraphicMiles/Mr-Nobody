@@ -244,6 +244,48 @@ void main() {
           reason: 'tapping a settled trace must reopen it');
     });
 
+    testWidgets('only the active stage previews detail and then collapses',
+        (tester) async {
+      Widget trace(bool secondRunning, bool taskRunning) => host(
+            AgentTrace(
+              steps: [
+                const TraceStep(label: 'Plan', detail: ['Plan preview']),
+                TraceStep(
+                  label: 'Read',
+                  detail: const ['Reading example.com'],
+                  running: secondRunning,
+                ),
+              ],
+              running: taskRunning,
+              doneLabel: 'Thought for 2 seconds',
+            ),
+          );
+
+      await tester.pumpWidget(trace(true, true));
+      await tester.pump();
+      expect(
+        tester.widget<AnimatedAlign>(
+          find.byKey(const ValueKey('trace-detail-0')),
+        ).heightFactor,
+        0,
+      );
+      expect(
+        tester.widget<AnimatedAlign>(
+          find.byKey(const ValueKey('trace-detail-1')),
+        ).heightFactor,
+        1,
+      );
+
+      await tester.pumpWidget(trace(false, false));
+      await tester.pump();
+      expect(
+        tester.widget<AnimatedAlign>(
+          find.byKey(const ValueKey('trace-detail-1')),
+        ).heightFactor,
+        0,
+      );
+    });
+
     testWidgets('status and metric sit beneath the activity verb', (tester) async {
       await tester.pumpWidget(host(
         const AgentTrace(

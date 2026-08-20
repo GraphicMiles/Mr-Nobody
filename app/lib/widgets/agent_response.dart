@@ -555,7 +555,10 @@ class _AgentTraceState extends State<AgentTrace> {
   }
 
   Widget _row(int i, TraceStep step) {
-    final open = _openRows.contains(i);
+    // The active stage previews its decision/tool detail automatically. As
+    // soon as the next stage starts, `running` becomes false and this detail
+    // collapses back to the one-line summary unless the user opens it.
+    final open = step.running || _openRows.contains(i);
     final metric = step.displayedMetric;
 
     return Column(
@@ -647,6 +650,7 @@ class _AgentTraceState extends State<AgentTrace> {
         ),
         ClipRect(
           child: AnimatedAlign(
+            key: ValueKey('trace-detail-$i'),
             alignment: Alignment.topLeft,
             heightFactor: open ? 1 : 0,
             duration: const Duration(milliseconds: 260),

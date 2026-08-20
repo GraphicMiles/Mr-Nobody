@@ -63,6 +63,14 @@ public class SearchProvidersTest {
     }
 
     @Test
+    public void explicitlyRequestedGoogleIsTheOnlyProvider() {
+        List<SearchProviders.Provider> chain =
+                SearchProviders.chainRequested("google", null);
+        assertEquals(1, chain.size());
+        assertEquals("google", chain.get(0).id);
+    }
+
+    @Test
     public void everyProviderBuildsAnEncodedQueryUrl() {
         for (SearchProviders.Provider p : SearchProviders.chain(null)) {
             String url = p.url("best chinese restaurants in lagos & environs");

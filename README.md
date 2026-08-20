@@ -151,6 +151,23 @@ The task chat has a stable visual grammar, not a fixed task template:
 
 The model may choose proposed actions and answer structure; it does not choose arbitrary widgets or bypass rendering policy. The application maps validated typed outcomes to approved components so consistency does not become seeded content.
 
+### Search skill routing
+
+`SearchSkills` is the deterministic extension point for task-specific search behaviour. A skill may shape the query, honour an explicitly requested provider, constrain acceptable result hosts, decide whether results are listing metadata or readable evidence, and add an honest limitation note. It cannot execute a request directly; the resulting Search call still enters `ToolPipeline`.
+
+Built-in routes currently include:
+
+- `youtube.latest` — channel-restricted latest-video query, one selected watch result, and no watch-page JavaScript extraction.
+- `youtube.search` — public YouTube watch-result discovery.
+- `information.latest` — current-year query bias followed by ordinary source reads and verification.
+- `facebook.public_search` — only public, search-indexed Facebook pages/posts; no private profile, group or login bypass.
+- `material.search` — learning resources and direct-document discovery; adds `filetype:pdf` when appropriate and uses Google only when the instruction explicitly asks for Google search.
+- `web.general` — the evidence-first fallback for everything that does not match a specialised route.
+
+The router is ordered from most specific to general, so overlapping language such as “latest YouTube video” cannot fall into generic freshness. Host-constrained skills fail rather than substituting unrelated sites. Tests cover overlap, malformed/empty results, provider forcing, private-social limitations, duplicate hosts, code/configuration dumps and fallback behaviour.
+
+While a task is live, the current activity automatically expands its bounded Decision/Outcome/tool preview. When the next activity starts, the completed stage collapses to its status/metric/duration summary; every stage remains manually reopenable.
+
 ### Agent modes
 
 **Local provider**

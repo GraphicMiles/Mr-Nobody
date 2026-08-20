@@ -4,7 +4,6 @@ import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.junit.Assert.assertTrue;
 
@@ -35,6 +34,7 @@ public final class TaskWorkerForegroundWiringTest {
     }
 
     private static String read(String relative) throws Exception {
-        return Files.readString(Path.of(relative), StandardCharsets.UTF_8);
+        return new String(Files.readAllBytes(java.nio.file.Paths.get(relative)),
+                StandardCharsets.UTF_8);
     }
 }

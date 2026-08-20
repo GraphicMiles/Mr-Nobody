@@ -95,6 +95,19 @@ public final class SearchProviders {
      * answer a non-browser-looking request with a consent wall anyway.
      */
     public static List<Provider> chain(String preferredEngineUrl) {
+        return chainRequested("", preferredEngineUrl);
+    }
+
+    /** An instruction may explicitly request a provider (for example Google). */
+    public static List<Provider> chainRequested(String requested, String preferredEngineUrl) {
+        String forced = requested == null ? "" : requested.trim().toLowerCase(Locale.ROOT);
+        if (!forced.isEmpty()) {
+            for (Provider p : Arrays.asList(
+                    GOOGLE, BING, DDG_HTML, DDG_LITE, MOJEEK, STARTPAGE)) {
+                if (p.id.equals(forced)) return new ArrayList<>(java.util.Collections.singletonList(p));
+            }
+        }
+
         String preferred = idFor(preferredEngineUrl);
         List<Provider> chain = new ArrayList<>();
         for (Provider p : Arrays.asList(DDG_HTML, DDG_LITE, BING, MOJEEK, STARTPAGE)) {
