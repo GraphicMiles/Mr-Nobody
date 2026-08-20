@@ -86,7 +86,7 @@ public final class AppDeviceSmokeTest {
         tap(0.50, 0.63); // Start browsing
         assertTrue("first-launch action should persist",
                 waitForFirstLaunch(true, 5_000));
-        tap(0.90, 0.94); // Settings destination
+        tap(0.90, 0.90); // Settings destination, above the system navigation inset
         Thread.sleep(700);
         tap(0.50, 0.25); // Search suggestions row
         assertTrue("UI toggle should persist suggestions ON",
@@ -102,7 +102,7 @@ public final class AppDeviceSmokeTest {
                 waitForFirstLaunch(true, 5_000));
         assertTrue("suggestions should remain ON after Activity recreation",
                 waitForSuggestions(true, 5_000));
-        tap(0.90, 0.94);
+        tap(0.90, 0.90);
         Thread.sleep(700);
         tap(0.50, 0.25);
         assertTrue("UI toggle should persist suggestions OFF",
