@@ -162,6 +162,12 @@ Built-in routes currently include:
 - `information.latest` — current-year query bias followed by ordinary source reads and verification.
 - `facebook.public_search` — only public, search-indexed Facebook pages/posts; no private profile, group or login bypass.
 - `material.search` — learning resources and direct-document discovery; adds `filetype:pdf` when appropriate and uses Google only when the instruction explicitly asks for Google search.
+- `research.academic` — scholarly-paper discovery across arXiv, PubMed and DOI-indexed results, with publication/retraction/access caveats.
+- `documentation.official` — official API and technical documentation with normal page reading.
+- `information.news` — dated current-news research and source comparison.
+- `research.fact_check` — independent fact checks plus primary-evidence query shaping.
+- `information.finance` and `information.weather` — date-sensitive figures/conditions that require fresh source reads.
+- `research.government` — official public records, regulations, reports and statistics.
 - `web.general` — the evidence-first fallback for everything that does not match a specialised route.
 
 The router is ordered from most specific to general, so overlapping language such as “latest YouTube video” cannot fall into generic freshness. Host-constrained skills fail rather than substituting unrelated sites. Tests cover overlap, malformed/empty results, provider forcing, private-social limitations, duplicate hosts, code/configuration dumps and fallback behaviour.
