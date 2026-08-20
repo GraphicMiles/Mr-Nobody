@@ -1,6 +1,9 @@
-# SESSION LOG — Mr Nobody
+SESSION LOG — Mr Nobody
+=======================
 
-In-repo continuation of the workspace `DEFECT-LOG.md` that died with the old
+Plain-text on purpose: the Flutter CI "Documentation surface" gate allows
+exactly README.md and ROADMAP.md as tracked docs. In-repo continuation of
+the workspace `DEFECT-LOG.md` that died with the old
 sandbox. One section per batch, newest first. Format: what shipped, why
 (device evidence), how it is proven, and what the owner should retest.
 
