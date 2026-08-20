@@ -1082,9 +1082,11 @@ public class MainActivity extends FlutterActivity {
         if (clearsBrowserState) {
             // A live WebView can retain cookies/storage in memory and an
             // isolated profile cannot be deleted while a WebView owns it.
-            // Tear down both visible and agent browsers before clearing the
-            // default stores, then retry deletion of the private profile.
-            com.mrnobody.browser.webview.TabWebViews.releaseAll();
+            // Tear down private and agent browsers before clearing stores,
+            // then retry deletion of the private profile after WebView releases it.
+            // Normal tabs may stay open and reload against the cleared default
+            // stores. Private tabs must close so their isolated profile can be deleted.
+            com.mrnobody.browser.webview.TabWebViews.releasePrivate();
             com.mrnobody.agent.browser.HeadlessSessions.releaseAll();
             com.mrnobody.browser.net.ProfileManager.destroyPrivateWhenIdle();
         }

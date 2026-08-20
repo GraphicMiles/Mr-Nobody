@@ -73,6 +73,14 @@ class TabManager extends ChangeNotifier {
     }
   }
 
+  /// Close private tab models after native clear-data tears down their profile.
+  /// Normal tabs stay open and reload against the now-empty default stores.
+  void closePrivateTabs() {
+    for (var i = _tabs.length - 1; i >= 0; i--) {
+      if (_tabs[i].isPrivate) close(i);
+    }
+  }
+
   void closeAll() {
     for (final t in _tabs) {
       t.dispose();

@@ -201,7 +201,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _push(const DownloadsScreen());
         break;
       case 'clear':
-        _push(const ClearDataScreen());
+        _push(ClearDataScreen(onBrowserDataCleared: _onBrowserDataCleared));
         break;
       default:
         ErrorLog.instance.add('unknown deep link: $uri');
@@ -275,7 +275,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 _push(const PrivacyScreen());
                 break;
               case BrowserDestination.settings:
-                _push(const SettingsScreen());
+                _push(SettingsScreen(onBrowserDataCleared: _onBrowserDataCleared));
                 break;
               case BrowserDestination.downloads:
                 _push(const DownloadsScreen());
@@ -296,6 +296,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _push(Widget screen) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+
+  void _onBrowserDataCleared() {
+    _tabs.closePrivateTabs();
   }
 
   void _select(ShellTab tab) {
@@ -399,6 +403,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 SettingsScreen(
                   scrollController: _scrollControllers[ShellTab.settings],
                   onBack: () => _select(ShellTab.home),
+                  onBrowserDataCleared: _onBrowserDataCleared,
                 ),
               ],
             ),

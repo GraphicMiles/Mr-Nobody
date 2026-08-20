@@ -92,6 +92,19 @@ public final class TabWebViews {
         destroy(LIVE.remove(tabId));
     }
 
+    /** Destroy only private pages before clearing their isolated profile. */
+    public static void releasePrivate() {
+        java.util.List<Integer> privateIds = new java.util.ArrayList<>();
+        for (Map.Entry<Integer, Page> entry : LIVE.entrySet()) {
+            if (entry.getValue() != null && entry.getValue().isPrivate) {
+                privateIds.add(entry.getKey());
+            }
+        }
+        for (Integer tabId : privateIds) {
+            if (tabId != null) release(tabId);
+        }
+    }
+
     /** Every tab closed at once (Clear data, "close all tabs"). */
     public static void releaseAll() {
         java.util.List<Page> pages = new java.util.ArrayList<>(LIVE.values());
