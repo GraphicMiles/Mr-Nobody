@@ -1086,7 +1086,7 @@ public class MainActivity extends FlutterActivity {
             // default stores, then retry deletion of the private profile.
             com.mrnobody.browser.webview.TabWebViews.releaseAll();
             com.mrnobody.agent.browser.HeadlessSessions.releaseAll();
-            com.mrnobody.browser.net.ProfileManager.destroyPrivate();
+            com.mrnobody.browser.net.ProfileManager.destroyPrivateWhenIdle();
         }
 
         for (String bucket : buckets) {

@@ -24,6 +24,10 @@ class NativeWebViewEngine implements BrowserEngine {
   final String initialUrl;
   final bool isPrivate;
 
+  /// Latest committed/requested URL, used if native clear-data teardown forces
+  /// this tab's platform view to be created again.
+  late String _recreationUrl;
+
   /// The tab this surface belongs to. The native side keeps one WebView per
   /// tab id and re-attaches it when the platform view is rebuilt, so leaving
   /// the browser and coming back shows the same page instead of a black
@@ -55,7 +59,11 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   ValueChanged<int>? onProgress;
 
-  NativeWebViewEngine({this.tabId = -1, this.initialUrl = '', this.isPrivate = false});
+  NativeWebViewEngine({this.tabId = -1, this.initialUrl = '', this.isPrivate = false}) {
+    _recreationUrl = initialUrl;
+  }
+
+  String get recreationUrl => _recreationUrl;
 
   @override
   bool get isAvailable => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -87,7 +95,7 @@ class NativeWebViewEngine implements BrowserEngine {
           viewType: viewType,
           layoutDirection: TextDirection.ltr,
           creationParams: <String, Object>{
-            'url': initialUrl,
+            'url': _recreationUrl,
             'private': isPrivate,
             'tabId': tabId,
           },
@@ -128,7 +136,10 @@ class NativeWebViewEngine implements BrowserEngine {
     switch (call.method) {
       case 'onNavigation':
         final url = args['url'] as String?;
-        if (url != null && url.isNotEmpty && url != 'about:blank') onUrlChanged?.call(url);
+        if (url != null && url.isNotEmpty && url != 'about:blank') {
+          _recreationUrl = url;
+          onUrlChanged?.call(url);
+        }
         final title = args['title'] as String?;
         if (title != null && title.isNotEmpty) onTitleChanged?.call(title);
         final loading = args['loading'] as bool?;
@@ -195,6 +206,7 @@ class NativeWebViewEngine implements BrowserEngine {
 
   @override
   Future<void> loadUrl(String url) async {
+    _recreationUrl = url;
     onUrlChanged?.call(url);
     onLoadingChanged?.call(true);
     await _invoke<void>('loadUrl', {'url': url});
