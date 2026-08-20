@@ -228,11 +228,11 @@ public final class ToolPipeline {
         // crowds out the instruction and, on a small context window, silently
         // truncates the middle -- which is worse than refusing, because the
         // model then answers confidently from half a document without knowing
-        // the other half existed.
+        // the other half existed. Previewing is normal, expected behaviour,
+        // so it is NOT recorded to ErrorLog (BUG-6: it flooded the debug
+        // panel with a non-error on every large page read).
         if (OutputPreview.shouldTruncate(rendered)) {
             OutputPreview.Decision decision = OutputPreview.decide(rendered);
-            ErrorLog.record("tool " + spec.name() + " output previewed ("
-                    + decision.originalLength + " chars; full value not retained)");
             return result.renderedAs(decision.inline);
         }
 

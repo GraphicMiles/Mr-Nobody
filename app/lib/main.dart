@@ -211,14 +211,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   // -------------------------------------------------------------- routing
 
   /// Route a unified-input line: URL/search → visible browser, instruction →
-  /// the agent core (V1 §5).
+  /// the agent core (V1 §5). Slash commands (/agent, /task, /download,
+  /// /search, /open) are stripped to their payload before dispatch.
   void _route(String input) {
     final type = IntentRouter.route(input);
+    final payload = IntentRouter.payload(input);
     if (type == IntentType.task) {
-      _runTask(input.trim());
+      _runTask(payload.trim());
       return;
     }
-    _openBrowser(IntentRouter.toUrl(input));
+    _openBrowser(IntentRouter.toUrl(payload));
   }
 
   Future<void> _runTask(String instruction) async {

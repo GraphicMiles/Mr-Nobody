@@ -56,4 +56,33 @@ public class OutputPreviewTest {
         assertEquals(0, d.originalLength);
         assertFalse(OutputPreview.shouldTruncate(null));
     }
+
+    @Test
+    public void theAnnotationCanBeStrippedBackOut() {
+        OutputPreview.Decision d = OutputPreview.decide(text(20_000));
+        String clean = OutputPreview.stripAnnotation(d.inline);
+        assertFalse(clean, clean.contains("characters omitted"));
+        assertFalse(clean, clean.contains("NOT retained"));
+        assertFalse(clean, clean.contains("before answering"));
+        assertTrue(clean, clean.startsWith("xxx"));
+    }
+
+    @Test
+    public void stripAnnotationLeavesOrdinaryTextAlone() {
+        assertEquals("plain prose.", OutputPreview.stripAnnotation("plain prose."));
+        assertEquals("", OutputPreview.stripAnnotation(""));
+        assertEquals(null, OutputPreview.stripAnnotation(null));
+    }
+
+    @Test
+    public void previewingIsNotRecordedAsAnError() throws Exception {
+        // BUG-6: every big page read logged a non-error to the debug panel.
+        String source = new String(java.nio.file.Files.readAllBytes(
+                        java.nio.file.Paths.get(
+                                "src/main/java/com/mrnobody/agent/core/ToolPipeline.java")),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertFalse(source.contains("output previewed"));
+        // The genuine contract violation must still be recorded.
+        assertTrue(source.contains("broke its output contract"));
+    }
 }

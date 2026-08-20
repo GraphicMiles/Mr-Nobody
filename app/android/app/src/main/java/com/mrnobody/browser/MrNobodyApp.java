@@ -106,6 +106,16 @@ public final class MrNobodyApp extends Application {
 
         historyStore.setEnabled(settings.isHistoryEnabled());
 
+        // Finish profile deletions a previous process owed. At this point no
+        // WebView has bound a profile, so a deletion that was refused as
+        // "in use" last session is guaranteed removable now. No-op when
+        // nothing is owed.
+        try {
+            com.mrnobody.browser.net.ProfileManager.sweepAtStartup(this);
+        } catch (Throwable t) {
+            com.mrnobody.debug.ErrorLog.record("profile startup sweep failed: " + t);
+        }
+
         // Downloads are ours to carry now, so a process death leaves rows that
         // claim to be running when nothing is. Park them as stalled so the user
         // gets a Resume button instead of a progress bar frozen forever.

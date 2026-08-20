@@ -169,6 +169,13 @@ public final class SearchTool implements Tool {
             }
         }
 
+        if (!refused.isEmpty()) {
+            // BUG-3: surface which engines refused and why in the debug log,
+            // so a device failure reads as "consent wall on engine X" instead
+            // of a bare "no results".
+            com.mrnobody.debug.ErrorLog.record(
+                    "search refused for \"" + q + "\": " + String.join(", ", refused));
+        }
         return ToolResult.fail(refused.isEmpty()
                 ? "No search results for: " + q
                 : "No engine would answer \"" + q + "\". Tried: " + String.join(", ", refused)

@@ -44,16 +44,22 @@ public final class ExtractiveAnswer {
     }
 
     static String fromPages(String question, String sources) {
-        List<Source> parsed = parseSources(sources);
+        List<Source> parsed = dedupeBodies(parseSources(sources));
         StringBuilder out = new StringBuilder();
         out.append("# ").append(heading(question)).append("\n\n");
 
+        // The same sentence must not repeat across sources: mirror pages and
+        // shared boilerplate headers otherwise produce an answer that says one
+        // thing three times with three citations.
+        java.util.Set<String> seen = new java.util.HashSet<>();
         int used = 0;
         for (Source src : parsed) {
             List<String> picked = pick(question, src.body, 3);
-            if (picked.isEmpty()) continue;
-            if (used > 0) out.append("\n");
+            boolean any = false;
             for (String sentence : picked) {
+                if (!seen.add(normalise(sentence))) continue;
+                if (used > 0 && !any) out.append("\n");
+                any = true;
                 out.append(sentence.trim());
                 if (!sentence.trim().endsWith(".")) out.append('.');
                 out.append(" [").append(src.number).append("]\n");
@@ -69,6 +75,7 @@ public final class ExtractiveAnswer {
             for (Source src : parsed) {
                 String excerpt = firstSentences(src.body, 2);
                 if (excerpt.isEmpty()) continue;
+                if (!seen.add(normalise(excerpt))) continue;
                 out.append(excerpt);
                 if (!excerpt.endsWith(".")) out.append('.');
                 out.append(" [").append(src.number).append("]\n");
@@ -78,6 +85,29 @@ public final class ExtractiveAnswer {
         out.append("\nExtracted from the pages read. No language model was used.");
         String text = out.toString().trim();
         return text.length() > MAX_CHARS ? text.substring(0, MAX_CHARS) : text;
+    }
+
+    /**
+     * Drop sources whose text duplicates an earlier source. Multi-URL
+     * mirrors of one document (one-page/multipage/dev builds of a spec, AMP
+     * and canonical variants) otherwise inflate the source count and repeat
+     * the same extraction under different citation numbers.
+     */
+    static List<Source> dedupeBodies(List<Source> parsed) {
+        List<Source> out = new ArrayList<>();
+        java.util.Set<String> prefixes = new java.util.HashSet<>();
+        for (Source src : parsed) {
+            String key = normalise(src.body);
+            key = key.substring(0, Math.min(key.length(), 240));
+            if (key.length() >= 40 && !prefixes.add(key)) continue;
+            out.add(src);
+        }
+        return out;
+    }
+
+    private static String normalise(String text) {
+        if (text == null) return "";
+        return text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", " ").trim();
     }
 
     static String fromListings(List<Map<String, Object>> results) {

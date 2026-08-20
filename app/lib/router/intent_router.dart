@@ -7,6 +7,9 @@ class IntentRouter {
     'find', 'get', 'fetch', 'download', 'summarize', 'summarise', 'compare',
     'check', 'monitor', 'track', 'extract', 'collect', 'search for',
     'open and', 'every', 'watch', 'scrape', 'send', 'buy', 'order', 'look up',
+    // "research the tallest buildings" and "use google search to find …"
+    // were observed routing to a raw results page instead of the agent.
+    'research', 'read', 'use', 'look for', 'browse for',
   };
 
   /// Question openers: a natural-language question is an agent task, not a
@@ -40,6 +43,10 @@ class IntentRouter {
   static IntentType route(String input) {
     final s = input.trim();
     if (s.isEmpty) return IntentType.search;
+    // Slash commands are explicit user overrides: classification heuristics
+    // will always miss some phrasing, so "/agent …" must be deterministic.
+    final slash = slashCommand(s);
+    if (slash != null) return slash;
     if (_scheme.hasMatch(s)) return IntentType.url;
     if (_ip.hasMatch(s) || _localhost.hasMatch(s)) return IntentType.url;
     if (_looksLikeDomain(s)) return IntentType.url;
@@ -58,6 +65,39 @@ class IntentRouter {
       return IntentType.task;
     }
     return IntentType.search;
+  }
+
+  /// Explicit slash-command routing: `/agent` and `/task` force the agent,
+  /// `/download <x>` forces a download task, `/search` forces a plain browser
+  /// search, `/open` forces URL handling. Returns null when [input] is not a
+  /// slash command.
+  static IntentType? slashCommand(String input) {
+    final lower = input.trim().toLowerCase();
+    if (lower.startsWith('/agent ') || lower.startsWith('/task ') ||
+        lower.startsWith('/download ') || lower.startsWith('/dl ')) {
+      return IntentType.task;
+    }
+    if (lower.startsWith('/search ')) return IntentType.search;
+    if (lower.startsWith('/open ')) return IntentType.url;
+    return null;
+  }
+
+  /// The text a slash command carries: `/agent why is the sky blue` →
+  /// `why is the sky blue`; `/download <url>` → `download <url>` so the
+  /// existing download routing applies. Non-command input returns unchanged.
+  static String payload(String input) {
+    final s = input.trim();
+    final lower = s.toLowerCase();
+    for (final prefix in const ['/agent ', '/task ', '/search ', '/open ']) {
+      if (lower.startsWith(prefix)) return s.substring(prefix.length).trim();
+    }
+    if (lower.startsWith('/download ')) {
+      return 'download ${s.substring('/download '.length).trim()}';
+    }
+    if (lower.startsWith('/dl ')) {
+      return 'download ${s.substring('/dl '.length).trim()}';
+    }
+    return s;
   }
 
   /// Normalize input into a full URL: bare domains get https://, else it's a

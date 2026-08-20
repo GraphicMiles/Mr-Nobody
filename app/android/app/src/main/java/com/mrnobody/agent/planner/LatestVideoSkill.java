@@ -11,8 +11,16 @@ import java.util.regex.Pattern;
 /** A bounded path for "latest video on YouTube from [channel]" requests. */
 public final class LatestVideoSkill {
 
-    private static final Pattern CHANNEL = Pattern.compile(
-            "(?i)\\bfrom\\s+(.+?)(?:\\s+youtube)?\\s+channel\\b");
+    // Phrasings observed on-device: "from X channel" (the classic),
+    // "on/of/by [the] X channel", and the possessive "X's channel". The
+    // from-pattern is tried first so "on youtube from X channel" captures X,
+    // not "youtube from X".
+    private static final Pattern CHANNEL_FROM = Pattern.compile(
+            "(?i)\\bfrom\\s+(?:the\\s+)?(.+?)(?:\\s+youtube)?\\s+channel\\b");
+    private static final Pattern CHANNEL_PREP = Pattern.compile(
+            "(?i)\\b(?:on|of|by)\\s+(?:the\\s+)?(.+?)(?:\\s+youtube)?\\s+channel\\b");
+    private static final Pattern CHANNEL_POSSESSIVE = Pattern.compile(
+            "(?i)\\b(\\S+(?:\\s+\\S+){0,4}?)['\u2019]s\\s+(?:youtube\\s+)?channel\\b");
 
     public static final class Match {
         public final String channel;
@@ -53,7 +61,22 @@ public final class LatestVideoSkill {
     public static String searchQuery(String instruction) {
         if (!matches(instruction)) return instruction == null ? "" : instruction.trim();
         String channel = channel(instruction);
-        if (channel.isEmpty()) return instruction.trim() + " youtube video";
+        if (channel.isEmpty()) {
+            // No channel found: strip the conversational wrapper so the
+            // engine sees a topic, not "can you find me the latest…".
+            String topic = instruction.trim()
+                    .replaceFirst("(?i)^(please\\s+|can you\\s+|could you\\s+)*"
+                            + "(find|get|show|give|search for|search|look up|look for|fetch)"
+                            + "(\\s+me)?\\s+", "")
+                    .replaceAll("(?i)\\b(the|a|an)\\s+(latest|newest|most recent)\\b", "$2")
+                    .replaceAll("(?i)\\bon youtube\\b", "")
+                    .replaceAll("(?i)\\byoutube video(s)?\\b", "")
+                    .replaceAll("(?i)\\bvideo(s)?\\b", "")
+                    .replaceAll("[?!.]+$", "")
+                    .replaceAll("\\s+", " ").trim();
+            if (topic.isEmpty()) topic = instruction.trim();
+            return topic + " youtube video";
+        }
         return "\"" + channel + "\" latest video youtube";
     }
 
@@ -86,10 +109,26 @@ public final class LatestVideoSkill {
 
     static String channel(String instruction) {
         if (instruction == null) return "";
-        Matcher m = CHANNEL.matcher(instruction.trim());
-        if (!m.find()) return "";
-        return m.group(1).replaceAll("(?i)\\b(the|official)\\b", " ")
+        String trimmed = instruction.trim();
+        String captured = null;
+        for (Pattern p : new Pattern[]{CHANNEL_FROM, CHANNEL_PREP, CHANNEL_POSSESSIVE}) {
+            Matcher m = p.matcher(trimmed);
+            if (m.find()) {
+                captured = m.group(1);
+                break;
+            }
+        }
+        if (captured == null) return "";
+        String c = captured
+                .replaceAll("(?i)\\b(the|official)\\b", " ")
+                // wrapper words captured by the looser patterns: a possessive
+                // capture can start mid-sentence ("latest video on MKBHD's").
+                .replaceFirst("(?i)^.*\\b(?:latest|newest|most recent)\\s+video\\s+", "")
+                .replaceFirst("(?i)^(?:on|from|of|by|at|in)\\s+", "")
+                .replaceFirst("(?i)['\u2019]s$", "")
                 .replaceAll("\\s+", " ").trim();
+        // "on the youtube channel" with no name is not a channel.
+        return "youtube".equalsIgnoreCase(c) ? "" : c;
     }
 
     private static String string(Object value) {

@@ -1130,9 +1130,12 @@ public final class DeterministicEngine implements AgentEngine {
 
     private static void appendSource(StringBuilder sources, int number, String url,
                                      String title, String text) {
+        // The oversized-output annotation is planner metadata, not page text;
+        // stripping it here keeps it out of every extraction and citation.
+        String clean = com.mrnobody.agent.core.OutputPreview.stripAnnotation(text);
         sources.append("\n[").append(number).append("] ").append(title)
                 .append("\n").append(url).append("\n")
-                .append(truncate(text, PER_SOURCE_CHARS)).append("\n");
+                .append(truncate(clean, PER_SOURCE_CHARS)).append("\n");
     }
 
     @SuppressWarnings("unchecked")

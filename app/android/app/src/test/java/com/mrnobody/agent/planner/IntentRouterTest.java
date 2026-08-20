@@ -56,4 +56,46 @@ public class IntentRouterTest {
         assertEquals(IntentType.SEARCH, IntentRouter.route(null));
         assertEquals(IntentType.SEARCH, IntentRouter.route("   "));
     }
+
+    @Test
+    public void researchReadAndUsePhrasingsAreTasks() {
+        // BUG-7: all of these were observed on-device landing on a raw
+        // results page instead of the agent.
+        assertEquals(IntentType.TASK,
+                IntentRouter.route("research the tallest buildings in Africa"));
+        assertEquals(IntentType.TASK,
+                IntentRouter.route("read example.com/article and summarize it"));
+        assertEquals(IntentType.TASK,
+                IntentRouter.route("use google search to find cheap flights"));
+        assertEquals(IntentType.TASK,
+                IntentRouter.route("look for the best laptops of 2026"));
+    }
+
+    @Test
+    public void slashCommandsForceTheirType() {
+        assertEquals(IntentType.TASK, IntentRouter.route("/agent latest arsenal result"));
+        assertEquals(IntentType.TASK, IntentRouter.route("/task check the weather"));
+        assertEquals(IntentType.TASK, IntentRouter.route("/download https://example.com/f.pdf"));
+        // These would otherwise classify differently:
+        assertEquals(IntentType.SEARCH, IntentRouter.route("/search what is the weather"));
+        assertEquals(IntentType.URL, IntentRouter.route("/open example page"));
+    }
+
+    @Test
+    public void slashPayloadStripsTheCommand() {
+        assertEquals("find laptops", IntentRouter.payload("/agent find laptops"));
+        assertEquals("what is love", IntentRouter.payload("/search what is love"));
+        assertEquals("example.com", IntentRouter.payload("/open example.com"));
+        assertEquals("download https://example.com/f.pdf",
+                IntentRouter.payload("/download https://example.com/f.pdf"));
+        // Non-commands pass through unchanged.
+        assertEquals("plain text", IntentRouter.payload("  plain text "));
+    }
+
+    @Test
+    public void aBareSlashWordIsNotACommand() {
+        // No trailing payload → not treated as a slash command.
+        assertEquals(null, IntentRouter.slashCommand("/agent"));
+        assertEquals(null, IntentRouter.slashCommand("/searching habits"));
+    }
 }

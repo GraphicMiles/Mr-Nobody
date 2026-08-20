@@ -20,7 +20,10 @@ public final class IntentRouter {
             "find", "get", "fetch", "download", "summarize", "summarise",
             "compare", "check", "monitor", "track", "extract", "collect",
             "search for", "open and", "every", "watch", "scrape", "send",
-            "buy", "order", "look up", "lookup");
+            "buy", "order", "look up", "lookup",
+            // "research …" / "read …" / "use google search to …" were observed
+            // on-device routing to a raw results page instead of the agent.
+            "research", "read", "use", "look for", "browse for");
 
     // Question openers: a natural-language question is an agent task, not a raw
     // search. "What is X's age" must not land on a results page.
@@ -55,6 +58,11 @@ public final class IntentRouter {
         if (input == null) return IntentType.SEARCH;
         String s = input.trim();
         if (s.isEmpty()) return IntentType.SEARCH;
+
+        // Slash commands are explicit user overrides: heuristics will always
+        // miss some phrasing, so "/agent …" must be deterministic.
+        IntentType slash = slashCommand(s);
+        if (slash != null) return slash;
 
         // explicit scheme → URL
         if (SCHEME.matcher(s).matches()) return IntentType.URL;
@@ -100,5 +108,46 @@ public final class IntentRouter {
         // has a dot and a plausible TLD (letters only, no spaces)
         String tld = host.substring(host.lastIndexOf('.') + 1);
         return tld.matches("[a-zA-Z]{2,}");
+    }
+
+    /**
+     * Explicit slash-command routing: {@code /agent} and {@code /task} force
+     * the agent, {@code /download} forces a download task, {@code /search}
+     * forces a plain browser search, {@code /open} forces URL handling.
+     *
+     * @return the forced type, or null when input is not a slash command
+     */
+    public static IntentType slashCommand(String input) {
+        if (input == null) return null;
+        String lower = input.trim().toLowerCase(Locale.ROOT);
+        if (lower.startsWith("/agent ") || lower.startsWith("/task ")
+                || lower.startsWith("/download ") || lower.startsWith("/dl ")) {
+            return IntentType.TASK;
+        }
+        if (lower.startsWith("/search ")) return IntentType.SEARCH;
+        if (lower.startsWith("/open ")) return IntentType.URL;
+        return null;
+    }
+
+    /**
+     * The text a slash command carries: {@code /agent why is the sky blue} →
+     * {@code why is the sky blue}; {@code /download <url>} →
+     * {@code download <url>} so the existing download routing applies.
+     * Non-command input returns unchanged (trimmed).
+     */
+    public static String payload(String input) {
+        if (input == null) return "";
+        String s = input.trim();
+        String lower = s.toLowerCase(Locale.ROOT);
+        for (String prefix : Arrays.asList("/agent ", "/task ", "/search ", "/open ")) {
+            if (lower.startsWith(prefix)) return s.substring(prefix.length()).trim();
+        }
+        if (lower.startsWith("/download ")) {
+            return "download " + s.substring("/download ".length()).trim();
+        }
+        if (lower.startsWith("/dl ")) {
+            return "download " + s.substring("/dl ".length()).trim();
+        }
+        return s;
     }
 }

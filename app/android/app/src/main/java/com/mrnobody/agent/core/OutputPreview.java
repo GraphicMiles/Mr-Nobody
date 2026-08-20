@@ -43,10 +43,23 @@ public final class OutputPreview {
 
         String preview = value.substring(0, Math.min(PREVIEW_CHARS, value.length()));
         int omitted = value.length() - preview.length();
-        String inline = preview
-                + "\n\n[... " + omitted + " characters omitted. The full output was NOT "
-                + "retained and cannot be retrieved from this preview. Treat this as "
-                + "incomplete; narrow or repeat the request before answering.]";
+        String inline = preview + ANNOTATION_START + omitted + ANNOTATION_END;
         return new Decision(true, inline, value.length());
+    }
+
+    // The annotation is planner-facing metadata, never page content. It is
+    // machine-recognisable so the extractive answer path can remove it before
+    // any sentence of it could be quoted or cited as evidence.
+    private static final String ANNOTATION_START = "\n\n[... ";
+    private static final String ANNOTATION_END = " characters omitted. The full output was NOT "
+            + "retained and cannot be retrieved from this preview. Treat this as "
+            + "incomplete; narrow or repeat the request before answering.]";
+
+    /** Remove the preview annotation from text destined for user-facing prose. */
+    public static String stripAnnotation(String text) {
+        if (text == null || text.isEmpty()) return text;
+        return text.replaceAll(
+                "\\[\\.\\.\\.\\s*\\d+\\s+characters omitted\\.[\\s\\S]*?before answering\\.]",
+                "").trim();
     }
 }
