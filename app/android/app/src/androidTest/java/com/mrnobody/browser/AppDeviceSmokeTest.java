@@ -14,7 +14,6 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
-import androidx.test.uiautomator.Until;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -79,7 +78,7 @@ public final class AppDeviceSmokeTest {
         requireText("Save browsing history", UI_TIMEOUT);
         requireText("Search suggestions", UI_TIMEOUT).click();
         assertNotNull("settings write should acknowledge ON",
-                device.wait(Until.findObject(By.textContains("Suggestions ON")), 5_000));
+                waitForVisibleText("Suggestions ON", true, 5_000));
         assertTrue("UI toggle should persist suggestions ON",
                 waitForSuggestions(true, 5_000));
         device.pressHome();
@@ -90,7 +89,7 @@ public final class AppDeviceSmokeTest {
                 waitForSuggestions(true, 5_000));
         requireText("Search suggestions", UI_TIMEOUT).click(); // restore OFF
         assertNotNull("settings write should acknowledge OFF",
-                device.wait(Until.findObject(By.textContains("Suggestions OFF")), 5_000));
+                waitForVisibleText("Suggestions OFF", true, 5_000));
         assertTrue("UI toggle should persist suggestions OFF",
                 waitForSuggestions(false, 5_000));
 
@@ -104,8 +103,7 @@ public final class AppDeviceSmokeTest {
 
         requireText("hi", UI_TIMEOUT);
         requireText("Hi. What would you like me to do next?", TASK_TIMEOUT);
-        UiObject2 thought = device.wait(
-                Until.findObject(By.textStartsWith("Thought for")), UI_TIMEOUT);
+        UiObject2 thought = waitForVisibleText("Thought for", true, UI_TIMEOUT);
         assertNotNull("completed task should retain a Thought row", thought);
         thought.click();
         requireText("Understanding the request", UI_TIMEOUT);
@@ -148,16 +146,33 @@ public final class AppDeviceSmokeTest {
         return false;
     }
 
+    private UiObject2 waitForVisibleText(String text, boolean contains, long timeout)
+            throws InterruptedException {
+        // Native Android text is exposed as text; Flutter's virtual semantics
+        // nodes expose labels as content descriptions. Accept both without
+        // weakening the expected user-visible wording.
+        long deadline = System.currentTimeMillis() + timeout;
+        do {
+            UiObject2 object = device.findObject(
+                    contains ? By.textContains(text) : By.text(text));
+            if (object == null) {
+                object = device.findObject(
+                        contains ? By.descContains(text) : By.desc(text));
+            }
+            if (object != null) return object;
+            Thread.sleep(100);
+        } while (System.currentTimeMillis() < deadline);
+        return null;
+    }
+
     private UiObject2 requireText(String text, long timeout) throws Exception {
-        UiObject2 object = device.wait(Until.findObject(By.text(text)), timeout);
+        UiObject2 object = waitForVisibleText(text, false, timeout);
         if (object == null) {
             // The Gradle task removes the package after a failure. Shell-owned
             // files survive that cleanup and make the actual failing frame and
             // accessibility tree available in the uploaded artifact.
             device.executeShellCommand(
                     "screencap -p /sdcard/device-smoke-failure.png");
-            device.executeShellCommand(
-                    "uiautomator dump /sdcard/device-smoke-failure.xml");
         }
         assertNotNull("Expected visible text: " + text, object);
         return object;
