@@ -140,6 +140,11 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         if (v != null) {
             v.destroyed = true;
             v.pendingDownloads.clear();
+            v.container.setRefreshing(false);
+            // Release the platform-view owner's attachment as well as the tab
+            // registry's reference. Flutter may keep an offstage route alive;
+            // it must not keep the private WebView mounted during deletion.
+            v.container.removeAllViews();
         }
     }
 

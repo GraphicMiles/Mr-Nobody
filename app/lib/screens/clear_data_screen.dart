@@ -10,9 +10,9 @@ import '../widgets/toast.dart';
 ///
 /// Clearing calls straight into the core; nothing is faked.
 class ClearDataScreen extends StatefulWidget {
-  final VoidCallback? onBrowserDataCleared;
+  final Future<void> Function()? onBeforeBrowserDataClear;
 
-  const ClearDataScreen({super.key, this.onBrowserDataCleared});
+  const ClearDataScreen({super.key, this.onBeforeBrowserDataClear});
 
   @override
   State<ClearDataScreen> createState() => _ClearDataScreenState();
@@ -40,15 +40,20 @@ class _ClearDataScreenState extends State<ClearDataScreen> {
       return;
     }
     setState(() => _busy = true);
+    final clearsBrowserState = selected.contains('cookies')
+        || selected.contains('cache')
+        || selected.contains('sitedata');
+    if (clearsBrowserState) {
+      // ProfileStore will not delete an isolated profile while any WebView owns
+      // it. Close Dart/platform-view owners first and await native release;
+      // doing this after clearData() starts is a race that survives retries.
+      await widget.onBeforeBrowserDataClear?.call();
+    }
     await NativeBridge.guard(
       () => NativeBridge.clearData(selected),
       const <String, dynamic>{},
       'clear data failed',
     );
-    final clearedBrowserState = selected.contains('cookies')
-        || selected.contains('cache')
-        || selected.contains('sitedata');
-    if (clearedBrowserState) widget.onBrowserDataCleared?.call();
     if (!mounted) return;
     setState(() => _busy = false);
     AppToast.show(context, 'Data cleared');

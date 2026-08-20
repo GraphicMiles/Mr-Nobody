@@ -17,6 +17,7 @@ class FakeBrowserEngine implements BrowserEngine {
   final List<String> loaded = [];
   bool reloaded = false;
   bool disposed = false;
+  bool nativeOwnershipReleased = false;
   String? resolvedDownloadId;
   bool? resolvedDownloadAllow;
 
@@ -107,5 +108,13 @@ class FakeBrowserEngine implements BrowserEngine {
   }
 
   @override
-  void dispose() => disposed = true;
+  Future<void> releaseNativeOwnership() async {
+    nativeOwnershipReleased = true;
+  }
+
+  @override
+  void dispose() {
+    disposed = true;
+    nativeOwnershipReleased = true;
+  }
 }

@@ -17,6 +17,8 @@ The repository now passes its complete automated pipeline after the architecture
 
 Automated success does not prove System WebView, Keystore, Storage Access Framework, notifications, WorkManager, proxy/Orbot, or process-death behavior on a phone. Those remain the acceptance boundary.
 
+Current device finding (2026-08-20): public browsing state cleared and the private tab closed, but System WebView still reported `mrnobody-private` in use after profile-deletion retries on build `6f5b99d`. The unpushed local follow-up now closes and awaits Dart/native/platform-view owners before native clear starts, removes the live platform attachment, and makes `WebView.destroy()` unconditional; it still requires CI and the same device retest.
+
 ## Current automated evidence
 
 | Evidence | Result |
@@ -48,7 +50,7 @@ CI uses a stable, public test-only signing key so successive patched APKs can up
 | Provider keys and granted cookies stored as plaintext | Added Android Keystore-backed AES-GCM preferences, in-place migration, credential-removal UI, crypto tests, and privacy-audit guards | `2c20281` |
 | Vulnerable unused Kotlin build plugin | Removed Kotlin plugin/options and added a CI dependency-policy gate | `7d7fcba` |
 | Task timestamps replaced by read time | Restored durable `created_at`/`updated_at` values after cursor hydration | `5181464` |
-| Clear-data missed isolated/live WebView owners | Agent pages are released; private native pages and their Dart/platform-view tab owners are disposed before profile deletion, while normal tabs survive | `7266e99`, `8300aee`, `cd48557` (latest local, unpushed) |
+| Clear-data missed isolated/live WebView owners | Agent pages are released and normal tabs survive; the current unpushed follow-up makes private Dart/native/platform-view release an awaited precondition of profile deletion | `7266e99`, `8300aee`, `cd48557`; follow-up pending |
 | Fake `spill://` output locator | Replaced with a bounded, explicit, non-retrievable preview | `4eb6e08` |
 | Approval “always” grant was in-memory and race-prone | Made overrides concurrent and labelled them accurately as process-session grants | `b8763d9` |
 | Remote HTTP errors lost response bodies/config was stale | Added error-stream handling, disconnect guarantees, cancellation precheck, tests, and dispatch-time endpoint lookup | `6f1a55c` |
