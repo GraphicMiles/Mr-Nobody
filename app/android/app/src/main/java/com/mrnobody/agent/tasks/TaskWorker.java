@@ -113,6 +113,17 @@ public final class TaskWorker extends Worker {
                 break;
         }
 
+        // Web search and rendered extraction can outlive the visible activity.
+        // Promote this WorkManager run before starting them so Android and OEM
+        // battery policies do not suspend the task merely because the user
+        // switched apps. Failure is logged but does not erase the task.
+        try {
+            setForegroundAsync(TaskForeground.info(getApplicationContext(), task))
+                    .get(10, TimeUnit.SECONDS);
+        } catch (Throwable e) {
+            ErrorLog.record("TaskWorker: could not enter foreground: " + e);
+        }
+
         // Stamped before dispatch: a recurring schedule measures from when a
         // run began, so a crash mid-run still counts as an attempt and cannot
         // spin into a retry loop that fires continuously.

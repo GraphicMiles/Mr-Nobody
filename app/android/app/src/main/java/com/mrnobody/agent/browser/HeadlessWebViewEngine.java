@@ -376,10 +376,10 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
     static final String EXTRACT_JS =
             "(function(){try{"
                     + "var b=document.body;if(!b)return '';"
-                    + "var t=b.innerText||b.textContent||'';"
-                    + "if(!t||t.replace(/\\s+/g,'').length<20){"
                     + "var main=document.querySelector('article,main,[role=main]');"
-                    + "if(main)t=main.innerText||main.textContent||t;"
+                    + "var t=main?(main.innerText||main.textContent||''):'';"
+                    + "if(!t||t.replace(/\\s+/g,'').length<40){"
+                    + "t=b.innerText||'';"
                     + "}"
                     + "return t;"
                     + "}catch(e){return ''}})()";

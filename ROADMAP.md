@@ -26,7 +26,7 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | GitHub Actions run | **Passed** — `32310388940` |
 | Strict Flutter analysis | **Passed** |
 | Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **723 tests passed locally** for the current unpushed tree |
+| Java/JVM suite | **737 tests passed locally** for the current unpushed tree |
 | Android Gradle unit suite | **Passed** |
 | Privacy-auditor suite | **13 tests passed** |
 | Repository privacy audit | **Clean** |
@@ -197,7 +197,8 @@ Screenshot or screen recording:
 - Run an ordinary research request; confirm its live pipeline is event-driven and its completed trace reads “Thought for …”.
 - Run a direct download and confirm it does not inherit search/read/verification rows that never occurred.
 - Force a direct-page read to fail and rendered-browser extraction to succeed; confirm the activity becomes `recovered` and the failed tool remains subordinate detail.
-- Confirm source controls, numbered citations and evidence cards include only pages successfully read, in read order.
+- Confirm source controls, numbered citations and evidence cards include only cited or directly linked pages successfully used by the answer, not every attempted read.
+- Request the latest video from a named YouTube channel; confirm the query is channel/site-restricted and no `ytcfg`, `EXPERIMENT_FLAGS`, JavaScript or configuration dump reaches the answer.
 - Ask an unrelated standalone follow-up (for example, sky research followed by “who created bitcoin”); confirm the new search contains no prior-topic terms and the previous answer keeps its own “Thought for …” trace and citations.
 - Send “thanks” and confirm it replies locally without search or page reads.
 - Tap a generated follow-up and confirm it continues the same task with the displayed text.
@@ -225,7 +226,7 @@ Screenshot or screen recording:
 
 #### 9. Background tasks and schedules
 
-- Background during a running task.
+- Background during a running task and confirm the low-importance “Working on your task” foreground notification appears while search/read activity continues without reopening the app.
 - Kill the process and observe recovery/reconciliation.
 - Cancel queued and running tasks.
 - Run a recurring monitor and verify unchanged results do not notify repeatedly.

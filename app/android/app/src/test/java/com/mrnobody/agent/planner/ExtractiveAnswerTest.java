@@ -33,6 +33,19 @@ public class ExtractiveAnswerTest {
     }
 
     @Test
+    public void scriptConfigurationCannotBecomeAnAnswerSentence() {
+        String sources = "\n[1] YouTube\nhttps://youtube.com/watch?v=x\n"
+                + "(function() { window.ytplayer={}; ytcfg.set({\"EXPERIMENT_FLAGS\":"
+                + "{\"ab_det_apm\":true}}); })();.\n"
+                + "ScreenCrush published a video explaining the latest film news today.\n";
+        String answer = ExtractiveAnswer.compose(
+                "latest ScreenCrush video", sources, true, null);
+        assertFalse(answer, answer.contains("EXPERIMENT_FLAGS"));
+        assertFalse(answer, answer.contains("window.ytplayer"));
+        assertTrue(answer, answer.contains("ScreenCrush published"));
+    }
+
+    @Test
     public void unreadPagesAreLabelledAsListingsNotAnAnswer() {
         List<Map<String, Object>> rows = new ArrayList<>();
         Map<String, Object> row = new LinkedHashMap<>();
