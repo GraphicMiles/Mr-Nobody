@@ -57,7 +57,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   void initState() {
     super.initState();
     _address.text = _tab?.url ?? '';
-    _listenForDownloads(_tab);
+    _listenForTabActions(_tab);
     _addressFocus.addListener(() {
       // Editing the address should never happen behind a hidden bar.
       if (_addressFocus.hasFocus) _tab?.showChrome();
@@ -69,33 +69,33 @@ class _BrowserScreenState extends State<BrowserScreen> {
   void dispose() {
     // Leaving the browser is exactly when the grid's picture should be current.
     _tab?.captureThumbnail();
-    _noticeTab?.downloadNotice.removeListener(_onDownloadNotice);
+    _noticeTab?.notice.removeListener(_onNotice);
     _approvalTab?.downloadApproval.removeListener(_onDownloadApproval);
     _address.dispose();
     _addressFocus.dispose();
     super.dispose();
   }
 
-  /// Downloads are handed to Mr Nobody's own native engine; the user still
-  /// needs to be told one started (or that it could not).
-  void _listenForDownloads(BrowserTab? tab) {
+  /// Listen for transient browser notices and download approval requests on the
+  /// active tab. Notices use a toast and never replace the page with an error.
+  void _listenForTabActions(BrowserTab? tab) {
     if (identical(tab, _noticeTab) && identical(tab, _approvalTab)) return;
-    _noticeTab?.downloadNotice.removeListener(_onDownloadNotice);
+    _noticeTab?.notice.removeListener(_onNotice);
     _approvalTab?.downloadApproval.removeListener(_onDownloadApproval);
     _noticeTab = tab;
     _approvalTab = tab;
-    tab?.downloadNotice.addListener(_onDownloadNotice);
+    tab?.notice.addListener(_onNotice);
     tab?.downloadApproval.addListener(_onDownloadApproval);
     if (tab?.downloadApproval.value != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _onDownloadApproval());
     }
   }
 
-  void _onDownloadNotice() {
-    final notice = _noticeTab?.downloadNotice.value;
+  void _onNotice() {
+    final notice = _noticeTab?.notice.value;
     if (notice == null || !mounted) return;
     AppToast.show(context, notice);
-    _noticeTab?.downloadNotice.value = null;
+    _noticeTab?.notice.value = null;
   }
 
   Future<void> _onDownloadApproval() async {
@@ -234,7 +234,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
       builder: (context, _) {
         final tab = widget.tabs.active;
         if (tab == null) return const Scaffold(backgroundColor: AppColors.bg);
-        _listenForDownloads(tab);
+        _listenForTabActions(tab);
 
         return AnimatedBuilder(
           animation: tab,

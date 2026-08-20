@@ -38,8 +38,8 @@ class BrowserTab extends ChangeNotifier {
   /// kept separate from [notifyListeners] so a scroll never rebuilds the page.
   final ValueNotifier<bool> chromeVisible = ValueNotifier(true);
 
-  /// Latest download notice: the file name, or an error to show the user.
-  final ValueNotifier<String?> downloadNotice = ValueNotifier(null);
+  /// Latest transient browser notice (a blocked redirect, popup, or download).
+  final ValueNotifier<String?> notice = ValueNotifier(null);
 
   /// A potentially harmful file waiting for an explicit user decision.
   final ValueNotifier<BrowserDownloadRequest?> downloadApproval = ValueNotifier(null);
@@ -99,8 +99,11 @@ class BrowserTab extends ChangeNotifier {
         blocked = BlockedCounts(ads: ads, trackers: trackers);
         notifyListeners();
       }
+      ..onNotice = (message) {
+        notice.value = message;
+      }
       ..onDownload = (name, err) {
-        downloadNotice.value = err ?? (name == null ? null : 'Downloading $name');
+        notice.value = err ?? (name == null ? null : 'Downloading $name');
       }
       ..onDownloadApproval = (request) {
         downloadApproval.value = request;
@@ -195,7 +198,7 @@ class BrowserTab extends ChangeNotifier {
     _captureAfterLoad?.cancel();
     thumbnail = null;
     chromeVisible.dispose();
-    downloadNotice.dispose();
+    notice.dispose();
     downloadApproval.dispose();
     engine.dispose();
     super.dispose();

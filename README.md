@@ -29,7 +29,7 @@ The source contains substantial Android functionality, but the complete local-ag
 
 - Visible browsing through a native platform-hosted System WebView
 - Multiple retained tabs, private-tab support when the installed WebView exposes multi-profile APIs, bookmarks, deep links, and per-site controls
-- On-device ad/tracker filtering in `shouldInterceptRequest`, URL tracking-parameter stripping, local block counters, and a pinned bundled-list digest
+- On-device ad/tracker filtering for subresources and top-level navigations, exact-domain cross-site betting-redirect protection, popup/pop-under suppression, URL tracking-parameter stripping, local block counters, and a pinned bundled-list digest
 - History disabled by default, third-party cookies disabled, mixed content blocked, file/content access disabled, and backup disabled
 - App-owned downloads with destination selection, persistence, pause/resume/cancel, HTTP range validation, foreground-service support, and notifications
 - Persistent tasks backed by SQLite and Android WorkManager, including retries, cancellation, heartbeat/reconciliation, event logs, follow-ups, recurring schedules, and restored durable timestamps
@@ -260,6 +260,20 @@ artifacts. That public key must never sign a production release.
 | Device matrix | next-phase work | Actual WebView, storage, network, notification, and background behavior |
 
 When changing a bug-prone path, add a regression test that fails under the old behavior. For device-only APIs, keep decision logic in pure Java where possible and add a thin Android seam plus a hardware test case.
+
+### Controlled redirect test on a device
+
+Do not judge blocking from a third-party test page that has disappeared or changed ownership. The checked-in `tools/manual_web/ad_redirect_test.html` fixture controls the trigger and contains allowed same-site links, a listed top-level ad URL, exact betting destinations, a scripted main-page redirect, and a popup request.
+
+With the Android device attached:
+
+```bash
+cd tools/manual_web
+python3 -m http.server 8765 --bind 0.0.0.0
+adb reverse tcp:8765 tcp:8765
+```
+
+Open `http://127.0.0.1:8765/ad_redirect_test.html` in Mr Nobody. Both ordinary links must reload the fixture (a `target=_blank` link is intentionally kept in the current tab). Every listed ad/betting control must leave the fixture visible and show a non-error blocked notice. The popup control must not create another surface. This validates runtime WebView behavior only on the tested device/System WebView combination; record the result in `ROADMAP.md`.
 
 ## Common change workflows
 

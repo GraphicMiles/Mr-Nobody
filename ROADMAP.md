@@ -48,7 +48,7 @@ CI uses a stable, public test-only signing key so successive patched APKs can up
 | Provider keys and granted cookies stored as plaintext | Added Android Keystore-backed AES-GCM preferences, in-place migration, credential-removal UI, crypto tests, and privacy-audit guards | `2c20281` |
 | Vulnerable unused Kotlin build plugin | Removed Kotlin plugin/options and added a CI dependency-policy gate | `7d7fcba` |
 | Task timestamps replaced by read time | Restored durable `created_at`/`updated_at` values after cursor hydration | `5181464` |
-| Clear-data missed isolated/live WebViews | Visible and agent WebViews are torn down before default stores and private profiles are cleared | `7266e99` |
+| Clear-data missed isolated/live WebView owners | Agent pages are released; private native pages and their Dart/platform-view tab owners are disposed before profile deletion, while normal tabs survive | `7266e99`, `8300aee`, `cd48557` (latest local, unpushed) |
 | Fake `spill://` output locator | Replaced with a bounded, explicit, non-retrievable preview | `4eb6e08` |
 | Approval “always” grant was in-memory and race-prone | Made overrides concurrent and labelled them accurately as process-session grants | `b8763d9` |
 | Remote HTTP errors lost response bodies/config was stale | Added error-stream handling, disconnect guarantees, cancellation precheck, tests, and dispatch-time endpoint lookup | `6f1a55c` |
@@ -74,7 +74,7 @@ CI uses a stable, public test-only signing key so successive patched APKs can up
 | Capability | State | Acceptance boundary |
 |---|---|---|
 | History and suggestions off by default | **Verified off-device** | Fresh-install observation |
-| Local ad/tracker blocking | **Verified off-device** | Live request capture and counter accuracy |
+| Subresource, top-level ad/tracker, betting-redirect and popup blocking | **Built, device-unverified** | Controlled fixture, live request capture, ordinary-link compatibility and counter accuracy |
 | Tracking-parameter removal | **Verified off-device** | Representative live URLs and site compatibility |
 | Third-party cookie/mixed-content/file-access hardening | **Built, device-unverified** | WebView inspection on minimum/current devices |
 | Provider-key encryption | **Verified cryptographically off-device** | Android Keystore creation, migration and invalidation |
@@ -180,9 +180,12 @@ Screenshot or screen recording:
 
 #### 5. Blocking and URL privacy
 
-- Load pages that request known bundled ad/tracker domains.
-- Confirm requests are blocked before leaving, and counters match.
-- Disable blocking and confirm behavior changes; re-enable it.
+- Use the checked-in controlled fixture and setup in `README.md`; do not use a dead or mutable third-party test page as evidence of failure.
+- Confirm ordinary same-site links work and an ordinary `target=_blank` link stays in the current tab.
+- Confirm listed ad/tracker subresources and top-level destinations are blocked before leaving and counters match.
+- Confirm cross-site Bet9ja/betnaija and Stake controls leave the source page visible and show a non-error notice.
+- Confirm the scripted popup creates no popup/pop-under surface.
+- Disable blocking and confirm the host/redirect policy changes; re-enable it. Popup-surface suppression remains a browser safety policy.
 - Test tracking-parameter removal with ordinary and signed URLs to catch breakage.
 
 #### 6. Local no-model agent
