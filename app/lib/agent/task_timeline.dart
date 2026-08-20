@@ -400,7 +400,9 @@ class _ActivityBuilder {
   TimelineActivity build() {
     final detail = <String>[];
     if (reason.isNotEmpty) detail.add('Decision · $reason');
-    for (final tool in tools) detail.add(tool.description);
+    for (final tool in tools) {
+      detail.add(tool.description);
+    }
     return TimelineActivity(
       label: label,
       kind: kind,
