@@ -28,6 +28,16 @@ void main() {
     expect(items.join(' '), isNot(contains('include citations')));
   });
 
+  test('task verbs are removed from the suggested topic', () {
+    final items = FollowUpSuggestions.build(
+      instruction: 'Find laptops under 500000',
+      answer: 'A grounded result.',
+      sourceCount: 1,
+      activityKinds: const ['http.fetch'],
+    );
+    expect(items.first, 'Explain laptops under 500000 more simply');
+  });
+
   test('download suggestions differ from research suggestions', () {
     final items = FollowUpSuggestions.build(
       instruction: 'download the file',

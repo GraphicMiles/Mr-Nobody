@@ -36,7 +36,7 @@ abstract final class FollowUpSuggestions {
   static String _topic(String instruction) {
     var text = instruction.trim().replaceAll(RegExp(r'\s+'), ' ');
     text = text.replaceFirst(
-      RegExp(r'^(research|explain|tell me about|find out|look up)\s+',
+      RegExp(r'^(research|explain|tell me about|find out|find|look up)\s+',
           caseSensitive: false),
       '',
     );
