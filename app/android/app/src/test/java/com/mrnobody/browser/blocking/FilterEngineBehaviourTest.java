@@ -156,6 +156,28 @@ public class FilterEngineBehaviourTest {
         }
     }
 
+    @Test
+    public void deviceReportedAdblockTesterLeaksAreCoveredPrecisely() {
+        assertEquals(FilterEngine.Category.AD,
+                engine.shouldBlock("https://an.yandex.ru/system/context.js"));
+        assertEquals(FilterEngine.Category.AD,
+                engine.shouldBlock("https://ymatuhin.ru/ads/ads.js"));
+        assertEquals(FilterEngine.Category.AD,
+                engine.shouldBlock("https://adblock-tester.com/banners/"
+                        + "pr_advertising_ads_banner.gif"));
+        assertEquals(FilterEngine.Category.TRACKER,
+                engine.shouldBlock("https://js.sentry-cdn.com/project.min.js"));
+        assertEquals(FilterEngine.Category.TRACKER,
+                engine.shouldBlock("https://d2wy8f7a9ursnm.cloudfront.net/v4/bugsnag.min.js"));
+
+        assertEquals("do not block the shared CDN outside the reviewed Bugsnag path",
+                FilterEngine.Category.NONE,
+                engine.shouldBlock("https://d2wy8f7a9ursnm.cloudfront.net/v4/site-app.js"));
+        assertEquals("a site-specific banner rule must not become a broad path heuristic",
+                FilterEngine.Category.NONE,
+                engine.shouldBlock("https://example.com/banners/ordinary-photo.gif"));
+    }
+
     /**
      * The other half, and the one that decides whether people keep the feature
      * on. A blocker that breaks ordinary sites gets switched off, and an

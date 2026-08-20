@@ -28,7 +28,7 @@ public final class FilterEngine {
     public enum Category { NONE, AD, TRACKER }
 
     /** Bundled filter-list version. Bump when the blocklist changes. */
-    private static final String FILTER_VERSION = "1";
+    private static final String FILTER_VERSION = "2";
 
     /**
      * SHA-256 of the bundled {@code blocklist.txt}, pinned at build time.
@@ -40,7 +40,7 @@ public final class FilterEngine {
      * decide what gets blocked.
      */
     private static final String BUNDLED_DIGEST =
-            "3ed6a3b8b92e87799efb13532fa0e827add9f16687b4b2e0cb4d92b6747990ae";
+            "7e119400943ddbdb047fb88384bd7ca06af8242793224689f459c69068d161af";
 
     /** Generous ceiling for the bundled list; guards a corrupt/hostile asset. */
     private static final int MAX_LIST_BYTES = 4 * 1024 * 1024;
