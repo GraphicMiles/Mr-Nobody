@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Test-APK-only manifest additions.
+
+  The emulator smoke suite deliberately stays on the AndroidX Test versions
+  that Flutter 3.24's integration_test plugin pins (runner 1.2.0 / core
+  1.2.0). Those artifacts declare InstrumentationActivityInvoker's helper
+  activities with intent filters but without android:exported, which the
+  manifest merger rejects for apps targeting Android 12+. Upstream fixed the
+  same defect in androidx.test:core 1.4.1 by marking the activities
+  exported="true"; this override applies that fix locally without moving off
+  the pinned versions. It affects only the androidTest APK, never the app.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <activity
+            android:name="androidx.test.core.app.InstrumentationActivityInvoker$BootstrapActivity"
+            android:exported="true"
+            tools:node="merge" />
+        <activity
+            android:name="androidx.test.core.app.InstrumentationActivityInvoker$EmptyActivity"
+            android:exported="true"
+            tools:node="merge" />
+        <activity
+            android:name="androidx.test.core.app.InstrumentationActivityInvoker$EmptyFloatingActivity"
+            android:exported="true"
+            tools:node="merge" />
+    </application>
+</manifest>
