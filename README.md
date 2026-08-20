@@ -300,7 +300,25 @@ artifacts. That public key must never sign a production release.
 | Privacy audit | `python3 tools/privacy_audit.py .` | Prohibited permissions/dependencies/network bypass patterns are absent |
 | Filter digest | `python3 tools/filter_digest_check.py .` | Shipped/source filter lists and digest pin agree |
 | APK gate | `tools/apk_size_check.py` | Artifact stays below the hard size ceiling |
-| Device matrix | next-phase work | Actual WebView, storage, network, notification, and background behavior |
+| Android emulator | `.github/workflows/android-emulator.yml` | Installs and drives API 31/34 virtual phones, exercises Flutter/native/SQLite/WorkManager integration, and captures device evidence |
+| Physical-device matrix | `ROADMAP.md` | OEM WebView, hardware, storage, route, notification and battery behavior an emulator cannot prove |
+
+### Hosted Android emulator tests
+
+`Android Emulator Smoke` runs outside this workspace on GitHub-hosted KVM runners. It builds the debug application and instrumentation APKs, boots Pixel 6 profiles on Android 12 (API 31) and Android 14 (API 34), then drives the shipping UI with UIAutomator. The stable smoke path covers first launch, a settings write and Activity relaunch, a deep-linked local task, WorkManager completion, pipeline expansion, and conversation restoration after backgrounding.
+
+Every matrix leg uploads:
+
+- Instrumentation HTML/XML reports
+- Test result XML
+- In-app and final emulator screenshots
+- UI hierarchy
+- Logcat
+- Activity/process state
+- JobScheduler state
+- Notification state
+
+The smoke task intentionally uses the local conversational route rather than a live search provider: cloud providers may block CI IP addresses, which would test their anti-bot policy rather than the application. Controlled network/WebView fixtures can be added to this workflow separately. Emulator success still does not prove OEM battery restrictions, Orbot, hardware Keystore behavior, real camera/microphone/GPS, manufacturer WebView differences or external Storage Access Framework providers.
 
 When changing a bug-prone path, add a regression test that fails under the old behavior. For device-only APIs, keep decision logic in pure Java where possible and add a thin Android seam plus a hardware test case.
 
@@ -382,6 +400,8 @@ Never edit one blocklist copy without the other.
 13. Gradle Android unit tests
 14. 45 MiB size gate on every ABI APK
 15. Explicitly named CI test-artifact upload
+
+`.github/workflows/android-emulator.yml` is the runtime companion gate. It runs for app changes on main and pull requests, and can be manually dispatched. Its API 31/34 jobs are independent so one platform failure does not hide the other; each uploads evidence even when instrumentation fails.
 
 There is one size limit: 45 MiB per installable ABI artifact. The current
 artifacts are 14.62–18.19 MiB.
