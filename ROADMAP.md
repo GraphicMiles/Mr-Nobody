@@ -26,7 +26,7 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | GitHub Actions run | **Passed** — `32310388940` |
 | Strict Flutter analysis | **Passed** |
 | Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **754 tests passed locally** for the current unpushed tree |
+| Java/JVM suite | **757 tests passed locally** for the current unpushed tree |
 | Android Gradle unit suite | **Passed** |
 | Privacy-auditor suite | **13 tests passed** |
 | Repository privacy audit | **Clean** |
@@ -37,6 +37,7 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | x86_64 APK | **18.19 MiB** |
 | APK product limit | **Passed** — 45 MiB per ABI |
 | Documentation surface | **Passed** — only `README.md` and `ROADMAP.md` |
+| Hosted Android emulator matrix | **Implemented, first API 31/34 run pending** |
 | Physical-device matrix | **Not yet completed** |
 
 CI uses a stable, public test-only signing key so successive patched APKs can upgrade in place during device testing. Production signing requires protected external key material, never uses that public key, and never falls back to Android's debug key.
@@ -65,6 +66,7 @@ CI uses a stable, public test-only signing key so successive patched APKs can up
 | Capability | State | Acceptance boundary |
 |---|---|---|
 | Flutter shell, navigation and committed screen goldens | **Verified in CI** | Visual/gesture checks on real screen sizes |
+| API 31/34 hosted emulator smoke suite | **Built, first run pending** | Launch, settings write/relaunch, local WorkManager task, pipeline expansion, background/restore and evidence capture |
 | Visible native System WebView | **Built, device-unverified** | Navigation, renderer lifecycle, crashes and low-memory recovery |
 | Retained tabs and previews | **Built, device-unverified** | Six-tab stress, close/reopen, private-tab no-thumbnail rule |
 | Unified URL/search/task input | **Verified off-device** | Real keyboard, paste and deep-link behavior |
