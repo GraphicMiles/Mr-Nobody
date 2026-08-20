@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' show ImageFilter, FontFeature;
 
 import 'package:flutter/material.dart';
@@ -60,10 +59,10 @@ abstract final class AgentMetrics {
   static const secondaryOpacity = 0.8;
 }
 
-/// Warm amber — the only non-grey in the palette, reserved for
-/// "this needs your judgement". See [FigureWarning].
+/// Semantic accents: amber needs judgement; green confirms completion.
 const _warn = Color(0xFFE8B339);
 const _warnInk = Color(0xFFF0CF8A);
+const _good = Color(0xFF70D39A);
 
 // ═══════════════════════════════════════════════════════════ turn scaffold
 
@@ -261,82 +260,7 @@ class _ShimmerLabelState extends State<ShimmerLabel>
   }
 }
 
-// ═══════════════════════════════════════════════════════════ pixel loader
-
-/// The 3×3 pixel grid, with a chevron wavefront driving right.
-///
-/// The 650ms cycle is deliberately shorter than the time the wave takes to
-/// cross, so two fronts are always in flight and the grid never looks stalled.
-class PixelLoader extends StatefulWidget {
-  /// Circular cells instead of square ones.
-  final bool round;
-
-  const PixelLoader({super.key, this.round = false});
-
-  @override
-  State<PixelLoader> createState() => _PixelLoaderState();
-}
-
-class _PixelLoaderState extends State<PixelLoader>
-    with SingleTickerProviderStateMixin {
-  static const _cell = 4.0;
-  static const _gap = 1.5;
-  static const _period = 650;
-
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: _period),
-    )..repeat();
-  }
-
-  /// Per-cell delay: column plus distance from the middle row, ×90ms.
-  static int _delay(int i) {
-    final r = i ~/ 3, c = i % 3;
-    return (c + (r - 1).abs()) * 90;
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: _cell * 3 + _gap * 2,
-      height: _cell * 3 + _gap * 2,
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (context, _) {
-          return Wrap(
-            spacing: _gap,
-            runSpacing: _gap,
-            children: List.generate(9, (i) {
-              final phase =
-                  ((_c.value * _period + _delay(i)) % _period) / _period;
-              // 0 → .15, .5 → 1, 1 → .15
-              final o = 0.15 + 0.85 * math.sin(phase * math.pi).clamp(0.0, 1.0);
-              return Container(
-                width: _cell,
-                height: _cell,
-                decoration: BoxDecoration(
-                  color: AppColors.text.withOpacity(o),
-                  borderRadius: BorderRadius.circular(widget.round ? _cell : 1),
-                ),
-              );
-            }),
-          );
-        },
-      ),
-    );
-  }
-}
+// ═══════════════════════════════════════════════════════════ live activity
 
 /// Loader, shimmering label, and a live elapsed timer.
 class AgentWorkingLine extends StatefulWidget {
@@ -344,13 +268,11 @@ class AgentWorkingLine extends StatefulWidget {
 
   /// When the work started. The timer counts up from here.
   final DateTime since;
-  final bool round;
 
   const AgentWorkingLine({
     super.key,
     required this.label,
     required this.since,
-    this.round = false,
   });
 
   @override
@@ -384,7 +306,7 @@ class _AgentWorkingLineState extends State<AgentWorkingLine> {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        PixelLoader(round: widget.round),
+        const SizedBox(width: 16, height: 16, child: _Spinner()),
         const SizedBox(width: 10),
         Flexible(child: ShimmerLabel(widget.label)),
         const SizedBox(width: 10),
@@ -400,9 +322,9 @@ class _AgentWorkingLineState extends State<AgentWorkingLine> {
 
 // ═══════════════════════════════════════════════════════════ trace
 
-/// What one tool call did, as the trace shows it.
+/// One semantic activity, with tool outcomes nested in [detail].
 class TraceStep {
-  /// The verb: Search, Read, Download, Click, Type.
+  /// The user-facing verb phrase selected for this task.
   final String label;
 
   /// The argument — a domain, a query, a filename. Not the verb again.
@@ -410,6 +332,10 @@ class TraceStep {
 
   /// Monospace the chip, for anything machine-shaped.
   final bool mono;
+
+  /// Status metric shown beneath the verb (`6 candidates`, `2 sources`).
+  /// [chip] remains as a compatibility alias for older callers.
+  final String? metric;
 
   /// Duration text, already formatted (`0.8s`).
   final String? duration;
@@ -423,22 +349,35 @@ class TraceStep {
   /// This step is the one currently running.
   final bool running;
 
-  /// The step was refused by the approval policy or a guard.
+  /// Outcome flags. They are separate from [running] so old call sites remain
+  /// source-compatible while the event-driven renderer can distinguish a
+  /// recovered fallback, failure, approval wait and cancellation.
   final bool denied;
+  final bool recovered;
+  final bool failed;
+  final bool waiting;
+  final bool cancelled;
 
   const TraceStep({
     required this.label,
     this.chip,
+    this.metric,
     this.mono = false,
     this.duration,
     this.detail = const [],
     this.detailMono = false,
     this.running = false,
     this.denied = false,
+    this.recovered = false,
+    this.failed = false,
+    this.waiting = false,
+    this.cancelled = false,
   });
+
+  String? get displayedMetric => metric ?? chip;
 }
 
-/// The expandable "Thinking / Thought for 4 seconds" trace.
+/// The live pipeline and expandable "Thought for 4 seconds" trace.
 ///
 /// Auto-expands while running and collapses once settled, but stays tappable
 /// either way — the working is always retrievable, never lost. The chevron is
@@ -447,11 +386,9 @@ class TraceStep {
 class AgentTrace extends StatefulWidget {
   final List<TraceStep> steps;
 
-  /// Still working. Drives the shimmer and the present-tense label.
+  /// Still working. Live traces stay expanded; the separate
+  /// [AgentWorkingLine] owns the current activity and elapsed time.
   final bool running;
-
-  /// Present tense, e.g. `Thinking` or `Searching the web`.
-  final String activeLabel;
 
   /// Past tense with a duration, e.g. `Thought for 4 seconds`.
   final String doneLabel;
@@ -460,7 +397,6 @@ class AgentTrace extends StatefulWidget {
     super.key,
     required this.steps,
     required this.running,
-    this.activeLabel = 'Thinking',
     required this.doneLabel,
   });
 
@@ -479,25 +415,20 @@ class _AgentTraceState extends State<AgentTrace> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _manual = !_expanded),
-          child: Padding(
+        if (!widget.running)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _manual = !_expanded),
+            child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 3),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.auto_awesome,
-                    size: 14,
-                    color: widget.running
-                        ? AppColors.textDim
-                        : AppColors.textMuted),
+                const Icon(Icons.auto_awesome,
+                    size: 14, color: AppColors.textMuted),
                 const SizedBox(width: 7),
                 Flexible(
-                  child: ShimmerLabel(
-                    widget.running ? widget.activeLabel : widget.doneLabel,
-                    active: widget.running,
-                  ),
+                  child: ShimmerLabel(widget.doneLabel, active: false),
                 ),
                 const SizedBox(width: 5),
                 AnimatedRotation(
@@ -521,8 +452,8 @@ class _AgentTraceState extends State<AgentTrace> {
               opacity: _expanded ? 1 : 0,
               duration: const Duration(milliseconds: 220),
               child: Container(
-                margin: const EdgeInsets.only(left: 6, top: 3),
-                padding: const EdgeInsets.only(left: 14),
+                margin: const EdgeInsets.only(top: 3),
+                padding: const EdgeInsets.only(left: 4),
                 decoration: const BoxDecoration(
                   border: Border(
                       left: BorderSide(color: AppColors.line, width: 1)),
@@ -544,6 +475,11 @@ class _AgentTraceState extends State<AgentTrace> {
 
   Widget _row(int i, TraceStep step) {
     final open = _openRows.contains(i);
+    final metric = step.displayedMetric;
+    final stateColor = step.denied || step.recovered || step.failed || step.waiting
+        ? _warn
+        : AppColors.textMuted;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -554,35 +490,78 @@ class _AgentTraceState extends State<AgentTrace> {
               : () => setState(() {
                     open ? _openRows.remove(i) : _openRows.add(i);
                   }),
-          child: SizedBox(
-            height: 26,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: step.running
-                      ? const _Spinner()
-                      : Icon(
-                          step.denied ? Icons.block : Icons.check,
-                          size: 13,
-                          color: step.denied ? _warn : AppColors.textMuted,
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: Center(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: AgentMetrics.ease,
+                        child: KeyedSubtree(
+                          key: ValueKey(_statusLabel(step)),
+                          child: _marker(step),
                         ),
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(step.label,
-                    style: AppTheme.sans(size: 12.5, w: FontWeight.w500)),
-                if (step.chip != null) ...[
-                  const SizedBox(width: 8),
-                  Expanded(child: _chip(step)),
-                ] else
-                  const Spacer(),
-                if (step.duration != null) ...[
-                  const SizedBox(width: 8),
-                  Text(step.duration!,
-                      style:
-                          AppTheme.mono(size: 9.5, color: AppColors.textMuted)),
-                ],
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        step.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                            size: 12.5, w: FontWeight.w500, height: 1.25),
+                      ),
+                      const SizedBox(height: 3),
+                      Wrap(
+                        spacing: 5,
+                        runSpacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            _statusLabel(step),
+                            style: AppTheme.mono(size: 9.5, color: stateColor),
+                          ),
+                          if (metric != null && metric.isNotEmpty) ...[
+                            Text('·',
+                                style: AppTheme.mono(
+                                    size: 9.5, color: AppColors.textMuted)),
+                            Text(
+                              metric,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: step.mono
+                                  ? AppTheme.mono(
+                                      size: 9.5, color: AppColors.textFaint)
+                                  : AppTheme.sans(
+                                      size: 10.5, color: AppColors.textFaint),
+                            ),
+                          ],
+                          if (step.duration != null && step.duration!.isNotEmpty) ...[
+                            Text('·',
+                                style: AppTheme.mono(
+                                    size: 9.5, color: AppColors.textMuted)),
+                            Text(step.duration!,
+                                style: AppTheme.mono(
+                                    size: 9.5, color: AppColors.textMuted)),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -594,11 +573,12 @@ class _AgentTraceState extends State<AgentTrace> {
             duration: const Duration(milliseconds: 260),
             curve: AgentMetrics.ease,
             child: Container(
-              margin: const EdgeInsets.only(left: 7, bottom: 4),
-              padding: const EdgeInsets.only(left: 13),
-              decoration: const BoxDecoration(
-                border:
-                    Border(left: BorderSide(color: AppColors.line, width: 1)),
+              margin: const EdgeInsets.only(left: 24, bottom: 4),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.line),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -610,11 +590,13 @@ class _AgentTraceState extends State<AgentTrace> {
                         line,
                         style: step.detailMono
                             ? AppTheme.mono(
-                                size: 10.5, color: AppColors.textFaint)
+                                size: 10.5,
+                                color: AppColors.textFaint,
+                                height: 1.55)
                             : AppTheme.sans(
                                 size: 11.5,
                                 color: AppColors.textFaint,
-                                height: 1.65),
+                                height: 1.55),
                       ),
                     ),
                 ],
@@ -626,25 +608,32 @@ class _AgentTraceState extends State<AgentTrace> {
     );
   }
 
-  Widget _chip(TraceStep step) {
-    return Container(
-      height: 21,
-      padding: const EdgeInsets.symmetric(horizontal: 7),
-      alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(
-        color: AppColors.surface2,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Text(
-        step.chip!,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: step.mono
-            ? AppTheme.mono(size: 10.5, color: AppColors.textDim)
-            : AppTheme.sans(size: 11.5, color: AppColors.textDim),
-      ),
-    );
+  Widget _marker(TraceStep step) {
+    if (step.running) return const _Spinner();
+    if (step.denied) return const Icon(Icons.block, size: 14, color: _warn);
+    if (step.waiting) {
+      return const Icon(Icons.hourglass_top, size: 14, color: _warn);
+    }
+    if (step.recovered) {
+      return const Icon(Icons.refresh, size: 14, color: _warn);
+    }
+    if (step.failed) {
+      return const Icon(Icons.error_outline, size: 14, color: _warn);
+    }
+    if (step.cancelled) {
+      return const Icon(Icons.close, size: 14, color: AppColors.textMuted);
+    }
+    return const Icon(Icons.check, size: 14, color: _good);
+  }
+
+  String _statusLabel(TraceStep step) {
+    if (step.running) return 'working';
+    if (step.denied) return 'denied';
+    if (step.waiting) return 'waiting';
+    if (step.recovered) return 'recovered';
+    if (step.failed) return 'failed';
+    if (step.cancelled) return 'cancelled';
+    return 'done';
   }
 }
 

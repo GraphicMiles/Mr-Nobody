@@ -41,7 +41,9 @@ public final class TaskEventStore extends SQLiteOpenHelper {
 
     /** Event kinds. Additive by contract — never renumber or reuse a name. */
     public static final String TASK_STARTED = "task.started";
+    /** A semantic planner/engine activity; detail is versioned by TaskEventDetail. */
     public static final String STEP_CHANGED = "step.changed";
+    /** Structured attempt/outcome metadata; legacy text remains readable. */
     public static final String TOOL_CALL = "tool.call";
     public static final String TOOL_RESULT = "tool.result";
     public static final String TOOL_DENIED = "tool.denied";

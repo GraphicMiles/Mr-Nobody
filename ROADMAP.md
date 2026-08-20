@@ -26,7 +26,7 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | GitHub Actions run | **Passed** — `32310388940` |
 | Strict Flutter analysis | **Passed** |
 | Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **685 tests passed** |
+| Java/JVM suite | **715 tests passed locally** for the current unpushed tree |
 | Android Gradle unit suite | **Passed** |
 | Privacy-auditor suite | **13 tests passed** |
 | Repository privacy audit | **Clean** |
@@ -93,6 +93,7 @@ Privacy is not anonymity. A remote AI provider receives the task context sent to
 | Capability | State | Acceptance boundary |
 |---|---|---|
 | Deterministic local no-model research | **Built, device-unverified** | End-to-end search, rendered extraction, evidence and answer |
+| Adaptive semantic task pipeline and conditional response blocks | **Built, device-unverified** | Flutter analysis/widget/golden CI, then research/download/browser/failure-recovery checks on a phone |
 | Task-scoped headless browser resolution | **Verified off-device** | Real WebView executor behavior on Android |
 | Cross-task state isolation | **Verified structurally/off-device** | Back-to-back and queued task tests on a phone |
 | Remote-provider autonomous planner | **Verified off-device** | Live provider/model matrix, timeout and cancellation |
@@ -193,9 +194,12 @@ Screenshot or screen recording:
 
 #### 6. Local no-model agent
 
-- Run an ordinary research request.
+- Run an ordinary research request; confirm its live pipeline is event-driven and its completed trace reads “Thought for …”.
+- Run a direct download and confirm it does not inherit search/read/verification rows that never occurred.
+- Force a direct-page read to fail and rendered-browser extraction to succeed; confirm the activity becomes `recovered` and the failed tool remains subordinate detail.
+- Confirm source controls, numbered citations and evidence cards include only pages successfully read, in read order.
 - Run a named-site request.
-- Use “open the second one” and confirm it uses the existing artifact.
+- Use “open the second one” and confirm it uses the existing artifact and starts a new execution-cycle trace.
 - Start two tasks quickly; confirm one queues and neither inherits the other's site/session/anchor.
 - Use a large page and confirm the answer reports a non-retrievable preview rather than a fake locator.
 

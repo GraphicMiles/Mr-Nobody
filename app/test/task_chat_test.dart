@@ -124,9 +124,10 @@ void main() {
       (tester) async {
     await pump(tester);
 
-    // Verbs and arguments come from tool.call details.
-    expect(find.text('Search'), findsOneWidget);
-    expect(find.text('Fetch'), findsOneWidget);
+    // Semantic activities come from the calls that actually happened. The
+    // tool syntax itself is subordinate, never the visible hierarchy.
+    expect(find.text('Searching broadly'), findsOneWidget);
+    expect(find.text('Reading source pages'), findsOneWidget);
     expect(find.text('coinmarketcap.com'), findsOneWidget);
 
     // The old screen's invented steps must not appear anywhere.
@@ -193,10 +194,16 @@ void main() {
     expect(find.text('coinmarketcap.com'), findsWidgets);
   });
 
-  testWidgets('sources come from pages the agent actually opened',
+  testWidgets('sources come only from pages the agent successfully read',
       (tester) async {
     result = 'Done.';
     status = 'COMPLETED';
+    events.add({
+      'seq': 4,
+      'type': 'tool.result',
+      'detail': 'http ok in 120ms',
+      'at': 2020,
+    });
     await pump(tester);
     await tester.pump(const Duration(seconds: 2));
 
