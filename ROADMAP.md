@@ -17,7 +17,7 @@ The repository now passes its complete automated pipeline after the architecture
 
 Automated success does not prove System WebView, Keystore, Storage Access Framework, notifications, WorkManager, proxy/Orbot, or process-death behavior on a phone. Those remain the acceptance boundary.
 
-Current device finding (2026-08-20): public browsing state cleared and the private tab closed, but System WebView still reported `mrnobody-private` in use after profile-deletion retries on build `6f5b99d`. The unpushed local follow-up now closes and awaits Dart/native/platform-view owners before native clear starts, removes the live platform attachment, and makes `WebView.destroy()` unconditional; it still requires CI and the same device retest.
+Current device findings (2026-08-20) on build `6f5b99d`: public browsing state cleared and the private tab closed, but System WebView still reported `mrnobody-private` in use after profile-deletion retries; some betting redirects bypassed the navigation callback; and Back/Forward could restore a page without updating the address field. Unpushed local follow-ups now await every private Dart/native/platform-view owner before native clear, make `WebView.destroy()` unconditional, apply redirect policy again in main-frame interception for POST/callback-bypass paths, and publish history-restored URLs through `doUpdateVisitedHistory`. CI and same-device retests remain required.
 
 ## Current automated evidence
 
@@ -167,7 +167,8 @@ Screenshot or screen recording:
 
 #### 3. Visible browser and tabs
 
-- Navigate, back, forward, reload and open external/deep links.
+- Navigate through three distinct URLs, then use Back and Forward; after every history step, confirm the visible page and address field show the same URL.
+- Reload and open external/deep links.
 - Open six tabs, switch repeatedly, background/reopen, then close each.
 - Confirm normal tab pages retain state within the retention limit.
 - Confirm private tabs never produce thumbnails.
@@ -184,8 +185,8 @@ Screenshot or screen recording:
 
 - Use the checked-in controlled fixture and setup in `README.md`; do not use a dead or mutable third-party test page as evidence of failure.
 - Confirm ordinary same-site links work and an ordinary `target=_blank` link stays in the current tab.
-- Confirm listed ad/tracker subresources and top-level destinations are blocked before leaving and counters match.
-- Confirm cross-site Bet9ja/betnaija and Stake controls leave the source page visible and show a non-error notice.
+- Confirm listed ad/tracker subresources and top-level destinations are blocked before leaving and counters match; the controlled fixture includes a reachable Google Analytics script URL.
+- From a fresh non-betting source each time, trigger Bet9ja/betnaija and Stake controls repeatedly; all attempts must leave the source page visible and show a non-error notice.
 - Confirm the scripted popup creates no popup/pop-under surface.
 - Disable blocking and confirm the host/redirect policy changes; re-enable it. Popup-surface suppression remains a browser safety policy.
 - Test tracking-parameter removal with ordinary and signed URLs to catch breakage.

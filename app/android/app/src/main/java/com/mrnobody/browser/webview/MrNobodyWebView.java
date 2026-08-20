@@ -41,6 +41,7 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,7 +68,7 @@ import io.flutter.plugin.platform.PlatformView;
  */
 class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
-    /** Blocked requests are answered with an empty 200, not an error page. */
+    /** Blocked subresources get an empty body; main frames get no-content. */
     private static final String BLOCKED_MIME = "text/plain";
 
     /** Width of a tab-grid thumbnail, in pixels. */
@@ -154,6 +155,20 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     private int lastReportedScrollY;
     private boolean destroyed;
 
+    /**
+     * Last document known to have entered this tab's history. Request
+     * interception runs off-main and cannot call WebView#getUrl safely, so it
+     * uses this snapshot to recognize cross-site POST/redirect navigations
+     * that never pass through shouldOverrideUrlLoading.
+     */
+    private volatile String lastCommittedUrl;
+
+    /** First request in an initial redirect chain, before anything commits. */
+    private volatile String lastMainFrameRequestUrl;
+
+    /** A refused document must not become the tab/address-bar source. */
+    private volatile String blockedMainFrameUrl;
+
     /** Harmful-looking downloads waiting for an explicit Flutter decision. */
     private final Map<String, PendingDownload> pendingDownloads = new LinkedHashMap<>();
 
@@ -192,6 +207,8 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         WebView retained = tabId >= 0 ? TabWebViews.get(tabId) : null;
         boolean fresh = retained == null;
         this.webView = fresh ? new WebView(context) : retained;
+        this.lastCommittedUrl = webView.getUrl();
+        this.lastMainFrameRequestUrl = lastCommittedUrl;
 
         // Storage isolation has to happen here, before the WebView navigates:
         // setProfile throws once a page has loaded. Only a fresh WebView is
@@ -350,10 +367,33 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 MrNobodyApp.filters().resetPageCounters();
             }
             String url = request.getUrl() == null ? null : request.getUrl().toString();
-            FilterEngine.Category category = MrNobodyApp.filters().shouldBlock(url);
-            if (category == FilterEngine.Category.NONE) return null;
+            String sourceUrl = mainFrame ? navigationSource() : null;
+            FilterEngine.Category category = mainFrame
+                    ? NavigationGuard.evaluate(MrNobodyApp.filters(), sourceUrl, url, true)
+                    : MrNobodyApp.filters().shouldBlock(url);
+            if (category == FilterEngine.Category.NONE) {
+                if (mainFrame && url != null && !url.isEmpty()) {
+                    // Carries the source across an initial server redirect,
+                    // before onPageFinished has a committed URL to publish.
+                    blockedMainFrameUrl = null;
+                    lastMainFrameRequestUrl = url;
+                }
+                return null;
+            }
 
+            if (mainFrame) {
+                blockedMainFrameUrl = url;
+                publishRestoredSource(sourceUrl);
+            }
             reportBlocked(category, mainFrame);
+            if (mainFrame) {
+                // 204 means the attempted navigation has no replacement
+                // document, so the current page/history stay intact. An empty
+                // 200 used to replace the source with a blank blocked URL.
+                return new WebResourceResponse(BLOCKED_MIME, "utf-8", 204,
+                        "No Content", Collections.emptyMap(),
+                        new ByteArrayInputStream(new byte[0]));
+            }
             return new WebResourceResponse(BLOCKED_MIME, "utf-8",
                     new ByteArrayInputStream(new byte[0]));
         }
@@ -373,11 +413,14 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             // do not invoke this callback.
             if (request.isForMainFrame()) {
                 FilterEngine.Category category = NavigationGuard.evaluate(
-                        MrNobodyApp.filters(), view.getUrl(), url, true);
+                        MrNobodyApp.filters(), navigationSource(), url, true);
                 if (category != FilterEngine.Category.NONE) {
+                    blockedMainFrameUrl = url;
                     reportBlocked(category, true);
                     return true;
                 }
+                blockedMainFrameUrl = null;
+                lastMainFrameRequestUrl = url;
             }
 
             // Strip known tracking parameters from top-level navigations.
@@ -393,6 +436,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            if (sameUrl(url, blockedMainFrameUrl)) return;
             Map<String, Object> data = new HashMap<>();
             data.put("url", url);
             data.put("loading", true);
@@ -400,8 +444,27 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
 
         @Override
+        public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+            // Back/forward and same-document history restores do not reliably
+            // invoke onPageStarted. This callback is the authoritative history
+            // URL and keeps both BrowserTab and the visible address bar honest.
+            if (url == null || url.isEmpty() || sameUrl(url, blockedMainFrameUrl)) return;
+            lastCommittedUrl = url;
+            lastMainFrameRequestUrl = url;
+            Map<String, Object> data = new HashMap<>();
+            data.put("url", url);
+            data.put("title", view.getTitle() == null ? "" : view.getTitle());
+            data.put("canGoBack", view.canGoBack());
+            data.put("canGoForward", view.canGoForward());
+            send("onNavigation", data);
+        }
+
+        @Override
         public void onPageFinished(WebView view, String url) {
             container.setRefreshing(false);
+            if (sameUrl(url, blockedMainFrameUrl)) return;
+            lastCommittedUrl = url;
+            lastMainFrameRequestUrl = url;
             if (!isPrivate) {
                 // History is off by default and never recorded in a private tab.
                 MrNobodyApp.history().add(url, view.getTitle());
@@ -753,6 +816,25 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
     }
 
+    @Nullable
+    private String navigationSource() {
+        String committed = lastCommittedUrl;
+        if (committed != null && !committed.isEmpty()) return committed;
+        return lastMainFrameRequestUrl;
+    }
+
+    private static boolean sameUrl(@Nullable String first, @Nullable String second) {
+        return first != null && second != null && first.equals(second);
+    }
+
+    private void publishRestoredSource(@Nullable String sourceUrl) {
+        if (sourceUrl == null || sourceUrl.isEmpty()) return;
+        Map<String, Object> data = new HashMap<>();
+        data.put("url", sourceUrl);
+        data.put("loading", false);
+        send("onNavigation", data);
+    }
+
     private boolean openExternallyIfRequired(@Nullable Uri uri) {
         if (uri == null) return false;
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
@@ -795,7 +877,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
         String webUrl = uri.toString();
         FilterEngine.Category category = NavigationGuard.evaluate(
-                MrNobodyApp.filters(), source.getUrl(), webUrl, true);
+                MrNobodyApp.filters(), navigationSource(), webUrl, true);
         if (category != FilterEngine.Category.NONE) {
             reportBlocked(category, true);
             return;

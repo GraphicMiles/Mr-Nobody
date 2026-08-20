@@ -55,6 +55,22 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('history navigation replaces the address with the restored URL',
+      (tester) async {
+    await pumpBrowser(tester);
+    await tester.tap(find.byType(TextField));
+    await tester.enterText(find.byType(TextField), 'editing text');
+
+    final nav = tester.widget<BrowserNav>(find.byType(BrowserNav));
+    nav.onBack();
+    await tester.pump();
+    engine.onUrlChanged?.call('https://example.com/previous');
+    await tester.pump();
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'https://example.com/previous');
+  });
+
   testWidgets('delete icon is visible only while the address field is focused',
       (tester) async {
     await pumpBrowser(tester);
