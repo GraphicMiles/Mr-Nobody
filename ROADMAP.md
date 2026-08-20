@@ -17,7 +17,7 @@ The repository now passes its complete automated pipeline after the architecture
 
 Automated success does not prove System WebView, Keystore, Storage Access Framework, notifications, WorkManager, proxy/Orbot, or process-death behavior on a phone. Those remain the acceptance boundary.
 
-Current device findings (2026-08-20) on build `6f5b99d`: public browsing state cleared and the private tab closed, but System WebView still reported `mrnobody-private` in use after profile-deletion retries; some betting redirects bypassed the navigation callback; and Back/Forward could restore a page without updating the address field. AdBlock Tester scored 53/100: Google Analytics and Hotjar execution checks passed, while Sentry/Bugsnag CDN scripts and the test site's same-origin banner files remained visible. Unpushed local follow-ups now await every private Dart/native/platform-view owner before native clear, make `WebView.destroy()` unconditional, apply redirect policy again in main-frame interception for POST/callback-bypass paths, publish history-restored URLs through `doUpdateVisitedHistory`, and add narrowly scoped rules for the confirmed CDN/banner leaks. CI and same-device retests remain required.
+Current device findings (2026-08-20) on build `6f5b99d`: public browsing state cleared and the private tab closed, but System WebView still reported `mrnobody-private` in use after profile-deletion retries; some betting redirects bypassed the navigation callback; and Back/Forward could restore a page without updating the address field. AdBlock Tester scored 53/100: Google Analytics and Hotjar execution checks passed, while Sentry/Bugsnag CDN scripts and the test site's same-origin banner files remained visible. The follow-ups are now pushed at head: private Dart/native/platform-view owners are awaited before native clear, `WebView.destroy()` is unconditional, redirect policy is applied again in main-frame interception for POST/callback-bypass paths, history-restored URLs are published through `doUpdateVisitedHistory`, and narrowly scoped rules cover the confirmed CDN/banner leaks. A fresh CI run and same-device retests remain required.
 
 ## Current automated evidence
 
@@ -26,11 +26,11 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | GitHub Actions run | **Passed** — `32310388940` |
 | Strict Flutter analysis | **Passed** |
 | Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **757 tests passed locally** for the current unpushed tree |
+| Java/JVM suite | **757 tests passed locally** for the current pushed head |
 | Android Gradle unit suite | **Passed** |
 | Privacy-auditor suite | **13 tests passed** |
 | Repository privacy audit | **Clean** |
-| Filter-list validation/digest | **Passed** — `3ed6a3b8b92e…` |
+| Filter-list validation/digest | **Passed** — `7e119400943d…` |
 | APK signatures | **Verified with APK Signature Scheme v2** |
 | armeabi-v7a APK | **14.62 MiB** |
 | arm64-v8a APK | **17.06 MiB** |
@@ -51,7 +51,7 @@ CI uses a stable, public test-only signing key so successive patched APKs can up
 | Provider keys and granted cookies stored as plaintext | Added Android Keystore-backed AES-GCM preferences, in-place migration, credential-removal UI, crypto tests, and privacy-audit guards | `2c20281` |
 | Vulnerable unused Kotlin build plugin | Removed Kotlin plugin/options and added a CI dependency-policy gate | `7d7fcba` |
 | Task timestamps replaced by read time | Restored durable `created_at`/`updated_at` values after cursor hydration | `5181464` |
-| Clear-data missed isolated/live WebView owners | Agent pages are released and normal tabs survive; the current unpushed follow-up makes private Dart/native/platform-view release an awaited precondition of profile deletion | `7266e99`, `8300aee`, `cd48557`; follow-up pending |
+| Clear-data missed isolated/live WebView owners | Agent pages are released and normal tabs survive; the pushed follow-up makes private Dart/native/platform-view release an awaited precondition of profile deletion | `7266e99`, `8300aee`, `cd48557`; device retest pending |
 | Fake `spill://` output locator | Replaced with a bounded, explicit, non-retrievable preview | `4eb6e08` |
 | Approval “always” grant was in-memory and race-prone | Made overrides concurrent and labelled them accurately as process-session grants | `b8763d9` |
 | Remote HTTP errors lost response bodies/config was stale | Added error-stream handling, disconnect guarantees, cancellation precheck, tests, and dispatch-time endpoint lookup | `6f1a55c` |
