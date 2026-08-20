@@ -96,13 +96,17 @@ void main() {
     expect(tabs.active, isNull);
   });
 
-  test('clearing browser data closes private tabs but keeps normal tabs', () {
+  test('clearing browser data releases private owners but keeps normal tabs', () async {
     final tabs = TabManager();
     final normal = tabs.newTab(url: 'https://example.com');
-    tabs.newTab(isPrivate: true, url: 'https://httpbin.org/cookies');
+    final private = tabs.newTab(isPrivate: true, url: 'https://httpbin.org/cookies');
+    final normalEngine = normal.engine as FakeBrowserEngine;
+    final privateEngine = private.engine as FakeBrowserEngine;
 
-    tabs.closePrivateTabs();
+    await tabs.closePrivateTabs();
 
+    expect(privateEngine.nativeOwnershipReleased, isTrue);
+    expect(normalEngine.nativeOwnershipReleased, isFalse);
     expect(tabs.length, 1);
     expect(tabs.active?.id, normal.id);
     expect(tabs.active?.url, 'https://example.com');

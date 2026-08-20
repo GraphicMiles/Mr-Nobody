@@ -7,6 +7,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.mrnobody.browser.net.ProfileManager;
+import com.mrnobody.debug.ErrorLog;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -149,24 +150,57 @@ public final class TabWebViews {
     private static void destroy(@Nullable Page page, boolean managePrivateProfile) {
         if (page == null) return;
         WebView webView = page.webView;
+
+        // Every preparation step is best-effort, but destroy() is mandatory.
+        // The previous single try block skipped destroy when any harmless
+        // cleanup call threw; that left a living private WebView and made
+        // ProfileStore reject deletion through every retry.
         try {
             detach(webView);
-            webView.stopLoading();
-            webView.setWebChromeClient(null);
-            webView.setOnScrollChangeListener(null);
-            webView.loadUrl("about:blank");
-            if (page.isPrivate) {
-                // A private tab leaves nothing behind it. This runs when the
-                // tab is closed rather than when its view is rebuilt, so
-                // switching away from a private tab no longer wipes the page
-                // the user is still using.
-                webView.clearCache(true);
-                webView.clearFormData();
-            }
-            webView.clearHistory();
-            webView.destroy();
         } catch (Throwable ignored) {
-            // Tearing down a page must never take the app with it.
+        }
+        try {
+            webView.stopLoading();
+        } catch (Throwable ignored) {
+        }
+        try {
+            webView.setWebChromeClient(null);
+        } catch (Throwable ignored) {
+        }
+        try {
+            webView.setWebViewClient(null);
+        } catch (Throwable ignored) {
+        }
+        try {
+            webView.setOnScrollChangeListener(null);
+        } catch (Throwable ignored) {
+        }
+        try {
+            webView.removeAllViews();
+        } catch (Throwable ignored) {
+        }
+        if (page.isPrivate) {
+            // A private tab leaves nothing behind it. Do not navigate to
+            // about:blank during teardown: starting another navigation just
+            // before destroy can prolong Chromium's ownership of the profile.
+            try {
+                webView.clearCache(true);
+            } catch (Throwable ignored) {
+            }
+            try {
+                webView.clearFormData();
+            } catch (Throwable ignored) {
+            }
+        }
+        try {
+            webView.clearHistory();
+        } catch (Throwable ignored) {
+        }
+        try {
+            webView.destroy();
+        } catch (Throwable failure) {
+            ErrorLog.record("WebView destroy failed before profile cleanup: "
+                    + failure.getClass().getSimpleName());
         }
 
         // The isolated profile can only be deleted once nothing is using it,

@@ -201,7 +201,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _push(const DownloadsScreen());
         break;
       case 'clear':
-        _push(ClearDataScreen(onBrowserDataCleared: _onBrowserDataCleared));
+        _push(ClearDataScreen(onBeforeBrowserDataClear: _onBeforeBrowserDataClear));
         break;
       default:
         ErrorLog.instance.add('unknown deep link: $uri');
@@ -275,7 +275,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 _push(const PrivacyScreen());
                 break;
               case BrowserDestination.settings:
-                _push(SettingsScreen(onBrowserDataCleared: _onBrowserDataCleared));
+                _push(SettingsScreen(onBeforeBrowserDataClear: _onBeforeBrowserDataClear));
                 break;
               case BrowserDestination.downloads:
                 _push(const DownloadsScreen());
@@ -298,8 +298,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
-  void _onBrowserDataCleared() {
-    _tabs.closePrivateTabs();
+  Future<void> _onBeforeBrowserDataClear() async {
+    await _tabs.closePrivateTabs();
+    // Removing a platform-view widget takes effect at the frame boundary.
+    // Do not ask ProfileStore to delete its profile while Flutter may still
+    // have the private Android view mounted behind the Settings route.
+    await WidgetsBinding.instance.endOfFrame;
   }
 
   void _select(ShellTab tab) {
@@ -403,7 +407,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 SettingsScreen(
                   scrollController: _scrollControllers[ShellTab.settings],
                   onBack: () => _select(ShellTab.home),
-                  onBrowserDataCleared: _onBrowserDataCleared,
+                  onBeforeBrowserDataClear: _onBeforeBrowserDataClear,
                 ),
               ],
             ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -36,6 +38,7 @@ class NativeWebViewEngine implements BrowserEngine {
 
   MethodChannel? _channel;
   bool _disposed = false;
+  Future<void>? _nativeRelease;
 
   /// Commands issued before the platform view exists are replayed on creation.
   final List<_PendingCall> _pending = [];
@@ -252,22 +255,29 @@ class NativeWebViewEngine implements BrowserEngine {
   Future<bool> resolveDownload(String requestId, bool allow) async =>
       await _invoke<bool>('resolveDownload', {'id': requestId, 'allow': allow}) ?? false;
 
+  /// Ask native to destroy the retained page exactly once. Clear-data awaits
+  /// this acknowledgement before requesting isolated-profile deletion.
+  @override
+  Future<void> releaseNativeOwnership() {
+    if (tabId < 0 || !isAvailable) return Future<void>.value();
+    return _nativeRelease ??= NativeBridge.guard(
+      () => NativeBridge.releaseTab(tabId),
+      false,
+      'could not release tab $tabId',
+    ).then<void>((_) {});
+  }
+
   /// The tab is closed for good: let the native side destroy the page it has
   /// been holding. Disposing the widget alone must not do this — that is the
   /// whole point of retaining it.
   @override
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     _channel?.setMethodCallHandler(null);
     _channel = null;
     _pending.clear();
-    if (tabId >= 0 && isAvailable) {
-      NativeBridge.guard(
-        () => NativeBridge.releaseTab(tabId),
-        false,
-        'could not release tab $tabId',
-      );
-    }
+    unawaited(releaseNativeOwnership());
   }
 }
 

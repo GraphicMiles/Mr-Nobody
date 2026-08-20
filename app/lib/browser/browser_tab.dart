@@ -193,6 +193,9 @@ class BrowserTab extends ChangeNotifier {
 
   static String _stripFragment(String u) => u.split('#').first;
 
+  /// Awaitable native teardown used by Clear Data after this model is removed.
+  Future<void> releaseNativeOwnership() => engine.releaseNativeOwnership();
+
   @override
   void dispose() {
     _captureAfterLoad?.cancel();

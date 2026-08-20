@@ -85,5 +85,12 @@ abstract class BrowserEngine {
   /// Called with the load progress 0..100.
   ValueChanged<int>? onProgress;
 
+  /// Complete the native ownership handoff for a tab that is closing.
+  ///
+  /// Ordinary disposal starts this asynchronously. Clear-data awaits it before
+  /// asking Android to delete an isolated profile, because ProfileStore refuses
+  /// deletion while even one WebView still owns that profile.
+  Future<void> releaseNativeOwnership();
+
   void dispose();
 }
