@@ -37,7 +37,7 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | x86_64 APK | **18.19 MiB** |
 | APK product limit | **Passed** — 45 MiB per ABI |
 | Documentation surface | **Passed** — only `README.md` and `ROADMAP.md` |
-| Hosted Android emulator matrix | **Implemented; API 31/34 booted, instrumentation rerun pending after shell-harness fix** |
+| Hosted Android emulator matrix | **Implemented; API 31/34 booted, instrumentation rerun pending after persistent-script harness fix** |
 | Physical-device matrix | **Not yet completed** |
 
 CI uses a stable, public test-only signing key so successive patched APKs can upgrade in place during device testing. Production signing requires protected external key material, never uses that public key, and never falls back to Android's debug key.

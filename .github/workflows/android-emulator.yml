@@ -75,23 +75,7 @@ jobs:
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none
           disable-animations: true
-          script: |
-            evidence="$GITHUB_WORKSPACE/emulator-artifacts/api-${{ matrix.api-level }}"
-            mkdir -p "$evidence"
-            collect_evidence() {
-              adb logcat -d -v threadtime > "$evidence/logcat.txt" 2>&1 || true
-              adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
-              adb pull /sdcard/window.xml "$evidence/window.xml" >/dev/null 2>&1 || true
-              adb exec-out screencap -p > "$evidence/final-screen.png" 2>/dev/null || true
-              adb pull /sdcard/Android/data/com.mrnobody.browser/files/device-smoke.png \
-                "$evidence/device-smoke.png" >/dev/null 2>&1 || true
-              adb shell dumpsys activity processes > "$evidence/activity-processes.txt" 2>&1 || true
-              adb shell dumpsys jobscheduler > "$evidence/jobscheduler.txt" 2>&1 || true
-              adb shell dumpsys notification > "$evidence/notifications.txt" 2>&1 || true
-            }
-            trap collect_evidence EXIT
-            cd app/android
-            ./gradlew :app:connectedDebugAndroidTest --console=plain
+          script: sh tools/android_emulator_smoke.sh ${{ matrix.api-level }}
 
       - name: Upload emulator evidence
         if: always()
