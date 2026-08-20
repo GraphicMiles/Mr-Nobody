@@ -105,6 +105,21 @@ public final class SearchSkills {
             return out;
         }
 
+        public String emptyMessage() {
+            switch (kind) {
+                case LATEST_YOUTUBE:
+                case YOUTUBE:
+                    return "No matching public YouTube video results were returned.";
+                case FACEBOOK_PUBLIC:
+                    return "No matching public Facebook results were returned. Private or login-only content was not accessed.";
+                case MATERIAL:
+                case ACADEMIC:
+                    return "No matching public material links were returned.";
+                default:
+                    return "The search returned nothing usable for this skill.";
+            }
+        }
+
         /** Honest answer for app shells, login walls and document listings. */
         public String listingAnswer(List<Map<String, Object>> results) {
             StringBuilder out = new StringBuilder();
@@ -139,7 +154,7 @@ public final class SearchSkills {
 
         if (LatestVideoSkill.matches(raw)) {
             return new Skill(Kind.LATEST_YOUTUBE, "youtube.latest",
-                    LatestVideoSkill.searchQuery(raw), "", true, "youtube.com",
+                    LatestVideoSkill.searchQuery(raw), "youtube", true, "youtube.com",
                     "Latest matching YouTube video",
                     "YouTube watch pages are treated as application shells, not article text.");
         }
@@ -147,8 +162,8 @@ public final class SearchSkills {
         if (t.contains("youtube") && containsAny(t,
                 "search", "find", "video", "channel", "watch")) {
             String subject = topic(raw, "youtube");
-            String query = (subject.isEmpty() ? raw : subject) + " site:youtube.com/watch";
-            return new Skill(Kind.YOUTUBE, "youtube.search", query, "", true,
+            String query = (subject.isEmpty() ? raw : subject) + " youtube video";
+            return new Skill(Kind.YOUTUBE, "youtube.search", query, "youtube", true,
                     "youtube.com", "YouTube search results",
                     "Results use public search metadata; private, deleted and age-restricted videos may not appear.");
         }

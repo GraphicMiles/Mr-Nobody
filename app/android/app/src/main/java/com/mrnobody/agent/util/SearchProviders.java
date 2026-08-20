@@ -78,6 +78,14 @@ public final class SearchProviders {
             "https://www.mojeek.com/search?q={q}",
             "{block:'ul.results-standard li,li.result',link:'a.title,h2 a',title:'a.title,h2',snippet:'p.s,.s'}");
 
+    private static final Provider YOUTUBE = new Provider(
+            "youtube", "YouTube",
+            "https://www.youtube.com/results?search_query={q}",
+            "{block:'ytd-video-renderer,ytd-rich-item-renderer',"
+                    + "link:'a#video-title,a[href^=\"/watch\"]',"
+                    + "title:'a#video-title,#video-title',"
+                    + "snippet:'#description-text,.metadata-snippet-text'}");
+
     private static final Provider GOOGLE = new Provider(
             "google", "Google",
             "https://www.google.com/search?q={q}",
@@ -101,10 +109,15 @@ public final class SearchProviders {
     /** An instruction may explicitly request a provider (for example Google). */
     public static List<Provider> chainRequested(String requested, String preferredEngineUrl) {
         String forced = requested == null ? "" : requested.trim().toLowerCase(Locale.ROOT);
+        if ("youtube".equals(forced)) {
+            return new ArrayList<>(Arrays.asList(YOUTUBE, BING, DDG_HTML));
+        }
         if (!forced.isEmpty()) {
             for (Provider p : Arrays.asList(
                     GOOGLE, BING, DDG_HTML, DDG_LITE, MOJEEK, STARTPAGE)) {
-                if (p.id.equals(forced)) return new ArrayList<>(java.util.Collections.singletonList(p));
+                if (p.id.equals(forced)) {
+                    return new ArrayList<>(java.util.Collections.singletonList(p));
+                }
             }
         }
 

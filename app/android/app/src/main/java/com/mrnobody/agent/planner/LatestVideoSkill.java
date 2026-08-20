@@ -53,8 +53,8 @@ public final class LatestVideoSkill {
     public static String searchQuery(String instruction) {
         if (!matches(instruction)) return instruction == null ? "" : instruction.trim();
         String channel = channel(instruction);
-        if (channel.isEmpty()) return instruction.trim() + " site:youtube.com/watch";
-        return "\"" + channel + "\" latest video site:youtube.com/watch";
+        if (channel.isEmpty()) return instruction.trim() + " youtube video";
+        return "\"" + channel + "\" latest video youtube";
     }
 
     public static Match find(String instruction, List<Map<String, Object>> results) {

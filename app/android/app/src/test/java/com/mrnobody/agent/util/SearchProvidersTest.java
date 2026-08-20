@@ -71,6 +71,14 @@ public class SearchProvidersTest {
     }
 
     @Test
+    public void explicitlyRequestedYouTubeUsesPlatformThenWebFallbacks() {
+        List<SearchProviders.Provider> chain =
+                SearchProviders.chainRequested("youtube", null);
+        assertEquals("youtube", chain.get(0).id);
+        assertTrue(chain.size() >= 2);
+    }
+
+    @Test
     public void everyProviderBuildsAnEncodedQueryUrl() {
         for (SearchProviders.Provider p : SearchProviders.chain(null)) {
             String url = p.url("best chinese restaurants in lagos & environs");
@@ -124,6 +132,14 @@ public class SearchProvidersTest {
         assertEquals(2, results.size());
         assertEquals("blog.example.com", SearchResultsJson.hostOf(results.get(0).url));
         assertEquals("other.example.org", SearchResultsJson.hostOf(results.get(1).url));
+    }
+
+    @Test
+    public void platformSearchCanKeepSeveralItemsFromOneHost() {
+        String json = "[{\"title\":\"Video A\",\"url\":\"https://youtube.com/watch?v=a\"},"
+                + "{\"title\":\"Video B\",\"url\":\"https://youtube.com/watch?v=b\"}]";
+        assertEquals(1, SearchResultsJson.parse(json, 5).size());
+        assertEquals(2, SearchResultsJson.parse(json, 5, false).size());
     }
 
     @Test
