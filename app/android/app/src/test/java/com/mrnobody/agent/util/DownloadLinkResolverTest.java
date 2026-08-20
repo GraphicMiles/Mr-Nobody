@@ -96,4 +96,70 @@ public class DownloadLinkResolverTest {
         assertEquals("https://example.com/downloads/release.apk",
                 DownloadLinkResolver.resolve(links, null));
     }
+
+    // ------------------------------------------------------- image downloads
+
+    @Test
+    public void imageIntentIsRecognisedAndPlainDownloadsAreNot() {
+        assertTrue(DownloadLinkResolver.wantsImage("download a png icon from pngtree"));
+        assertTrue(DownloadLinkResolver.wantsImage("get me a wallpaper of the alps"));
+        assertTrue(DownloadLinkResolver.wantsImage("download a photo of a cat"));
+        assertTrue(DownloadLinkResolver.wantsImage("save this image"));
+        assertFalse(DownloadLinkResolver.wantsImage("download infinity war from nkiri.ink"));
+        assertFalse(DownloadLinkResolver.wantsImage("download the annual report pdf"));
+        assertFalse(DownloadLinkResolver.wantsImage(null));
+    }
+
+    @Test
+    public void theNamedExtensionIsExtracted() {
+        assertEquals(".png", DownloadLinkResolver.requestedImageExt(
+                "download a png icon from pngtree"));
+        assertEquals(".jpg", DownloadLinkResolver.requestedImageExt("save a jpg of the eiffel tower"));
+        assertEquals(".svg", DownloadLinkResolver.requestedImageExt("get the logo as svg"));
+        assertNull(DownloadLinkResolver.requestedImageExt("download a wallpaper"));
+        assertNull(DownloadLinkResolver.requestedImageExt(null));
+    }
+
+    @Test
+    public void isImageReadsThePathNotTheQuery() {
+        assertTrue(DownloadLinkResolver.isImage("https://cdn.example/icons/home.png"));
+        assertTrue(DownloadLinkResolver.isImage("https://cdn.example/a/b.webp?w=300&h=300"));
+        assertFalse(DownloadLinkResolver.isImage("https://example.com/gallery.html"));
+        assertFalse(DownloadLinkResolver.isImage("https://example.com/photo-viewer?img=1.png"));
+        assertFalse(DownloadLinkResolver.isImage(null));
+    }
+
+    @Test
+    public void resolveImagePrefersTheAskedExtensionOverOtherImages() {
+        List<String> links = Arrays.asList(
+                "https://pngtree.example/assets/banner.jpg",
+                "https://pngtree.example/icons/home-icon.png",
+                "https://pngtree.example/download/pack.zip");
+        assertEquals("https://pngtree.example/icons/home-icon.png",
+                DownloadLinkResolver.resolveImage(links, null, "png icon", ".png"));
+    }
+
+    @Test
+    public void resolveImagePrefersAnyImageOverANonImageFile() {
+        List<String> links = Arrays.asList(
+                "https://cdn.example/files/catalogue.pdf",
+                "https://cdn.example/photos/alps.jpg");
+        assertEquals("https://cdn.example/photos/alps.jpg",
+                DownloadLinkResolver.resolveImage(links, null, "wallpaper alps", null));
+    }
+
+    @Test
+    public void resolveImageStillHonoursTheNamedHost() {
+        List<String> links = Arrays.asList(
+                "https://elsewhere.example/nice.png",
+                "https://pngtree.example/ok.png");
+        assertEquals("https://pngtree.example/ok.png",
+                DownloadLinkResolver.resolveImage(links, "pngtree.example", null, ".png"));
+    }
+
+    @Test
+    public void resolveImageFindsNothingInAnEmptyHarvest() {
+        assertNull(DownloadLinkResolver.resolveImage(Arrays.asList(), null, "png icon", ".png"));
+        assertNull(DownloadLinkResolver.resolveImage(null, null, "png icon", ".png"));
+    }
 }

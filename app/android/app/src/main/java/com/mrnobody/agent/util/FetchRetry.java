@@ -7,14 +7,18 @@ import java.util.TimeZone;
 /**
  * When to retry a fetch, and how long to wait.
  *
- * <p>SwiftAgent's {@code .retry(3, delay:)} plus honouring {@code Retry-After}.
- * Only transient statuses retry. A fail-closed privacy route must not be
+ * <p>SwiftAgent's {@code .retry} plus honouring {@code Retry-After}.
+ * Only transient statuses retry, and only once (owner's rule 4: a fetch that
+ * failed hard gets one more chance, a fetch that succeeded imperfectly gets
+ * none — the twenty-second "recovered" re-read of an already-answering host
+ * was pure waste). A fail-closed privacy route must not be
  * retried as a direct connection — that decision lives in {@code NetworkGate},
  * not here.
  */
 public final class FetchRetry {
 
-    public static final int MAX_ATTEMPTS = 3;
+    /** The first attempt plus exactly one retry. */
+    public static final int MAX_ATTEMPTS = 2;
     public static final long MAX_WAIT_MS = 5_000L;
 
     private FetchRetry() {

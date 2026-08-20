@@ -305,12 +305,24 @@ public final class Diagnostics {
 
         out.add(check("settings.defaults", "Privacy defaults (history off, blocking on)",
                 () -> {
-                    Settings s = new Settings(context);
-                    String status = "history=" + s.isHistoryEnabled()
-                            + ", blocking=" + s.isBlockingEnabled()
-                            + ", fingerprint=" + s.isFingerprintProtection()
-                            + ", terminal=" + s.isTerminalEnabled();
-                    return !s.isHistoryEnabled() && s.isBlockingEnabled()
+                    // Probe the DEFAULTS against an empty prefs file. Reading
+                    // the live file here reported the user's own history
+                    // toggle as a failed default — device-observed ❌.
+                    String probeFile = "mrnobody_defaults_probe";
+                    context.getSharedPreferences(probeFile, Context.MODE_PRIVATE)
+                            .edit().clear().commit();
+                    Settings d = new Settings(context, probeFile);
+                    Settings live = new Settings(context);
+                    String status = "defaults: history=" + d.isHistoryEnabled()
+                            + ", blocking=" + d.isBlockingEnabled()
+                            + ", fingerprint=" + d.isFingerprintProtection()
+                            + ", terminal=" + d.isTerminalEnabled()
+                            + " | current: history=" + live.isHistoryEnabled()
+                            + ", blocking=" + live.isBlockingEnabled();
+                    boolean pass = !d.isHistoryEnabled() && d.isBlockingEnabled();
+                    context.getSharedPreferences(probeFile, Context.MODE_PRIVATE)
+                            .edit().clear().commit();
+                    return pass
                             ? Result.pass("settings.defaults", "Privacy defaults", status)
                             : Result.fail("settings.defaults", "Privacy defaults", status);
                 }));

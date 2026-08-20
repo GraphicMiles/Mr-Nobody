@@ -53,6 +53,35 @@ public final class SiteMemory {
         return o == null ? 0 : o.challengeStreak;
     }
 
+    /**
+     * One plain-HTTP outcome for a host: {@code usable} when the fetch
+     * returned prose the read loop could actually cite, false when it failed
+     * or needed the browser. Clamped so one bad afternoon cannot condemn a
+     * host forever, and one lucky hit cannot canonise it.
+     */
+    public static synchronized void recordHttpOutcome(String host, boolean usable) {
+        String h = norm(host);
+        if (h.isEmpty()) return;
+        Observation o = MEM.get(h);
+        if (o == null) o = new Observation();
+        o.httpScore = clampScore(o.httpScore + (usable ? 1 : -1));
+        MEM.put(h, o);
+    }
+
+    /**
+     * The cheap-success score for a host: positive when plain HTTP has been
+     * yielding usable text, negative when it has not, zero when unknown.
+     * Read candidates are ranked by this (owner's rule 6).
+     */
+    public static synchronized int httpScore(String host) {
+        Observation o = MEM.get(norm(host));
+        return o == null ? 0 : o.httpScore;
+    }
+
+    private static int clampScore(int v) {
+        return Math.max(-3, Math.min(3, v));
+    }
+
     /** True after two challenge/SPA observations in a row. */
     public static synchronized boolean preferBrowser(String host) {
         Observation o = MEM.get(norm(host));
@@ -69,5 +98,7 @@ public final class SiteMemory {
     private static final class Observation {
         PageKind.Kind kind;
         int challengeStreak;
+        /** Clamped running score of plain-HTTP fetch outcomes. */
+        int httpScore;
     }
 }

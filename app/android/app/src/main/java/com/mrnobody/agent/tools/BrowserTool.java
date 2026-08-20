@@ -76,6 +76,8 @@ public final class BrowserTool implements Tool {
             .param(ParamSpec.enumOf("direction", false, "Scroll direction.", "up", "down"))
             .param(ParamSpec.integer("ms", false, "Milliseconds to wait."))
             .param(ParamSpec.integer("timeout", false, "Page load budget in milliseconds."))
+            .param(ParamSpec.bool("images", false,
+                    "For links: also collect img/srcset sources, for image downloads."))
             .param(ParamSpec.text("anchorText", false,
                     "Page text the decision was based on; the action is refused if it moved.", 8192))
             .param(ParamSpec.url("anchorUrl", false, "URL the decision was based on."))
@@ -203,7 +205,12 @@ public final class BrowserTool implements Tool {
                     return ToolResult.fail("browser.links needs 'url'");
                 }
                 long linkTimeout = parseLong(request.param("timeout"), 20_000);
-                String json = engine.loadAndEvaluate(linkUrl, LINKS_SCRIPT, linkTimeout);
+                // An image task's files live in img src / srcset, which no
+                // anchor points at; harvest them only when asked, so a movie
+                // download is not offered the site's logo.
+                boolean withImages = "true".equalsIgnoreCase(request.param("images", "false"));
+                String json = engine.loadAndEvaluate(linkUrl,
+                        withImages ? LINKS_AND_IMAGES_SCRIPT : LINKS_SCRIPT, linkTimeout);
                 lastKnownUrl = linkUrl;
                 java.util.Map<String, Object> v = new java.util.LinkedHashMap<>();
                 v.put("action", "links");
@@ -452,6 +459,26 @@ public final class BrowserTool implements Tool {
             + "for(var i=0;i<as.length;i++){var u=as[i].href;"
             + "if(u&&u.indexOf('http')===0&&!seen[u]){seen[u]=1;out.push(u);}"
             + "if(out.length>=200)break;}return JSON.stringify(out);"
+            + "}catch(e){return '[]'}})()";
+
+    /**
+     * Anchors plus image sources — {@code img src} and the first URL of any
+     * {@code srcset} — for image-download tasks. Same 200 cap, same absolute
+     * http(s)-only rule.
+     */
+    private static final String LINKS_AND_IMAGES_SCRIPT =
+            "(function(){try{var out=[],seen={};"
+            + "function add(u){if(u&&u.indexOf('http')===0&&!seen[u]&&out.length<200)"
+            + "{seen[u]=1;out.push(u);}}"
+            + "var as=document.querySelectorAll('a[href]');"
+            + "for(var i=0;i<as.length;i++){add(as[i].href);}"
+            + "var im=document.querySelectorAll('img[src]');"
+            + "for(var j=0;j<im.length;j++){add(im[j].src);}"
+            + "var ss=document.querySelectorAll('img[srcset],source[srcset]');"
+            + "for(var k=0;k<ss.length;k++){var first=(ss[k].getAttribute('srcset')||'')"
+            + ".split(',')[0].trim().split(' ')[0];"
+            + "if(first){var a=document.createElement('a');a.href=first;add(a.href);}}"
+            + "return JSON.stringify(out);"
             + "}catch(e){return '[]'}})()";
 
     /** A JSON array of link strings, or an empty list on any failure. */

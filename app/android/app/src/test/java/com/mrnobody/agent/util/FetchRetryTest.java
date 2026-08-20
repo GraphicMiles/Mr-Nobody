@@ -33,9 +33,11 @@ public class FetchRetryTest {
     }
 
     @Test
-    public void threeAttemptsThenStop() {
+    public void oneRetryThenStop() {
+        // Rule 4: a hard failure gets exactly one more chance. The third
+        // attempt was cost with no observed benefit on-device.
         assertTrue(FetchRetry.hasAttemptsLeft(0));
-        assertTrue(FetchRetry.hasAttemptsLeft(1));
-        assertFalse(FetchRetry.hasAttemptsLeft(2));
+        assertFalse(FetchRetry.hasAttemptsLeft(1));
+        assertEquals(2, FetchRetry.MAX_ATTEMPTS);
     }
 }

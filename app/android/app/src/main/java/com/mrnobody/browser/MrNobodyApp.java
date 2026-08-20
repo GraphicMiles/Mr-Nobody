@@ -298,6 +298,9 @@ public final class MrNobodyApp extends Application {
     }
 
     public static AiProvider activeProvider() {
+        // Before onCreate has run (or on the JVM test harness, where it never
+        // runs) there are no settings to read; local is the only honest answer.
+        if (settings == null) return new LocalProvider();
         return buildProvider(activeAiProviderId);
     }
 

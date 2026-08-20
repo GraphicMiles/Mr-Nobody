@@ -14,6 +14,7 @@ import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.policy.ApprovalPolicy;
 import com.mrnobody.agent.policy.BudgetGuard;
 import com.mrnobody.agent.policy.RepeatCallGuard;
+import com.mrnobody.agent.policy.TaskBudget;
 import com.mrnobody.agent.tools.BrowserTool;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
@@ -63,6 +64,14 @@ public final class DeterministicEngine implements AgentEngine {
 
     /** How many pages are worth reading before answering. */
     private static final int MAX_SOURCES_READ = 3;
+
+    /**
+     * The page-load ceiling handed to the headless browser when the engine
+     * escalates a read (owner's rule 2). The browser tool's own default of
+     * twenty seconds is for tasks that *are* browser tasks; an escalated read
+     * is a fallback and must stay cheap.
+     */
+    private static final long BROWSER_FETCH_TIMEOUT_MS = 8_000L;
 
     /**
      * The per-run spend ceiling for remote (provider-backed) runs. Deliberately
@@ -204,6 +213,20 @@ public final class DeterministicEngine implements AgentEngine {
             return;
         }
 
+        // Skill-before-search, rule 3: a time/date/day question is answered
+        // from the device clock, with zero network. Before this, "whats the
+        // time" ran a five-page 53-second research task.
+        String clockAnswer = ClockSkill.answer(asked);
+        if (clockAnswer != null) {
+            enterActivity(task, Task.STEP_ANSWER, "Answering from the device clock",
+                    "skill.clock", "Clock questions never need a network.");
+            task.setError("");
+            task.setResult(clockAnswer);
+            task.setStatus(Task.Status.COMPLETED);
+            recordAnswer(task);
+            return;
+        }
+
         IntentClassifier.Decision classified = IntentClassifier.classify(provider, asked);
         if (stopIfAsked(context, task, provider)) return;
 
@@ -297,12 +320,25 @@ public final class DeterministicEngine implements AgentEngine {
         r.namedUrl = pointed != null ? pointed.url : findUrl(asked);
         if (pointed != null) r.titles.put(pointed.url, pointed.title);
         r.recurrence = resolveRecurrence(task, asked, intent);
+        // Rule 5: a wall-clock ceiling, checked between steps. On expiry the
+        // remaining reads are skipped and the answer is composed from the
+        // evidence in hand — never a spinner death.
+        r.budget = tools.containsKey("download") && ToolRouter.isDownloadIntent(asked)
+                ? TaskBudget.download() : TaskBudget.research();
 
         while (!plan.isFinished()) {
             if (stopped(task, cancellation)) return;
             Plan.Step step = plan.current();
 
             if (step.isToolStep()) {
+                // Rules 1 and 5: a read that can no longer be recorded —
+                // evidence already sufficient, read cap hit, or the budget
+                // spent — is not fetched at all. The cheapest action is the
+                // one not taken.
+                if ("http".equals(step.tool) && !shouldReadMore(r)) {
+                    plan.advance();
+                    continue;
+                }
                 enterStep(task, step);
                 ToolResult result = callTool(context, step.tool, step.request, cancellation);
                 if (parkIfNeeded(task, result)) return;
@@ -335,12 +371,21 @@ public final class DeterministicEngine implements AgentEngine {
 
                 if ("http".equals(step.tool)) {
                     // A read is best-effort: a blocked source (503, timeout,
-                    // bot challenge) must not fail the whole task. Escalate to
-                    // the headless browser, which renders JS and looks like a
-                    // real browser; if that fails too, skip this source and
-                    // move on — the answer step falls back to whatever was
-                    // actually read, plus the snippets.
+                    // bot challenge) must not fail the whole task. Escalation
+                    // to the headless browser happens only on validated
+                    // failure of the cheap fetch (rule 2); if that fails too,
+                    // the source is skipped and the answer falls back to
+                    // whatever was actually read, plus the snippets.
                     readBestEffort(context, r, step, result, cancellation);
+                    // Rule 1: stop reading the moment the evidence suffices.
+                    if (!r.enough && EvidenceSufficiency.enough(
+                            r.asked != null ? r.asked : task.conversation(),
+                            r.sources.toString())) {
+                        r.enough = true;
+                        enterActivity(task, Task.STEP_READ,
+                                "Enough evidence gathered", "read.early_exit",
+                                "Two sources already answer this; further reads are skipped.");
+                    }
                     plan.advance();
                     continue;
                 }
@@ -421,6 +466,8 @@ public final class DeterministicEngine implements AgentEngine {
         if (pointed != null) r.titles.put(pointed.url, pointed.title);
         r.recurrence = resolveRecurrence(task, asked, intent);
         r.provider = provider;
+        r.budget = tools.containsKey("download") && ToolRouter.isDownloadIntent(asked)
+                ? TaskBudget.download() : TaskBudget.research();
         r.cap = new com.mrnobody.agent.ai.SpendCap(MAX_RUN_USD,
                 com.mrnobody.agent.ai.ModelPricing.forModel(provider.modelId()));
 
@@ -451,6 +498,9 @@ public final class DeterministicEngine implements AgentEngine {
                 r.capReason = refusal;
                 break;
             }
+            // Rule 5 holds on the autonomous path too: past the wall, stop
+            // gathering and answer from the evidence observed so far.
+            if (r.budget != null && r.budget.expired()) break;
             enterActivity(task, "Deciding the next action", "reason",
                     "Choose one bounded action from the evidence observed so far.");
             Plan.Step step = planner.nextStep(asked, transcript, tools.keySet());
@@ -626,12 +676,17 @@ public final class DeterministicEngine implements AgentEngine {
                     ? "the page you named" : "search on the site you named");
             reads.add(readStep(page));
         }
-        if (r.results != null) for (Map<String, Object> result : r.results) {
-            if (reads.size() >= MAX_READ_CANDIDATES) break;
-            String url = String.valueOf(result.get("url"));
-            if (url.isEmpty()) continue;
-            r.titles.put(url, String.valueOf(result.get("title")));
-            reads.add(readStep(url));
+        if (r.results != null) {
+            // Rule 6: read the hosts that have been answering plain HTTP
+            // first, so the early exit fires on the cheap sources. Stable —
+            // unknown hosts keep the search engine's relevance order.
+            for (Map<String, Object> result : CandidateRank.byCheapSuccess(r.results)) {
+                if (reads.size() >= MAX_READ_CANDIDATES) break;
+                String url = String.valueOf(result.get("url"));
+                if (url.isEmpty()) continue;
+                r.titles.put(url, String.valueOf(result.get("title")));
+                reads.add(readStep(url));
+            }
         }
         // insertNext always places after the current step, so inserting in
         // reverse yields the correct order: named page, then results.
@@ -649,11 +704,22 @@ public final class DeterministicEngine implements AgentEngine {
     /**
      * HTTP first, unless this host already proved it needs a browser
      * (scrapling site-memory). Never treats a challenge page as a source.
+     *
+     * <p>Rule 2: the ~20s headless fallback is paid for only when the cheap
+     * fetch validated as a failure — the result failed, was flagged
+     * needsBrowser, or produced text {@code ReadableText.usable} rejects.
+     * A read that cannot be recorded anyway (cap reached, duplicate URL,
+     * evidence already sufficient) escalates nothing: on-device evidence
+     * showed the browser being launched after a successful 3.0s http fetch,
+     * purely because the read cap had made {@code readOne} return false.
      */
     private ToolResult readBestEffort(Context context, Research r, Plan.Step step,
                                       ToolResult httpResult, Cancellation cancellation) {
         String url = step.request == null ? "" : step.request.param("url", "");
         String host = Hosts.firstIn(url);
+        if (url.isEmpty() || r.readUrls.contains(url) || !shouldReadMore(r)) {
+            return httpResult;
+        }
         if (FetchLadder.firstStep(host) == FetchLadder.Step.BROWSER) {
             ToolResult browser = readViaBrowser(context, step, cancellation);
             if (browser != null && readOne(r, step, browser)) return browser;
@@ -662,6 +728,13 @@ public final class DeterministicEngine implements AgentEngine {
         ToolResult escalated = readViaBrowser(context, step, cancellation);
         if (escalated != null && readOne(r, step, escalated)) return escalated;
         return httpResult;
+    }
+
+    /** Rules 1 and 5 in one gate: more reading must still be able to help. */
+    private boolean shouldReadMore(Research r) {
+        if (r.enough) return false;
+        if (r.readUrls.size() >= MAX_SOURCES_READ) return false;
+        return r.budget == null || !r.budget.expired();
     }
 
     /** Skip HTTP when SiteMemory says this host is a challenge/SPA. */
@@ -816,7 +889,11 @@ public final class DeterministicEngine implements AgentEngine {
         if (!tools.containsKey("browser")) return null;
         String url = step.request == null ? "" : step.request.param("url", "");
         if (url.isEmpty()) return null;
-        return callTool(context, "browser", ToolRequest.of("fetch", "url", url), cancellation);
+        // Rule 2's cap: an escalated read gets eight seconds, not twenty.
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("url", url);
+        params.put("timeout", String.valueOf(BROWSER_FETCH_TIMEOUT_MS));
+        return callTool(context, "browser", new ToolRequest("fetch", params), cancellation);
     }
 
     /**
@@ -831,6 +908,9 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private void resolveDownload(Context context, Plan plan, Research r, Cancellation cancellation) {
         java.util.List<String> candidates = new java.util.ArrayList<>();
+        boolean wantsImage = com.mrnobody.agent.util.DownloadLinkResolver.wantsImage(r.asked);
+        String imageExt = wantsImage
+                ? com.mrnobody.agent.util.DownloadLinkResolver.requestedImageExt(r.asked) : null;
 
         // Direct hits: a search result that is already a file URL.
         if (r.results != null) {
@@ -840,8 +920,31 @@ public final class DeterministicEngine implements AgentEngine {
             }
         }
 
-        // The pages themselves: ask the browser for their links.
-        if (tools.containsKey("browser")) {
+        // An image task can use what the reads already saw: every page's
+        // preview image was harvested during the read loop, at zero extra
+        // fetches. "download a png icon from pngtree" found 0 links in 92.6s
+        // while the icons sat in img srcs nothing was collecting.
+        if (wantsImage) {
+            for (String img : r.images.values()) {
+                if (!candidates.contains(img)) candidates.add(img);
+            }
+        }
+
+        String preferred = r.namedUrl == null ? null : Hosts.firstIn(r.namedUrl);
+
+        // Cheapest sufficient action first: when the candidates in hand
+        // already resolve — and the user named no other host to honour —
+        // the per-page browser link harvest (~20s each) is skipped entirely.
+        String direct = wantsImage
+                ? DownloadLinkResolver.resolveImage(candidates, preferred, r.asked, imageExt)
+                : DownloadLinkResolver.resolve(candidates, preferred);
+        boolean directHonoursHost = direct != null
+                && (preferred == null || preferred.isEmpty()
+                        || preferred.equalsIgnoreCase(Hosts.firstIn(direct)));
+
+        // The pages themselves: ask the browser for their links (and, for an
+        // image task, their img/srcset sources too).
+        if (!directHonoursHost && tools.containsKey("browser")) {
             java.util.List<String> pages = new java.util.ArrayList<>();
             if (r.namedUrl != null) pages.add(r.namedUrl);
             for (String u : r.readUrls) {
@@ -855,8 +958,15 @@ public final class DeterministicEngine implements AgentEngine {
             }
             for (String page : pages) {
                 if (cancellation != null && cancellation.isCancelled()) return;
+                // Rule 5: the harvest stops at the budget wall; whatever was
+                // collected so far is what the resolver gets.
+                if (r.budget != null && r.budget.expired()) break;
+                Map<String, String> params = new LinkedHashMap<>();
+                params.put("url", page);
+                params.put("timeout", String.valueOf(BROWSER_FETCH_TIMEOUT_MS));
+                if (wantsImage) params.put("images", "true");
                 ToolResult links = callTool(context, "browser",
-                        ToolRequest.of("links", "url", page), cancellation);
+                        new ToolRequest("links", params), cancellation);
                 if (!links.isSuccess()) continue;
                 Object o = links.value().get("links");
                 if (o instanceof java.util.List) {
@@ -867,8 +977,9 @@ public final class DeterministicEngine implements AgentEngine {
             }
         }
 
-        String preferred = r.namedUrl == null ? null : Hosts.firstIn(r.namedUrl);
-        String best = DownloadLinkResolver.resolve(candidates, preferred);
+        String best = wantsImage
+                ? DownloadLinkResolver.resolveImage(candidates, preferred, r.asked, imageExt)
+                : DownloadLinkResolver.resolve(candidates, preferred);
         if (best != null) {
             plan.insertNext(Plan.Step.tool("Download", "download",
                     ToolRequest.of("download", "url", best), "resolved download link"));
@@ -1078,6 +1189,10 @@ public final class DeterministicEngine implements AgentEngine {
         ToolResult lastResult;
         ToolResult search;
         List<Map<String, Object>> results;
+        /** Rule 1: evidence already suffices; skip the remaining reads. */
+        boolean enough;
+        /** Rule 5: the wall-clock ceiling for this run. */
+        TaskBudget budget;
         LatestVideoSkill.Match latestVideo;
         AiProvider provider;
         boolean pagesRead;
