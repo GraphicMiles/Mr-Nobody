@@ -1,12 +1,15 @@
 package com.mrnobody.browser;
 
 import android.Manifest;
+import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.SystemClock;
+import android.view.MotionEvent;
 
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.tasks.TaskEventStore;
@@ -15,6 +18,8 @@ import com.mrnobody.browser.core.Settings;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
+import androidx.test.runner.lifecycle.Stage;
 import androidx.test.uiautomator.UiDevice;
 
 import org.junit.Before;
@@ -164,15 +169,34 @@ public final class AppDeviceSmokeTest {
         // Cold Flutter frames on the hosted emulator take several seconds. A
         // fixed readiness delay avoids depending on the unavailable virtual
         // accessibility descendants while remaining well inside the job cap.
+        instrumentation.waitForIdleSync();
         Thread.sleep(4_000);
-        assertTrue("Mr Nobody should own the foreground",
-                target.getPackageName().equals(device.getCurrentPackageName()));
+        final boolean[] resumed = {false};
+        instrumentation.runOnMainSync(() -> {
+            for (Activity activity : ActivityLifecycleMonitorRegistry.getInstance()
+                    .getActivitiesInStage(Stage.RESUMED)) {
+                resumed[0] |= activity instanceof MainActivity;
+            }
+        });
+        assertTrue("Mr Nobody MainActivity should be resumed", resumed[0]);
     }
 
     private void tap(double xFraction, double yFraction) {
-        int x = (int) (device.getDisplayWidth() * xFraction);
-        int y = (int) (device.getDisplayHeight() * yFraction);
-        assertTrue("screen tap at " + xFraction + "," + yFraction, device.click(x, y));
+        float x = (float) (device.getDisplayWidth() * xFraction);
+        float y = (float) (device.getDisplayHeight() * yFraction);
+        long downTime = SystemClock.uptimeMillis();
+        MotionEvent down = MotionEvent.obtain(downTime, downTime,
+                MotionEvent.ACTION_DOWN, x, y, 0);
+        MotionEvent up = MotionEvent.obtain(downTime, downTime + 80,
+                MotionEvent.ACTION_UP, x, y, 0);
+        try {
+            instrumentation.sendPointerSync(down);
+            instrumentation.sendPointerSync(up);
+            instrumentation.waitForIdleSync();
+        } finally {
+            down.recycle();
+            up.recycle();
+        }
     }
 
     private boolean waitForFirstLaunch(boolean expected, long timeout)
