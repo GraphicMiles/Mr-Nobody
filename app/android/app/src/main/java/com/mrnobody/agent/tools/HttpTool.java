@@ -81,6 +81,7 @@ public final class HttpTool implements Tool {
                     continue;
                 }
                 if (code < 200 || code >= 300) {
+                    com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(host, false);
                     return ToolResult.fail("HTTP " + code + " for " + url);
                 }
                 body = readBounded(conn.getInputStream());
@@ -89,6 +90,10 @@ public final class HttpTool implements Tool {
             PageKind.Kind kind = PageKind.classify(body);
             com.mrnobody.agent.util.SiteMemory.remember(host, kind);
             String text = extract(url, kind, body);
+            // Rule 6's evidence: did plain HTTP yield text the read loop can
+            // actually use? This score ranks the next task's read candidates.
+            com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(host,
+                    !kind.needsBrowser() && com.mrnobody.agent.util.ReadableText.usable(text));
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("url", url);
             value.put("status", code);
@@ -111,6 +116,7 @@ public final class HttpTool implements Tool {
             value.put("text", truncate(text, MAX_RESULT));
             return ToolResult.ok(value);
         } catch (Exception e) {
+            com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(host, false);
             return ToolResult.fail("http fetch failed: " + e.getMessage());
         }
     }

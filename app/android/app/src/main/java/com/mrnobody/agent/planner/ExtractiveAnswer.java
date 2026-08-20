@@ -105,7 +105,8 @@ public final class ExtractiveAnswer {
         return out;
     }
 
-    private static String normalise(String text) {
+    /** Case/punctuation-insensitive key for sentence and body dedupe. */
+    static String normalise(String text) {
         if (text == null) return "";
         return text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", " ").trim();
     }

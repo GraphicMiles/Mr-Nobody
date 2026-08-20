@@ -30,6 +30,58 @@ public final class DownloadLinkResolver {
     private DownloadLinkResolver() {
     }
 
+    /** Extensions that identify an image file specifically. */
+    private static final String[] IMAGE_EXTENSIONS = {
+            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".heic",
+    };
+
+    /**
+     * True when the instruction asks for an image (png, icon, wallpaper,
+     * photo…). Such tasks harvest {@code <img>} sources as candidates, not
+     * just anchor links — "download a png icon from pngtree" found 0 links in
+     * 92.6 seconds because the files were in {@code img src}, which no anchor
+     * ever pointed at.
+     */
+    public static boolean wantsImage(String instruction) {
+        if (instruction == null) return false;
+        String t = " " + instruction.toLowerCase(Locale.ROOT) + " ";
+        String[] signals = {"png", "jpg", "jpeg", "svg", "gif", "webp",
+                "icon", "icons", "wallpaper", "wallpapers", "photo", "photos",
+                "image", "images", "picture", "pictures", "logo", "logos"};
+        for (String s : signals) {
+            if (t.contains(" " + s + " ") || t.contains(" " + s + "s ")
+                    || t.contains("." + s + " ")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The image extension the instruction names ({@code ".png"} for
+     * "download a png icon"), or null when it wants an image generically.
+     */
+    public static String requestedImageExt(String instruction) {
+        if (instruction == null) return null;
+        String t = instruction.toLowerCase(Locale.ROOT);
+        for (String ext : IMAGE_EXTENSIONS) {
+            String name = ext.substring(1);
+            if (t.matches(".*\\b" + name + "\\b.*")) return ext;
+        }
+        if (t.matches(".*\\bjpg\\b.*") || t.matches(".*\\bjpeg\\b.*")) return ".jpg";
+        return null;
+    }
+
+    /** True when the URL's path plainly names an image file. */
+    public static boolean isImage(String url) {
+        if (url == null) return false;
+        String path = pathOf(url.toLowerCase(Locale.ROOT).trim());
+        for (String ext : IMAGE_EXTENSIONS) {
+            if (path.endsWith(ext)) return true;
+        }
+        return false;
+    }
+
     /**
      * True when {@code url} is an http(s) URL that is plainly a file, or a
      * download endpoint that does not advertise an extension.
@@ -145,8 +197,41 @@ public final class DownloadLinkResolver {
         return best;
     }
 
-    static String filenameOf(String url) {
-        if (url == null) return "";
+    /**
+     * Best image to download. A candidate that is plainly an image wins over
+     * one that is merely downloadable; a candidate with the extension the
+     * user named ("a png icon" → {@code .png}) wins over other images; the
+     * named host and a filename matching the request still count, exactly as
+     * in {@link #resolve(List, String, String)}.
+     *
+     * @param ext the extension the instruction names, or null for any image
+     */
+    public static String resolveImage(List<String> candidates, String preferredHost,
+                                      String query, String ext) {
+        if (candidates == null) return null;
+        String best = null;
+        int bestScore = -1;
+        String wantHost = preferredHost == null ? "" : preferredHost.toLowerCase(Locale.ROOT);
+        if (wantHost.startsWith("www.")) wantHost = wantHost.substring(4);
+        for (String c : candidates) {
+            if (!isDownloadable(c)) continue;
+            int score = 10;
+            if (isImage(c)) score += 40;
+            if (ext != null && pathOf(c.toLowerCase(Locale.ROOT)).endsWith(ext)) score += 60;
+            String host = hostOf(c);
+            if (!wantHost.isEmpty() && wantHost.equals(host)) score += 100;
+            if (query != null && !query.isEmpty()) {
+                score += TitleMatch.score(filenameOf(c), query);
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = c;
+            }
+        }
+        return best;
+    }
+
+    static String filenameOf(String url) {        if (url == null) return "";
         String u = url;
         int cut = u.indexOf('?');
         if (cut >= 0) u = u.substring(0, cut);

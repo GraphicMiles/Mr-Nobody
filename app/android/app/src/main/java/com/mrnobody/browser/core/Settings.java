@@ -55,11 +55,21 @@ public final class Settings {
     private final EncryptedPreferences secrets;
 
     public Settings(Context context) {
+        this(context, PREFS);
+    }
+
+    /**
+     * A Settings view over a named preferences file. Exists so Diagnostics
+     * can probe the <em>defaults</em> against an empty file: the benchmark
+     * used to read the live file and fail on any device where the user had
+     * toggled history on — reporting user choice as a broken default.
+     */
+    public Settings(Context context, String prefsFile) {
         prefs = context.getApplicationContext()
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                .getSharedPreferences(prefsFile, Context.MODE_PRIVATE);
         // Same preference file for an in-place migration: legacy plaintext
         // api_key_* values become AES-GCM envelopes on their first read.
-        secrets = new EncryptedPreferences(context, PREFS,
+        secrets = new EncryptedPreferences(context, prefsFile,
                 "mrnobody_provider_credentials_v1");
     }
 
