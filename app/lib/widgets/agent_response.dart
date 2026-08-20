@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter, FontFeature;
 
 import 'package:flutter/material.dart';
@@ -59,10 +60,9 @@ abstract final class AgentMetrics {
   static const secondaryOpacity = 0.8;
 }
 
-/// Semantic accents: amber needs judgement; green confirms completion.
+/// Warm amber is reserved for explicit warnings that need judgement.
 const _warn = Color(0xFFE8B339);
 const _warnInk = Color(0xFFF0CF8A);
-const _good = Color(0xFF70D39A);
 
 // ═══════════════════════════════════════════════════════════ turn scaffold
 
@@ -260,6 +260,83 @@ class _ShimmerLabelState extends State<ShimmerLabel>
   }
 }
 
+// ═══════════════════════════════════════════════════════════ pixel loader
+
+/// The 3×3 pixel grid, with a chevron wavefront driving right.
+///
+/// The 650ms cycle is deliberately shorter than the time the wave takes to
+/// cross, so two fronts are always in flight and the grid never looks stalled.
+class PixelLoader extends StatefulWidget {
+  /// Circular cells instead of square ones.
+  final bool round;
+
+  const PixelLoader({super.key, this.round = false});
+
+  @override
+  State<PixelLoader> createState() => _PixelLoaderState();
+}
+
+class _PixelLoaderState extends State<PixelLoader>
+    with SingleTickerProviderStateMixin {
+  static const _cell = 4.0;
+  static const _gap = 1.5;
+  static const _period = 650;
+
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: _period),
+    )..repeat();
+  }
+
+  /// Per-cell delay: column plus distance from the middle row, ×90ms.
+  static int _delay(int i) {
+    final r = i ~/ 3, c = i % 3;
+    return (c + (r - 1).abs()) * 90;
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _cell * 3 + _gap * 2,
+      height: _cell * 3 + _gap * 2,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (context, _) {
+          return Wrap(
+            spacing: _gap,
+            runSpacing: _gap,
+            children: List.generate(9, (i) {
+              final phase =
+                  ((_c.value * _period + _delay(i)) % _period) / _period;
+              // 0 → .15, .5 → 1, 1 → .15
+              final o = 0.15 + 0.85 * math.sin(phase * math.pi).clamp(0.0, 1.0);
+              return Container(
+                width: _cell,
+                height: _cell,
+                decoration: BoxDecoration(
+                  color: AppColors.text.withOpacity(o),
+                  borderRadius: BorderRadius.circular(widget.round ? _cell : 1),
+                ),
+              );
+            }),
+          );
+        },
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════ live activity
 
 /// Loader, shimmering label, and a live elapsed timer.
@@ -269,10 +346,14 @@ class AgentWorkingLine extends StatefulWidget {
   /// When the work started. The timer counts up from here.
   final DateTime since;
 
+  /// Circular cells are available for contexts that need a softer loader.
+  final bool round;
+
   const AgentWorkingLine({
     super.key,
     required this.label,
     required this.since,
+    this.round = false,
   });
 
   @override
@@ -306,7 +387,7 @@ class _AgentWorkingLineState extends State<AgentWorkingLine> {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const SizedBox(width: 16, height: 16, child: _Spinner()),
+        PixelLoader(round: widget.round),
         const SizedBox(width: 10),
         Flexible(child: ShimmerLabel(widget.label)),
         const SizedBox(width: 10),
@@ -476,9 +557,6 @@ class _AgentTraceState extends State<AgentTrace> {
   Widget _row(int i, TraceStep step) {
     final open = _openRows.contains(i);
     final metric = step.displayedMetric;
-    final stateColor = step.denied || step.recovered || step.failed || step.waiting
-        ? _warn
-        : AppColors.textMuted;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,7 +610,8 @@ class _AgentTraceState extends State<AgentTrace> {
                         children: [
                           Text(
                             _statusLabel(step),
-                            style: AppTheme.mono(size: 9.5, color: stateColor),
+                            style: AppTheme.mono(
+                                size: 9.5, color: AppColors.textMuted),
                           ),
                           if (metric != null && metric.isNotEmpty) ...[
                             Text('·',
@@ -610,20 +689,24 @@ class _AgentTraceState extends State<AgentTrace> {
 
   Widget _marker(TraceStep step) {
     if (step.running) return const _Spinner();
-    if (step.denied) return const Icon(Icons.block, size: 14, color: _warn);
+    if (step.denied) {
+      return const Icon(Icons.block, size: 14, color: AppColors.textMuted);
+    }
     if (step.waiting) {
-      return const Icon(Icons.hourglass_top, size: 14, color: _warn);
+      return const Icon(
+          Icons.hourglass_top, size: 14, color: AppColors.textMuted);
     }
     if (step.recovered) {
-      return const Icon(Icons.refresh, size: 14, color: _warn);
+      return const Icon(Icons.refresh, size: 14, color: AppColors.textMuted);
     }
     if (step.failed) {
-      return const Icon(Icons.error_outline, size: 14, color: _warn);
+      return const Icon(
+          Icons.error_outline, size: 14, color: AppColors.textMuted);
     }
     if (step.cancelled) {
       return const Icon(Icons.close, size: 14, color: AppColors.textMuted);
     }
-    return const Icon(Icons.check, size: 14, color: _good);
+    return const Icon(Icons.check, size: 14, color: AppColors.textMuted);
   }
 
   String _statusLabel(TraceStep step) {
