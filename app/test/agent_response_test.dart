@@ -262,6 +262,28 @@ void main() {
       expect((status.dy - metric.dy).abs(), lessThan(2));
     });
 
+    testWidgets('pipeline outcomes use the monochrome status palette',
+        (tester) async {
+      await tester.pumpWidget(host(
+        const AgentTrace(
+          steps: [
+            TraceStep(label: 'Done'),
+            TraceStep(label: 'Recovered', recovered: true),
+          ],
+          running: false,
+          doneLabel: 'Thought for 2 seconds',
+        ),
+      ));
+      await tester.pump();
+
+      final done = tester.widget<Icon>(find.byIcon(Icons.check));
+      final recovered = tester.widget<Icon>(find.byIcon(Icons.refresh));
+      final recoveredText = tester.widget<Text>(find.text('recovered'));
+      expect(done.color, AppColors.textMuted);
+      expect(recovered.color, AppColors.textMuted);
+      expect(recoveredText.style?.color, AppColors.textMuted);
+    });
+
     testWidgets('a refused step is marked, not hidden', (tester) async {
       await tester.pumpWidget(host(
         const AgentTrace(
@@ -363,6 +385,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 150));
 
       expect(find.text('Reading coinmarketcap.com'), findsOneWidget);
+      expect(find.byType(PixelLoader), findsOneWidget);
       expect(find.textContaining('s'), findsWidgets);
 
       // Let the repeating timers unwind so the test does not leak them.
