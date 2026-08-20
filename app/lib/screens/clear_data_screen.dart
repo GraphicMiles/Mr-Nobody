@@ -10,7 +10,9 @@ import '../widgets/toast.dart';
 ///
 /// Clearing calls straight into the core; nothing is faked.
 class ClearDataScreen extends StatefulWidget {
-  const ClearDataScreen({super.key});
+  final VoidCallback? onBrowserDataCleared;
+
+  const ClearDataScreen({super.key, this.onBrowserDataCleared});
 
   @override
   State<ClearDataScreen> createState() => _ClearDataScreenState();
@@ -43,6 +45,10 @@ class _ClearDataScreenState extends State<ClearDataScreen> {
       const <String, dynamic>{},
       'clear data failed',
     );
+    final clearedBrowserState = selected.contains('cookies')
+        || selected.contains('cache')
+        || selected.contains('sitedata');
+    if (clearedBrowserState) widget.onBrowserDataCleared?.call();
     if (!mounted) return;
     setState(() => _busy = false);
     AppToast.show(context, 'Data cleared');

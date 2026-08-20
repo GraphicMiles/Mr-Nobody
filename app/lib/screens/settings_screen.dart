@@ -18,9 +18,15 @@ import 'restricted_tools_screen.dart';
 /// shows is what is actually persisted.
 class SettingsScreen extends StatefulWidget {
   final VoidCallback? onBack;
+  final VoidCallback? onBrowserDataCleared;
   final ScrollController? scrollController;
 
-  const SettingsScreen({super.key, this.onBack, this.scrollController});
+  const SettingsScreen({
+    super.key,
+    this.onBack,
+    this.onBrowserDataCleared,
+    this.scrollController,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -283,8 +289,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         SettingRow(
                           label: 'Clear browsing data',
-                          onTap: () => Navigator.of(context)
-                              .push(MaterialPageRoute(builder: (_) => const ClearDataScreen())),
+                          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => ClearDataScreen(
+                              onBrowserDataCleared: widget.onBrowserDataCleared,
+                            ),
+                          )),
                         ),
                         Builder(
                           builder: (rowContext) => SettingRow(

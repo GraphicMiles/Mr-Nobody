@@ -87,6 +87,19 @@ void main() {
     expect(tabs.active, isNull);
   });
 
+  test('clearing browser data closes private tabs but keeps normal tabs', () {
+    final tabs = TabManager();
+    final normal = tabs.newTab(url: 'https://example.com');
+    tabs.newTab(isPrivate: true, url: 'https://httpbin.org/cookies');
+
+    tabs.closePrivateTabs();
+
+    expect(tabs.length, 1);
+    expect(tabs.active?.id, normal.id);
+    expect(tabs.active?.url, 'https://example.com');
+    tabs.closeAll();
+  });
+
   testWidgets('toast text has a Material ancestor', (tester) async {
     // Without one, the framework paints its yellow/black "missing Material"
     // underline under the label — which is what the coloured line under every
