@@ -49,6 +49,15 @@ public final class AppDeviceSmokeTest {
         instrumentation = InstrumentationRegistry.getInstrumentation();
         target = instrumentation.getTargetContext();
         device = UiDevice.getInstance(instrumentation);
+        // Google APIs emulator images may restore backed-up preferences as the
+        // APK is installed. Reset only the values this deterministic test owns
+        // before MainActivity starts; production backup behavior remains intact.
+        assertTrue("test preference reset",
+                target.getSharedPreferences("mrnobody_prefs", Context.MODE_PRIVATE)
+                        .edit()
+                        .remove(Settings.KEY_FIRST_LAUNCH_DONE)
+                        .putBoolean(Settings.KEY_SUGGESTIONS_ENABLED, false)
+                        .commit());
         try {
             instrumentation.getUiAutomation().grantRuntimePermission(
                     target.getPackageName(), Manifest.permission.POST_NOTIFICATIONS);
@@ -60,8 +69,7 @@ public final class AppDeviceSmokeTest {
     @Test
     public void launchPersistSettingAndCompleteLocalTaskAcrossBackground() throws Exception {
         launchMain();
-        UiObject2 start = device.wait(Until.findObject(By.text("Start browsing")), 8_000);
-        if (start != null) start.click();
+        requireText("Start browsing", UI_TIMEOUT).click();
         // The shell is ready when its persistent navigation is exposed. The
         // scrollable Home sections are deliberately not used as launch gates:
         // their accessibility visibility depends on emulator viewport height.
@@ -113,8 +121,13 @@ public final class AppDeviceSmokeTest {
 
         File dir = target.getExternalFilesDir(null);
         assertNotNull(dir);
-        assertTrue("screenshot should be captured",
-                device.takeScreenshot(new File(dir, "device-smoke.png")));
+        File screenshot = new File(dir, "device-smoke.png");
+        assertTrue("screenshot should be captured", device.takeScreenshot(screenshot));
+        // connectedDebugAndroidTest uninstalls both APKs before the workflow's
+        // evidence step runs. Copy through the shell so the in-app proof
+        // survives package removal.
+        device.executeShellCommand("cp " + screenshot.getAbsolutePath()
+                + " /sdcard/device-smoke.png");
     }
 
     private void launchMain() {
@@ -135,8 +148,17 @@ public final class AppDeviceSmokeTest {
         return false;
     }
 
-    private UiObject2 requireText(String text, long timeout) {
+    private UiObject2 requireText(String text, long timeout) throws Exception {
         UiObject2 object = device.wait(Until.findObject(By.text(text)), timeout);
+        if (object == null) {
+            // The Gradle task removes the package after a failure. Shell-owned
+            // files survive that cleanup and make the actual failing frame and
+            // accessibility tree available in the uploaded artifact.
+            device.executeShellCommand(
+                    "screencap -p /sdcard/device-smoke-failure.png");
+            device.executeShellCommand(
+                    "uiautomator dump /sdcard/device-smoke-failure.xml");
+        }
         assertNotNull("Expected visible text: " + text, object);
         return object;
     }
