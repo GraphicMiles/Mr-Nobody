@@ -56,6 +56,27 @@ public final class FollowUpScopeTest {
     }
 
     @Test
+    public void initialGreetingInstructionAnswersLocally() {
+        // Regression: the emulator smoke deep link creates a fresh task whose
+        // whole instruction is "hi". That must be a direct conversational
+        // reply, never a research run that reads a dictionary page.
+        Task greeting = new Task(8, "hi");
+        FollowUpScope.Decision d = FollowUpScope.decide(greeting, false);
+        assertEquals(FollowUpScope.Kind.CONVERSATIONAL, d.kind);
+        assertTrue(d.isDirectReply());
+        assertEquals("Hi. What would you like me to do next?", d.directReply);
+    }
+
+    @Test
+    public void initialQuestionInstructionStillRunsThePipeline() {
+        Task question = new Task(9, "who created bitcoin");
+        FollowUpScope.Decision d = FollowUpScope.decide(question, false);
+        assertEquals(FollowUpScope.Kind.NONE, d.kind);
+        assertFalse(d.isDirectReply());
+        assertEquals("who created bitcoin", d.instruction);
+    }
+
+    @Test
     public void noFollowUpUsesOriginalInstruction() {
         FollowUpScope.Decision d = FollowUpScope.decide(task(""), false);
         assertEquals(FollowUpScope.Kind.NONE, d.kind);
