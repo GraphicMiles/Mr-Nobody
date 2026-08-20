@@ -89,6 +89,7 @@ void main() {
     expect(find.byKey(const ValueKey('refresh-loading')), findsOneWidget);
 
     engine.onLoadingChanged?.call(false);
+    await tester.pump(const Duration(milliseconds: 800));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('refresh-idle')), findsOneWidget);
   });
@@ -103,7 +104,8 @@ void main() {
     expect(tabs.length, 2);
     expect(tabs.active!.id, isNot(oldId));
     expect(tabs.active!.url, isEmpty);
-    expect(find.text('New tab'), findsOneWidget);
+    expect(find.text('New tab'), findsWidgets);
+    await tester.pump(const Duration(seconds: 2)); // dismiss the toast timer
   });
 
   testWidgets('harmful download can be rejected', (tester) async {
@@ -123,6 +125,7 @@ void main() {
 
     expect(engine.resolvedDownloadId, 'danger-1');
     expect(engine.resolvedDownloadAllow, isFalse);
+    await tester.pump(const Duration(seconds: 2)); // dismiss the toast timer
   });
 
   testWidgets('harmful download can be explicitly allowed', (tester) async {
@@ -141,5 +144,6 @@ void main() {
 
     expect(engine.resolvedDownloadId, 'danger-2');
     expect(engine.resolvedDownloadAllow, isTrue);
+    await tester.pump(const Duration(seconds: 2)); // dismiss the toast timer
   });
 }

@@ -43,5 +43,6 @@ void main() {
     expect(tabs.active!.id, isNot(oldId));
     expect(tabs.active!.url, isEmpty);
     expect(opened, 1, reason: 'the user should not have to open it from the grid manually');
+    await tester.pump(const Duration(seconds: 2)); // dismiss the toast timer
   });
 }
