@@ -173,9 +173,16 @@ public final class DeterministicEngine implements AgentEngine {
         // next, falling back to the deterministic cascade when it cannot. A
         // local provider has no model to reason with, so it stays on the
         // deterministic path.
-        String asked = task.conversation();
         TaskArtifact pointed = TaskArtifact.resolve(task.followUp(),
                 TaskArtifact.decode(task.artifacts()));
+        FollowUpScope.Decision followUp = FollowUpScope.decide(task, pointed != null);
+        String asked = followUp.instruction;
+
+        // A standalone question starts with a clean shortlist. Contextual
+        // replies keep artifacts so "open the second one" still works.
+        if (followUp.kind == FollowUpScope.Kind.STANDALONE) {
+            task.setArtifacts("");
+        }
         if (pointed != null) {
             asked = asked + "\n\nThe user is referring to [" + pointed.index + "] "
                     + pointed.title + " " + pointed.url;
@@ -184,6 +191,19 @@ public final class DeterministicEngine implements AgentEngine {
         AiProvider provider = MrNobodyApp.activeProvider();
         enterActivity(task, "Understanding the request", "classify",
                 "Determine the task type before choosing any tools.");
+
+        // Greetings and acknowledgements are conversation, not executable
+        // research. They finish locally without selecting or invoking a tool.
+        if (followUp.isDirectReply()) {
+            enterActivity(task, Task.STEP_ANSWER, "Responding", "answer",
+                    "Reply directly without starting a tool run.");
+            task.setError("");
+            task.setResult(followUp.directReply);
+            task.setStatus(Task.Status.COMPLETED);
+            recordAnswer(task);
+            return;
+        }
+
         IntentClassifier.Decision classified = IntentClassifier.classify(provider, asked);
         if (stopIfAsked(context, task, provider)) return;
 
@@ -1014,8 +1034,9 @@ public final class DeterministicEngine implements AgentEngine {
         try {
             String text = task.result();
             if (text == null || text.isEmpty()) return;
-            MrNobodyApp.taskEvents().append(task.id(),
-                    com.mrnobody.agent.tasks.TaskEventStore.AGENT_ANSWER, text);
+            MrNobodyApp.taskEvents().append(task.id(), TaskEventStore.AGENT_ANSWER, text);
+            MrNobodyApp.taskEvents().append(task.id(), TaskEventStore.TURN_PRESENTATION,
+                    TaskEventDetail.presentation(task.artifacts()));
         } catch (Throwable ignored) {
             // The answer is on the task row; losing the log line is not fatal.
         }

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../agent/follow_up_suggestions.dart';
 import '../agent/task_timeline.dart';
 import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
@@ -201,29 +203,123 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
 
   bool get _isLive => _live.contains(_task['status'] as String? ?? 'QUEUED');
 
-  /// Earlier answers and replies already in the event log, so a follow-up
-  /// does not erase the first turn.
+  /// Earlier turns retain their own trace, citations, source controls and
+  /// optional evidence cards. A new reply must not steal or erase the visual
+  /// record of the work that produced the previous answer.
   List<Widget> _priorTurns() {
     final out = <Widget>[];
     final current = (_task['result'] as String?) ?? '';
-    final answers = _events.where((e) => e['type'] == 'agent.answer').toList();
-    for (final e in _events) {
-      final type = e['type'] as String? ?? '';
-      final detail = e['detail'] as String? ?? '';
-      if (detail.isEmpty) continue;
-      if (type == 'user.followup') {
-        out.add(UserTurn(text: detail, stamp: _stamp(e['at'])));
+    final answerIndexes = <int>[
+      for (var i = 0; i < _events.length; i++)
+        if (_events[i]['type'] == 'agent.answer') i,
+    ];
+    final lastAnswer = answerIndexes.isEmpty ? -1 : answerIndexes.last;
+    var segmentStart = 0;
+    var turnInstruction = widget.instruction ??
+        _task['instruction'] as String? ??
+        widget.title;
+
+    for (var i = 0; i < _events.length; i++) {
+      final event = _events[i];
+      final type = event['type'] as String? ?? '';
+      final detail = event['detail'] as String? ?? '';
+
+      if (type == 'user.followup' && detail.isNotEmpty) {
+        turnInstruction = detail;
+        segmentStart = i;
+        out.add(UserTurn(text: detail, stamp: _stamp(event['at'])));
         out.add(const SizedBox(height: AgentMetrics.turnGap));
-      } else if (type == 'agent.answer') {
-        final isLast = answers.isNotEmpty && identical(e, answers.last);
-        if (isLast && detail == current) continue;
-        out.add(AgentTurn(
-          child: AnswerView(document: AnswerDocument.parse(detail)),
-        ));
-        out.add(const SizedBox(height: AgentMetrics.turnGap));
+        continue;
       }
+      if (type == 'task.started') {
+        segmentStart = i;
+        continue;
+      }
+      if (type != 'agent.answer' || detail.isEmpty) continue;
+      if (i == lastAnswer && detail == current) continue;
+
+      var segmentEnd = _events.length;
+      var artifactsRaw = '';
+      for (var j = i + 1; j < _events.length; j++) {
+        final followingType = _events[j]['type'] as String? ?? '';
+        if (followingType == 'user.followup' || followingType == 'task.started') {
+          segmentEnd = j;
+          break;
+        }
+        if (followingType == 'turn.presentation') {
+          artifactsRaw = _presentationArtifacts(
+              _events[j]['detail'] as String? ?? '');
+        }
+      }
+
+      final segment = _events.sublist(segmentStart, segmentEnd);
+      final timeline = TaskTimeline.fromEvents(
+        events: segment,
+        taskStatus: 'COMPLETED',
+      );
+      final steps = _stepsFor(timeline);
+      final sources = _sourcesFor(timeline);
+      final cards = _cardsFrom(
+        sources: sources,
+        artifactsRaw: artifactsRaw,
+        instruction: turnInstruction,
+        answer: detail,
+      );
+
+      out.add(AgentTurn(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (steps.isNotEmpty) ...[
+              AgentTrace(
+                steps: steps,
+                running: false,
+                doneLabel: _doneLabelFor(segment),
+              ),
+              const SizedBox(height: 7),
+            ],
+            AnswerView(
+              document: AnswerDocument.parse(detail),
+              cards: cards,
+              sources: sources,
+              onSourceTap: (source) {
+                if (source.url.isNotEmpty) AppToast.show(context, source.url);
+              },
+              onCardTap: (card) {
+                if (card.url.isEmpty) return;
+                if (widget.onOpenUrl != null) {
+                  widget.onOpenUrl!(card.url);
+                } else {
+                  AppToast.show(context, card.url);
+                }
+              },
+            ),
+            const SizedBox(height: 11),
+            const Divider(height: 1, thickness: 1, color: AppColors.line),
+            const SizedBox(height: 8),
+            AgentActions(
+              sources: sources,
+              onCopy: () => _copyText(detail),
+              onSourceTap: (source) => AppToast.show(context, source.url),
+            ),
+          ],
+        ),
+      ));
+      out.add(AgentStamp(_stamp(event['at'])));
+      out.add(const SizedBox(height: AgentMetrics.turnGap));
     }
     return out;
+  }
+
+  static String _presentationArtifacts(String detail) {
+    if (!detail.trimLeft().startsWith('{')) return '';
+    try {
+      final decoded = jsonDecode(detail);
+      if (decoded is! Map) return '';
+      return decoded['artifacts'] as String? ?? '';
+    } catch (_) {
+      return '';
+    }
   }
 
   /// WAITING is live (keep polling) but not working (no spinner).
@@ -308,20 +404,41 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   /// Optional evidence cards are selected only from pages this run actually
   /// read. Search candidates are not evidence merely because they appeared in
   /// a result list.
-  List<EvidenceCardData> _cardsFor(List<AgentSource> sources) {
-    if (sources.isEmpty) return const [];
-    final raw = (_task['artifacts'] as String?) ?? '';
+  List<EvidenceCardData> _cardsFor(List<AgentSource> sources) => _cardsFrom(
+        sources: sources,
+        artifactsRaw: (_task['artifacts'] as String?) ?? '',
+        instruction: _activeTurnInstruction,
+        answer: (_task['result'] as String?) ?? '',
+      );
+
+  List<EvidenceCardData> _cardsFrom({
+    required List<AgentSource> sources,
+    required String artifactsRaw,
+    required String instruction,
+    required String answer,
+  }) {
+    if (sources.isEmpty || artifactsRaw.isEmpty) return const [];
     final read = sources.map((s) => _normalUrl(s.url)).toSet();
-    final artifacts = EvidenceCardData.fromArtifacts(raw)
+    final artifacts = EvidenceCardData.fromArtifacts(artifactsRaw)
         .where((a) => read.contains(_normalUrl(a.url)))
         .toList();
     return EvidenceCardData.pick(
-      instruction: widget.instruction ??
-          _task['instruction'] as String? ??
-          widget.title,
-      answer: (_task['result'] as String?) ?? '',
+      instruction: instruction,
+      answer: answer,
       artifacts: artifacts,
     );
+  }
+
+  String get _activeTurnInstruction {
+    for (final event in _events.reversed) {
+      if (event['type'] == 'user.followup') {
+        final text = event['detail'] as String? ?? '';
+        if (text.isNotEmpty) return text;
+      }
+    }
+    return widget.instruction ??
+        _task['instruction'] as String? ??
+        widget.title;
   }
 
   static String _normalUrl(String value) {
@@ -406,8 +523,9 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   }
 
   /// `Thought for 4 seconds`, measured within this execution cycle only.
-  String get _doneLabel {
-    final run = _runEvents;
+  String get _doneLabel => _doneLabelFor(_runEvents);
+
+  String _doneLabelFor(List<Map<String, dynamic>> run) {
     if (run.length < 2) return 'Thought for a moment';
     final first = (run.first['at'] as num?)?.toInt() ?? 0;
     final last = (run.last['at'] as num?)?.toInt() ?? 0;
@@ -450,9 +568,14 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   }
 
   Future<void> _send() async {
-    final text = _input.text.trim();
-    if (text.isEmpty) return;
+    final text = _input.text;
     _input.clear();
+    await _sendText(text);
+  }
+
+  Future<void> _sendText(String value) async {
+    final text = value.trim();
+    if (text.isEmpty || _isLive) return;
 
     // A reply in this composer belongs to THIS task. Spawning a new chat
     // was the bug: "also download it from nkiri.ink" forked a thread and
@@ -535,10 +658,13 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   }
 
   void _copy() {
-    final result = _task['result'] as String? ?? '';
-    if (result.isEmpty) return;
-    final plain = AnswerDocument.parse(result).plainText;
-    Clipboard.setData(ClipboardData(text: plain.isEmpty ? result : plain));
+    _copyText(_task['result'] as String? ?? '');
+  }
+
+  void _copyText(String text) {
+    if (text.isEmpty) return;
+    final plain = AnswerDocument.parse(text).plainText;
+    Clipboard.setData(ClipboardData(text: plain.isEmpty ? text : plain));
     AppToast.show(context, 'Copied');
   }
 
@@ -567,6 +693,12 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     final steps = _stepsFor(timeline);
     final sources = _sourcesFor(timeline);
     final cards = _cardsFor(sources);
+    final followUps = FollowUpSuggestions.build(
+      instruction: _activeTurnInstruction,
+      answer: result,
+      sourceCount: sources.length,
+      activityKinds: timeline.activities.map((activity) => activity.kind),
+    );
     // The caret blinks while a live stream is still generating, not only
     // while the timed reveal is catching up to a finished answer.
     final streaming = _streaming || _revealed < _tokens.length;
@@ -659,6 +791,11 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                         // The tail appears only once the answer has settled,
                         // so controls never move under a reader's thumb.
                         if (result.isNotEmpty && !streaming) ...[
+                          if (followUps.isNotEmpty)
+                            AgentFollowUps(
+                              items: followUps,
+                              onTap: _sendText,
+                            ),
                           const SizedBox(height: 11),
                           const Divider(
                               height: 1, thickness: 1, color: AppColors.line),

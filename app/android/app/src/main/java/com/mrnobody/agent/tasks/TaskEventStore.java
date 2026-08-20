@@ -53,6 +53,8 @@ public final class TaskEventStore extends SQLiteOpenHelper {
     public static final String USER_FOLLOWUP = "user.followup";
     /** A finished answer, kept so a follow-up does not erase the previous turn. */
     public static final String AGENT_ANSWER = "agent.answer";
+    /** Optional response modules captured beside an answer for thread history. */
+    public static final String TURN_PRESENTATION = "turn.presentation";
 
     /** One recorded event. */
     public static final class Event {

@@ -139,7 +139,9 @@ The task chat has a stable visual grammar, not a fixed task template:
 
 - The engine appends a semantic `step.changed` event only when it actually enters an activity selected by the deterministic or autonomous planner.
 - Tool attempts and outcomes use versioned JSON metadata linked by call ID. Page bodies, prompts, form text and arbitrary tool output are not copied into the event log.
-- `TaskTimeline` displays only the current execution cycle. Follow-ups and recurring wakes do not inherit the previous run’s trace.
+- `TaskTimeline` scopes each execution cycle independently. The active turn never inherits prior work, while every completed answer retains its own collapsed “Thought for …” trace, citations, source controls and captured evidence cards in thread history.
+- Standalone follow-up questions use their own search terms; only explicit references such as “why?”, “download it” or “compare the sources” receive thread context. Greetings and acknowledgements finish locally without invoking tools.
+- Grounded research and download turns may expose context-derived follow-up suggestions; direct replies and failed/ungrounded turns do not receive a seeded suggestion section.
 - Tool calls are subordinate evidence beneath an agent-owned activity. A failed direct read followed by a successful rendered read becomes `recovered`; the failed tool does not replace the task hierarchy.
 - Status, encountered/used counts and duration sit beneath the activity verb. Raw call syntax is available only as bounded detail.
 - Answer headings, paragraphs, lists, citations, evidence cards, approval prompts, errors and source controls are conditional. Search candidates are not shown as evidence unless that page was successfully read.
