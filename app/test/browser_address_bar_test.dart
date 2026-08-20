@@ -6,12 +6,12 @@ import 'package:mrnobody/browser/browser_tab.dart';
 import 'package:mrnobody/browser/tab_manager.dart';
 import 'package:mrnobody/screens/browser_screen.dart';
 import 'package:mrnobody/theme/app_theme.dart';
+import 'package:mrnobody/widgets/bottom_nav.dart';
 
 import 'fake_browser_engine.dart';
 
 void main() {
   late TabManager tabs;
-  late BrowserTab tab;
   late FakeBrowserEngine engine;
 
   setUp(() {
@@ -21,7 +21,7 @@ void main() {
       return engine;
     };
     tabs = TabManager();
-    tab = tabs.newTab(url: 'https://example.com');
+    tabs.newTab(url: 'https://example.com');
   });
 
   tearDown(() {
@@ -91,6 +91,19 @@ void main() {
     engine.onLoadingChanged?.call(false);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('refresh-idle')), findsOneWidget);
+  });
+
+  testWidgets('bottom plus activates and opens the new tab immediately', (tester) async {
+    await pumpBrowser(tester);
+    final oldId = tabs.active!.id;
+
+    await tester.tap(find.byKey(kNavNewButtonKey));
+    await tester.pumpAndSettle();
+
+    expect(tabs.length, 2);
+    expect(tabs.active!.id, isNot(oldId));
+    expect(tabs.active!.url, isEmpty);
+    expect(find.text('New tab'), findsOneWidget);
   });
 
   testWidgets('harmful download can be rejected', (tester) async {

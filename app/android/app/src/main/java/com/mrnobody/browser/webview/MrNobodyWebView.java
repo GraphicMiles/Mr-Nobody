@@ -10,7 +10,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
-import android.widget.FrameLayout;
+import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -22,6 +22,7 @@ import android.webkit.WebViewClient;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.mrnobody.browser.MrNobodyApp;
 import com.mrnobody.browser.net.FingerprintDefence;
@@ -80,7 +81,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
     private final Context context;
     private final WebView webView;
-    private final FrameLayout container;
+    private final SwipeRefreshLayout container;
     private final MethodChannel channel;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final boolean isPrivate;
@@ -231,9 +232,20 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         // The view is hosted in a container we own, so detaching it on dispose
         // cannot disturb whatever Flutter does with the platform view itself.
         TabWebViews.detach(webView);
-        this.container = new FrameLayout(context);
-        this.container.addView(webView, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        this.container = new SwipeRefreshLayout(context);
+        this.container.setColorSchemeColors(0xFFFAFAFA);
+        this.container.setProgressBackgroundColorSchemeColor(0xFF181818);
+        this.container.setOnChildScrollUpCallback(
+                (parent, child) -> webView.canScrollVertically(-1));
+        this.container.setOnRefreshListener(() -> {
+            if (destroyed) {
+                container.setRefreshing(false);
+                return;
+            }
+            webView.reload();
+        });
+        this.container.addView(webView, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         Object url = params.get("url");
         if (fresh && url instanceof String && !((String) url).isEmpty()) {
@@ -375,6 +387,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
         @Override
         public void onPageFinished(WebView view, String url) {
+            container.setRefreshing(false);
             if (!isPrivate) {
                 // History is off by default and never recorded in a private tab.
                 MrNobodyApp.history().add(url, view.getTitle());
@@ -393,6 +406,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
             // A failed image or script is not a failed page.
             if (!request.isForMainFrame()) return;
+            container.setRefreshing(false);
             Map<String, Object> data = new HashMap<>();
             data.put("error", error.getDescription() == null ? "Network error" : error.getDescription().toString());
             data.put("code", error.getErrorCode());
@@ -625,6 +639,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 return;
             case "stop":
                 webView.stopLoading();
+                container.setRefreshing(false);
                 result.success(null);
                 return;
             case "goBack":
@@ -740,11 +755,13 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      */
     @Override
     public void dispose() {
+        container.setRefreshing(false);
         if (tabId < 0) {
             // No tab identity to retain against: this view owned its page.
             destroyed = true;
             pendingDownloads.clear();
             channel.setMethodCallHandler(null);
+            container.removeAllViews();
             webView.stopLoading();
             webView.loadUrl("about:blank");
             webView.destroy();

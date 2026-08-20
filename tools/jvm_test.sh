@@ -74,6 +74,7 @@ fetch "$G/androidx/concurrent/concurrent-futures/1.1.0/concurrent-futures-1.1.0.
 
 for spec in \
   "androidx/webkit/webkit/1.11.0/webkit-1.11.0.aar|webkit-1.11.0" \
+  "androidx/swiperefreshlayout/swiperefreshlayout/1.1.0/swiperefreshlayout-1.1.0.aar|swiperefreshlayout-1.1.0" \
   "androidx/work/work-runtime/2.9.0/work-runtime-2.9.0.aar|work-runtime-2.9.0" \
   "androidx/core/core/1.13.1/core-1.13.1.aar|core-1.13.1" \
   "androidx/lifecycle/lifecycle-runtime/2.7.0/lifecycle-runtime-2.7.0.aar|lifecycle-runtime-2.7.0" \

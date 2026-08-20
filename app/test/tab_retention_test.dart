@@ -64,4 +64,15 @@ void main() {
     expect(engine.tabId, 3);
     engine.dispose();
   });
+
+  test('different tabs have different platform-view keys', () {
+    final first = NativeWebViewEngine(tabId: 3, initialUrl: 'https://old.example');
+    final created = NativeWebViewEngine(tabId: 4);
+
+    expect(first.platformViewKey, isNot(created.platformViewKey),
+        reason: 'Flutter would otherwise retain the old tab controller after +');
+
+    first.dispose();
+    created.dispose();
+  });
 }
