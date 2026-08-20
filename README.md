@@ -305,7 +305,7 @@ artifacts. That public key must never sign a production release.
 
 ### Hosted Android emulator tests
 
-`Android Emulator Smoke` runs outside this workspace on GitHub-hosted KVM runners. It builds the debug application and instrumentation APKs, boots Pixel 6 profiles on Android 12 (API 31) and Android 14 (API 34), then drives the shipping UI with UIAutomator. The stable smoke path covers first launch, a settings write and Activity relaunch, a deep-linked local task, WorkManager completion, pipeline expansion, and conversation restoration after backgrounding.
+`Android Emulator Smoke` runs outside this workspace on GitHub-hosted KVM runners. It builds the debug application and instrumentation APKs, boots Pixel 6 profiles on Android 12 (API 31) and Android 14 (API 34), drives shipping Flutter widgets with `integration_test`, and crosses Android lifecycle/deep-link boundaries with instrumentation and UIAutomator. The stable smoke path covers first launch, a settings write and shell rebuild, a deep-linked local task, WorkManager completion, pipeline expansion/collapse, and conversation restoration after backgrounding.
 
 Every matrix leg uploads:
 

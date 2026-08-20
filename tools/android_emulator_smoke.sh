@@ -19,14 +19,6 @@ collect_evidence() {
   adb_bounded exec-out screencap -p > "$evidence/final-screen.png" 2>/dev/null || true
   adb_bounded pull /sdcard/device-smoke.png \
     "$evidence/device-smoke.png" >/dev/null 2>&1 || true
-  adb_bounded pull /sdcard/device-smoke-collapsed.png \
-    "$evidence/device-smoke-collapsed.png" >/dev/null 2>&1 || true
-  adb_bounded pull /sdcard/device-smoke-expanded.png \
-    "$evidence/device-smoke-expanded.png" >/dev/null 2>&1 || true
-  adb_bounded pull /sdcard/settings-before-toggle.png \
-    "$evidence/settings-before-toggle.png" >/dev/null 2>&1 || true
-  adb_bounded pull /sdcard/settings-after-toggle.png \
-    "$evidence/settings-after-toggle.png" >/dev/null 2>&1 || true
   adb_bounded shell dumpsys activity processes > "$evidence/activity-processes.txt" 2>&1 || true
   adb_bounded shell dumpsys jobscheduler > "$evidence/jobscheduler.txt" 2>&1 || true
   adb_bounded shell dumpsys notification > "$evidence/notifications.txt" 2>&1 || true
@@ -34,7 +26,9 @@ collect_evidence() {
 
 status=0
 (
-  cd "$GITHUB_WORKSPACE/app/android" || exit 1
+  cd "$GITHUB_WORKSPACE/app" || exit 1
+  flutter test integration_test/app_device_smoke_test.dart -d emulator-5554
+  cd android || exit 1
   ./gradlew :app:connectedDebugAndroidTest --console=plain
 ) || status=$?
 

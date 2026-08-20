@@ -67,6 +67,11 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  integration_test:
+    dependency: "direct dev"
+    description: flutter
+    source: sdk
+    version: "0.0.0"
   leak_tracker:
     dependency: transitive
     description:
