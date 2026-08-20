@@ -174,6 +174,16 @@ class _BrowserScreenState extends State<BrowserScreen> {
     tab.load(IntentRouter.toUrl(input));
   }
 
+  Future<void> _goBack(BrowserTab tab) async {
+    _addressFocus.unfocus();
+    await tab.goBack();
+  }
+
+  Future<void> _goForward(BrowserTab tab) async {
+    _addressFocus.unfocus();
+    await tab.goForward();
+  }
+
   void _deleteAddressCharacter() {
     final value = _address.value;
     final text = value.text;
@@ -274,8 +284,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
                               visible: chromeVisible,
                               canGoBack: tab.canGoBack,
                               canGoForward: tab.canGoForward,
-                              onBack: tab.goBack,
-                              onForward: tab.goForward,
+                              onBack: () => _goBack(tab),
+                              onForward: () => _goForward(tab),
                               onNewTab: () {
                                 tab.captureThumbnail();
                                 _addressFocus.unfocus();

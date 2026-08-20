@@ -19,6 +19,10 @@ public class RedirectGuardTest {
                 "https://stream.example/play", "https://betnaija.com/offer", true));
         assertTrue(RedirectGuard.shouldBlock(
                 "https://stream.example/play", "https://STAKE.COM./casino", true));
+        assertTrue(RedirectGuard.shouldBlock(
+                "https://stream.example/play",
+                "https://sports.bet9ja.com/?btag=a_309088b_1c_11788160361"
+                        + "&utm_source=affiliates&utm_medium=309088", true));
     }
 
     @Test

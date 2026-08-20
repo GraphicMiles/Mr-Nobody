@@ -69,6 +69,9 @@ class BrowserTab extends ChangeNotifier {
         }
         url = u;
         notifyListeners();
+        // History restores can skip loading callbacks. Query navigation state
+        // after the authoritative URL event so Back/Forward stay accurate too.
+        unawaited(_syncHistory());
       }
       ..onTitleChanged = (t) {
         if (t == title) return;

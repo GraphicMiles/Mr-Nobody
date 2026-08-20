@@ -20,8 +20,14 @@ public class WebViewBlockingWiringTest {
                 "public WebResourceResponse shouldInterceptRequest",
                 "public boolean shouldOverrideUrlLoading");
         assertTrue(method.contains("boolean mainFrame = request.isForMainFrame()"));
+        assertTrue(method.contains("NavigationGuard.evaluate("));
+        assertTrue(method.contains("navigationSource()"));
+        assertTrue(method.contains("lastMainFrameRequestUrl = url"));
         assertTrue(method.contains("filters().shouldBlock(url)"));
         assertTrue(method.contains("reportBlocked(category, mainFrame)"));
+        assertTrue(method.contains("publishRestoredSource(sourceUrl)"));
+        assertTrue("a blocked fallback must leave the source document in place",
+                method.contains("BLOCKED_MIME, \"utf-8\", 204"));
         assertFalse("the old defect returned before classifying every main frame",
                 method.matches("(?s).*isForMainFrame\\(\\).*?return null;.*?shouldBlock\\(url\\).*"));
     }
@@ -34,6 +40,16 @@ public class WebViewBlockingWiringTest {
         assertTrue(method.contains("NavigationGuard.evaluate("));
         assertTrue(method.contains("reportBlocked(category, true)"));
         assertTrue(method.contains("return true"));
+    }
+
+    @Test
+    public void historyChangesPublishTheRestoredUrl() throws IOException {
+        String method = section(webViewSource(),
+                "public void doUpdateVisitedHistory",
+                "public void onPageFinished");
+        assertTrue(method.contains("lastCommittedUrl = url"));
+        assertTrue(method.contains("data.put(\"url\", url)"));
+        assertTrue(method.contains("send(\"onNavigation\", data)"));
     }
 
     @Test
