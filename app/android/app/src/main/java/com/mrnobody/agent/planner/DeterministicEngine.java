@@ -26,6 +26,8 @@ import com.mrnobody.agent.util.XQuery;
 import com.mrnobody.agent.memory.MemoryDigest;
 import com.mrnobody.agent.tasks.ChangeDetector;
 import com.mrnobody.agent.tasks.Schedule;
+import com.mrnobody.agent.tasks.TaskEventDetail;
+import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.agent.tasks.TaskStreamHub;
 import com.mrnobody.browser.MrNobodyApp;
 
@@ -180,6 +182,8 @@ public final class DeterministicEngine implements AgentEngine {
         }
 
         AiProvider provider = MrNobodyApp.activeProvider();
+        enterActivity(task, "Understanding the request", "classify",
+                "Determine the task type before choosing any tools.");
         IntentClassifier.Decision classified = IntentClassifier.classify(provider, asked);
         if (stopIfAsked(context, task, provider)) return;
 
@@ -189,6 +193,8 @@ public final class DeterministicEngine implements AgentEngine {
             return;
         }
 
+        enterActivity(task, "Building a plan", "plan",
+                "Choose only the steps needed for this instruction.");
         Planner planner = new DeterministicPlanner();
         Plan plan;
         if (pointed != null && TaskArtifact.isPointerFollowUp(task.followUp())) {
@@ -232,7 +238,7 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private void executeRouted(Context context, Task task, Plan.Step step,
                                Cancellation cancellation) {
-        task.setCurrentStep(Task.STEP_ACT);
+        enterStep(task, step);
         ToolResult result = callTool(context, step.tool, step.request, cancellation);
         if (stopped(task, cancellation)) return;
         if (parkIfNeeded(task, result)) return;
@@ -274,7 +280,7 @@ public final class DeterministicEngine implements AgentEngine {
             Plan.Step step = plan.current();
 
             if (step.isToolStep()) {
-                task.setCurrentStep(step.label);
+                enterStep(task, step);
                 ToolResult result = callTool(context, step.tool, step.request, cancellation);
                 if (parkIfNeeded(task, result)) return;
                 if ("search".equals(step.tool)) {
@@ -332,15 +338,17 @@ public final class DeterministicEngine implements AgentEngine {
 
             switch (step.label) {
                 case Task.STEP_READ:
-                    task.setCurrentStep(Task.STEP_READ);
+                    enterActivity(task, Task.STEP_READ, "Choosing source pages", "source_select",
+                            "Turn the discovered candidates into bounded read steps.");
                     planReads(context, plan, r, cancellation);
                     break;
                 case Task.STEP_RESOLVE_DOWNLOAD:
-                    task.setCurrentStep(Task.STEP_RESOLVE_DOWNLOAD);
+                    enterActivity(task, Task.STEP_RESOLVE_DOWNLOAD,
+                            "Finding the requested file", "resolve_download",
+                            "Inspect only the pages already discovered for a real file link.");
                     resolveDownload(context, plan, r, cancellation);
                     break;
                 case Task.STEP_ANSWER:
-                    task.setCurrentStep(Task.STEP_ANSWER);
                     persistEvidence(context, task, r);
                     answerStep(context, task, cancellation, r);
                     break;
@@ -392,7 +400,8 @@ public final class DeterministicEngine implements AgentEngine {
         // not enough: "Infinity War from nkiri.ink" has to hit that site's
         // search, not Prime Video. Prefetch the skill's pages first.
         if (r.namedUrl != null || !NamedSiteSkill.pagesToOpen(asked).isEmpty()) {
-            task.setCurrentStep(Task.STEP_READ);
+            enterActivity(task, Task.STEP_READ, "Reading the named source", "read",
+                    "The source named by the user takes precedence over substitutes.");
             fetchNamedSite(context, r, nonce, transcript, cancellation);
             if (stopped(task, cancellation) || parkIfNeeded(task, r.lastResult)) return;
         }
@@ -406,10 +415,12 @@ public final class DeterministicEngine implements AgentEngine {
                 r.capReason = refusal;
                 break;
             }
+            enterActivity(task, "Deciding the next action", "reason",
+                    "Choose one bounded action from the evidence observed so far.");
             Plan.Step step = planner.nextStep(asked, transcript, tools.keySet());
             if (step == null) break; // the model is done gathering
 
-            task.setCurrentStep(step.label);
+            enterStep(task, step);
             ToolResult result = callTool(context, step.tool, step.request, cancellation);
             if (stopped(task, cancellation)) return;
             if (parkIfNeeded(task, result)) return;
@@ -430,7 +441,9 @@ public final class DeterministicEngine implements AgentEngine {
         }
 
         if (ToolRouter.isDownloadIntent(asked) && r.downloadNote == null) {
-            task.setCurrentStep(Task.STEP_RESOLVE_DOWNLOAD);
+            enterActivity(task, Task.STEP_RESOLVE_DOWNLOAD,
+                    "Finding the requested file", "resolve_download",
+                    "Resolve a file link from the pages actually inspected.");
             fulfillDownload(context, r, cancellation);
             if (stopped(task, cancellation) || parkIfNeeded(task, r.lastResult)) return;
         }
@@ -830,6 +843,8 @@ public final class DeterministicEngine implements AgentEngine {
 
     /** Answer, strictly from the sources read; fall back to snippets when none read. */
     private void answerStep(Context context, Task task, Cancellation cancellation, Research r) {
+        enterActivity(task, Task.STEP_ANSWER, "Writing the response", "answer",
+                "Compose only from evidence gathered during this run.");
         // Nothing readable: keep the snippets, but say what they are. Frozen
         // before the fallback so "pages read" stays false when only snippets
         // exist and no read-time is claimed.
@@ -920,7 +935,8 @@ public final class DeterministicEngine implements AgentEngine {
             return;
         }
         task.setStatus(Task.Status.VERIFYING);
-        task.setCurrentStep(Task.STEP_VERIFY);
+        enterActivity(task, Task.STEP_VERIFY, "Verifying the answer", "verify",
+                "Check citations, source hosts and figures before completion.");
         if (r.provider.isRemote()) {
             AnswerVerifier.Report report = AnswerVerifier.check(r.answer, r.readUrls);
             String note = AnswerVerifier.note(report, r.readUrls);
@@ -1097,6 +1113,72 @@ public final class DeterministicEngine implements AgentEngine {
     @Override
     public ToolResult callTool(Context context, String name, ToolRequest request) {
         return callTool(context, name, request, Cancellation.NONE);
+    }
+
+    /**
+     * Enter one planner-selected activity and persist it immediately.
+     *
+     * <p>The task row keeps only its current compatibility step; the
+     * append-only event is what lets the UI reconstruct the real,
+     * variable-length hierarchy after completion. Recording is best-effort
+     * and can never stop the task.
+     */
+    private static void enterActivity(Task task, String label, String kind, String reason) {
+        enterActivity(task, label, label, kind, reason);
+    }
+
+    private static void enterActivity(Task task, String currentStep, String label,
+                                      String kind, String reason) {
+        if (task == null) return;
+        task.setCurrentStep(currentStep == null ? "" : currentStep);
+        try {
+            MrNobodyApp.taskEvents().append(task.id(), TaskEventStore.STEP_CHANGED,
+                    TaskEventDetail.activity(label, kind, reason));
+        } catch (Throwable ignored) {
+            // A trace is evidence about the work, never a prerequisite for it.
+        }
+    }
+
+    /** A semantic label derived from the actual tool/action the plan selected. */
+    private static void enterStep(Task task, Plan.Step step) {
+        if (step == null) return;
+        String tool = step.tool == null ? "" : step.tool;
+        String action = step.request == null ? "" : step.request.action();
+        String label;
+        switch (tool) {
+            case "search":
+                label = "Searching broadly";
+                break;
+            case "http":
+                label = "Reading source pages";
+                break;
+            case "download":
+                label = "Downloading the file";
+                break;
+            case "memory":
+                label = "Checking previous work";
+                break;
+            case "terminal":
+                label = "Using the workspace terminal";
+                break;
+            case "browser":
+                if ("submit".equals(action)) label = "Submitting the form";
+                else if ("upload".equals(action)) label = "Preparing the upload";
+                else if ("save".equals(action)) label = "Saving the file";
+                else if ("click".equals(action) || "type".equals(action)
+                        || "select".equals(action)) label = "Interacting with the page";
+                else if ("links".equals(action) || "forms".equals(action)
+                        || "title".equals(action) || "review".equals(action)) {
+                    label = "Inspecting the page";
+                } else label = "Reading the page";
+                break;
+            default:
+                label = step.label == null || step.label.trim().isEmpty()
+                        ? "Working" : step.label.trim();
+                break;
+        }
+        String kind = action.isEmpty() || action.equals(tool) ? tool : tool + "." + action;
+        enterActivity(task, step.label, label, kind, step.reason);
     }
 
     /** As above, but able to abandon a slow tool when the task is cancelled. */

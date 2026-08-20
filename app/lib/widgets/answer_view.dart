@@ -39,7 +39,7 @@ class AnswerView extends StatelessWidget {
         ? const SizedBox.shrink()
         : document.isPlain
             ? StreamedAnswer(
-                tokens: document.toStreamTokens(),
+                tokens: _boundTokens(document.toStreamTokens()),
                 visible: visible,
                 caret: caret,
                 onSourceTap: onSourceTap,
@@ -80,6 +80,13 @@ class AnswerView extends StatelessWidget {
   List<AnswerSpan> _bound(List<AnswerSpan> spans) => [
         for (final s in spans)
           s.cite == null ? s : AnswerSpan('', cite: _resolveCite(s.cite!)),
+      ];
+
+  List<StreamToken> _boundTokens(List<StreamToken> tokens) => [
+        for (final token in tokens)
+          token.cite == null
+              ? token
+              : StreamToken('', cite: _resolveCite(token.cite!)),
       ];
 
   Widget _block(AnswerBlock block) {
@@ -212,15 +219,18 @@ class _MiniCite extends StatelessWidget {
           height: 16,
           margin: const EdgeInsets.symmetric(horizontal: 2),
           padding: const EdgeInsets.symmetric(horizontal: 5),
-          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: AppColors.surface2,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(color: AppColors.line),
           ),
-          child: Text(
-            label,
-            style: AppTheme.mono(size: 10, color: AppColors.textDim),
+          child: Center(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Text(
+              label,
+              style: AppTheme.mono(size: 10, color: AppColors.textDim),
+            ),
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mrnobody/theme/app_theme.dart';
+import 'package:mrnobody/widgets/agent_response.dart';
 import 'package:mrnobody/widgets/answer_document.dart';
 import 'package:mrnobody/widgets/answer_view.dart';
 
@@ -145,6 +146,27 @@ void main() {
       expect(find.textContaining('**'), findsNothing);
       expect(find.textContaining('The Boys'), findsWidgets);
       expect(find.textContaining('Latest Prime series'), findsOneWidget);
+    });
+
+    testWidgets('a plain numbered citation binds to the page actually read',
+        (tester) async {
+      await tester.pumpWidget(host(
+        AnswerView(
+          document: AnswerDocument.parse('The claim is supported [1].'),
+          sources: const [
+            AgentSource(
+              title: 'Example',
+              domain: 'example.com',
+              url: 'https://example.com/source',
+            ),
+          ],
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.text('example.com'), findsOneWidget);
+      expect(find.text('1'), findsNothing);
+      expect(tester.getSize(find.text('example.com')).width, lessThan(120));
     });
 
     testWidgets('a waiting upload offers Open page, not only Allow',

@@ -7,6 +7,8 @@ import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.tasks.EventLogRecorder;
+import com.mrnobody.agent.tasks.TaskEventStore;
+import com.mrnobody.browser.MrNobodyApp;
 
 /**
  * Runs a task on-device. Delegates to the AgentEngine (deterministic in V1,
@@ -47,13 +49,28 @@ public final class LocalWorker implements Worker {
             HeadlessSessions.acquire(context, task.id());
             com.mrnobody.agent.tasks.CompletionStats.beginRun();
             try {
+                // A run boundary is part of the event model. It prevents a
+                // follow-up or recurring wake from inheriting the previous
+                // run's pipeline in the chat renderer.
+                append(task, TaskEventStore.TASK_STARTED, "local");
                 engine.run(context, task, cancellation);
             } finally {
+                String terminal = task.status() == Task.Status.FAILED
+                        ? TaskEventStore.TASK_FAILED : TaskEventStore.TASK_FINISHED;
+                append(task, terminal, task.status().name());
                 com.mrnobody.agent.tasks.CompletionStats.endRun(
                         task.status() == Task.Status.COMPLETED);
                 EventLogRecorder.clear();
                 HeadlessSessions.release(task.id());
             }
+        }
+    }
+
+    private static void append(Task task, String type, String detail) {
+        try {
+            MrNobodyApp.taskEvents().append(task.id(), type, detail);
+        } catch (Throwable ignored) {
+            // Event recording must never become a dependency of execution.
         }
     }
 }

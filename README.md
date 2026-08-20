@@ -114,6 +114,8 @@ Do not move filtering or browser security decisions into Dart. Subresource reque
 | Agent engine | `.../agent/planner/DeterministicEngine.java` | Local research and remote-provider autonomous execution |
 | Tool security | `.../agent/core/ToolPipeline.java` | Schema validation, policy, guards, confirmation, timeout, output validation, and preview limiting |
 | Task persistence | `.../agent/tasks/TaskStore.java` | Durable task state and schema migrations |
+| Task event contract | `.../agent/tasks/TaskEventDetail.java` | Versioned semantic activities and bounded tool-attempt/outcome metadata |
+| Adaptive task UI | `app/lib/agent/task_timeline.dart` | Projects the current run’s real events into activities, metrics, recovery states, and read sources |
 | Background execution | `.../agent/tasks/TaskWorker.java` | WorkManager dispatch, heartbeat, cancellation, retry, and notifications |
 | Downloads | `.../browser/download/DownloadEngine.java` | Transfer lifecycle and persistence |
 | Network boundary | `.../browser/net/NetworkGate.java` | Single native HTTP egress gate for agent/provider/download traffic |
@@ -130,6 +132,21 @@ Do not move filtering or browser security decisions into Dart. Subresource reque
 7. Task state and events are persisted and streamed back to the Flutter task chat.
 
 `TaskScope` captures the task ID before a tool enters the shared executor and clears it after the call. The local worker also serializes runs and resets browser anchor state per task. This removes pooled-thread context loss and prevents concurrent tasks from sharing mutable planner, guard, or browser state; the end-to-end Android behavior remains part of device testing.
+
+### Adaptive agent response contract
+
+The task chat has a stable visual grammar, not a fixed task template:
+
+- The engine appends a semantic `step.changed` event only when it actually enters an activity selected by the deterministic or autonomous planner.
+- Tool attempts and outcomes use versioned JSON metadata linked by call ID. Page bodies, prompts, form text and arbitrary tool output are not copied into the event log.
+- `TaskTimeline` displays only the current execution cycle. Follow-ups and recurring wakes do not inherit the previous run’s trace.
+- Tool calls are subordinate evidence beneath an agent-owned activity. A failed direct read followed by a successful rendered read becomes `recovered`; the failed tool does not replace the task hierarchy.
+- Status, encountered/used counts and duration sit beneath the activity verb. Raw call syntax is available only as bounded detail.
+- Answer headings, paragraphs, lists, citations, evidence cards, approval prompts, errors and source controls are conditional. Search candidates are not shown as evidence unless that page was successfully read.
+- Numbered citations resolve against successful read order. A task with no sources, cards, approval or artifacts does not receive those sections merely to fill a preset.
+- Legacy plain-text event details remain readable, but new work must emit the structured contract.
+
+The model may choose proposed actions and answer structure; it does not choose arbitrary widgets or bypass rendering policy. The application maps validated typed outcomes to approved components so consistency does not become seeded content.
 
 ### Agent modes
 

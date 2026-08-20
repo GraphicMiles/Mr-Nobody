@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../agent/task_timeline.dart';
 import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/agent_response.dart';
@@ -174,9 +175,17 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     setState(() {
       if (task != null) _task = task;
       _events = events;
-      final created = (_task['createdAt'] as num?)?.toInt();
-      if (created != null && created > 0) {
-        _startedAt = DateTime.fromMillisecondsSinceEpoch(created);
+      int? started;
+      for (final event in events.reversed) {
+        final type = event['type'] as String? ?? '';
+        if (type == 'task.started' || type == 'user.followup') {
+          started = (event['at'] as num?)?.toInt();
+          if (started != null && started > 0) break;
+        }
+      }
+      started ??= (_task['createdAt'] as num?)?.toInt();
+      if (started != null && started > 0) {
+        _startedAt = DateTime.fromMillisecondsSinceEpoch(started);
       }
     });
 
@@ -296,15 +305,28 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     return AnswerDocument.parse(text);
   }
 
-  List<EvidenceCardData> get _cards {
+  /// Optional evidence cards are selected only from pages this run actually
+  /// read. Search candidates are not evidence merely because they appeared in
+  /// a result list.
+  List<EvidenceCardData> _cardsFor(List<AgentSource> sources) {
+    if (sources.isEmpty) return const [];
     final raw = (_task['artifacts'] as String?) ?? '';
+    final read = sources.map((s) => _normalUrl(s.url)).toSet();
+    final artifacts = EvidenceCardData.fromArtifacts(raw)
+        .where((a) => read.contains(_normalUrl(a.url)))
+        .toList();
     return EvidenceCardData.pick(
       instruction: widget.instruction ??
           _task['instruction'] as String? ??
           widget.title,
       answer: (_task['result'] as String?) ?? '',
-      artifacts: EvidenceCardData.fromArtifacts(raw),
+      artifacts: artifacts,
     );
+  }
+
+  static String _normalUrl(String value) {
+    final clean = value.trim().split('#').first;
+    return clean.replaceFirst(RegExp(r'/$'), '');
   }
 
   String get _pendingKind {
@@ -342,81 +364,53 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
 
   // ----------------------------------------------------------------- trace
 
-  /// The pipeline trace, built from the event log rather than a fixed plan.
-  List<TraceStep> get _steps {
-    final steps = <TraceStep>[];
-    final calls = <String, int>{};
+  TaskTimeline get _timeline => TaskTimeline.fromEvents(
+        events: _events,
+        taskStatus: _task['status'] as String? ?? 'QUEUED',
+        currentStep: _task['step'] as String? ?? '',
+      );
 
-    for (final e in _events) {
-      final type = e['type'] as String? ?? '';
-      final detail = e['detail'] as String? ?? '';
-      switch (type) {
-        case 'tool.call':
-          calls[detail] = steps.length;
-          steps.add(TraceStep(
-            label: _verb(detail),
-            chip: _argument(detail),
-            mono: _looksMachine(detail),
-            running: true,
-          ));
-          break;
-        case 'tool.result':
-        case 'tool.denied':
-          // Close the most recent open step of this tool.
-          final i = steps.lastIndexWhere((s) => s.running);
-          if (i >= 0) {
-            steps[i] = TraceStep(
-              label: steps[i].label,
-              chip: steps[i].chip,
-              mono: steps[i].mono,
-              duration: _durationIn(detail),
-              detail: detail.isEmpty ? const [] : [detail],
-              detailMono: true,
-              denied: type == 'tool.denied',
-            );
-          }
-          break;
-        default:
-          break;
-      }
+  /// Convert semantic core activities into the stable visual grammar. There
+  /// is no fixed list: the timeline contains only activities this run entered.
+  List<TraceStep> _stepsFor(TaskTimeline timeline) => [
+        for (final activity in timeline.activities)
+          TraceStep(
+            label: activity.label,
+            metric: activity.metric.isEmpty ? null : activity.metric,
+            duration: _activityDuration(activity),
+            detail: activity.detail,
+            running: activity.state == TimelineState.working,
+            denied: activity.state == TimelineState.denied,
+            recovered: activity.state == TimelineState.recovered,
+            failed: activity.state == TimelineState.failed,
+            waiting: activity.state == TimelineState.waiting,
+            cancelled: activity.state == TimelineState.cancelled,
+          ),
+      ];
+
+  String? _activityDuration(TimelineActivity activity) {
+    if (activity.startedAt <= 0 || activity.endedAt <= activity.startedAt) {
+      return null;
     }
-    return steps;
-  }
-
-  /// `browser open https://…` → `Open`.
-  String _verb(String detail) {
-    final parts = detail.trim().split(RegExp(r'\s+'));
-    if (parts.length < 2) return parts.isEmpty ? 'Step' : _title(parts.first);
-    return _title(parts[1]);
-  }
-
-  /// The argument the verb acted on — a URL, a query, a filename.
-  String? _argument(String detail) {
-    final parts = detail.trim().split(RegExp(r'\s+'));
-    if (parts.length < 3) return null;
-    final rest = parts.sublist(2).join(' ');
-    final m = RegExp(r'https?://([^/\s]+)').firstMatch(rest);
-    return m != null ? m.group(1)!.replaceFirst(RegExp(r'^www\.'), '') : rest;
-  }
-
-  bool _looksMachine(String detail) =>
-      detail.contains('http') || detail.contains('.');
-
-  String? _durationIn(String detail) {
-    final m = RegExp(r'in (\d+)ms').firstMatch(detail);
-    if (m == null) return null;
-    final ms = int.parse(m.group(1)!);
+    final ms = activity.endedAt - activity.startedAt;
     return ms < 1000 ? '${ms}ms' : '${(ms / 1000).toStringAsFixed(1)}s';
   }
 
-  static String _title(String s) =>
-      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+  List<Map<String, dynamic>> get _runEvents {
+    var from = 0;
+    for (var i = 0; i < _events.length; i++) {
+      final type = _events[i]['type'] as String? ?? '';
+      if (type == 'task.started' || type == 'user.followup') from = i;
+    }
+    return _events.sublist(from);
+  }
 
-  /// `Thought for 4 seconds`, from the first and last event.
+  /// `Thought for 4 seconds`, measured within this execution cycle only.
   String get _doneLabel {
-    if (_events.length < 2) return 'Thought for a moment';
-    final first = (_events.first['at'] as num?)?.toInt() ?? 0;
-    final last = (_events.last['at'] as num?)?.toInt() ?? 0;
+    final run = _runEvents;
+    if (run.length < 2) return 'Thought for a moment';
+    final first = (run.first['at'] as num?)?.toInt() ?? 0;
+    final last = (run.last['at'] as num?)?.toInt() ?? 0;
     final s = (last - first) / 1000.0;
     if (s <= 0) return 'Thought for a moment';
     if (s < 1) return 'Thought for under a second';
@@ -427,36 +421,19 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     return 'Thought for ${(s / 60).toStringAsFixed(1)} minutes';
   }
 
-  /// What the agent is doing right now, for the shimmer label.
-  String get _activeLabel {
+  /// What the agent is doing now comes from its latest semantic activity.
+  String _activeLabel(TaskTimeline timeline) {
+    if (timeline.activities.isNotEmpty) return timeline.activeLabel;
     final step = _task['step'] as String? ?? '';
-    if (step.isNotEmpty) return step;
-    for (final e in _events.reversed) {
-      if (e['type'] == 'tool.call') {
-        final d = e['detail'] as String? ?? '';
-        final arg = _argument(d);
-        return arg == null ? _verb(d) : '${_verb(d)} $arg';
-      }
-    }
-    return 'Thinking';
+    return step.isEmpty ? 'Working' : step;
   }
 
-  /// Sources are the pages the agent actually opened.
-  List<AgentSource> get _sources {
-    final seen = <String, AgentSource>{};
-    for (final e in _events) {
-      if (e['type'] != 'tool.call') continue;
-      final m = RegExp(r'https?://([^/\s]+)')
-          .firstMatch(e['detail'] as String? ?? '');
-      if (m == null) continue;
-      final domain = m.group(1)!.replaceFirst(RegExp(r'^www\.'), '');
-      seen.putIfAbsent(
-          domain,
-          () => AgentSource(
-              title: domain, domain: domain, url: m.group(0)!));
-    }
-    return seen.values.toList();
-  }
+  /// Citation order is the order in which page content was successfully read,
+  /// not search-result order and not every URL a tool happened to mention.
+  List<AgentSource> _sourcesFor(TaskTimeline timeline) => [
+        for (final s in timeline.sources)
+          AgentSource(title: s.title, domain: s.domain, url: s.url),
+      ];
 
   // --------------------------------------------------------------- actions
 
@@ -586,7 +563,10 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     final result = _task['result'] as String? ?? '';
     final error = _task['error'] as String? ?? '';
     final status = _task['status'] as String? ?? '';
-    final steps = _steps;
+    final timeline = _timeline;
+    final steps = _stepsFor(timeline);
+    final sources = _sourcesFor(timeline);
+    final cards = _cardsFor(sources);
     // The caret blinks while a live stream is still generating, not only
     // while the timed reveal is catching up to a finished answer.
     final streaming = _streaming || _revealed < _tokens.length;
@@ -613,14 +593,13 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                         // Working: loader on top, trace filling beneath it.
                         if (_isWorking) ...[
                           AgentWorkingLine(
-                              label: _activeLabel, since: _startedAt),
+                              label: _activeLabel(timeline), since: _startedAt),
                           if (steps.isNotEmpty) const SizedBox(height: 11),
                         ],
                         if (steps.isNotEmpty)
                           AgentTrace(
                             steps: steps,
                             running: _isWorking,
-                            activeLabel: 'Thinking',
                             doneLabel: _doneLabel,
                           ),
                         if (status == 'CANCELLED' && result.isEmpty) ...[
@@ -638,9 +617,9 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                                 ? AnswerDocument.parse(_revealedFrom)
                                 : _document,
                             cards: result.isNotEmpty && !streaming
-                                ? _cards
+                                ? cards
                                 : const [],
-                            sources: _sources,
+                            sources: sources,
                             visible: _revealed,
                             caret: streaming,
                             onSourceTap: (s) {
@@ -685,7 +664,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                               height: 1, thickness: 1, color: AppColors.line),
                           const SizedBox(height: 8),
                           AgentActions(
-                            sources: _sources,
+                            sources: sources,
                             onCopy: _copy,
                             onSourceTap: (s) => AppToast.show(context, s.url),
                           ),

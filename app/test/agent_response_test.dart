@@ -184,7 +184,8 @@ void main() {
       ));
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(find.text('Thinking'), findsOneWidget);
+      expect(find.text('Thinking'), findsNothing,
+          reason: 'the separate live activity line owns the working label');
       expect(find.text('bitcoin price'), findsOneWidget);
     });
 
@@ -241,6 +242,24 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       expect(traceHeight(), greaterThan(0),
           reason: 'tapping a settled trace must reopen it');
+    });
+
+    testWidgets('status and metric sit beneath the activity verb', (tester) async {
+      await tester.pumpWidget(host(
+        const AgentTrace(
+          steps: [TraceStep(label: 'Searching broadly', metric: '6 candidates')],
+          running: true,
+          doneLabel: 'Thought for a moment',
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final verb = tester.getTopLeft(find.text('Searching broadly'));
+      final status = tester.getTopLeft(find.text('done'));
+      final metric = tester.getTopLeft(find.text('6 candidates'));
+      expect(status.dy, greaterThan(verb.dy));
+      expect(metric.dy, greaterThan(verb.dy));
+      expect((status.dy - metric.dy).abs(), lessThan(2));
     });
 
     testWidgets('a refused step is marked, not hidden', (tester) async {

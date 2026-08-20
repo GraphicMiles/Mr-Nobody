@@ -48,7 +48,7 @@ public final class EventLogRecorder implements ToolPipeline.Recorder {
 
     @Override
     public void onCall(ToolCall call) {
-        write(TaskEventStore.TOOL_CALL, call.summary());
+        write(TaskEventStore.TOOL_CALL, TaskEventDetail.toolCall(call));
     }
 
     @Override
@@ -62,20 +62,7 @@ public final class EventLogRecorder implements ToolPipeline.Recorder {
 
         boolean refused = decision != null && decision.isDeny();
         String type = refused ? TaskEventStore.TOOL_DENIED : TaskEventStore.TOOL_RESULT;
-
-        StringBuilder detail = new StringBuilder(call.tool());
-        detail.append(refused ? " refused" : (result.isSuccess() ? " ok" : " failed"));
-        detail.append(" in ").append(durationMs).append("ms");
-
-        // Record why, not just that: "refused" without a reason is a log entry
-        // that raises a question instead of answering one.
-        if (refused && decision.reason() != null && !decision.reason().isEmpty()) {
-            detail.append(" — ").append(decision.reason());
-        } else if (!result.isSuccess() && result.error() != null) {
-            detail.append(" — ").append(trim(result.error()));
-        }
-
-        write(type, detail.toString());
+        write(type, TaskEventDetail.toolResult(call, result, decision, durationMs));
     }
 
     private void write(String type, String detail) {
@@ -84,10 +71,5 @@ public final class EventLogRecorder implements ToolPipeline.Recorder {
         } catch (Throwable t) {
             // Logging must never break the thing it is logging.
         }
-    }
-
-    private static String trim(String s) {
-        if (s == null) return "";
-        return s.length() <= 200 ? s : s.substring(0, 200) + "…";
     }
 }
