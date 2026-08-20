@@ -76,7 +76,6 @@ jobs:
             -camera-back none -camera-front none
           disable-animations: true
           script: |
-            set -o pipefail
             evidence="$GITHUB_WORKSPACE/emulator-artifacts/api-${{ matrix.api-level }}"
             mkdir -p "$evidence"
             collect_evidence() {
