@@ -60,12 +60,17 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   bool get isAvailable => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
+  ValueKey<String> get platformViewKey => ValueKey<String>('mrnobody-webview-$tabId');
+
   // ------------------------------------------------------------------ view
 
   @override
   Widget buildView() {
     if (!isAvailable) return const _UnavailableSurface();
     return PlatformViewLink(
+      // Without a tab-specific key Flutter reuses the previous platform-view
+      // controller when + selects a new tab, leaving the old page on screen.
+      key: platformViewKey,
       viewType: viewType,
       surfaceFactory: (context, controller) => AndroidViewSurface(
         controller: controller as AndroidViewController,

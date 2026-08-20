@@ -220,6 +220,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
         ),
       ],
     );
+    if (!mounted) return;
     if (selected == 'clear') {
       _address.clear();
       _addressFocus.requestFocus();
@@ -276,6 +277,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
                               onBack: tab.goBack,
                               onForward: tab.goForward,
                               onNewTab: () {
+                                tab.captureThumbnail();
+                                _addressFocus.unfocus();
                                 widget.tabs.newTab();
                                 AppToast.show(context, 'New tab');
                               },

@@ -69,6 +69,10 @@ dependencies {
     // depend on the installed WebView rather than the OS version.
     implementation "androidx.webkit:webkit:1.11.0"
 
+    // Native pull-to-refresh around the retained System WebView. A Flutter
+    // RefreshIndicator cannot see scroll events produced by a platform view.
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
+
     // JVM unit tests for the agent core. The core is deliberately written so
     // its logic (routing, parsing, filtering, policy, reconciliation) runs on a
     // plain JVM without an Android runtime — these tests are the reason it

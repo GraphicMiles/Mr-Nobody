@@ -340,6 +340,7 @@ class _NewTabCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      key: const ValueKey('new-tab-card'),
       onTap: onTap,
       child: DottedBorderBox(
         child: Column(
