@@ -56,13 +56,22 @@ public final class SearchSkillsTest {
     }
 
     @Test
-    public void latestInformationGetsCurrentYearBias() {
+    public void latestFinancialInformationUsesTheMoreSpecificFreshRoute() {
         SearchSkills.Skill skill = SearchSkills.route("latest Nigeria inflation rate");
-        assertEquals(SearchSkills.Kind.FRESH_INFORMATION, skill.kind);
+        assertEquals(SearchSkills.Kind.FINANCE, skill.kind);
         String year = new java.text.SimpleDateFormat("yyyy", java.util.Locale.US)
                 .format(new java.util.Date());
         assertTrue(skill.query.contains(year));
         assertFalse(skill.listingOnly);
+    }
+
+    @Test
+    public void genericLatestInformationStillGetsCurrentYearBias() {
+        SearchSkills.Skill skill = SearchSkills.route("latest Mars mission update");
+        assertEquals(SearchSkills.Kind.FRESH_INFORMATION, skill.kind);
+        String year = new java.text.SimpleDateFormat("yyyy", java.util.Locale.US)
+                .format(new java.util.Date());
+        assertTrue(skill.query.contains(year));
     }
 
     @Test
@@ -74,6 +83,52 @@ public final class SearchSkillsTest {
         row.put("url", "https://example.com/lagos");
         rows.add(row);
         assertTrue(skill.filter(rows).isEmpty());
+    }
+
+    @Test
+    public void academicPaperBeatsGenericMaterialAndFreshness() {
+        SearchSkills.Skill skill = SearchSkills.route(
+                "find the latest research paper on malaria vaccines");
+        assertEquals(SearchSkills.Kind.ACADEMIC, skill.kind);
+        assertTrue(skill.listingOnly);
+        assertTrue(skill.query.contains("arxiv.org"));
+    }
+
+    @Test
+    public void officialDocumentationGetsItsOwnReadableRoute() {
+        SearchSkills.Skill skill = SearchSkills.route(
+                "find the official documentation for the Android CameraX API");
+        assertEquals(SearchSkills.Kind.OFFICIAL_DOCUMENTATION, skill.kind);
+        assertFalse(skill.listingOnly);
+        assertTrue(skill.query.contains("official documentation"));
+    }
+
+    @Test
+    public void factCheckAddsPrimaryEvidenceLanguage() {
+        SearchSkills.Skill skill = SearchSkills.route(
+                "fact check the claim that the moon is made of cheese");
+        assertEquals(SearchSkills.Kind.FACT_CHECK, skill.kind);
+        assertTrue(skill.query.contains("primary evidence"));
+    }
+
+    @Test
+    public void weatherAndFinanceAreTimeBiasedBeforeGenericLatest() {
+        SearchSkills.Skill weather = SearchSkills.route("Lagos weather today");
+        SearchSkills.Skill finance = SearchSkills.route("current bitcoin price");
+        assertEquals(SearchSkills.Kind.WEATHER, weather.kind);
+        assertEquals(SearchSkills.Kind.FINANCE, finance.kind);
+        String year = new java.text.SimpleDateFormat("yyyy", java.util.Locale.US)
+                .format(new java.util.Date());
+        assertTrue(weather.query.contains(year));
+        assertTrue(finance.query.contains(year));
+    }
+
+    @Test
+    public void newsAndGovernmentHaveDistinctEvidenceRoutes() {
+        assertEquals(SearchSkills.Kind.NEWS,
+                SearchSkills.route("latest Nigeria technology news").kind);
+        assertEquals(SearchSkills.Kind.GOVERNMENT,
+                SearchSkills.route("Nigeria census data from an official source").kind);
     }
 
     @Test
