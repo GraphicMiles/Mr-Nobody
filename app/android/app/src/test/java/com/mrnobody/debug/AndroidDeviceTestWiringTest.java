@@ -31,10 +31,12 @@ public final class AndroidDeviceTestWiringTest {
     @Test
     public void workflowRunsTwoApisAndAlwaysCollectsEvidence() throws Exception {
         String workflow = read("../../../.github/workflows/android-emulator.yml");
+        String script = read("../../../tools/android_emulator_smoke.sh");
         assertTrue(workflow.contains("api-level: [31, 34]"));
-        assertTrue(workflow.contains("connectedDebugAndroidTest"));
+        assertTrue(workflow.contains("sh tools/android_emulator_smoke.sh"));
         assertTrue(workflow.contains("if: always()"));
-        assertTrue(workflow.contains("logcat.txt"));
+        assertTrue(script.contains("connectedDebugAndroidTest"));
+        assertTrue(script.contains("logcat.txt"));
     }
 
     private static String read(String relative) throws Exception {
