@@ -131,7 +131,7 @@ Do not move filtering or browser security decisions into Dart. Subresource reque
 6. Every tool call goes through `ToolPipeline` before execution.
 7. Task state and events are persisted and streamed back to the Flutter task chat.
 
-`TaskScope` captures the task ID before a tool enters the shared executor and clears it after the call. The local worker also serializes runs and resets browser anchor state per task. This removes pooled-thread context loss and prevents concurrent tasks from sharing mutable planner, guard, or browser state; the end-to-end Android behavior remains part of device testing.
+`TaskScope` captures the task ID before a tool enters the shared executor and clears it after the call. The local worker also serializes runs and resets browser anchor state per task. Active WorkManager runs are promoted with a low-importance `dataSync` foreground notification before web work begins, so switching away does not demote a user-started search or rendered read. This removes pooled-thread context loss and prevents concurrent tasks from sharing mutable planner, guard, or browser state; the end-to-end Android behavior remains part of device testing.
 
 ### Adaptive agent response contract
 
@@ -145,7 +145,8 @@ The task chat has a stable visual grammar, not a fixed task template:
 - Tool calls are subordinate evidence beneath an agent-owned activity. A failed direct read followed by a successful rendered read becomes `recovered`; the failed tool does not replace the task hierarchy.
 - Status, encountered/used counts and duration sit beneath the activity verb. Raw call syntax is available only as bounded detail.
 - Answer headings, paragraphs, lists, citations, evidence cards, approval prompts, errors and source controls are conditional. Search candidates are not shown as evidence unless that page was successfully read.
-- Numbered citations resolve against successful read order. A task with no sources, cards, approval or artifacts does not receive those sections merely to fill a preset.
+- Script/configuration dumps are rejected before they can become evidence. Specialised latest-YouTube requests use a site-restricted result and listing metadata instead of treating a watch-page application shell as article prose.
+- Numbered citations resolve against successful read order, and source controls show cited/linked evidence rather than every attempted read. A task with no sources, cards, approval or artifacts does not receive those sections merely to fill a preset.
 - Legacy plain-text event details remain readable, but new work must emit the structured contract.
 
 The model may choose proposed actions and answer structure; it does not choose arbitrary widgets or bypass rendering policy. The application maps validated typed outcomes to approved components so consistency does not become seeded content.

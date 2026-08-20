@@ -132,6 +132,10 @@ public final class ExtractiveAnswer {
         int[] scores = new int[sentences.length];
         int best = 0;
         for (int i = 0; i < sentences.length; i++) {
+            if (!com.mrnobody.agent.util.ReadableText.proseSentence(sentences[i])) {
+                scores[i] = 0;
+                continue;
+            }
             scores[i] = score(sentences[i], terms);
             if (scores[i] > best) best = scores[i];
         }
@@ -177,7 +181,7 @@ public final class ExtractiveAnswer {
         StringBuilder sb = new StringBuilder();
         int used = 0;
         for (String p : parts) {
-            if (p.trim().length() < 20) continue;
+            if (!com.mrnobody.agent.util.ReadableText.proseSentence(p)) continue;
             if (sb.length() > 0) sb.append(' ');
             sb.append(p.trim());
             if (++used >= n) break;

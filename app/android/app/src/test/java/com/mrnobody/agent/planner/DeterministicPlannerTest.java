@@ -47,6 +47,15 @@ public class DeterministicPlannerTest {
     }
 
     @Test
+    public void latestYouTubeRequestUsesARestrictedVideoQuery() {
+        Plan plan = planner.plan(
+                "the latest video on youtube from screen crush channel", TOOLS);
+        String query = plan.steps().get(0).request.param("q");
+        assertTrue(query, query.contains("screen crush"));
+        assertTrue(query, query.contains("site:youtube.com/watch"));
+    }
+
+    @Test
     public void aDownloadInstructionPlansASingleAction() {
         Plan plan = planner.plan("download the report.pdf from example.com", TOOLS);
 

@@ -219,6 +219,61 @@ void main() {
         findsOneWidget);
   });
 
+  testWidgets('source count includes cited reads rather than every attempt',
+      (tester) async {
+    status = 'COMPLETED';
+    result = 'Supported by the first [1] and third [3] pages.';
+    events = [];
+    var seq = 1;
+    var at = 1000;
+    for (var i = 1; i <= 4; i++) {
+      events.add({
+        'seq': seq++,
+        'type': 'tool.call',
+        'detail': 'http fetch https://source$i.example/page',
+        'at': at,
+      });
+      at += 100;
+      events.add({
+        'seq': seq++,
+        'type': 'tool.result',
+        'detail': 'http ok in 100ms',
+        'at': at,
+      });
+      at += 100;
+    }
+    await pump(tester);
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(find.text('2 sources'), findsOneWidget);
+    expect(find.text('4 sources'), findsNothing);
+  });
+
+  testWidgets('a direct result URL becomes the only displayed source',
+      (tester) async {
+    status = 'COMPLETED';
+    result = 'Latest matching video:\nhttps://www.youtube.com/watch?v=abc123';
+    events = [
+      {
+        'seq': 1,
+        'type': 'tool.call',
+        'detail': 'search search latest video',
+        'at': 1000,
+      },
+      {
+        'seq': 2,
+        'type': 'tool.result',
+        'detail': 'search ok in 100ms',
+        'at': 1100,
+      },
+    ];
+    await pump(tester);
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(find.text('1 source'), findsOneWidget);
+    expect(find.text('youtube.com'), findsWidgets);
+  });
+
   testWidgets('tapping a generated follow-up continues the same task',
       (tester) async {
     result = 'Done.';

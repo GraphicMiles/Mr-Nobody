@@ -313,6 +313,7 @@ public final class DeterministicEngine implements AgentEngine {
                         return;
                     }
                     r.results = resultsOf(result);
+                    r.latestVideo = LatestVideoSkill.find(asked, r.results);
                     task.setArtifacts(TaskArtifact.encode(TaskArtifact.fromSearch(r.results)));
                     if (r.results.isEmpty()) {
                         fail(task, ToolResult.fail("The search returned nothing to read, so "
@@ -360,7 +361,12 @@ public final class DeterministicEngine implements AgentEngine {
                 case Task.STEP_READ:
                     enterActivity(task, Task.STEP_READ, "Choosing source pages", "source_select",
                             "Turn the discovered candidates into bounded read steps.");
-                    planReads(context, plan, r, cancellation);
+                    // A matched latest-video request is answered from the
+                    // bounded search listing. A YouTube watch page is an app
+                    // shell/configuration document, not article evidence.
+                    if (r.latestVideo == null) {
+                        planReads(context, plan, r, cancellation);
+                    }
                     break;
                 case Task.STEP_RESOLVE_DOWNLOAD:
                     enterActivity(task, Task.STEP_RESOLVE_DOWNLOAD,
@@ -723,7 +729,7 @@ public final class DeterministicEngine implements AgentEngine {
         if (result == null || !result.isSuccess()) return false;
         if (Boolean.TRUE.equals(result.value().get("needsBrowser"))) return false;
         String text = result.result();
-        if (text == null || text.trim().isEmpty()) return false;
+        if (!com.mrnobody.agent.util.ReadableText.usable(text)) return false;
         r.readUrls.add(url);
         // An explicit http step (e.g. from an LLM plan) has no search-result
         // title; the URL itself is the honest label.
@@ -927,6 +933,8 @@ public final class DeterministicEngine implements AgentEngine {
                     }
                 }
             }
+        } else if (r.latestVideo != null) {
+            r.answer = r.latestVideo.answer();
         } else {
             // No remote model: extract from pages that were actually read.
             // Dumping the search listing here was the bug that made Local look
@@ -1057,6 +1065,7 @@ public final class DeterministicEngine implements AgentEngine {
         ToolResult lastResult;
         ToolResult search;
         List<Map<String, Object>> results;
+        LatestVideoSkill.Match latestVideo;
         AiProvider provider;
         boolean pagesRead;
         String answer = "";

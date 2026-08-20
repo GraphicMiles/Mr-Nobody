@@ -8,6 +8,10 @@
     <string name="notification_task_done">Task finished</string>
     <string name="notification_task_failed">Task failed</string>
     <string name="notification_task_waiting">Waiting for your approval</string>
+    <string name="notification_channel_agent_work">Agent tasks</string>
+    <string name="notification_channel_agent_work_desc">Keeps a task you started working when the app is in the background.</string>
+    <string name="notification_task_working">Working on your task</string>
+    <string name="notification_task_working_body">Search and page reading can continue in the background.</string>
 
     <!-- The app's own download notification: the system downloader's could not
          be paused, renamed or pointed at the folder the user picked. -->

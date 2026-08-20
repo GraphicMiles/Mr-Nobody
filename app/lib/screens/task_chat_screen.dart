@@ -258,7 +258,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
         taskStatus: 'COMPLETED',
       );
       final steps = _stepsFor(timeline);
-      final sources = _sourcesFor(timeline);
+      final sources = _sourcesFor(timeline, answer: detail);
       final cards = _cardsFrom(
         sources: sources,
         artifactsRaw: artifactsRaw,
@@ -548,10 +548,41 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
 
   /// Citation order is the order in which page content was successfully read,
   /// not search-result order and not every URL a tool happened to mention.
-  List<AgentSource> _sourcesFor(TaskTimeline timeline) => [
-        for (final s in timeline.sources)
-          AgentSource(title: s.title, domain: s.domain, url: s.url),
-      ];
+  List<AgentSource> _sourcesFor(TaskTimeline timeline, {String answer = ''}) {
+    final read = [
+      for (final source in timeline.sources)
+        AgentSource(
+          title: source.title,
+          domain: source.domain,
+          url: source.url,
+        ),
+    ];
+    if (answer.isEmpty) return read;
+
+    // Extractive [n] markers refer to successful read order. Do not expose
+    // every candidate the agent attempted as if the final answer used it.
+    final numbered = <AgentSource>[];
+    final seenNumbers = <int>{};
+    for (final match in RegExp(r'\[(\d+)\]').allMatches(answer)) {
+      final index = int.tryParse(match.group(1) ?? '');
+      if (index == null || index < 1 || index > read.length) continue;
+      if (seenNumbers.add(index)) numbered.add(read[index - 1]);
+    }
+    if (numbered.isNotEmpty) return numbered;
+
+    // Some specialised answers cite their selected result as a direct URL.
+    final linked = <AgentSource>[];
+    final seenUrls = <String>{};
+    for (final match in RegExp(r'https?://[^\s<>]+').allMatches(answer)) {
+      var url = match.group(0) ?? '';
+      url = url.replaceFirst(RegExp(r'[.,);:]+$'), '');
+      if (url.isEmpty || !seenUrls.add(url)) continue;
+      final host = Uri.tryParse(url)?.host.replaceFirst(RegExp(r'^www\.'), '') ?? '';
+      if (host.isEmpty) continue;
+      linked.add(AgentSource(title: host, domain: host, url: url));
+    }
+    return linked.isNotEmpty ? linked : read;
+  }
 
   // --------------------------------------------------------------- actions
 
@@ -691,7 +722,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     final status = _task['status'] as String? ?? '';
     final timeline = _timeline;
     final steps = _stepsFor(timeline);
-    final sources = _sourcesFor(timeline);
+    final sources = _sourcesFor(timeline, answer: result);
     final cards = _cardsFor(sources);
     final followUps = FollowUpSuggestions.build(
       instruction: _activeTurnInstruction,

@@ -12,6 +12,7 @@ import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
 import com.mrnobody.agent.util.DdgHtmlParser;
 import com.mrnobody.agent.util.SearchChallenge;
+import com.mrnobody.agent.util.SearchFeedParser;
 import com.mrnobody.agent.util.SearchProviders;
 import com.mrnobody.agent.util.SearchResult;
 import com.mrnobody.agent.util.SearchResultsJson;
@@ -52,7 +53,9 @@ public final class SearchTool implements Tool {
 
     private static final int MAX_RESULTS = 6;
     private static final int MAX_BYTES = 512 * 1024;
-    private static final long PER_ENGINE_TIMEOUT_MS = 12_000;
+    /** Stay below the pipeline's 45-second hard timeout, including cleanup. */
+    private static final long SEARCH_BUDGET_MS = 40_000;
+    private static final long PER_ENGINE_TIMEOUT_MS = 7_000;
 
     private final Supplier<BrowserEngine> engines;
 
@@ -89,6 +92,7 @@ public final class SearchTool implements Tool {
             return ToolResult.fail("search requires a 'q' parameter");
         }
         String q = query.trim();
+        long deadline = System.currentTimeMillis() + SEARCH_BUDGET_MS;
         if (!NetworkGate.canConnect()) {
             return ToolResult.needsApproval("network", NetworkGate.blockedReason());
         }
@@ -105,14 +109,30 @@ public final class SearchTool implements Tool {
         } catch (Exception e) {
             refused.add("DuckDuckGo (" + e.getMessage() + ")");
         }
-        try {
-            String html = fetch("https://lite.duckduckgo.com/lite/?q="
-                    + SearchProviders.encode(q));
-            List<SearchResult> results = DdgHtmlParser.parseLite(html, MAX_RESULTS);
-            if (!results.isEmpty()) return value(q, results, "DuckDuckGo Lite");
-            if (SearchChallenge.isChallenge(html)) refused.add("DuckDuckGo Lite");
-        } catch (Exception e) {
-            refused.add("DuckDuckGo Lite (" + e.getMessage() + ")");
+        if (remaining(deadline) > 6_000) {
+            try {
+                String html = fetch("https://lite.duckduckgo.com/lite/?q="
+                        + SearchProviders.encode(q));
+                List<SearchResult> results = DdgHtmlParser.parseLite(html, MAX_RESULTS);
+                if (!results.isEmpty()) return value(q, results, "DuckDuckGo Lite");
+                if (SearchChallenge.isChallenge(html)) refused.add("DuckDuckGo Lite");
+            } catch (Exception e) {
+                refused.add("DuckDuckGo Lite (" + e.getMessage() + ")");
+            }
+        }
+
+        // A bounded RSS endpoint is a useful non-WebView fallback on devices
+        // that throttle rendered pages in the background.
+        if (remaining(deadline) > 6_000) {
+            try {
+                String xml = fetch("https://www.bing.com/search?format=rss&count=10&q="
+                        + SearchProviders.encode(q));
+                List<SearchResult> results = SearchFeedParser.parse(xml, MAX_RESULTS);
+                if (!results.isEmpty()) return value(q, results, "Bing RSS");
+                refused.add("Bing RSS");
+            } catch (Exception e) {
+                refused.add("Bing RSS (" + e.getMessage() + ")");
+            }
         }
 
         // 2. The browser path, engine by engine. A challenged HTTP fetch must
@@ -121,9 +141,12 @@ public final class SearchTool implements Tool {
         if (engine != null) {
             String preferred = safeSearchEngineSetting();
             for (SearchProviders.Provider provider : SearchProviders.chain(preferred)) {
+                long left = remaining(deadline);
+                if (left < 1_500) break;
                 try {
                     String json = engine.loadAndEvaluate(
-                            provider.url(q), provider.script(MAX_RESULTS), PER_ENGINE_TIMEOUT_MS);
+                            provider.url(q), provider.script(MAX_RESULTS),
+                            Math.min(PER_ENGINE_TIMEOUT_MS, left));
                     List<SearchResult> results = SearchResultsJson.parse(json, MAX_RESULTS);
                     if (results.size() >= SearchProviders.ENOUGH) {
                         return value(q, results, provider.name);
@@ -198,8 +221,8 @@ public final class SearchTool implements Tool {
 
     private static String fetch(String url) throws Exception {
         HttpURLConnection conn = NetworkGate.openHttp(url);
-        conn.setConnectTimeout(10_000);
-        conn.setReadTimeout(15_000);
+        conn.setConnectTimeout(5_000);
+        conn.setReadTimeout(8_000);
         // A plausible browser string: the endpoint answers a bare tool name
         // with a challenge page, which is not a useful "no results".
         conn.setRequestProperty("User-Agent",
@@ -225,6 +248,10 @@ public final class SearchTool implements Tool {
             }
         }
         return sb.toString();
+    }
+
+    static long remaining(long deadline) {
+        return Math.max(0L, deadline - System.currentTimeMillis());
     }
 
     private static String truncate(String s, int max) {
