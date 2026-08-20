@@ -16,9 +16,9 @@ Production-code audit baseline: `0afd06a` on 2026-08-19.
 - UI: Flutter 3.24.5 in CI, Dart SDK constraint `^3.5.4`
 - Native core: Java 11 bytecode, built with JDK 17 in CI
 - Rendering engine: the installed Android System WebView; no browser engine is bundled
-- Latest audited CI run: `32310388940`, successful across strict analysis, Flutter tests, JVM/Gradle tests, privacy checks, signed APK build, signature verification, and size gates
+- Latest audited CI run: `32390059362`, successful across strict analysis, Flutter tests, JVM/Gradle tests, privacy checks, signed APK build, signature verification, and size gates; hosted emulator smoke run `32390059414` passed on API 31 and API 34
 - ABI-specific CI APKs: armeabi-v7a 14.62 MiB, arm64-v8a 17.06 MiB, x86_64 18.19 MiB; every artifact is below the 45 MiB limit
-- Java/JVM suite: 757 tests passing at the current head (685 in run `32310388940`; a fresh CI run on this head is pending)
+- Java/JVM suite: 759 tests passing at the current head
 - Python privacy-auditor suite: 13 tests passing
 
 The source contains substantial Android functionality, but the complete local-agent, WebView, background-work, download, and privacy-route flows have not yet been signed off on a physical device. Do not convert “implemented and tested off-device” into a runtime claim.
