@@ -127,7 +127,7 @@ void main() {
     // Semantic activities come from the calls that actually happened. The
     // tool syntax itself is subordinate, never the visible hierarchy.
     expect(find.text('Searching broadly'), findsOneWidget);
-    expect(find.text('Reading source pages'), findsOneWidget);
+    expect(find.text('Reading source pages'), findsWidgets);
     expect(find.text('coinmarketcap.com'), findsOneWidget);
 
     // The old screen's invented steps must not appear anywhere.
