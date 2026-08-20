@@ -17,6 +17,8 @@ class FakeBrowserEngine implements BrowserEngine {
   final List<String> loaded = [];
   bool reloaded = false;
   bool disposed = false;
+  String? resolvedDownloadId;
+  bool? resolvedDownloadAllow;
 
   FakeBrowserEngine({this.initialUrl = '', this.isPrivate = false}) {
     if (initialUrl.isNotEmpty) loaded.add(initialUrl);
@@ -36,6 +38,8 @@ class FakeBrowserEngine implements BrowserEngine {
   void Function(int ads, int trackers)? onBlockedCountChanged;
   @override
   void Function(String? name, String? error)? onDownload;
+  @override
+  ValueChanged<BrowserDownloadRequest>? onDownloadApproval;
   @override
   ValueChanged<int>? onProgress;
 
@@ -92,6 +96,13 @@ class FakeBrowserEngine implements BrowserEngine {
 
   @override
   Future<Uint8List?> captureThumbnail() async => thumbnail;
+
+  @override
+  Future<bool> resolveDownload(String requestId, bool allow) async {
+    resolvedDownloadId = requestId;
+    resolvedDownloadAllow = allow;
+    return true;
+  }
 
   @override
   void dispose() => disposed = true;
