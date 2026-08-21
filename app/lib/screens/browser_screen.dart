@@ -110,37 +110,91 @@ class _BrowserScreenState extends State<BrowserScreen> {
           context: context,
           barrierDismissible: false,
           builder: (dialogContext) => AlertDialog(
-            backgroundColor: AppColors.surface,
-            title: Text('Potentially harmful file',
-                style: AppTheme.sans(size: 16, w: FontWeight.w700)),
+            backgroundColor:
+                AppColors.isWarm ? null : AppColors.surface,
+            title: Text(
+              'Potentially harmful file',
+              style: AppTheme.sans(
+                size: AppColors.isWarm ? 17 : 16,
+                color: AppColors.overlayInk,
+                w: FontWeight.w700,
+              ),
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(request.name, style: AppTheme.mono(size: 12.5, color: AppColors.text)),
+                Text(
+                  request.name,
+                  style: AppTheme.mono(
+                    size: 12.5,
+                    color: AppColors.overlayInk,
+                    w: AppColors.isWarm ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(height: 12),
-                Text(request.warning,
-                    style: AppTheme.sans(size: 12, color: AppColors.textDim, height: 1.45)),
+                Text(
+                  request.warning,
+                  style: AppTheme.sans(
+                    size: 12,
+                    color: AppColors.overlayMuted,
+                    height: 1.45,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                Text('Only continue if you trust the website and expected this file.',
-                    style: AppTheme.sans(size: 11, color: AppColors.textFaint, height: 1.45)),
+                Text(
+                  'Only continue if you trust the website and expected this file.',
+                  style: AppTheme.sans(
+                    size: 11,
+                    color: AppColors.overlayFaint,
+                    height: 1.45,
+                  ),
+                ),
                 if (host.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  Text('Source: $host',
-                      style: AppTheme.mono(size: 10, color: AppColors.textMuted)),
+                  Text(
+                    'Source: $host',
+                    style: AppTheme.mono(
+                      size: 10,
+                      color: AppColors.overlayFaint,
+                    ),
+                  ),
                 ],
               ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text('Reject', style: AppTheme.sans(size: 13, color: AppColors.textDim)),
+                child: Text(
+                  'Reject',
+                  style: AppTheme.sans(
+                    size: 13,
+                    color: AppColors.overlayMuted,
+                    w: AppColors.isWarm ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text('Go ahead',
-                    style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w700)),
-              ),
+              if (AppColors.isWarm)
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.overlayInk,
+                    foregroundColor: AppColors.overlay,
+                  ),
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Go ahead'),
+                )
+              else
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text(
+                    'Go ahead',
+                    style: AppTheme.sans(
+                      size: 13,
+                      color: AppColors.accent,
+                      w: FontWeight.w700,
+                    ),
+                  ),
+                ),
             ],
           ),
         ) ??
@@ -243,7 +297,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
       animation: widget.tabs,
       builder: (context, _) {
         final tab = widget.tabs.active;
-        if (tab == null) return const Scaffold(backgroundColor: AppColors.bg);
+        if (tab == null) return Scaffold(backgroundColor: AppColors.bg);
         _listenForTabActions(tab);
 
         return AnimatedBuilder(
@@ -263,7 +317,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                           // The page owns the full height; the bar floats over it.
                           Positioned.fill(child: _pageSurface(tab)),
                           if (tab.isLoading)
-                            const Align(
+                            Align(
                               alignment: Alignment.topCenter,
                               child: LinearProgressIndicator(
                                 minHeight: 2,
@@ -382,7 +436,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
               child: Padding(
                 key: _deleteKey,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: const Icon(Icons.close, key: ValueKey('address-delete'),
+                child: Icon(Icons.close, key: const ValueKey('address-delete'),
                     size: 15, color: AppColors.textFaint),
               ),
             ),
@@ -395,8 +449,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 150),
                 child: tab.isLoading
-                    ? const SizedBox(
-                        key: ValueKey('refresh-loading'),
+                    ? SizedBox(
+                        key: const ValueKey('refresh-loading'),
                         width: 15,
                         height: 15,
                         child: CircularProgressIndicator(
@@ -404,7 +458,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                           color: AppColors.textFaint,
                         ),
                       )
-                    : const Icon(Icons.refresh, key: ValueKey('refresh-idle'),
+                    : Icon(Icons.refresh, key: const ValueKey('refresh-idle'),
                         size: 15, color: AppColors.textFaint),
               ),
             ),
@@ -412,8 +466,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
           GestureDetector(
             onTap: _openMenu,
             behavior: HitTestBehavior.opaque,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Icon(Icons.more_vert, size: 16, color: AppColors.textDim),
             ),
           ),
@@ -430,7 +484,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.wifi_off, size: 30, color: AppColors.textFaint),
+          Icon(Icons.wifi_off, size: 30, color: AppColors.textFaint),
           const SizedBox(height: 12),
           Text("Couldn't load this page", style: AppTheme.sans(size: 14, w: FontWeight.w600)),
           const SizedBox(height: 6),

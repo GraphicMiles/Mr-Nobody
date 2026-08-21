@@ -44,9 +44,9 @@ void main() {
   Future<void> pumpOverlay(WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: AppTheme.dark(),
-      home: const Scaffold(
+      home: Scaffold(
         backgroundColor: AppColors.bg,
-        body: Stack(children: [Positioned.fill(child: DebugOverlay())]),
+        body: const Stack(children: [Positioned.fill(child: DebugOverlay())]),
       ),
     ));
     await tester.pump();

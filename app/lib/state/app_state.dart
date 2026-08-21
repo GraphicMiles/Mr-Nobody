@@ -53,10 +53,16 @@ class AppState extends ChangeNotifier {
   String searchEngine = 'https://duckduckgo.com/?q=';
   String approvalMode = 'CAUTIOUS';
   String resourcePolicy = 'OFF';
+  String themeId = 'classic';
   bool loaded = false;
 
   static const profiles = ['BALANCED', 'STRICT', 'MAXIMUM'];
   static const privacyModes = ['NORMAL', 'PRIVATE', 'NOBODY'];
+  static const themes = ['classic', 'warm'];
+  static const themeLabels = <String, String>{
+    'classic': 'Classic dark',
+    'warm': 'Warm cream',
+  };
 
   /// Friendly label → engine URL, mirroring Settings.java. Google is offered
   /// because the agent's SearchProviders already knows how to read it.
@@ -85,6 +91,7 @@ class AppState extends ChangeNotifier {
       .key;
   String get approvalModeLabel => approvalLabels[approvalMode] ?? _title(approvalMode);
   String get resourcePolicyLabel => _title(resourcePolicy);
+  String get themeLabel => themeLabels[themeId] ?? themeLabels['classic']!;
 
   static String _title(String v) =>
       v.isEmpty ? v : v[0].toUpperCase() + v.substring(1).toLowerCase();
@@ -104,6 +111,10 @@ class AppState extends ChangeNotifier {
       searchEngine = s['searchEngine'] as String? ?? searchEngine;
       approvalMode = (s['approvalMode'] as String? ?? approvalMode).toUpperCase();
       resourcePolicy = (s['resourcePolicy'] as String? ?? resourcePolicy).toUpperCase();
+      final storedTheme = (s['theme'] as String? ?? themeId).toLowerCase();
+      // Old releases stored system/dark/light but never exposed a working
+      // Flutter theme picker. Preserve their monochrome appearance.
+      themeId = themes.contains(storedTheme) ? storedTheme : 'classic';
     } catch (e) {
       ErrorLog.instance.add('settings load failed: $e');
     } finally {
@@ -122,6 +133,10 @@ class AppState extends ChangeNotifier {
   Future<void> setSearchEngine(String v) => _set('searchEngine', v, () => searchEngine = v);
   Future<void> setApprovalMode(String v) => _set('approvalMode', v, () => approvalMode = v);
   Future<void> setResourcePolicy(String v) => _set('resourcePolicy', v, () => resourcePolicy = v);
+  Future<void> setTheme(String v) {
+    final safe = themes.contains(v.toLowerCase()) ? v.toLowerCase() : 'classic';
+    return _set('theme', safe, () => themeId = safe);
+  }
 
   Future<void> setProfile(String v) async {
     await _set('profile', v, () => profile = v);

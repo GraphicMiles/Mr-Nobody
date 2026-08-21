@@ -352,8 +352,8 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                   child: Column(
                     children: withDividers([
                       if (_running)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Center(
                             child: SizedBox(
                               width: 18,
@@ -396,8 +396,8 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                   child: Column(
                     children: withDividers([
                       if (_securityRunning)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Center(
                             child: SizedBox(
                               width: 18,
@@ -436,8 +436,8 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                       children: withDividers([
                         for (final r in _suiteResults) _resultRow(r),
                         if (_suiteRunning)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             child: Center(
                               child: SizedBox(
                                 width: 18,
@@ -526,7 +526,7 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
   }
 
   Widget _resultRow(BenchmarkResult r) {
-    final color = r.pass ? const Color(0xFF3DDC84) : const Color(0xFFE5484D);
+    final color = r.pass ? AppColors.success : AppColors.danger;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       child: Row(
@@ -602,7 +602,7 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: selected
-              ? (label == 'PASS' ? const Color(0xFF3DDC84) : const Color(0xFFE5484D))
+              ? (label == 'PASS' ? AppColors.success : AppColors.danger)
               : AppColors.surface2,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: selected ? Colors.transparent : AppColors.lineStrong),

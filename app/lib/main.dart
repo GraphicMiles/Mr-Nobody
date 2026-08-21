@@ -30,7 +30,7 @@ void main() {
     ErrorLog.instance.add(details.exceptionAsString());
     previous?.call(details);
   };
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
     systemNavigationBarColor: AppColors.bg,
@@ -44,11 +44,23 @@ class MrNobodyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Mr Nobody',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
-      home: const AppShell(),
+    return AnimatedBuilder(
+      animation: AppState.instance,
+      builder: (context, _) => MaterialApp(
+        title: 'Mr Nobody',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.forTheme(AppState.instance.themeId),
+        builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            systemNavigationBarColor: AppColors.bg,
+            systemNavigationBarIconBrightness: Brightness.light,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        ),
+        home: const AppShell(),
+      ),
     );
   }
 }
@@ -247,14 +259,49 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         context: context,
         barrierDismissible: true,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Start this agent task?'),
-          content: SingleChildScrollView(child: SelectableText(instruction)),
+          title: AppColors.isWarm
+              ? Text(
+                  'Start this agent task?',
+                  style: AppTheme.sans(
+                    size: 17,
+                    color: AppColors.overlayInk,
+                    w: FontWeight.w700,
+                  ),
+                )
+              : const Text('Start this agent task?'),
+          content: SingleChildScrollView(
+            child: AppColors.isWarm
+                ? SelectableText(
+                    instruction,
+                    style: AppTheme.sans(
+                      size: 12.5,
+                      color: AppColors.overlayMuted,
+                      height: 1.5,
+                    ),
+                  )
+                : SelectableText(instruction),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+              child: AppColors.isWarm
+                  ? Text(
+                      'Cancel',
+                      style: AppTheme.sans(
+                        size: 13,
+                        color: AppColors.overlayMuted,
+                        w: FontWeight.w600,
+                      ),
+                    )
+                  : const Text('Cancel'),
             ),
             FilledButton(
+              style: AppColors.isWarm
+                  ? FilledButton.styleFrom(
+                      backgroundColor: AppColors.overlayInk,
+                      foregroundColor: AppColors.overlay,
+                    )
+                  : null,
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Start task'),
             ),
@@ -411,7 +458,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_launched == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppColors.bg,
         body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
       );

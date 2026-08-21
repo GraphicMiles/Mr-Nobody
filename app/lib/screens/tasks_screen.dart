@@ -78,8 +78,8 @@ class _TasksScreenState extends State<TasksScreen> {
               const SectionLabel('All tasks'),
               AppCard(
                 child: !_loaded
-                    ? const Padding(
-                        padding: EdgeInsets.all(24),
+                    ? Padding(
+                        padding: const EdgeInsets.all(24),
                         child: Center(
                           child: SizedBox(
                             width: 18,

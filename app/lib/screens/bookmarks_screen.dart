@@ -81,7 +81,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
           ),
           Expanded(
             child: _loading
-                ? const Center(
+                ? Center(
                     child: SizedBox(
                       width: 18,
                       height: 18,
@@ -130,7 +130,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
         child: Row(
           children: [
-            const Icon(Icons.bookmark_outline, size: 16, color: AppColors.textDim),
+            Icon(Icons.bookmark_outline, size: 16, color: AppColors.textDim),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -155,7 +155,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline,
+              icon: Icon(Icons.delete_outline,
                   size: 18, color: AppColors.textDim),
               tooltip: 'Remove bookmark',
               onPressed: () => _remove(mark),

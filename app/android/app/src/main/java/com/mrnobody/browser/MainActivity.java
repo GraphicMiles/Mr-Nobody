@@ -559,6 +559,7 @@ public class MainActivity extends FlutterActivity {
                             m.put("terminal", MrNobodyApp.settings().isTerminalEnabled());
                             m.put("profile", MrNobodyApp.settings().getProfile().name());
                             m.put("searchEngine", MrNobodyApp.settings().getSearchEngine());
+                            m.put("theme", MrNobodyApp.settings().getTheme());
                             m.put("provider", MrNobodyApp.settings().activeAiProvider());
                             m.put("fingerprint", MrNobodyApp.settings().isFingerprintProtection());
                             m.put("privacyMode", PrivacyController.current().name());
@@ -1166,6 +1167,9 @@ public class MainActivity extends FlutterActivity {
                 break;
             case "searchEngine":
                 MrNobodyApp.settings().setSearchEngine(String.valueOf(value));
+                break;
+            case "theme":
+                MrNobodyApp.settings().setTheme(String.valueOf(value));
                 break;
             case "provider":
                 MrNobodyApp.setActiveAiProviderId(String.valueOf(value));

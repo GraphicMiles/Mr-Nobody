@@ -168,7 +168,7 @@ class _RestrictedToolsScreenState extends State<RestrictedToolsScreen> {
     final Color fg;
     switch (grade) {
       case 'active':
-        fg = const Color(0xFF3DDC84);
+        fg = AppColors.success;
         break;
       case 'safe':
         fg = AppColors.text;
@@ -203,7 +203,7 @@ class _RestrictedToolsScreenState extends State<RestrictedToolsScreen> {
         style: AppTheme.mono(
           size: 9,
           w: FontWeight.w700,
-          color: active ? const Color(0xFF3DDC84) : AppColors.textFaint,
+          color: active ? AppColors.success : AppColors.textFaint,
         ),
       ),
     );

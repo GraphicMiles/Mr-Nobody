@@ -7,16 +7,18 @@ import '../theme/app_theme.dart';
 /// any size and tints with [color].
 class BrandLogo extends StatelessWidget {
   final double size;
-  final Color color;
+  final Color? color;
 
-  const BrandLogo({super.key, this.size = 64, this.color = AppColors.accent});
+  const BrandLogo({super.key, this.size = 64, this.color});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(painter: _BrandLogoPainter(color)),
+      child: CustomPaint(
+        painter: _BrandLogoPainter(color ?? AppColors.accent),
+      ),
     );
   }
 }

@@ -46,10 +46,10 @@ public final class Settings {
     public static final String SEARCH_STARTPAGE = "https://www.startpage.com/sp/search?query=";
     public static final String SEARCH_GOOGLE = "https://www.google.com/search?q=";
 
-    // Theme constants (see MainActivity.applyTheme)
-    public static final String THEME_SYSTEM = "system";
-    public static final String THEME_DARK = "dark";
-    public static final String THEME_LIGHT = "light";
+    // App-owned interface themes. Retired system/dark/light values are read as
+    // CLASSIC so an upgrade preserves the original monochrome appearance.
+    public static final String THEME_CLASSIC = "classic";
+    public static final String THEME_WARM = "warm";
 
     private final SharedPreferences prefs;
     private final EncryptedPreferences secrets;
@@ -123,11 +123,13 @@ public final class Settings {
     }
 
     public String getTheme() {
-        return prefs.getString(KEY_THEME, THEME_SYSTEM);
+        String stored = prefs.getString(KEY_THEME, THEME_CLASSIC);
+        return THEME_WARM.equalsIgnoreCase(stored) ? THEME_WARM : THEME_CLASSIC;
     }
 
     public void setTheme(String theme) {
-        prefs.edit().putString(KEY_THEME, theme).apply();
+        String safe = THEME_WARM.equalsIgnoreCase(theme) ? THEME_WARM : THEME_CLASSIC;
+        prefs.edit().putString(KEY_THEME, safe).apply();
     }
 
     // ---------------------------------------------------------------- V2

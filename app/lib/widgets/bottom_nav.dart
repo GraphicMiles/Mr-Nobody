@@ -35,7 +35,7 @@ class _NavShell extends StatelessWidget {
         duration: const Duration(milliseconds: 240),
         opacity: visible ? 1 : 0,
         child: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.bg,
             border: Border(top: BorderSide(color: AppColors.line)),
           ),
@@ -58,11 +58,11 @@ class _NavShell extends StatelessWidget {
                         child: Container(
                           width: _plusSize,
                           height: _plusSize,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: AppColors.accent,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.add, color: AppColors.accentInk, size: 19),
+                          child: Icon(Icons.add, color: AppColors.accentInk, size: 19),
                         ),
                       ),
                     ),
