@@ -478,6 +478,25 @@ public class MainActivity extends FlutterActivity {
                             result.success(com.mrnobody.agent.tasks.CompletionStats.snapshot());
                             return;
                         }
+                        case "deviceSuiteChecks": {
+                            // The one-tap device suite: ids + names up front
+                            // so the panel renders pending rows immediately.
+                            result.success(com.mrnobody.debug.DeviceSuite.describe());
+                            return;
+                        }
+                        case "deviceSuiteRun": {
+                            // One check per call: bounded work, visible
+                            // progress, and the user can stop between checks.
+                            // Off the UI thread — the agent and Tor checks
+                            // block for up to their wall ceilings.
+                            final String checkId = call.argument("id");
+                            executor.execute(() -> {
+                                Map<String, Object> r = com.mrnobody.debug.DeviceSuite.run(
+                                        getApplicationContext(), checkId);
+                                runOnUiThread(() -> result.success(r));
+                            });
+                            return;
+                        }
                         case "diagnostics": {
                             // The Phase 1 device benchmark: every subsystem
                             // reports pass/fail so a real-device run is a list
