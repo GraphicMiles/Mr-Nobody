@@ -246,3 +246,23 @@ release-green; the smoke tests exercise debug.
 net.freehaven.tor.control.**, applied via proguardFile on the release build
 type (appended to Flutter's own rules). Wiring test pins the rules AND that
 the file is actually referenced. JVM suite 881 green.
+
+---
+
+## 2026-08-21 — UX: bundled Tor auto-applies (owner picked option A)
+
+Why the wait exists at all (physics, not implementation): a cold Tor start
+must download and verify the relay consensus and build a 3-hop circuit;
+10-60s on mobile data, same as Orbot. It is a first-start cost — the
+service stays warm afterwards and caches the consensus on disk.
+
+What changed: toggling Nobody while the bundled Tor bootstraps no longer
+refuses with "try again". The core reports pending (fail-closed, nothing
+routed yet), a generation-guarded background waiter holds the request open
+for the real budget (BOOTSTRAP_WAIT_MS=90s), and applies the mode itself at
+the first circuit, persisting the achieved mode. Any newer user decision
+(switching to NORMAL mid-bootstrap) supersedes the waiter. Async failures
+surface exactly once via the new privacyStatus channel method. Dart:
+setPrivacyMode shows "Starting built-in Tor — Nobody switches on when it
+connects", polls privacyStatus (2s interval, bounded at 60 polls), and the
+mode label flips by itself. JVM suite 884 green.

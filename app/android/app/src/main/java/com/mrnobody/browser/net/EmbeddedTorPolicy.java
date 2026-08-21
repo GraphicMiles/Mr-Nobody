@@ -30,6 +30,13 @@ public final class EmbeddedTorPolicy {
     /** How often the waiter re-probes the SOCKS port while waiting. */
     public static final long PROBE_INTERVAL_MS = 400L;
 
+    /**
+     * The background waiter's full bootstrap budget (owner-chosen auto-apply
+     * UX). First-ever bootstrap on mobile data is realistically 10–60s; past
+     * this, it is reported as a failure rather than waited on forever.
+     */
+    public static final long BOOTSTRAP_WAIT_MS = 90_000L;
+
     private EmbeddedTorPolicy() {
     }
 
