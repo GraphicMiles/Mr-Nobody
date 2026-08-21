@@ -81,17 +81,15 @@ public class EmbeddedTorWiringTest {
     }
 
     @Test
-    public void gradlePackagesTorFromMavenCentralForTheShippedAbis() throws IOException {
+    public void gradlePackagesTorFromMavenCentral() throws IOException {
         String gradle = read("build.gradle");
         assertTrue(gradle.contains("info.guardianproject:tor-android:0.4.7.14"));
         assertTrue("the compileSdk-37 constraint that forbids 0.4.9.x is documented",
                 gradle.contains("compileSdk-37 requirement"));
         assertTrue(gradle.contains("info.guardianproject:jtorctl:0.4.5.7"));
-        assertTrue("CI emulators are x86_64 — it must stay",
-                gradle.contains("\"x86_64\""));
-        assertTrue(gradle.contains("\"arm64-v8a\""));
-        assertTrue(gradle.contains("\"armeabi-v7a\""));
-        assertTrue("32-bit x86 ships nowhere and pays ~5 MB",
-                !gradle.contains("\"x86\""));
+        // ABI selection belongs to the CI's --split-per-abi build, whose
+        // splits conflict with ndk.abiFilters when both are present.
+        assertTrue("abiFilters must stay out of the release path",
+                !gradle.contains("abiFilters \""));
     }
 }
