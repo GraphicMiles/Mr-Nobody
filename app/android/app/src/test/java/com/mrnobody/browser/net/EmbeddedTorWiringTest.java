@@ -51,12 +51,30 @@ public class EmbeddedTorWiringTest {
     public void privacyControllerStartsEmbeddedTorOnlyAfterOrbotDeclined() throws IOException {
         String src = java("browser/net/PrivacyController.java");
         int gate = src.indexOf("EmbeddedTorPolicy.shouldStart(true, portUp && !oursStarting,");
-        int start = src.indexOf("EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS)");
+        int start = src.indexOf("EmbeddedTor.requestStart(context);");
         assertTrue("a foreign 9050 listener (Orbot) suppresses the bundled start; "
                         + "our own mid-bootstrap listener does not count as Orbot",
                 gate > 0 && start > gate);
+        assertTrue("the apply thread never blocks — TorService.onCreate needs it",
+                !src.contains("EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS)"));
         assertTrue("the context-less overload keeps the old Orbot-only behaviour",
                 src.contains("return apply(mode, settings, null);"));
+    }
+
+    @Test
+    public void torUseIsDisclosedAndAttributed() throws IOException {
+        // BSD-3 permits commercial embedding but requires notice retention;
+        // the Tor trademark forbids implied endorsement; and the user must
+        // know their traffic enters the Tor network at all.
+        String settings = new String(java.nio.file.Files.readAllBytes(
+                java.nio.file.Paths.get("../../lib/screens/settings_screen.dart")),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue("the mode picker names Tor plainly",
+                settings.contains("built-in Tor / Orbot / proxy"));
+        assertTrue("About carries the BSD attribution",
+                settings.contains("BSD-3-Clause"));
+        assertTrue("About disclaims Tor Project affiliation",
+                settings.contains("not affiliated with or"));
     }
 
     @Test

@@ -46,11 +46,13 @@ public class EmbeddedTorPolicyTest {
     }
 
     @Test
-    public void theApplyWaitStaysUnderTheAnrThreshold() {
-        // apply() runs on the platform channel thread; 5s is where Android
-        // starts drawing conclusions.
-        assertTrue(EmbeddedTorPolicy.APPLY_WAIT_MS < 5_000L);
-        assertTrue(EmbeddedTorPolicy.PROBE_INTERVAL_MS < EmbeddedTorPolicy.APPLY_WAIT_MS);
+    public void theApplyPathNeverWaits() {
+        // apply() runs on the main thread — the SAME thread TorService's
+        // onCreate is delivered on. A synchronous wait there starved Tor of
+        // its own start (device-observed: status OFF after the full wait).
+        // The probe interval only paces the background waiter now.
+        assertTrue(EmbeddedTorPolicy.PROBE_INTERVAL_MS
+                < EmbeddedTorPolicy.BOOTSTRAP_WAIT_MS);
     }
 
     @Test

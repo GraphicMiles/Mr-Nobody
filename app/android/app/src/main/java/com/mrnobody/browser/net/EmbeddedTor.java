@@ -141,8 +141,27 @@ public final class EmbeddedTor {
     }
 
     /**
+     * Ask the service to start and return immediately. Idempotent. This is
+     * what the apply path calls: the apply runs on the main thread, and
+     * TorService.onCreate is ALSO delivered on the main thread — a
+     * synchronous wait there literally blocked Tor from starting
+     * (device-observed: status still OFF after the full 2.5s wait).
+     */
+    public static void requestStart(Context context) {
+        if (context == null || !isBundled()) return;
+        try {
+            Context app = context.getApplicationContext();
+            startRequested = true;
+            app.startService(new Intent().setClassName(app, SERVICE_CLASS));
+        } catch (Throwable t) {
+            ErrorLog.record("embedded tor: could not start service: " + t);
+        }
+    }
+
+    /**
      * Start the bundled Tor (idempotent — TorService ignores a duplicate
-     * start) and wait up to {@code waitMs} for it to become ready. Returns
+     * start) and wait up to {@code waitMs} for it to become ready.
+     * Background threads only — see {@link #requestStart} for why. Returns
      * true when the SOCKS port is up; false when it is still bootstrapping
      * or failed, in which case the caller refuses the mode and the service
      * keeps bootstrapping for the user's retry.

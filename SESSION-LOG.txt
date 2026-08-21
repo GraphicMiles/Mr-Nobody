@@ -477,3 +477,26 @@ now completes; extension preference needs to be a requirement when the user
 names one), plus general agent logic and device optimisation.
 
 JVM suite 909 green.
+
+---
+
+## 2026-08-21 — Bug 9: the apply wait was starving TorService of its own thread
+
+Owner ⓘ capture: "not ready after 2s, status=OFF" on a manual Nobody
+toggle. Root cause: the 2.5s synchronous wait ran on the main thread — the
+same thread Android delivers TorService.onCreate on. While apply waited,
+Tor could not even begin to start. Fix: the apply path never waits at all —
+EmbeddedTor.requestStart() (fire-and-forget), an instant readiness recheck,
+then pending; the background waiter owns all waiting. APPLY_WAIT_MS
+deleted. Every toggle also feels 2.5s faster.
+
+Also this batch (owner's licensing question):
+- Tor/tor-android/jtorctl are BSD-3-Clause — commercial embedding is
+  explicitly permitted; obligations are notice retention and no implied
+  endorsement. About dialog now carries the attribution, the trademark
+  disclaimer and a donation pointer; the Nobody picker names "built-in
+  Tor" plainly (users must know their traffic enters Tor — it is also
+  visible to their carrier); README documents the terms. The onion logo is
+  never used.
+
+JVM suite 910 green.

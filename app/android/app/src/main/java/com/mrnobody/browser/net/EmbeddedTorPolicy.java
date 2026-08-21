@@ -18,15 +18,6 @@ package com.mrnobody.browser.net;
  */
 public final class EmbeddedTorPolicy {
 
-    /**
-     * How long {@code PrivacyController.apply} may block waiting for the
-     * bundled Tor. Applying a mode runs on the platform channel thread, so
-     * this must stay well under the ANR threshold; a first bootstrap that
-     * needs longer keeps running in the background and the user's retry
-     * finds it up.
-     */
-    public static final long APPLY_WAIT_MS = 2_500L;
-
     /** How often the waiter re-probes the SOCKS port while waiting. */
     public static final long PROBE_INTERVAL_MS = 400L;
 
