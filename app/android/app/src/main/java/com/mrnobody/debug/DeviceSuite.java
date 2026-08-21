@@ -52,6 +52,33 @@ public final class DeviceSuite {
     /** The mode the suite found, restored by the final check. */
     private static volatile String modeBeforeSuite;
 
+    /**
+     * A real, nonzero task id: {@code TaskScope.NO_TASK == 0}, so a task run
+     * as id 0 has no thread binding and {@code HeadlessSessions.current()}
+     * returns null — the browser tool then fails instantly. That is exactly
+     * how the first device run "failed" the png check in 7s: the harness,
+     * not the product. The worker binds a scope for real tasks; so does this.
+     */
+    static final long SUITE_TASK_ID = 424_242L;
+
+    /** Run one agent task the way the worker does: scope bound, session freed. */
+    private static Task runAsWorker(Context context, String instruction) {
+        Task task = new Task(SUITE_TASK_ID, instruction);
+        com.mrnobody.agent.core.TaskScope.bind(SUITE_TASK_ID);
+        try {
+            MrNobodyApp.agent().run(context, task, Cancellation.NONE);
+        } finally {
+            com.mrnobody.agent.core.TaskScope.clear();
+            try {
+                com.mrnobody.agent.browser.HeadlessSessions.release(SUITE_TASK_ID);
+            } catch (Throwable ignored) {
+                // A leftover headless profile is the worker's cleanup problem
+                // elsewhere; here it must not eat the report.
+            }
+        }
+        return task;
+    }
+
     private DeviceSuite() {
     }
 
@@ -211,9 +238,8 @@ public final class DeviceSuite {
         if (context == null || MrNobodyApp.agent() == null) {
             return result(id, name, false, "needs the running app (no engine here)");
         }
-        Task task = new Task(0L, "how old is lionel messi");
         long started = System.currentTimeMillis();
-        MrNobodyApp.agent().run(context, task, Cancellation.NONE);
+        Task task = runAsWorker(context, "how old is lionel messi");
         long elapsed = System.currentTimeMillis() - started;
         boolean completed = task.status() == Task.Status.COMPLETED;
         String answer = task.result() == null ? "" : task.result();
@@ -230,9 +256,8 @@ public final class DeviceSuite {
         if (context == null || MrNobodyApp.agent() == null) {
             return result(id, name, false, "needs the running app (no engine here)");
         }
-        Task task = new Task(0L, "download a png icon from pngtree");
         long started = System.currentTimeMillis();
-        MrNobodyApp.agent().run(context, task, Cancellation.NONE);
+        Task task = runAsWorker(context, "download a png icon from pngtree");
         long elapsed = System.currentTimeMillis() - started;
         String answer = (task.result() == null ? "" : task.result())
                 .toLowerCase(Locale.ROOT);
@@ -241,7 +266,20 @@ public final class DeviceSuite {
                 && elapsed <= DOWNLOAD_CHECK_MS;
         return result(id, name, pass, (elapsed / 1000) + "s — "
                 + (downloaded ? "a .png was resolved and enqueued"
-                        : "no .png in the outcome: " + firstLine(task.result())));
+                        : "no .png in the outcome: " + downloadLine(task.result())));
+    }
+
+    /** The line of the answer that talks about the download, or the first line. */
+    private static String downloadLine(String text) {
+        if (text != null) {
+            for (String line : text.split("\\n")) {
+                String t = line.trim();
+                if (t.toLowerCase(Locale.ROOT).contains("download") && !t.startsWith("#")) {
+                    return t.length() > 160 ? t.substring(0, 160) + "…" : t;
+                }
+            }
+        }
+        return firstLine(text);
     }
 
     private static String firstLine(String text) {

@@ -49,12 +49,12 @@ public class EmbeddedTorWiringTest {
 
     @Test
     public void privacyControllerStartsEmbeddedTorOnlyAfterOrbotDeclined() throws IOException {
-        String src = java("browser/net/PrivacyControllerRoute.java".replace(
-                "PrivacyControllerRoute", "PrivacyController"));
-        int available = src.indexOf("if (!route.isAvailable() && route instanceof OrbotTorRoute");
+        String src = java("browser/net/PrivacyController.java");
+        int gate = src.indexOf("EmbeddedTorPolicy.shouldStart(true, portUp && !oursStarting,");
         int start = src.indexOf("EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS)");
-        assertTrue("start only when the port has no listener (Orbot priority)",
-                available > 0 && start > available);
+        assertTrue("a foreign 9050 listener (Orbot) suppresses the bundled start; "
+                        + "our own mid-bootstrap listener does not count as Orbot",
+                gate > 0 && start > gate);
         assertTrue("the context-less overload keeps the old Orbot-only behaviour",
                 src.contains("return apply(mode, settings, null);"));
     }
@@ -104,6 +104,33 @@ public class EmbeddedTorWiringTest {
         assertTrue(src.contains("PrivacyController.apply(mode, settings, appInstance)"));
         assertTrue("the startup NOBODY restore can also start the bundled Tor",
                 src.contains("PrivacyMode.fromName(settings.privacyMode()), settings, this)"));
+    }
+
+    @Test
+    public void readinessIsStatusOnNotAListeningPort() throws IOException {
+        // Device-observed 2026-08-21: TorService binds 9050 BEFORE the first
+        // circuit; the port probe alone applied Nobody against a Tor that
+        // could not carry traffic, and check.torproject.org timed out.
+        String tor = java("browser/net/EmbeddedTor.java");
+        assertTrue("readiness prefers TorService's own status word",
+                tor.contains("if (status != null) return EmbeddedTorPolicy.statusMeansReady(status);"));
+        assertTrue("the status read never runs for a Tor we did not start",
+                tor.contains("if (!startRequested) return null;"));
+
+        String pc = java("browser/net/PrivacyController.java");
+        assertTrue("a listener owned by our STARTING Tor is not availability",
+                pc.contains("boolean oursStarting = route instanceof OrbotTorRoute && EmbeddedTor.isStarting();"));
+        assertTrue("the final gate refuses a mid-bootstrap listener",
+                pc.contains("if (route instanceof OrbotTorRoute && EmbeddedTor.isStarting())"));
+    }
+
+    @Test
+    public void theTorBenchmarkKnowsAboutTheBundledTor() throws IOException {
+        // "Orbot not reachable" was a stale ❌ on a build whose Tor starts
+        // on demand. The check now fails only when no Tor of any kind exists.
+        String diag = java("debug/Diagnostics.java");
+        assertTrue(diag.contains("built-in Tor starts on demand"));
+        assertTrue(diag.contains("EmbeddedTor.isBundled()"));
     }
 
     @Test

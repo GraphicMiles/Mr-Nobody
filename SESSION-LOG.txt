@@ -293,3 +293,32 @@ Manual rump that stays human: kill→relaunch sweep, airplane-mode bootstrap,
 chips/UI feel, debug-log backlog, remote-verifier (needs the owner's key),
 terminal command, plain named-site download, Orbot-priority variant.
 JVM suite 889 green.
+
+---
+
+## 2026-08-21 — DEVICE RUN 1 TRIAGE (owner's first suite report)
+
+Headline wins confirmed on device: agent question 11s cited (was >69s
+user-stopped), clock/scope/outcome/routing/gates all PASS, defaults
+benchmark PASS, suite restores mode. Four FAILs, all dispositioned:
+
+1. input.route ❌ → STALE DART FIXTURE (the real home of handoff item D1):
+   dev_panel still expected the ghana question to be `search` after BUG-7
+   made questions tasks. Fixed + pinned; `arsenal` keeps a search case.
+2. tor.orbot ❌ → STALE BY DESIGN: written pre-bundled-Tor. Now "Tor
+   available (Orbot or built-in)": passes when a listener is up OR the
+   bundled Tor exists; fails only with neither.
+3. png suite check ❌ → HARNESS BUG (mine): suite ran tasks as id 0, and
+   TaskScope.NO_TASK == 0 → no headless session → browser link harvest
+   failed instantly (7s). Suite now runs as SUITE_TASK_ID with the scope
+   bound and the session released, like the worker. Product path unproven
+   either way — RETEST on device.
+4. tor exit ❌ → REAL PRODUCT BUG, fixed: TorService binds 9050 BEFORE the
+   first circuit, so port-probe readiness applied Nobody against a Tor that
+   could not carry traffic (every fetch timed out). Readiness is now
+   TorService's own status word (reflection, guarded so it never runs for
+   Orbot-only users and never force-loads the native lib): STARTING = ours
+   and not ready (pending path holds), ON = ready, port probe trusted only
+   when no status is readable. Final gate refuses a mid-bootstrap listener.
+
+JVM suite 894 green.

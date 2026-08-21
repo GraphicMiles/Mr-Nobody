@@ -155,15 +155,20 @@ public final class PrivacyController {
         }
         route.refresh();
 
-        // Orbot takes priority: if the SOCKS port is already served, that is
-        // the user's own Tor. The bundled TorService starts only when the Tor
-        // route is chosen, nothing is listening, and the binary is packaged.
-        if (!route.isAvailable() && route instanceof OrbotTorRoute
-                && EmbeddedTorPolicy.shouldStart(true, false, EmbeddedTor.isBundled())
-                && context != null) {
+        // Orbot takes priority: if the SOCKS port is already served by a
+        // WORKING Tor, that is the user's own. But TorService binds the port
+        // before its first circuit, so a listener while our bundled Tor says
+        // STARTING is ours-and-not-ready — a device test proved the port
+        // probe alone applies Nobody against a Tor that cannot carry traffic.
+        boolean portUp = route.isAvailable();
+        boolean oursStarting = route instanceof OrbotTorRoute && EmbeddedTor.isStarting();
+        if (route instanceof OrbotTorRoute && context != null
+                && (!portUp || oursStarting)
+                && EmbeddedTorPolicy.shouldStart(true, portUp && !oursStarting,
+                        EmbeddedTor.isBundled())) {
             boolean up = EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS);
             route.refresh();
-            if (!up && !route.isAvailable()) {
+            if (!up) {
                 if (!allowTorWait) {
                     // The background waiter already spent the full bootstrap
                     // budget; this is a real failure, not a "try again".
@@ -175,6 +180,12 @@ public final class PrivacyController {
                 awaitTorThenApply(mode, settings, context, generation);
                 return new Result(mode, current, false, false, null, true);
             }
+        }
+
+        // Final readiness gate: the port must answer AND, when the listener
+        // is our own bundled Tor, its status must be past bootstrap.
+        if (route instanceof OrbotTorRoute && EmbeddedTor.isStarting()) {
+            return refuse(mode, EmbeddedTorPolicy.unavailableMessage(true), settings);
         }
 
         if (!route.isAvailable()) {

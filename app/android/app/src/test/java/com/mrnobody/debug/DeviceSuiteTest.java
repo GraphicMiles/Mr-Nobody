@@ -82,6 +82,32 @@ public class DeviceSuiteTest {
         assertTrue(String.valueOf(speed.get("detail")).contains("running app"));
     }
 
+    @Test
+    public void liveChecksRunUnderARealTaskScope() throws IOException {
+        // TaskScope.NO_TASK is 0: a task run as id 0 has no headless session
+        // and the browser tool fails instantly — the harness bug behind the
+        // first device run's 7s png "failure".
+        org.junit.Assert.assertNotEquals(
+                com.mrnobody.agent.core.TaskScope.NO_TASK, DeviceSuite.SUITE_TASK_ID);
+        String suite = read("src/main/java/com/mrnobody/debug/DeviceSuite.java");
+        assertTrue("scope bound like the worker binds it",
+                suite.contains("TaskScope.bind(SUITE_TASK_ID)"));
+        assertTrue("scope always cleared", suite.contains("TaskScope.clear()"));
+        assertTrue("the suite's headless session is released",
+                suite.contains("HeadlessSessions.release(SUITE_TASK_ID)"));
+    }
+
+    @Test
+    public void theDartPanelFixtureExpectsQuestionsToBeTasks() throws IOException {
+        // The one ❌ of the first device run: the Dart fixture still said
+        // `search` for a question, long after BUG-7 fixed both routers.
+        String panel = read("../../lib/screens/dev_panel_screen.dart");
+        assertTrue(panel.contains(
+                "IntentRouter.route('what is the capital of ghana') == IntentType.task"));
+        assertTrue("a plain word still routes to search",
+                panel.contains("IntentRouter.route('arsenal') == IntentType.search"));
+    }
+
     // --------------------------------------------------------------- wiring
 
     private static String read(String rel) throws IOException {
