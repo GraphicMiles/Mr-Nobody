@@ -82,8 +82,7 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
   @override
   void initState() {
     super.initState();
-    // Security checks are safe to run on entry: they open no sockets and read
-    // no user content. Network/device benchmarks remain an explicit action.
+    _run();
     _runSecurity();
     _loadDataSaver();
     _loadCompletion();
