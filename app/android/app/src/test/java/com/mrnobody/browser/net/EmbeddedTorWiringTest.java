@@ -83,7 +83,9 @@ public class EmbeddedTorWiringTest {
     @Test
     public void gradlePackagesTorFromMavenCentralForTheShippedAbis() throws IOException {
         String gradle = read("build.gradle");
-        assertTrue(gradle.contains("info.guardianproject:tor-android:0.4.9.11"));
+        assertTrue(gradle.contains("info.guardianproject:tor-android:0.4.7.14"));
+        assertTrue("the compileSdk-37 constraint that forbids 0.4.9.x is documented",
+                gradle.contains("compileSdk-37 requirement"));
         assertTrue(gradle.contains("info.guardianproject:jtorctl:0.4.5.7"));
         assertTrue("CI emulators are x86_64 — it must stay",
                 gradle.contains("\"x86_64\""));

@@ -77,7 +77,12 @@ dependencies {
     // at compile time anywhere in this codebase — EmbeddedTor addresses the
     // service by class name so the plain-javac test harness needs no AAR,
     // and a build without these two lines degrades to the Orbot-only path.
-    implementation "info.guardianproject:tor-android:0.4.9.11"
+    //
+    // 0.4.7.14 is the newest release this toolchain can consume: 0.4.9.x
+    // declares a compileSdk-37 requirement, and this project is pinned to
+    // compileSdk 34 by Flutter 3.24 / AGP 8.1. Bump Tor together with the
+    // next Flutter/AGP upgrade.
+    implementation "info.guardianproject:tor-android:0.4.7.14"
     implementation "info.guardianproject:jtorctl:0.4.5.7"
 
     // Background task resumption for the Java agent core (spec §13).
