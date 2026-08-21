@@ -113,3 +113,66 @@ validated failure, never preemptively.*
 A1 private-clear incl. app-relaunch sweep, slash commands, follow-up chips,
 6.3/6.16 junk answers, 6.5/6.6 YouTube, 6.8/6.15 routing, debug-ⓘ log
 contents (9 entries at 20:39). Embedded Tor (B) is the next batch.
+
+---
+
+## 2026-08-21 — Batch: embedded Tor + harness (scope, blocking verifier, outcome check)
+
+**Scope (owner-approved):** handoff item B plus the three harness gaps
+identified in review. Baseline 838 JVM tests green; this batch ends at 879.
+
+### B. Embedded Tor (no Orbot required)
+
+- Dependencies: `info.guardianproject:tor-android:0.4.9.11` +
+  `jtorctl:0.4.5.7` — **from Maven Central** (verified live; the gpmaven raw
+  URL in the handoff research now 404s, so no extra repository at all).
+- `browser/net/EmbeddedTor`: starts `org.torproject.jni.TorService` by class
+  name — deliberately **no compile-time dependency** on the AAR, so the
+  javac harness compiles unchanged and an AAR-less build degrades cleanly to
+  the Orbot-only path (`isBundled()` false). Readiness = ACTION_STATUS/ON
+  broadcast (system receiver NOT_EXPORTED on 33+, LocalBroadcastManager via
+  reflection) OR the 9050 port probe OrbotTorRoute already trusts.
+- `browser/net/EmbeddedTorPolicy` (pure): Orbot priority, Tor-route-only
+  start, 2.5s apply-wait (platform channel thread; ANR-safe), honest
+  refusal messages ("still starting — try again shortly" vs "install Orbot"
+  only when genuinely unbundled).
+- `PrivacyController.apply(mode, settings, context)`: when NOBODY is chosen,
+  the Tor route is configured, and nothing serves 9050 → start bundled Tor,
+  wait ≤2.5s, else fail closed with the retry message while bootstrap
+  continues in the background. Old two-arg overload unchanged (Orbot-only).
+  `MrNobodyApp` passes its context on both apply paths (user toggle +
+  startup NOBODY restore).
+- Manifest: TorService declared `exported=false`; Gradle: release ABIs
+  arm64-v8a / armeabi-v7a / x86_64 (CI emulators keep x86_64; 32-bit x86
+  dropped). Expected APK growth ~5MB per ABI — inside the 45MiB CI gate.
+- Known bound (logged in code): if a non-Tor process squats 9050, TorService
+  auto-ports where the fixed-port route cannot see it → honest fail-closed
+  refusal. Orbot on its usual 9050 keeps absolute priority.
+
+### Harness 1 — Tool scope (`ToolScope` + `callScoped`)
+
+Which tools EXIST for a run, decided from the task's shape before any step:
+research = search/http/browser (+download only on download intent; terminal
+never); routed one-step actions = exactly their one tool. Enforced at a new
+`callScoped` seam every run-path call goes through; the autonomous planner
+is now shown only the scope. The public `callTool` (address-bar search)
+stays unscoped by design, and scope is cleared at run start.
+
+### Harness 2 — Blocking verifier (`AnswerGate`)
+
+Remote answers that fail `AnswerVerifier`/`FigureCheck` no longer ship under
+a warning footnote: one corrective re-ask (findings quoted at the model,
+spend-cap-checked), then a second failure **discards the draft** and answers
+extractively from the pages read, with a note saying exactly that.
+
+### Harness 3 — Outcome check (`OutcomeCheck`)
+
+Intent-vs-outcome, both paths: a download instruction that ends with no
+download says so in as many words; a named site answered entirely from
+substitutes is called out. Mismatches also land in the error log.
+
+### Tests (838 → 879)
+
+EmbeddedTorPolicyTest, EmbeddedTorWiringTest, ToolScopeTest, AnswerGateTest,
+OutcomeCheckTest, DeterministicEngineScopeTest (end-to-end scope enforcement
+with fake tools incl. the unscoped host path), HarnessWiringTest.
