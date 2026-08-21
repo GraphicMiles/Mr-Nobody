@@ -459,3 +459,5 @@ git config user.email "rfarouq69@gmail.com"
 ## License
 
 MIT. See [LICENSE](LICENSE). Bundled font license texts remain under `app/assets/fonts/` and must not be removed.
+
+Bundled Tor: `tor` (The Tor Project), `tor-android` (Guardian Project) and `jtorctl` are used under their BSD-3-Clause licenses, which explicitly permit commercial redistribution provided their copyright notices are retained — the in-app About dialog carries the attribution. "Tor" and the onion logo are trademarks of The Tor Project, Inc.; product copy may describe Tor use factually but must never imply affiliation or endorsement, and must not use the onion logo.

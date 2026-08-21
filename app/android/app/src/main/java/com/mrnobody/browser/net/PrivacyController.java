@@ -173,9 +173,15 @@ public final class PrivacyController {
                 && (!portUp || oursStarting)
                 && EmbeddedTorPolicy.shouldStart(true, portUp && !oursStarting,
                         EmbeddedTor.isBundled())) {
-            boolean up = EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS);
+            // Never wait here: this runs on the main thread, where the
+            // service's own onCreate is delivered — waiting starves Tor of
+            // the very thread it starts on. Ask, recheck instantly, and go
+            // pending; the background waiter owns all actual waiting.
+            EmbeddedTor.requestStart(context);
             OrbotTorRoute.setActivePort(EmbeddedTor.readySocksPort());
             route.refresh();
+            boolean up = EmbeddedTor.isReady()
+                    || (route.isAvailable() && !EmbeddedTor.isStarting());
             if (!up) {
                 if (!allowTorWait) {
                     // The background waiter already spent the full bootstrap

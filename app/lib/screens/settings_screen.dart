@@ -471,7 +471,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             tag: _multiProfile == true
                 ? 'isolated storage'
                 : 'no history, cleared on close'),
-        const MenuOption(id: 'NOBODY', label: 'Nobody', icon: Icons.shield_outlined, tag: 'tor / proxy'),
+        const MenuOption(
+            id: 'NOBODY',
+            label: 'Nobody',
+            icon: Icons.shield_outlined,
+            // The user must know their traffic enters the Tor network —
+            // both for honesty and because Tor use is visible to a carrier.
+            tag: 'built-in Tor / Orbot / proxy'),
       ],
     );
     if (picked == null || !mounted) return;
@@ -667,11 +673,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Mr Nobody', style: AppTheme.sans(size: 16, w: FontWeight.w700)),
-        content: Text(
-          'A small, private, agentic browser.\n\n'
-          'No ads. No tracking by Mr Nobody. No automatic browsing history.\n'
-          'Tell Mr Nobody what you want from the web.',
-          style: AppTheme.sans(size: 12.5, color: AppColors.textDim, height: 1.5),
+        content: SingleChildScrollView(
+          child: Text(
+            'A small, private, agentic browser.\n\n'
+            'No ads. No tracking by Mr Nobody. No automatic browsing history.\n'
+            'Tell Mr Nobody what you want from the web.\n\n'
+            'Open source inside\n'
+            'Nobody mode routes traffic through the Tor network using '
+            'tor and tor-android (The Tor Project / Guardian Project) and '
+            'jtorctl, used under their BSD-3-Clause licenses. '
+            '"Tor" and the onion logo are trademarks of The Tor Project, Inc. '
+            'Mr Nobody is an independent product, not affiliated with or '
+            'endorsed by The Tor Project. Tor is run by volunteers — '
+            'donate.torproject.org.',
+            style: AppTheme.sans(size: 12.5, color: AppColors.textDim, height: 1.5),
+          ),
         ),
         actions: [
           TextButton(
