@@ -53,6 +53,7 @@ public final class ReadableText {
                 || lower.contains("\\u003") || lower.contains("client_canary_state")) {
             return false;
         }
+        if (cssShaped(lower)) return false;
         if (boilerplateSentence(lower)) return false;
         int braces = 0;
         int quotes = 0;
@@ -65,6 +66,38 @@ public final class ReadableText {
         }
         return letters > 12 && braces < 6 && quotes < Math.max(8, letters / 8);
     }
+
+    /**
+     * Stylesheet text is not prose. A device answer once quoted
+     * {@code :root{--i8-background-base-default:#fff;…}} as page evidence —
+     * a title glued to a CSS custom-property block forms one giant "sentence"
+     * that slips the brace/quote counts (one {@code '{'}, no quotes). CSS has
+     * shapes prose never has; any of them disqualifies the sentence.
+     *
+     * @param lower the sentence, already lower-cased
+     */
+    static boolean cssShaped(String lower) {
+        if (lower.contains(":root{") || lower.contains("{--")
+                || lower.contains("@media") || lower.contains("@layer")
+                || lower.contains("@import") || lower.contains("!important")
+                || lower.contains("@font-face")) {
+            return true;
+        }
+        // A css custom property or declaration run: "--name:value;" chains.
+        if (CSS_VAR.matcher(lower).find()) return true;
+        // Declaration density: prose does not chain "a:b;c:d;e:f".
+        int semis = 0;
+        int colons = 0;
+        for (int i = 0; i < lower.length(); i++) {
+            char c = lower.charAt(i);
+            if (c == ';') semis++;
+            if (c == ':') colons++;
+        }
+        return semis >= 4 && colons >= 4;
+    }
+
+    private static final java.util.regex.Pattern CSS_VAR =
+            java.util.regex.Pattern.compile("--[a-z][a-z0-9-]*\\s*:");
 
     /**
      * Anti-bot walls, consent chrome, reader comments and navigation rails are

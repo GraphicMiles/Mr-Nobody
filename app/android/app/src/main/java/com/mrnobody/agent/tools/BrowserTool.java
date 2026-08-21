@@ -462,22 +462,33 @@ public final class BrowserTool implements Tool {
             + "}catch(e){return '[]'}})()";
 
     /**
-     * Anchors plus image sources — {@code img src} and the first URL of any
-     * {@code srcset} — for image-download tasks. Same 200 cap, same absolute
-     * http(s)-only rule.
+     * Anchors plus image sources — {@code img src}, the first URL of any
+     * {@code srcset}, and the lazy-load attributes galleries actually use
+     * ({@code data-src}, {@code data-original}, {@code data-lazy-src}):
+     * icon galleries keep a placeholder in {@code src} and the real file in
+     * a data attribute, which is how a page full of icons harvested zero.
+     * Same 200 cap, same absolute http(s)-only rule.
      */
     private static final String LINKS_AND_IMAGES_SCRIPT =
             "(function(){try{var out=[],seen={};"
             + "function add(u){if(u&&u.indexOf('http')===0&&!seen[u]&&out.length<200)"
             + "{seen[u]=1;out.push(u);}}"
+            + "function abs(u){if(!u)return;var a=document.createElement('a');a.href=u;add(a.href);}"
             + "var as=document.querySelectorAll('a[href]');"
             + "for(var i=0;i<as.length;i++){add(as[i].href);}"
             + "var im=document.querySelectorAll('img[src]');"
             + "for(var j=0;j<im.length;j++){add(im[j].src);}"
+            + "var lz=document.querySelectorAll("
+            + "'img[data-src],img[data-original],img[data-lazy-src],[data-srcset]');"
+            + "for(var m=0;m<lz.length;m++){var e=lz[m];"
+            + "abs(e.getAttribute('data-src')||e.getAttribute('data-original')"
+            + "||e.getAttribute('data-lazy-src'));"
+            + "var dss=(e.getAttribute('data-srcset')||'').split(',')[0].trim().split(' ')[0];"
+            + "abs(dss);}"
             + "var ss=document.querySelectorAll('img[srcset],source[srcset]');"
             + "for(var k=0;k<ss.length;k++){var first=(ss[k].getAttribute('srcset')||'')"
             + ".split(',')[0].trim().split(' ')[0];"
-            + "if(first){var a=document.createElement('a');a.href=first;add(a.href);}}"
+            + "abs(first);}"
             + "return JSON.stringify(out);"
             + "}catch(e){return '[]'}})()";
 

@@ -135,8 +135,23 @@ public class ReadLoopWiringTest {
         assertTrue(browser.contains("LINKS_AND_IMAGES_SCRIPT"));
         assertTrue("the script reads img srcs", browser.contains("img[src]"));
         assertTrue("the script reads srcset", browser.contains("srcset"));
+        assertTrue("lazy-loaded galleries keep the real file in data-src",
+                browser.contains("data-src"));
         assertTrue("the images switch is declared to the contract",
                 browser.contains("ParamSpec.bool(\"images\""));
+    }
+
+    @Test
+    public void headlessExtractionNeverFallsBackToRawTextContent() throws IOException {
+        // textContent includes <style>/<script> text; a device answer once
+        // quoted a CSS custom-property block as page evidence.
+        String engine = read("agent/browser/HeadlessWebViewEngine.java");
+        assertTrue("the fallback strips style/script subtrees first",
+                engine.contains("querySelectorAll('style,script,noscript,template,svg')"));
+        assertTrue("main falls back to the cleaned clone, not raw textContent",
+                engine.contains("main.innerText||clean(main)"));
+        assertTrue("body falls back the same way",
+                engine.contains("b.innerText||clean(b)"));
     }
 
     @Test

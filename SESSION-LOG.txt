@@ -322,3 +322,36 @@ benchmark PASS, suite restores mode. Four FAILs, all dispositioned:
    when no status is readable. Final gate refuses a mid-bootstrap listener.
 
 JVM suite 894 green.
+
+---
+
+## 2026-08-21 — DEVICE RUN 2: "download a png icon of a boy" (two more real bugs)
+
+**Owner evidence:** answer quoted raw CSS (":root{--i8-background-…}") as
+page evidence from three icon sites, then "No downloadable file was found" —
+on a REAL task id (agent-task-4), so this was the product path, not the
+suite harness. Plus a ⓘ line "profile remained in use after cleanup
+retries: agent-task-4 (data wiped; deletion owed to next startup)" — that
+one is BUG-1's DESIGNED fallback, not a defect; A1's relaunch sweep check
+verifies it collects the owed deletion.
+
+**Bug 5 — CSS soup as evidence.** HeadlessWebViewEngine's EXTRACT_JS fell
+back from innerText to raw textContent, which includes <style> text; the
+excerpt fallback then quoted it, because a title glued to a css-var block is
+one giant "sentence" with one '{' and no quotes — invisible to the
+count-based gates. Fixed twice over: the extraction clones the node and
+removes style/script/noscript/template/svg before reading textContent, and
+ReadableText gains a cssShaped() gate (:root{, {--, @media/@layer/@import,
+!important, --var: pattern, declaration-chain density) wired into
+proseSentence.
+
+**Bug 6 — image URLs with the format in the query.** Icon CDNs serve
+/?size=100&id=…&format=png — no path extension, so isDownloadable rejected
+every real candidate on the page. queryImageExt() now recognises
+format=/ext=/type= image declarations (isDownloadable, isImage, and the
+asked-extension preference in resolveImage). Lazy-load galleries were the
+second half: the harvest script now also reads data-src / data-original /
+data-lazy-src / data-srcset, where these galleries keep the real file.
+
+JVM suite 901 green. d1a0969 CI: Flutter ✅, emulator in progress at the
+time of this entry.

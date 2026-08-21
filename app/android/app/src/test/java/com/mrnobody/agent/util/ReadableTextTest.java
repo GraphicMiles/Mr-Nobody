@@ -67,4 +67,39 @@ public final class ReadableTextTest {
                 "[... 1234 characters omitted. The full output was NOT retained and "
                         + "cannot be retrieved from this preview.]"));
     }
+
+    // ------------------------------------------------------------ CSS shapes
+
+    @Test
+    public void aTitleGluedToACssBlockIsNotProse() {
+        // Verbatim shape from a device answer (2026-08-21): one giant
+        // "sentence" — one '{', no quotes — slipped every count-based gate.
+        assertFalse(ReadableText.proseSentence(
+                "Boy Icons Collection - High-Quality and Customizable "
+                        + ":root{--i8-background-base-default:#fff;"
+                        + "--i8-background-base-default-hover:#f7f7f7;"
+                        + "--i8-background-base-default-active:#ebebeb."));
+        assertFalse(ReadableText.proseSentence(
+                "Boy PNGs for Free Download :root{--ez-color--site-accent:#ff7900;"
+                        + "--ez-color--buttons:#ff7900} @layer base{button,img{border:0}."));
+    }
+
+    @Test
+    public void cssShapesAreRecognisedIndividually() {
+        assertTrue(ReadableText.cssShaped(":root{--x:#fff}"));
+        assertTrue(ReadableText.cssShaped("body{margin:0} @media (max-width:600px){a{color:red}}"));
+        assertTrue(ReadableText.cssShaped("width:100% !important"));
+        assertTrue(ReadableText.cssShaped("a:1;b:2;c:3;d:4; chained declarations"));
+        assertFalse(ReadableText.cssShaped(
+                "the tower was completed in 1889 as the entrance to the fair"));
+        // Prose with a colon or two must survive.
+        assertFalse(ReadableText.cssShaped(
+                "the answer: forty-two, according to the guide"));
+    }
+
+    @Test
+    public void realProseStillPassesTheProseGate() {
+        assertTrue(ReadableText.proseSentence(
+                "The Eiffel Tower was completed in 1889 as the entrance arch to the fair."));
+    }
 }
