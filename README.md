@@ -8,7 +8,7 @@ This is the repository's developer document. Product status and the next deliver
 
 ## Current snapshot
 
-Status baseline: 2026-08-21 (security/privacy remediation and Android 16 acceptance complete).
+Status baseline: 2026-08-22 (Tier 0 execution-safety foundations complete).
 
 - App version: `1.0.0+1`
 - Android application ID: `com.mrnobody.browser`
@@ -19,7 +19,7 @@ Status baseline: 2026-08-21 (security/privacy remediation and Android 16 accepta
 - Tor: bundled `info.guardianproject:tor-android:0.4.7.14` (the newest release consumable at compileSdk 34), started on demand for Nobody mode; Orbot, when running, always takes priority
 - Security review: all 18 confirmed critical/high/medium/low findings remediated with regression coverage
 - Android 16 acceptance: provider-key encryption, history isolation, HTTPS enforcement, cookie scope, SSRF blocking, cancellation, downloads, and Nobody/Tor routing verified
-- Java/JVM suite: 957 tests passing at the current head
+- Java/JVM suite: 987 tests passing at the current head
 - Python privacy-auditor suite: 13 tests passing
 - CI: strict analysis, privacy gates, JVM/Flutter/Gradle tests, signed ABI APK build, signature verification, and size gate passing
 
@@ -37,6 +37,10 @@ Broader OEM/device verification remains tracked in `ROADMAP.md`; the running def
 - History disabled by default, third-party cookies disabled, mixed content blocked, file/content access disabled, and backup disabled
 - App-owned downloads with destination selection, persistence, pause/resume/cancel, HTTP range validation, foreground-service support, and notifications
 - Persistent tasks backed by SQLite and Android WorkManager, including retries, cancellation, heartbeat/reconciliation, event logs, follow-ups, recurring schedules, and restored durable timestamps
+- Durable per-cycle run IDs, atomic short-window task-submission dedup, and startup replay of queued scheduling-outbox rows
+- A separate SQLite execution ledger with logical-step/effect identities, deterministic idempotency keys, replayable results, external references, and reserved/actual cost fields
+- Consequential calls fail closed on an ambiguous prior outcome; downloads and remote task submission propagate stable idempotency keys and can reconcile their durable external IDs
+- A generic persisted async-job contract and coordinator for submit → poll/reconcile → retrieve lifecycles; no design-platform adapter is registered yet
 - Explicit task-scope propagation onto tool executor threads; local agent runs are deliberately serialized so mutable planner/tool state cannot cross tasks
 - Keystore-backed AES-GCM storage for provider API keys and user-granted account sessions, including plaintext migration and key removal
 - A local deterministic research path that searches, reads sources, produces an extractive answer, records evidence, and verifies citations/figures
@@ -58,6 +62,7 @@ Broader OEM/device verification remains tracked in `ROADMAP.md`; the running def
 
 - The reviewed Android 16 acceptance path is complete; broader OEM and Android-version matrix validation remains incomplete.
 - The remote-worker client has no deployed server in this repository and normal task creation currently persists `worker=local`; remote execution is therefore not an end-to-end user path.
+- The generic async-job and idempotency contracts are foundations only: no Canva, Figma, Adobe Express, or other design-platform adapter is implemented or granted credentials.
 - Credits, payments, account recovery, and a remote credit ledger are not implemented.
 - Production release signing requires externally supplied protected key material. CI uses a stable, public test-only key so patched builds can upgrade in place; its APKs are explicitly test artifacts.
 - Several WebView privacy capabilities depend on the installed WebView version and can legitimately be unavailable on a device.
@@ -124,8 +129,10 @@ Do not move filtering or browser security decisions into Dart. Subresource reque
 | Application bootstrap | `.../browser/MrNobodyApp.java` | Long-lived stores, privacy state, providers, tools, workers, and scheduler |
 | Visible browser | `.../browser/webview/MrNobodyWebView.java` | WebView policy, request blocking, navigation events, and downloads |
 | Agent engine | `.../agent/planner/DeterministicEngine.java` | Local research and remote-provider autonomous execution |
-| Tool security | `.../agent/core/ToolPipeline.java` | Schema validation, policy, guards, confirmation, timeout, output validation, and preview limiting |
-| Task persistence | `.../agent/tasks/TaskStore.java` | Durable task state and schema migrations |
+| Tool security | `.../agent/core/ToolPipeline.java` | Schema validation, policy, guards, confirmation, idempotent replay, timeout, output validation, and preview limiting |
+| Execution recovery | `.../agent/execution/SqliteExecutionLedger.java` | Durable run/step/effect state, replay results, external references, and cost fields |
+| Async jobs | `.../agent/jobs/AsyncJobCoordinator.java` | Generic non-blocking submit, poll/reconcile and terminal-result coordination |
+| Task persistence | `.../agent/tasks/TaskStore.java` | Durable task/run state, atomic submission dedup, and schema migrations |
 | Task event contract | `.../agent/tasks/TaskEventDetail.java` | Versioned semantic activities and bounded tool-attempt/outcome metadata |
 | Adaptive task UI | `app/lib/agent/task_timeline.dart` | Projects the current run’s real events into activities, metrics, recovery states, and read sources |
 | Background execution | `.../agent/tasks/TaskWorker.java` | WorkManager dispatch, heartbeat, cancellation, retry, and notifications |
@@ -137,13 +144,16 @@ Do not move filtering or browser security decisions into Dart. Subresource reque
 
 1. `IntentRouter` classifies input as a URL, search, or task.
 2. URLs/searches open the visible browser.
-3. Tasks are inserted into `TaskStore` and scheduled with WorkManager.
+3. `TaskStore.submit` atomically returns a new task or the matching live submission, then unique WorkManager work is scheduled; queued rows are replayed at startup if the process died between those operations.
 4. `TaskWorker` reloads the task and calls `TaskDispatcher`.
-5. The local worker binds task context, acquires a task-scoped headless browser, and invokes the agent engine.
-6. Every tool call goes through `ToolPipeline` before execution.
-7. Task state and events are persisted and streamed back to the Flutter task chat.
+5. The local worker durably commits and binds the task's run ID, acquires a task-scoped headless browser, and invokes the agent engine.
+6. Every tool call goes through `ToolPipeline`; the execution ledger replays committed calls and blocks ambiguous non-idempotent effects before execution.
+7. Async adapters use the same key through the persisted job coordinator rather than blocking a worker until a remote platform finishes.
+8. Task state and events are persisted and streamed back to the Flutter task chat.
 
-`TaskScope` captures the task ID before a tool enters the shared executor and clears it after the call. The local worker also serializes runs and resets browser anchor state per task. Active WorkManager runs are promoted with a low-importance `dataSync` foreground notification before web work begins, so switching away does not demote a user-started search or rendered read. This removes pooled-thread context loss and prevents concurrent tasks from sharing mutable planner, guard, or browser state; the end-to-end Android behavior remains part of device testing.
+`TaskScope` captures the task ID before a tool enters the shared executor and clears it after the call. `RunScope` separately binds the durable execution-cycle ID and allocates logical-step/effect identities. The local worker also serializes runs and resets browser anchor state per task. Active WorkManager runs are promoted with a low-importance `dataSync` foreground notification before web work begins, so switching away does not demote a user-started search or rendered read. This removes pooled-thread context loss and prevents concurrent tasks from sharing mutable planner, guard, or browser state; the end-to-end Android behavior remains part of device testing.
+
+The execution ledger and event log have deliberately different jobs. The ledger is authoritative recovery state and may retain a bounded structured tool result so a killed run can replay it. The event log remains a bounded user-facing audit projection and still excludes page bodies, prompts, form values and arbitrary tool output. A successful ledger replay records another attempt/outcome event but never executes the external effect again. An operation left `RUNNING` without a committed result is reconciled through the original idempotency key when the adapter supports it; otherwise consequential work stops with an explicit unknown outcome rather than guessing or repeating it.
 
 ### Adaptive agent response contract
 
@@ -208,7 +218,7 @@ While a task is live, the current activity automatically expands its bounded Dec
 
 This is separate from a remote AI provider. `RemoteWorker` is intended to move the whole task to a server using a signed installation identity. The client contract currently uses:
 
-- `POST {baseUrl}/tasks` with `identity`, `nonce`, `timestamp`, `payload`, and Base64 ECDSA signature
+- `POST {baseUrl}/tasks` with `identity`, stable signed `nonce`, `idempotencyKey`, `timestamp`, `payload`, and Base64 ECDSA signature; duplicate keys must return the original remote task
 - `GET {baseUrl}/tasks/{taskId}/stream` returning SSE frames with `token`, `done`, or `error`
 - EC P-256 keys generated in Android Keystore
 - A five-minute signature freshness window in the shared verification model
@@ -391,9 +401,11 @@ Never edit one blocklist copy without the other.
 2. Narrow the tier per action only when the risk is genuinely lower.
 3. Register the tool in `MrNobodyApp` only when the related feature is enabled.
 4. Route or plan to it explicitly; registration alone does not make it reachable.
-5. Verify the call enters `ToolPipeline` and cannot bypass approval or guards.
-6. Add contract, policy, failure, timeout, and adversarial tests.
-7. Check that outputs do not leak credentials. Oversized values must remain bounded and explicitly state that omitted content was not retained.
+5. Verify the call enters `ToolPipeline` and cannot bypass approval, guards, or the execution ledger.
+6. For any external effect, propagate `ExecutionIdentity.idempotencyKey()` to the backing service and implement reconciliation; never manufacture a new key for a retry.
+7. For submit/poll services, implement `AsyncJobAdapter` and persist the external job ID instead of blocking or writing a platform-specific loop.
+8. Add contract, policy, duplicate-submit, process-death, ambiguous-outcome, timeout, and adversarial tests.
+9. Check that outputs do not leak credentials. Oversized values must remain bounded and explicitly state that omitted content was not retained.
 
 ### Adding a bridge method
 

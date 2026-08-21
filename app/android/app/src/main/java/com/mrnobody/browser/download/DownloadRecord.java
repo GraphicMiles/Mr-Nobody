@@ -67,6 +67,8 @@ public final class DownloadRecord {
     @Nullable public String mime;
     @Nullable public String userAgent;
     @Nullable public String referrer;
+    /** Harness idempotency key for agent-initiated downloads. */
+    @Nullable public String requestKey;
 
     /**
      * Where the bytes are being written — the document in the user's chosen
@@ -110,12 +112,21 @@ public final class DownloadRecord {
                                         @Nullable String mime, @Nullable String userAgent,
                                         @Nullable String referrer, @Nullable String destLabel,
                                         boolean riskyApproved) {
+        return create(url, fileName, mime, userAgent, referrer, destLabel,
+                riskyApproved, null);
+    }
+
+    public static DownloadRecord create(@NonNull String url, @NonNull String fileName,
+                                        @Nullable String mime, @Nullable String userAgent,
+                                        @Nullable String referrer, @Nullable String destLabel,
+                                        boolean riskyApproved, @Nullable String requestKey) {
         DownloadRecord r = new DownloadRecord();
         r.url = url;
         r.fileName = fileName;
         r.mime = mime;
         r.userAgent = userAgent;
         r.referrer = referrer;
+        r.requestKey = requestKey;
         r.destLabel = destLabel;
         r.riskyApproved = riskyApproved;
         r.status = Status.QUEUED;

@@ -53,6 +53,14 @@ public final class TaskEventDetail {
             o.put("tool", clean(call.tool(), 40));
             o.put("action", clean(call.action(), 40));
             o.put("tier", call.tier() == null ? "" : call.tier().name());
+            if (!call.runId().isEmpty()) o.put("runId", clean(call.runId(), 80));
+            if (!call.logicalStepId().isEmpty()) {
+                o.put("logicalStepId", clean(call.logicalStepId(), 100));
+            }
+            // The key is a SHA-256 digest, not a credential or raw argument.
+            if (!call.idempotencyKey().isEmpty()) {
+                o.put("idempotencyKey", clean(call.idempotencyKey(), 80));
+            }
 
             // One safe subject is enough for the user-facing metric. Never log
             // browser `text`, form values, or arbitrary model arguments.

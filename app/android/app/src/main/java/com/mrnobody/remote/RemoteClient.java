@@ -55,9 +55,19 @@ public final class RemoteClient {
     /**
      * Submit a task and return the remote task id.
      *
+     * <p>The four-argument overload carries a stable idempotency key. The
+     * remote contract must return the original task id when that key is seen
+     * again after an ambiguous client timeout.
+     *
      * @throws IOException on any transport or rejection failure.
      */
     public long submit(DeviceIdentity identity, String nonce, String payload) throws Exception {
+        return submit(identity, nonce, payload, "");
+    }
+
+    /** Submit with the harness key the server must deduplicate. */
+    public long submit(DeviceIdentity identity, String nonce, String payload,
+                       String idempotencyKey) throws Exception {
         EndpointPolicy.requireSecureBase(baseUrl);
         SignedRequest req = SignedRequest.sign(identity, nonce, payload);
 
@@ -67,6 +77,9 @@ public final class RemoteClient {
         body.put("timestamp", req.timestamp());
         body.put("payload", req.payload());
         body.put("signature", Base64.getEncoder().encodeToString(req.signature()));
+        if (idempotencyKey != null && !idempotencyKey.trim().isEmpty()) {
+            body.put("idempotencyKey", idempotencyKey.trim());
+        }
 
         HttpURLConnection conn = connections.open(baseUrl + "/tasks");
         try {

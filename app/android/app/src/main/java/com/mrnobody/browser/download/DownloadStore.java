@@ -23,7 +23,7 @@ import java.util.List;
 public final class DownloadStore extends SQLiteOpenHelper {
 
     private static final String DB = "downloads.db";
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
     private static final String TABLE = "downloads";
 
     private static volatile DownloadStore instance;
@@ -52,6 +52,7 @@ public final class DownloadStore extends SQLiteOpenHelper {
                 + "mime TEXT,"
                 + "user_agent TEXT,"
                 + "referrer TEXT,"
+                + "request_key TEXT,"
                 + "dest_uri TEXT,"
                 + "dest_label TEXT,"
                 + "total INTEGER NOT NULL DEFAULT -1,"
@@ -64,6 +65,8 @@ public final class DownloadStore extends SQLiteOpenHelper {
                 + "created_at INTEGER NOT NULL,"
                 + "updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_downloads_status ON " + TABLE + "(status)");
+        db.execSQL("CREATE UNIQUE INDEX idx_downloads_request_key ON " + TABLE
+                + "(request_key)");
     }
 
     @Override
@@ -73,13 +76,20 @@ public final class DownloadStore extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE " + TABLE
                     + " ADD COLUMN risky_approved INTEGER NOT NULL DEFAULT 1");
         }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN request_key TEXT");
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_downloads_request_key ON "
+                    + TABLE + "(request_key)");
+        }
     }
 
     // ----------------------------------------------------------------- writes
 
     /** Insert a queued download and stamp the record with its new id. */
     public long insert(@NonNull DownloadRecord r) {
-        long id = getWritableDatabase().insert(TABLE, null, values(r));
+        long id = getWritableDatabase().insertWithOnConflict(TABLE, null, values(r),
+                r.requestKey == null || r.requestKey.isEmpty()
+                        ? SQLiteDatabase.CONFLICT_NONE : SQLiteDatabase.CONFLICT_IGNORE);
         r.id = id;
         return id;
     }
@@ -120,6 +130,15 @@ public final class DownloadStore extends SQLiteOpenHelper {
         }
     }
 
+    @Nullable
+    public DownloadRecord findByRequestKey(@Nullable String requestKey) {
+        if (requestKey == null || requestKey.trim().isEmpty()) return null;
+        try (Cursor c = getReadableDatabase().query(TABLE, null, "request_key=?",
+                new String[]{requestKey.trim()}, null, null, null, "1")) {
+            return c != null && c.moveToFirst() ? read(c) : null;
+        }
+    }
+
     /** Newest first: the thing you just started is the thing you want to see. */
     public List<DownloadRecord> all() {
         List<DownloadRecord> out = new ArrayList<>();
@@ -154,6 +173,7 @@ public final class DownloadStore extends SQLiteOpenHelper {
         v.put("mime", r.mime);
         v.put("user_agent", r.userAgent);
         v.put("referrer", r.referrer);
+        v.put("request_key", r.requestKey);
         v.put("dest_uri", r.destUri);
         v.put("dest_label", r.destLabel);
         v.put("total", r.total);
@@ -176,6 +196,8 @@ public final class DownloadStore extends SQLiteOpenHelper {
         r.mime = c.getString(c.getColumnIndexOrThrow("mime"));
         r.userAgent = c.getString(c.getColumnIndexOrThrow("user_agent"));
         r.referrer = c.getString(c.getColumnIndexOrThrow("referrer"));
+        int requestKeyColumn = c.getColumnIndex("request_key");
+        if (requestKeyColumn >= 0) r.requestKey = c.getString(requestKeyColumn);
         r.destUri = c.getString(c.getColumnIndexOrThrow("dest_uri"));
         r.destLabel = c.getString(c.getColumnIndexOrThrow("dest_label"));
         r.total = c.getLong(c.getColumnIndexOrThrow("total"));

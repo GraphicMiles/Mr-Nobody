@@ -1,5 +1,7 @@
 package com.mrnobody.agent.core;
 
+import java.util.UUID;
+
 /**
  * A durable unit of work. State must survive process death (persisted via
  * TaskStore). V1 keeps the plan simple/deterministic; V2 adds multi-step
@@ -21,6 +23,8 @@ public final class Task {
     private long updatedAt;
     private int retryCount;
     private String worker; // "local" | "remote" | "user" — which worker runs it
+    /** Durable identity of this execution cycle; follow-ups/recurrences get a new one. */
+    private String runId;
     /** Latest follow-up in this thread, or empty. Does not replace instruction. */
     private String followUp = "";
     /** JSON shortlist the next turn can address by index. */
@@ -29,11 +33,16 @@ public final class Task {
     private String planJson = "";
 
     public Task(long id, String instruction) {
-        this(id, instruction, System.currentTimeMillis(), System.currentTimeMillis());
+        this(id, instruction, System.currentTimeMillis(), System.currentTimeMillis(), newRunId());
     }
 
     /** Restore a durable task without replacing its timestamps with read time. */
     public Task(long id, String instruction, long createdAt, long updatedAt) {
+        this(id, instruction, createdAt, updatedAt, newRunId());
+    }
+
+    /** Restore timestamps and the durable execution-cycle identity. */
+    public Task(long id, String instruction, long createdAt, long updatedAt, String runId) {
         this.id = id;
         this.instruction = instruction == null ? "" : instruction;
         this.status = Status.QUEUED;
@@ -42,6 +51,7 @@ public final class Task {
         this.updatedAt = updatedAt > 0 ? updatedAt : this.createdAt;
         this.retryCount = 0;
         this.worker = "local";
+        this.runId = cleanRunId(runId);
     }
 
     public long id() { return id; }
@@ -98,6 +108,19 @@ public final class Task {
     public void setRetryCount(int n) { this.retryCount = Math.max(0, n); }
     public String worker() { return worker; }
     public void setWorker(String w) { this.worker = w; }
+    public String runId() { return runId == null ? "" : runId; }
+
+    /** Start a genuinely new cycle; retries deliberately keep the current id. */
+    public void startNewRun() {
+        this.runId = newRunId();
+        this.updatedAt = System.currentTimeMillis();
+    }
+
+    /** Restore a persisted run id without turning hydration into a new cycle. */
+    public void setRunId(String value) {
+        this.runId = cleanRunId(value);
+    }
+
     public String followUp() { return followUp == null ? "" : followUp; }
     public void setFollowUp(String text) {
         this.followUp = text == null ? "" : text;
@@ -134,6 +157,15 @@ public final class Task {
         String extra = followUp();
         if (extra.isEmpty()) return instruction;
         return instruction + "\n\nFollow-up from the user:\n" + extra;
+    }
+
+    private static String newRunId() {
+        return UUID.randomUUID().toString();
+    }
+
+    private static String cleanRunId(String value) {
+        String clean = value == null ? "" : value.trim();
+        return clean.isEmpty() ? newRunId() : clean;
     }
 
     public static final String STEP_SEARCH = "Search";

@@ -2,6 +2,8 @@ package com.mrnobody.agent.core;
 
 import android.content.Context;
 
+import com.mrnobody.agent.execution.ExecutionIdentity;
+
 /**
  * A named, typed tool the agent can invoke.
  *
@@ -29,6 +31,30 @@ public interface Tool {
      */
     default ToolResult execute(Context context, ToolRequest request, Cancellation cancellation) {
         return execute(context, request);
+    }
+
+    /**
+     * Execute with the durable identity allocated by the harness. Tools whose
+     * backing service accepts an idempotency key override this seam; existing
+     * read-only tools inherit the ordinary cancellable implementation.
+     */
+    default ToolResult execute(Context context, ToolRequest request, Cancellation cancellation,
+                               ExecutionIdentity execution) {
+        return execute(context, request, cancellation);
+    }
+
+    /** Whether retrying this exact call with the same key is safe. */
+    default boolean supportsIdempotency(ToolRequest request) {
+        return false;
+    }
+
+    /**
+     * Reconcile an in-flight call after process death. Return a known outcome,
+     * or null when the backing service cannot determine what happened.
+     */
+    default ToolResult reconcile(Context context, ToolRequest request,
+                                 ExecutionIdentity execution) {
+        return null;
     }
 
     /** Stable tool name used in routing and logging. */

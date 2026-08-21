@@ -161,10 +161,29 @@ public final class DownloadEngine {
     public DownloadRecord enqueue(@NonNull String url, @NonNull String fileName,
                                   @Nullable String mime, @Nullable String userAgent,
                                   @Nullable String referrer, boolean riskyApproved) {
+        return enqueue(url, fileName, mime, userAgent, referrer, riskyApproved, null);
+    }
+
+    /** Enqueue once for a durable harness idempotency key. */
+    public DownloadRecord enqueue(@NonNull String url, @NonNull String fileName,
+                                  @Nullable String mime, @Nullable String userAgent,
+                                  @Nullable String referrer, boolean riskyApproved,
+                                  @Nullable String requestKey) {
+        String key = requestKey == null ? null : requestKey.trim();
+        if (key != null && !key.isEmpty()) {
+            DownloadRecord existing = store.findByRequestKey(key);
+            if (existing != null) return existing;
+        }
         DownloadDestination destination = new DownloadDestination(context);
         DownloadRecord record = DownloadRecord.create(
-                url, fileName, mime, userAgent, referrer, destination.label(), riskyApproved);
-        store.insert(record);
+                url, fileName, mime, userAgent, referrer, destination.label(),
+                riskyApproved, key);
+        long inserted = store.insert(record);
+        if (inserted < 0 && key != null && !key.isEmpty()) {
+            DownloadRecord existing = store.findByRequestKey(key);
+            if (existing != null) return existing;
+        }
+        if (inserted < 0) throw new IllegalStateException("could not persist download");
         // Register the job before publishing QUEUED. A listener can act on that
         // first event immediately; it must find the job and set its stop flag
         // before the pool is allowed to start it.
