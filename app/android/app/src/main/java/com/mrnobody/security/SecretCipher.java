@@ -29,10 +29,15 @@ public final class SecretCipher {
         if (plaintext == null) plaintext = "";
         if (random == null) random = new SecureRandom();
 
-        byte[] iv = new byte[IV_BYTES];
-        random.nextBytes(iv);
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, iv));
+        // Android Keystore keys with randomized encryption enabled reject a
+        // caller-provided IV. Let the cipher generate it, then store that IV
+        // beside the ciphertext for decryption.
+        cipher.init(Cipher.ENCRYPT_MODE, key, random);
+        byte[] iv = cipher.getIV();
+        if (iv == null || iv.length != IV_BYTES) {
+            throw new GeneralSecurityException("cipher did not generate a GCM IV");
+        }
         cipher.updateAAD(aad(scope));
         byte[] encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
         return VERSION + ":"

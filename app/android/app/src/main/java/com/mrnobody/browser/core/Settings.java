@@ -186,8 +186,8 @@ public final class Settings {
         return secrets.getString("api_key_" + provider, "");
     }
 
-    public void setApiKey(String provider, String key) {
-        secrets.putString("api_key_" + provider, key == null ? "" : key);
+    public boolean setApiKey(String provider, String key) {
+        return secrets.putString("api_key_" + provider, key == null ? "" : key);
     }
 
     public void removeApiKey(String provider) {

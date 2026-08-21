@@ -765,7 +765,12 @@ public class MainActivity extends FlutterActivity {
                                     return;
                                 }
                             }
-                            if (key != null && !key.isEmpty()) MrNobodyApp.settings().setApiKey(id, key);
+                            if (key != null && !key.isEmpty()
+                                    && !MrNobodyApp.settings().setApiKey(id, key)) {
+                                result.error("secure_store",
+                                        "Could not securely store the API key", null);
+                                return;
+                            }
                             if (base != null) MrNobodyApp.settings().setApiBase(id, base);
                             if (model != null) MrNobodyApp.settings().setApiModel(id, model);
                             Boolean makeActive = call.argument("active");
