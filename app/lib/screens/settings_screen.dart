@@ -6,6 +6,7 @@ import '../widgets/anchored_menu.dart';
 import '../widgets/common.dart';
 import '../widgets/toast.dart';
 import 'ai_provider_screen.dart';
+import 'bookmarks_screen.dart';
 import 'clear_data_screen.dart';
 import 'downloads_screen.dart';
 import 'privacy_screen.dart';
@@ -21,11 +22,16 @@ class SettingsScreen extends StatefulWidget {
   final Future<void> Function()? onBeforeBrowserDataClear;
   final ScrollController? scrollController;
 
+  /// Opens a URL in a new tab — lets the Bookmarks screen open pages without
+  /// knowing anything about the tab shell.
+  final void Function(String url)? onOpenUrl;
+
   const SettingsScreen({
     super.key,
     this.onBack,
     this.onBeforeBrowserDataClear,
     this.scrollController,
+    this.onOpenUrl,
   });
 
   @override
@@ -35,6 +41,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _state = AppState.instance;
   int? _downloadCount;
+  int? _bookmarkCount;
   String _downloadFolder = 'Downloads (system)';
   bool _customFolder = false;
   String _proxyRoute = 'tor-orbot';
@@ -61,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _state.load();
     _loadDownloadCount();
+    _loadBookmarkCount();
     _loadDownloadFolder();
     _loadProxy();
     _loadCaps();
@@ -148,6 +156,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _customFolder = result['custom'] as bool? ?? false;
     });
     AppToast.show(context, 'Saving downloads to $_downloadFolder');
+  }
+
+  Future<void> _loadBookmarkCount() async {
+    final marks = await NativeBridge.guard(
+      NativeBridge.bookmarks,
+      const <Map<String, dynamic>>[],
+      'bookmarks unavailable',
+    );
+    if (!mounted) return;
+    setState(() => _bookmarkCount = marks.length);
   }
 
   Future<void> _loadDownloadCount() async {
@@ -302,6 +320,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             valueOn: _customFolder,
                             onTap: () => _chooseDownloadFolder(rowContext),
                           ),
+                        ),
+                        SettingRow(
+                          label: 'Bookmarks',
+                          value: _bookmarkCount?.toString(),
+                          onTap: () async {
+                            await Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) =>
+                                    BookmarksScreen(onOpenUrl: widget.onOpenUrl)));
+                            _loadBookmarkCount();
+                          },
                         ),
                         SettingRow(
                           label: 'Downloads',

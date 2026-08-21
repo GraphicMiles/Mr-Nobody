@@ -405,3 +405,21 @@ Two remaining ❌, both now instrumented instead of guessed at:
 Next device run tells us: STARTING at 180s = network reality (bridges out
 of V1 scope, message stays honest); OFF = our service bug with the error
 text captured. JVM suite 901 green.
+
+---
+
+## 2026-08-21 — UX GAP: bookmarks unreachable outside a tab (owner report)
+
+Bookmarks existed only in a tab's sheet menu, capped at eight, with no
+delete — from Settings there was no trace of them. Shipped:
+
+- New Bookmarks screen: full list, tap to open in a new tab (via the
+  shell's opener callback, so the screen knows nothing about tabs), per-row
+  delete, empty state that says where bookmarks come from.
+- Settings → Data gains a "Bookmarks" row with a live count (same pattern
+  as Downloads), wired from both shell paths (settings tab + browser menu).
+- Channel: new removeBookmark method — BookmarksStore.remove(id) existed
+  since V1 but was never reachable from the UI.
+- BookmarksWiringTest pins channel → bridge → screen → shell.
+
+JVM suite 904 green. Dart side verified by CI (strict analyze + tests).

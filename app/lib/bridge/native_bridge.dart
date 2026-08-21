@@ -341,6 +341,10 @@ class NativeBridge {
     await _ch.invokeMethod('addBookmark', {'url': url, 'title': title});
   }
 
+  static Future<void> removeBookmark(int id) async {
+    await _ch.invokeMethod('removeBookmark', {'id': id});
+  }
+
   /// Delete the selected local data buckets: history, cookies, cache,
   /// sitedata, taskstate, workspace.
   static Future<Map<String, dynamic>> clearData(List<String> buckets) async {
