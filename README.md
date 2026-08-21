@@ -8,7 +8,7 @@ This is the repository's developer document. Product status and the next deliver
 
 ## Current snapshot
 
-Status baseline: 2026-08-21 (read-loop economics, bundled Tor, harness and device-suite batches merged).
+Status baseline: 2026-08-21 (security/privacy remediation and Android 16 acceptance complete).
 
 - App version: `1.0.0+1`
 - Android application ID: `com.mrnobody.browser`
@@ -17,11 +17,15 @@ Status baseline: 2026-08-21 (read-loop economics, bundled Tor, harness and devic
 - Native core: Java 11 bytecode, built with JDK 17 in CI
 - Rendering engine: the installed Android System WebView; no browser engine is bundled
 - Tor: bundled `info.guardianproject:tor-android:0.4.7.14` (the newest release consumable at compileSdk 34), started on demand for Nobody mode; Orbot, when running, always takes priority
-- Java/JVM suite: 901 tests passing at the current head
+- Security review: all 18 confirmed critical/high/medium/low findings remediated with regression coverage
+- Android 16 acceptance: provider-key encryption, history isolation, HTTPS enforcement, cookie scope, SSRF blocking, cancellation, downloads, and Nobody/Tor routing verified
+- Java/JVM suite: 957 tests passing at the current head
 - Python privacy-auditor suite: 13 tests passing
-- CI: the Flutter workflow (analysis, tests, privacy gates, signed ABI APKs, size gate) runs on every push; the Android emulator workflow is manual-dispatch only
+- CI: strict analysis, privacy gates, JVM/Flutter/Gradle tests, signed ABI APK build, signature verification, and size gate passing
 
-The source contains substantial Android functionality. Device verification is tracked in `ROADMAP.md`; the running defect ledger is `SESSION-LOG.txt`. Do not convert "implemented and tested off-device" into a runtime claim.
+The remediation phase is complete. The next delivery phase is **agent optimisation and evolution**: smarter and cheaper work selection, stronger evidence use, and clearer, more sanitised responses without weakening the established privacy and security boundaries.
+
+Broader OEM/device verification remains tracked in `ROADMAP.md`; the running defect ledger is `SESSION-LOG.txt`. Do not convert off-device coverage into a runtime claim.
 
 ## Product boundaries
 
@@ -52,7 +56,7 @@ The source contains substantial Android functionality. Device verification is tr
 
 ### What is not a completed product path
 
-- Physical-device validation is incomplete.
+- The reviewed Android 16 acceptance path is complete; broader OEM and Android-version matrix validation remains incomplete.
 - The remote-worker client has no deployed server in this repository and normal task creation currently persists `worker=local`; remote execution is therefore not an end-to-end user path.
 - Credits, payments, account recovery, and a remote credit ledger are not implemented.
 - Production release signing requires externally supplied protected key material. CI uses a stable, public test-only key so patched builds can upgrade in place; its APKs are explicitly test artifacts.
