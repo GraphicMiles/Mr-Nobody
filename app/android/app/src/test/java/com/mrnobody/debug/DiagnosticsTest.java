@@ -33,8 +33,8 @@ public class DiagnosticsTest {
         List<Diagnostics.Result> results = Diagnostics.runPure();
         Map<String, Diagnostics.Result> byId = byId(results);
 
-        // Ten product checks plus seven offline security/privacy checks are present.
-        assertEquals(17, results.size());
+        // All ten general pure checks are present and green.
+        assertEquals(10, results.size());
         for (Diagnostics.Result r : results) {
             assertPass(r);
         }
@@ -43,14 +43,27 @@ public class DiagnosticsTest {
         for (String id : new String[]{
                 "input.route", "search.parse", "hosts.detect", "planner.plan",
                 "terminal.gate", "workspace.sandbox", "identity.sign", "network.route",
-                "datasaver.policy", "memory.rank",
+                "datasaver.policy", "memory.rank"}) {
+            assertTrue("missing check " + id, byId.containsKey(id));
+        }
+        assertEquals("benchmark ids must be unique", results.size(), byId.size());
+    }
+
+    @Test
+    public void everyOfflineSecurityCheckPasses() {
+        List<Diagnostics.Result> results = SecurityDiagnostics.runPure();
+        Map<String, Diagnostics.Result> byId = byId(results);
+
+        assertEquals(7, results.size());
+        for (Diagnostics.Result result : results) assertPass(result);
+        for (String id : new String[]{
                 "security.prompt.fence", "security.secret.memory",
                 "security.network.target", "security.endpoint.https",
                 "security.cookie.scope", "security.task.terminal",
                 "security.sse.terminal"}) {
-            assertTrue("missing check " + id, byId.containsKey(id));
+            assertTrue("missing security check " + id, byId.containsKey(id));
         }
-        assertEquals("benchmark ids must be unique", results.size(), byId.size());
+        assertEquals("security ids must be unique", results.size(), byId.size());
     }
 
     @Test

@@ -291,16 +291,22 @@ class NativeBridge {
     await _ch.invokeMethod('forgetMemory');
   }
 
-  /// The Phase 1 device benchmark: each subsystem reports pass/fail so a
-  /// real-device run is a list the user reads off. Failures also land in the
-  /// debug log so the ⓘ badge carries them.
   /// This week's unattended-completion counters (target ~90%).
   static Future<Map<String, dynamic>> completionStats() async {
     return Map<String, dynamic>.from(await _ch.invokeMethod('completionStats') as Map);
   }
 
+  /// The Phase 1 device benchmark: each subsystem reports pass/fail so a
+  /// real-device run is a list the user reads off. Failures also land in the
+  /// debug log so the ⓘ badge carries them.
   static Future<List<Map<String, dynamic>>> diagnostics() async {
     final r = await _ch.invokeMethod('diagnostics');
+    return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  /// Offline, non-destructive security checks plus installed-manifest inspection.
+  static Future<List<Map<String, dynamic>>> securityDiagnostics() async {
+    final r = await _ch.invokeMethod('securityDiagnostics');
     return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 

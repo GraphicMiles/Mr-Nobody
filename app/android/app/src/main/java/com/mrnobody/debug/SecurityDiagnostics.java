@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -222,6 +223,21 @@ public final class SecurityDiagnostics {
                                     "Android privacy surface",
                                     "installed manifest requests a sensor or permits cleartext");
                 }));
+        return out;
+    }
+
+    /** Full security battery used by the dedicated bridge method. */
+    public static List<Diagnostics.Result> run(Context context) {
+        List<Diagnostics.Result> out = new ArrayList<>();
+        out.addAll(runPure());
+        if (context != null) out.addAll(runDevice(context));
+        return out;
+    }
+
+    /** Channel-safe projection for the Dart benchmark panel. */
+    public static List<Map<String, Object>> runAsMaps(Context context) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Diagnostics.Result result : run(context)) out.add(result.toMap());
         return out;
     }
 
