@@ -79,6 +79,15 @@ public final class PrivacyController {
      * the route is up and the engine could be pointed at it.
      */
     public static Result apply(PrivacyMode mode, Settings settings) {
+        return apply(mode, settings, null);
+    }
+
+    /**
+     * Apply {@code mode}, with a Context so the bundled Tor can be started
+     * when the Tor route is chosen and Orbot is absent. The context-less
+     * overload behaves exactly as before: Orbot or nothing.
+     */
+    public static Result apply(PrivacyMode mode, Settings settings, android.content.Context context) {
         if (mode == null) mode = PrivacyMode.NORMAL;
 
         if (!mode.needsPrivacyRoute()) {
@@ -96,12 +105,27 @@ public final class PrivacyController {
         }
         route.refresh();
 
+        // Orbot takes priority: if the SOCKS port is already served, that is
+        // the user's own Tor. The bundled TorService starts only when the Tor
+        // route is chosen, nothing is listening, and the binary is packaged.
+        if (!route.isAvailable() && route instanceof OrbotTorRoute
+                && EmbeddedTorPolicy.shouldStart(true, false, EmbeddedTor.isBundled())
+                && context != null) {
+            boolean up = EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS);
+            route.refresh();
+            if (!up && !route.isAvailable()) {
+                // Still bootstrapping: fail closed with an honest "retry
+                // shortly" — the service keeps building circuits meanwhile.
+                return refuse(mode, EmbeddedTorPolicy.stillStartingMessage(), settings);
+            }
+        }
+
         if (!route.isAvailable()) {
             // Fail closed at the point of entry, rather than letting the user
             // browse and discover it later.
             return refuse(mode, route.label() + " is not reachable. "
                     + (route instanceof OrbotTorRoute
-                        ? "Start Orbot and try again."
+                        ? EmbeddedTorPolicy.unavailableMessage(EmbeddedTor.isBundled())
                         : "Check the proxy settings."), settings);
         }
 

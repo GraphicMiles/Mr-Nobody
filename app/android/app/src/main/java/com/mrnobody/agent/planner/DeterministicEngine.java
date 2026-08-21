@@ -120,6 +120,13 @@ public final class DeterministicEngine implements AgentEngine {
             new ToolPipeline(policy).addGuard(repeatGuard).addGuard(budgetGuard);
 
     /**
+     * The tools this run may touch (see {@link ToolScope}), or null outside a
+     * run. Volatile because the platform channel reads tools concurrently;
+     * the engine itself runs one task at a time.
+     */
+    private volatile java.util.Set<String> runScope;
+
+    /**
      * How many source candidates the read phase will try. Larger than
      * {@link #MAX_SOURCES_READ} on purpose: a candidate that fails to read must
      * not consume the budget, so a later candidate is tried. Bounded by the
@@ -160,6 +167,10 @@ public final class DeterministicEngine implements AgentEngine {
     @Override
     public void run(Context context, Task task, Cancellation cancellation) {
         task.setStatus(Task.Status.RUNNING);
+
+        // Scope from any previous run must not leak into this one (or into
+        // the host's own unscoped calls between tasks).
+        runScope = null;
 
         // Budgets are per task, not per process: a fresh instruction starts
         // with a full allowance, and a previous task's spending is not
@@ -261,9 +272,16 @@ public final class DeterministicEngine implements AgentEngine {
         }
 
         if (isRoutedAction(plan)) {
+            // A routed action IS the task: exactly one tool exists for it.
+            runScope = ToolScope.routed(plan.steps().get(0).tool);
             executeRouted(context, task, plan.steps().get(0), cancellation);
             return;
         }
+        // A research task gets reading tools; download joins only when the
+        // instruction asks for one. The terminal is never in research scope.
+        runScope = ToolScope.research(
+                tools.containsKey("download") && ToolRouter.isDownloadIntent(asked),
+                tools.keySet());
         executeResearch(context, task, plan, cancellation, asked, classified.intent, pointed);
     }
 
@@ -282,7 +300,7 @@ public final class DeterministicEngine implements AgentEngine {
     private void executeRouted(Context context, Task task, Plan.Step step,
                                Cancellation cancellation) {
         enterStep(task, step);
-        ToolResult result = callTool(context, step.tool, step.request, cancellation);
+        ToolResult result = callScoped(context, step.tool, step.request, cancellation);
         if (stopped(task, cancellation)) return;
         if (parkIfNeeded(task, result)) return;
 
@@ -340,7 +358,7 @@ public final class DeterministicEngine implements AgentEngine {
                     continue;
                 }
                 enterStep(task, step);
-                ToolResult result = callTool(context, step.tool, step.request, cancellation);
+                ToolResult result = callScoped(context, step.tool, step.request, cancellation);
                 if (parkIfNeeded(task, result)) return;
                 if ("search".equals(step.tool)) {
                     // Search is the anchor: an answer with no sources is a
@@ -468,6 +486,11 @@ public final class DeterministicEngine implements AgentEngine {
         r.provider = provider;
         r.budget = tools.containsKey("download") && ToolRouter.isDownloadIntent(asked)
                 ? TaskBudget.download() : TaskBudget.research();
+        // The model plans only over the tools this task's shape justifies;
+        // the same scope also filters what the planner advertises to it.
+        runScope = ToolScope.research(
+                tools.containsKey("download") && ToolRouter.isDownloadIntent(asked),
+                tools.keySet());
         r.cap = new com.mrnobody.agent.ai.SpendCap(MAX_RUN_USD,
                 com.mrnobody.agent.ai.ModelPricing.forModel(provider.modelId()));
 
@@ -503,11 +526,11 @@ public final class DeterministicEngine implements AgentEngine {
             if (r.budget != null && r.budget.expired()) break;
             enterActivity(task, "Deciding the next action", "reason",
                     "Choose one bounded action from the evidence observed so far.");
-            Plan.Step step = planner.nextStep(asked, transcript, tools.keySet());
+            Plan.Step step = planner.nextStep(asked, transcript, runScope);
             if (step == null) break; // the model is done gathering
 
             enterStep(task, step);
-            ToolResult result = callTool(context, step.tool, step.request, cancellation);
+            ToolResult result = callScoped(context, step.tool, step.request, cancellation);
             if (stopped(task, cancellation)) return;
             if (parkIfNeeded(task, result)) return;
             applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
@@ -572,7 +595,7 @@ public final class DeterministicEngine implements AgentEngine {
         while (!plan.isFinished()) {
             Plan.Step step = plan.current();
             if (step != null && step.isToolStep() && "download".equals(step.tool)) {
-                ToolResult result = callTool(context, "download", step.request, cancellation);
+                ToolResult result = callScoped(context, "download", step.request, cancellation);
                 r.lastResult = result;
                 if (result != null && result.needsApproval()) return;
                 applyDownloadNote(r, result);
@@ -745,7 +768,7 @@ public final class DeterministicEngine implements AgentEngine {
             ToolResult browser = readViaBrowser(context, step, cancellation);
             if (browser != null) return browser;
         }
-        return callTool(context, "http", step.request, cancellation);
+        return callScoped(context, "http", step.request, cancellation);
     }
 
     /**
@@ -762,7 +785,7 @@ public final class DeterministicEngine implements AgentEngine {
         try {
             String robotsUrl = RobotsRules.urlFor(host);
             if (robotsUrl.isEmpty()) return;
-            ToolResult robots = callTool(context, "http",
+            ToolResult robots = callScoped(context, "http",
                     ToolRequest.of("fetch", "url", robotsUrl), cancellation);
             if (robots == null || !robots.isSuccess()) return;
             List<String> sitemaps = new ArrayList<>();
@@ -778,7 +801,7 @@ public final class DeterministicEngine implements AgentEngine {
             int added = 0;
             for (String sm : sitemaps) {
                 if (added >= 4 || sm == null || sm.isEmpty()) continue;
-                ToolResult map = callTool(context, "http",
+                ToolResult map = callScoped(context, "http",
                         ToolRequest.of("fetch", "url", sm), cancellation);
                 if (map == null || !map.isSuccess()) continue;
                 List<String> locs = new ArrayList<>();
@@ -893,7 +916,7 @@ public final class DeterministicEngine implements AgentEngine {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("url", url);
         params.put("timeout", String.valueOf(BROWSER_FETCH_TIMEOUT_MS));
-        return callTool(context, "browser", new ToolRequest("fetch", params), cancellation);
+        return callScoped(context, "browser", new ToolRequest("fetch", params), cancellation);
     }
 
     /**
@@ -965,7 +988,7 @@ public final class DeterministicEngine implements AgentEngine {
                 params.put("url", page);
                 params.put("timeout", String.valueOf(BROWSER_FETCH_TIMEOUT_MS));
                 if (wantsImage) params.put("images", "true");
-                ToolResult links = callTool(context, "browser",
+                ToolResult links = callScoped(context, "browser",
                         new ToolRequest("links", params), cancellation);
                 if (!links.isSuccess()) continue;
                 Object o = links.value().get("links");
@@ -1046,6 +1069,8 @@ public final class DeterministicEngine implements AgentEngine {
                 if (refusal != null) {
                     r.answer = refusal;
                 } else {
+                    // Kept for the verify step's corrective re-ask.
+                    r.lastPrompt = prompt;
                     r.answer = askProvider(r.provider, prompt, cancellation, task.id(), r);
                     if (r.providerError != null) {
                         // No answer to verify or schedule — leave r.answer null
@@ -1072,6 +1097,20 @@ public final class DeterministicEngine implements AgentEngine {
         if (r.answer != null && r.downloadNote != null && !r.downloadNote.isEmpty()) {
             r.answer = r.answer + "\n\n" + r.downloadNote;
         }
+
+        // Intent-vs-outcome: when the result plainly does not satisfy the
+        // instruction (a download that never happened, a named site never
+        // read), the answer says so instead of leaving the reader to notice.
+        if (r.answer != null) {
+            String outcome = OutcomeCheck.note(
+                    r.asked != null ? r.asked : task.conversation(),
+                    r.downloadNote, r.readUrls);
+            if (!outcome.isEmpty()) {
+                r.answer = r.answer + "\n\n" + outcome;
+                com.mrnobody.debug.ErrorLog.record("task " + task.id()
+                        + ": outcome mismatch: " + outcome);
+            }
+        }
     }
 
     /** Verify the answer against what was read, then close the task. */
@@ -1090,14 +1129,51 @@ public final class DeterministicEngine implements AgentEngine {
                 "Check citations, source hosts and figures before completion.");
         if (r.provider.isRemote()) {
             AnswerVerifier.Report report = AnswerVerifier.check(r.answer, r.readUrls);
-            String note = AnswerVerifier.note(report, r.readUrls);
-
-            // Citations and hostnames are the frame of an answer; the figures
-            // are usually the answer itself. Asked for the Bitcoin price the
-            // model once copied the 24h low and high correctly and invented
-            // the headline price, and every check here passed because the
-            // marker [1] was well-formed and the host had been read.
             FigureCheck.Report figures = FigureCheck.check(r.answer, r.sources.toString());
+
+            // Verification is blocking (AnswerGate): a failed draft gets one
+            // corrective re-ask; a second failure is discarded and replaced
+            // by the extractive answer, which cannot hallucinate. Shipping a
+            // known-unsupported claim under a warning footnote was worse than
+            // either.
+            int retries = 0;
+            while (AnswerGate.decide(report.hasProblems() || figures.hasProblems(), retries)
+                    == AnswerGate.Action.RETRY
+                    && r.lastPrompt != null
+                    && (r.cap == null || r.cap.check(r.usage, r.lastPrompt.length()) == null)) {
+                retries++;
+                com.mrnobody.debug.ErrorLog.record("task " + task.id()
+                        + ": draft failed verification; corrective re-ask " + retries);
+                enterActivity(task, Task.STEP_VERIFY, "Correcting the answer", "verify.retry",
+                        "The draft failed verification; the model gets one rewrite.");
+                String corrected = askProvider(r.provider,
+                        r.lastPrompt + AnswerGate.correction(
+                                AnswerVerifier.note(report, r.readUrls), FigureCheck.note(figures)),
+                        cancellation, task.id(), r);
+                if (corrected == null || r.providerError != null) {
+                    r.providerError = null; // the original draft still exists
+                    break;
+                }
+                r.answer = corrected;
+                report = AnswerVerifier.check(r.answer, r.readUrls);
+                figures = FigureCheck.check(r.answer, r.sources.toString());
+            }
+
+            if (AnswerGate.decide(report.hasProblems() || figures.hasProblems(), retries)
+                    == AnswerGate.Action.FALLBACK) {
+                com.mrnobody.debug.ErrorLog.record("task " + task.id()
+                        + ": unverifiable draft discarded; extractive fallback used");
+                r.answer = ExtractiveAnswer.compose(
+                        r.asked != null ? r.asked : task.conversation(),
+                        r.sources.toString(), r.pagesRead, r.results)
+                        + "\n\n" + AnswerGate.fallbackNote();
+                // The notes below describe the discarded draft, not this
+                // answer; recompute them against what actually ships.
+                report = AnswerVerifier.check(r.answer, r.readUrls);
+                figures = FigureCheck.check(r.answer, r.sources.toString());
+            }
+
+            String note = AnswerVerifier.note(report, r.readUrls);
             String figureNote = FigureCheck.note(figures);
             // An attempted injection is something the reader is told about,
             // not something we quietly absorb.
@@ -1193,6 +1269,8 @@ public final class DeterministicEngine implements AgentEngine {
         boolean enough;
         /** Rule 5: the wall-clock ceiling for this run. */
         TaskBudget budget;
+        /** The grounded prompt sent for the answer — reused by the verify gate's re-ask. */
+        String lastPrompt;
         LatestVideoSkill.Match latestVideo;
         AiProvider provider;
         boolean pagesRead;
@@ -1343,6 +1421,22 @@ public final class DeterministicEngine implements AgentEngine {
     }
 
     /** As above, but able to abandon a slow tool when the task is cancelled. */
+    /**
+     * The run paths' entry point: scope first, then the guarded pipeline.
+     * The public {@link #callTool} stays unscoped on purpose — it serves
+     * host features (the address-bar search), not task steps.
+     */
+    ToolResult callScoped(Context context, String name, ToolRequest request,
+                          Cancellation cancellation) {
+        java.util.Set<String> scope = runScope;
+        if (scope != null && !scope.contains(name)) {
+            com.mrnobody.debug.ErrorLog.record(
+                    "tool scope refused " + name + " (scope " + scope + ")");
+            return ToolResult.fail(ToolScope.deniedMessage(name));
+        }
+        return callTool(context, name, request, cancellation);
+    }
+
     public ToolResult callTool(Context context, String name, ToolRequest request,
                                Cancellation cancellation) {
         Tool tool = tools.get(name);

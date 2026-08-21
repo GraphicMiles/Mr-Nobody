@@ -53,6 +53,9 @@ import java.util.List;
  */
 public final class MrNobodyApp extends Application {
 
+    /** The live Application, for static paths that need a Context (embedded Tor). */
+    private static volatile MrNobodyApp appInstance;
+
     private static FilterEngine filterEngine;
     private static Settings settings;
     private static HistoryStore historyStore;
@@ -79,6 +82,7 @@ public final class MrNobodyApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        appInstance = this;
 
         // Catch native crashes before anything else can. A Java uncaught
         // exception or OOM takes the process down silently; the handler writes
@@ -132,7 +136,7 @@ public final class MrNobodyApp extends Application {
         // state that claims protection it does not have.
         try {
             PrivacyController.apply(
-                    PrivacyMode.fromName(settings.privacyMode()), settings);
+                    PrivacyMode.fromName(settings.privacyMode()), settings, this);
         } catch (Throwable t2) {
             com.mrnobody.debug.ErrorLog.record("privacy mode restore failed: " + t2);
         }
@@ -198,7 +202,7 @@ public final class MrNobodyApp extends Application {
 
     /** Apply a privacy mode and persist it only if it actually took effect. */
     public static PrivacyController.Result applyPrivacyMode(PrivacyMode mode) {
-        PrivacyController.Result r = PrivacyController.apply(mode, settings);
+        PrivacyController.Result r = PrivacyController.apply(mode, settings, appInstance);
         // Persist what was achieved, not what was asked for: a refused mode
         // must not come back on the next launch.
         settings.setPrivacyMode(r.effective.name());

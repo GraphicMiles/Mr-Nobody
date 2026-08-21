@@ -84,6 +84,16 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Built-in Tor (tor-android's service). Declared here explicitly —
+             the AAR's own manifest entry carries no exported attribute — and
+             never exported: only Mr Nobody may start or stop its Tor. It runs
+             only when the user selects the Tor route and Orbot is absent;
+             see browser/net/EmbeddedTor. -->
+        <service
+            android:name="org.torproject.jni.TorService"
+            android:exported="false"
+            tools:node="merge" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
