@@ -329,9 +329,21 @@ public final class DeviceSuite {
             }
         }
         String problem = PrivacyController.consumePendingProblem();
+        // Bootstrap can outlast any polite wait on slow mobile data. If Tor
+        // reached ON in the meantime, the mode applies instantly now — take
+        // the success instead of reporting a stale refusal.
+        if (EmbeddedTor.isReady()) {
+            PrivacyController.Result again = MrNobodyApp.applyPrivacyMode(PrivacyMode.NOBODY);
+            if (again.isFullyApplied()) {
+                return result(id, name, true, "bootstrap outlasted the first wait ("
+                        + ((System.currentTimeMillis() - started) / 1000)
+                        + "s); applied on retry, socks=" + EmbeddedTor.readySocksPort());
+            }
+        }
         String status = String.valueOf(EmbeddedTor.torStatus());
         String meaning = "STARTING".equals(status)
-                ? " — Tor is still bootstrapping: slow or interfered-with on this network"
+                ? " — still connecting; the core keeps waiting in the background: "
+                        + "toggle Nobody again in a few minutes and it will stick"
                 : ("OFF".equals(status)
                         ? " — the Tor service died; check the ⓘ log for 'embedded tor error'"
                         : "");

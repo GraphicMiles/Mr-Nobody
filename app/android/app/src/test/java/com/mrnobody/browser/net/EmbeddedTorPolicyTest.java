@@ -39,6 +39,13 @@ public class EmbeddedTorPolicyTest {
     }
 
     @Test
+    public void theHardCapDwarfsTheSliceAndOnlyEndsAHopelessBootstrap() {
+        assertTrue(EmbeddedTorPolicy.BOOTSTRAP_HARD_CAP_MS
+                >= 3 * EmbeddedTorPolicy.BOOTSTRAP_WAIT_MS);
+        assertTrue(EmbeddedTorPolicy.slowNetworkMessage().contains("Nothing was sent"));
+    }
+
+    @Test
     public void theApplyWaitStaysUnderTheAnrThreshold() {
         // apply() runs on the platform channel thread; 5s is where Android
         // starts drawing conclusions.

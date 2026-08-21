@@ -175,7 +175,7 @@ class AppState extends ChangeNotifier {
     _torWatch?.cancel();
     _torWatchPolls = 0;
     _torWatch = Timer.periodic(const Duration(seconds: 2), (t) async {
-      if (++_torWatchPolls > 60) {
+      if (++_torWatchPolls > 240) {
         t.cancel();
         return;
       }
