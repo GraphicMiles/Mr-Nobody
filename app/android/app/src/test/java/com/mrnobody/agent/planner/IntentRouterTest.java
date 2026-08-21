@@ -59,7 +59,7 @@ public class IntentRouterTest {
 
     @Test
     public void researchReadAndUsePhrasingsAreTasks() {
-        // BUG-7: all of these were observed on-device landing on a raw
+        // Regression: all of these were observed on-device landing on a raw
         // results page instead of the agent.
         assertEquals(IntentType.TASK,
                 IntentRouter.route("research the tallest buildings in Africa"));

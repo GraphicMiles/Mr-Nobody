@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * Order read candidates by the likelihood that a plain HTTP fetch succeeds.
  *
- * <p>The owner's rule 6: rank CHOOSE PAGES by cheap-success. A host that has
+ * <p>Read-loop rule 6 (see README): rank candidate pages by cheap-success. A host that has
  * been serving usable text over plain HTTP is read before a host that keeps
  * demanding the twenty-second headless browser, so the read loop's early exit
  * (see {@link EvidenceSufficiency}) fires on the cheap sources first.

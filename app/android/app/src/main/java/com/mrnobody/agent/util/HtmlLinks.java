@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  *
  * <p>A page that lists a file only inside a script tag is why "the links
  * tool returned nothing downloadable" used to happen. This is the same
- * extraction the watch-party resolver used, without its host allowlists.
+ * extraction an earlier resolver used, without its host allowlists.
  */
 public final class HtmlLinks {
 

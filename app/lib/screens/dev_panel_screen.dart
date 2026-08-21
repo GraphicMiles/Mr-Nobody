@@ -206,7 +206,7 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
     final url = IntentRouter.route('https://example.com') == IntentType.url;
     final domain = IntentRouter.route('example.com') == IntentType.url;
     final task = IntentRouter.route('find laptops under 500000') == IntentType.task;
-    // BUG-7: a natural-language question is an agent task, not a raw search.
+    // A natural-language question is an agent task, not a raw search.
     // This fixture said `search` long after both routers were fixed — the
     // one ❌ on an otherwise green device run (2026-08-21).
     final question = IntentRouter.route('what is the capital of ghana') == IntentType.task;

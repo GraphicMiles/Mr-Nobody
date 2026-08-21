@@ -1,8 +1,8 @@
 # Mr Nobody — Roadmap
 
-This is the single source of truth for delivery status. Implementation guidance lives in `README.md`; no additional standing specification or status documents should be added.
+This is the single source of truth for delivery status. Implementation guidance lives in `README.md`; per-batch history lives in `SESSION-LOG.txt`. No additional standing documents.
 
-Audit baseline: `0afd06a` on 2026-08-19. Latest audited CI run: `32390059362`; hosted emulator smoke run `32390059414` passed on API 31 and API 34.
+Status baseline: 2026-08-21. The Flutter CI workflow is green at head with 901 JVM tests; the Android emulator workflow is manual-dispatch only (its last full run passed API 31 and API 34).
 
 Status vocabulary:
 
@@ -13,20 +13,25 @@ Status vocabulary:
 
 ## Executive status
 
-The repository now passes its complete automated pipeline after the architecture and release-hardening fixes. The next phase is feature-by-feature adversarial testing on physical Android devices, with each reported defect patched and regression-tested before continuing.
+Two delivery batches landed on 2026-08-20/21 on top of the hardening baseline:
 
-Automated success does not prove System WebView, Keystore, Storage Access Framework, notifications, WorkManager, proxy/Orbot, or process-death behavior on a phone. Those remain the acceptance boundary.
+1. **Read-loop economics** — the local agent stopped over-working: evidence-sufficiency early exit, escalation only on validated failure (8 s cap), a device-clock skill, single-retry policy, 90 s/120 s wall-clock budgets, and cheap-success candidate ranking. Device-verified effect: a fact question that previously ran 69+ seconds over six pages now answers in ~11 seconds with citations.
+2. **Bundled Tor + agent harness** — Nobody mode no longer requires Orbot: TorService (tor-android 0.4.7.14) starts on demand, applies the mode itself at the first circuit (readiness is Tor's own status word, never just an open port), fails closed otherwise, and yields to a running Orbot. The agent gained per-task tool scope, blocking answer verification with an extractive fallback, an intent-vs-outcome check, and a one-tap on-device test suite.
 
-Current device findings (2026-08-20) on build `6f5b99d`: public browsing state cleared and the private tab closed, but System WebView still reported `mrnobody-private` in use after profile-deletion retries; some betting redirects bypassed the navigation callback; and Back/Forward could restore a page without updating the address field. AdBlock Tester scored 53/100: Google Analytics and Hotjar execution checks passed, while Sentry/Bugsnag CDN scripts and the test site's same-origin banner files remained visible. The follow-ups are now pushed at head: private Dart/native/platform-view owners are awaited before native clear, `WebView.destroy()` is unconditional, redirect policy is applied again in main-frame interception for POST/callback-bypass paths, history-restored URLs are published through `doUpdateVisitedHistory`, and narrowly scoped rules cover the confirmed CDN/banner leaks. A fresh CI run and same-device retests remain required.
+First device runs of the suite surfaced and fixed: two app-killing packaging faults (an undeclared AAR dependency; missing JNI keep rules under R8), premature Tor readiness, CSS leaking into answers via `textContent` extraction, and image downloads blind to query-declared formats and lazy-loaded galleries. Each fix carries a regression or wiring test; the full history is in `SESSION-LOG.txt`.
+
+The acceptance boundary is unchanged: automated success does not prove System WebView, Keystore, Storage Access Framework, notifications, WorkManager, Tor routes, or process-death behavior on a phone. The device protocol below remains the sign-off path, now largely automated by the in-app Device suite (Dev mode → Benchmarks); the remaining manual checks are the "needs your eyes" list there.
+
+Remote workers and credits remain unstarted by design. The next toolchain step is the Flutter/AGP upgrade, which unlocks tor-android 0.4.9.x (needs compileSdk 37).
 
 ## Current automated evidence
 
 | Evidence | Result |
 |---|---|
-| GitHub Actions run | **Passed** — `32390059362` |
+| GitHub Actions run | **Passed** at head (Flutter workflow) |
 | Strict Flutter analysis | **Passed** |
 | Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **759 tests passed** at the current head |
+| Java/JVM suite | **901 tests passed** at the current head |
 | Android Gradle unit suite | **Passed** |
 | Privacy-auditor suite | **13 tests passed** |
 | Repository privacy audit | **Clean** |
@@ -36,8 +41,8 @@ Current device findings (2026-08-20) on build `6f5b99d`: public browsing state c
 | arm64-v8a APK | **17.06 MiB** |
 | x86_64 APK | **18.19 MiB** |
 | APK product limit | **Passed** — 45 MiB per ABI |
-| Documentation surface | **Passed** — only `README.md` and `ROADMAP.md` |
-| Hosted Android emulator matrix | **Passed** — run `32390059414`, API 31 and API 34 legs green with evidence artifacts |
+| Documentation surface | **Passed** — `README.md` and `ROADMAP.md` (plus the plain-text `SESSION-LOG.txt` ledger) |
+| Hosted Android emulator matrix | **Manual-dispatch only** — last full run green on API 31 and API 34 |
 | Physical-device matrix | **Not yet completed** |
 
 CI uses a stable, public test-only signing key so successive patched APKs can upgrade in place during device testing. Production signing requires protected external key material, never uses that public key, and never falls back to Android's debug key.
@@ -66,7 +71,7 @@ CI uses a stable, public test-only signing key so successive patched APKs can up
 | Capability | State | Acceptance boundary |
 |---|---|---|
 | Flutter shell, navigation and committed screen goldens | **Verified in CI** | Visual/gesture checks on real screen sizes |
-| API 31/34 hosted emulator smoke suite | **Verified in CI** — run `32390059414` | Launch, settings write/relaunch, local WorkManager task, pipeline expansion, background/restore and evidence capture |
+| API 31/34 hosted emulator smoke suite | **Manual-dispatch only** — last full run green | Launch, settings write/relaunch, local WorkManager task, pipeline expansion, background/restore and evidence capture |
 | Visible native System WebView | **Built, device-unverified** | Navigation, renderer lifecycle, crashes and low-memory recovery |
 | Retained tabs and previews | **Built, device-unverified** | Six-tab stress, close/reopen, private-tab no-thumbnail rule |
 | Unified URL/search/task input | **Verified off-device** | Real keyboard, paste and deep-link behavior |

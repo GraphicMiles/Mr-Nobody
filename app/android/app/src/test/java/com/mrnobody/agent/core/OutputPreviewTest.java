@@ -76,7 +76,7 @@ public class OutputPreviewTest {
 
     @Test
     public void previewingIsNotRecordedAsAnError() throws Exception {
-        // BUG-6: every big page read logged a non-error to the debug panel.
+        // Regression: every big page read once logged a non-error to the debug panel.
         String source = new String(java.nio.file.Files.readAllBytes(
                         java.nio.file.Paths.get(
                                 "src/main/java/com/mrnobody/agent/core/ToolPipeline.java")),

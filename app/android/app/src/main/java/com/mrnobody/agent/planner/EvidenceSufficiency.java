@@ -8,7 +8,7 @@ import java.util.Set;
 /**
  * When has the read loop gathered enough to answer?
  *
- * <p>The owner's rule 1: after each read, if at least {@link #MIN_SOURCES}
+ * <p>Read-loop rule 1 (see README): after each read, if at least {@link #MIN_SOURCES}
  * distinct sources each contribute at least {@link #MIN_SENTENCES_EACH}
  * question-matching prose sentences, stop reading and answer. Before this
  * existed the engine ground through every candidate the search returned —

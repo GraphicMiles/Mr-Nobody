@@ -16,7 +16,7 @@ import java.util.TreeSet;
  *
  * <p>Device evidence made the case: "whats the time" ran a five-page,
  * 53-second research task to learn something the phone already knew. This is
- * the owner's rule 3 — the cheapest sufficient action for a clock question is
+ * read-loop rule 3 (see README) — the cheapest sufficient action for a clock question is
  * reading the clock.
  *
  * <p>Conservative on purpose. Only instructions that <em>are</em> a clock

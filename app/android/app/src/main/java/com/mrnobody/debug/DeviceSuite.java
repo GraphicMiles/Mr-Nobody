@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * The one-tap device test suite (Dev mode → Benchmarks → Device suite).
  *
- * <p>Exists because the owner's manual retest list had grown to ~29 items ×
+ * <p>Exists because the manual retest list had grown to ~29 items ×
  * many minutes on a real phone. Everything here runs the REAL core on the
  * REAL device and network — the same engine instance, the same routes — and
  * turns an afternoon of tapping into one button and a copyable report. What
@@ -177,7 +177,7 @@ public final class DeviceSuite {
         }
         boolean pass = slash && verbs;
         return result(id, name, pass, pass
-                ? "slash commands + payload strip + BUG-7 verbs all route to task"
+                ? "slash commands + payload strip + instruction verbs all route to task"
                 : "slash=" + slash + " verbs=" + verbs);
     }
 

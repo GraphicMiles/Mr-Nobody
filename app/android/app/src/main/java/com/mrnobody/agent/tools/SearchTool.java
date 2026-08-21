@@ -170,7 +170,7 @@ public final class SearchTool implements Tool {
         }
 
         if (!refused.isEmpty()) {
-            // BUG-3: surface which engines refused and why in the debug log,
+            // Surface which engines refused and why in the debug log,
             // so a device failure reads as "consent wall on engine X" instead
             // of a bare "no results".
             com.mrnobody.debug.ErrorLog.record(

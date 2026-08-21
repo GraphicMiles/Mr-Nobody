@@ -240,7 +240,7 @@ public final class Settings {
 
     /**
      * Sandboxed terminal tool. OFF by default: the agent may not run shell
-     * commands unless the user explicitly turns this on (spec §policy gate).
+     * commands unless the user explicitly turns this on (see the terminal policy gate).
      */
     public boolean isTerminalEnabled() {
         return prefs.getBoolean(KEY_TERMINAL_ENABLED, false);

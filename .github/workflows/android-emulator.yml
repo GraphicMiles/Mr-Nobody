@@ -1,15 +1,10 @@
 name: Android Emulator Smoke
 
+# Manual-only by decision (2026-08-21): the hosted API 34 leg repeatedly ran
+# past its 40-minute ceiling on shared runners and cost a manual re-run almost
+# every push, while the Flutter workflow already compiles, tests and gates the
+# same code. Run from the Actions tab when emulator evidence is wanted.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'app/**'
-      - '.github/workflows/android-emulator.yml'
-  pull_request:
-    paths:
-      - 'app/**'
-      - '.github/workflows/android-emulator.yml'
   workflow_dispatch:
 
 permissions:

@@ -56,7 +56,7 @@ public final class PrivacyController {
 
     private static volatile PrivacyMode current = PrivacyMode.NORMAL;
 
-    // ---- bundled-Tor auto-apply state (owner-chosen UX: no manual retry) ----
+    // ---- bundled-Tor auto-apply state (UX rule: never demand a manual retry) ----
 
     /** True while a background waiter is holding a NOBODY request open. */
     private static volatile boolean torPending;
@@ -218,7 +218,7 @@ public final class PrivacyController {
     }
 
     /**
-     * The auto-apply waiter (owner-chosen UX): wait out the bootstrap on a
+     * The auto-apply waiter: wait out the bootstrap on a
      * background thread, then re-run the apply on the main thread. A newer
      * user decision (any public {@code apply}) advances the generation and
      * turns this waiter into a no-op — a user who chose NORMAL mid-bootstrap

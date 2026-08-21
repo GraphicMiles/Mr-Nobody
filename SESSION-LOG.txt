@@ -355,3 +355,25 @@ data-lazy-src / data-srcset, where these galleries keep the real file.
 
 JVM suite 901 green. d1a0969 CI: Flutter ✅, emulator in progress at the
 time of this entry.
+
+---
+
+## 2026-08-21 — HOUSEKEEPING: emulator workflow manual-only, jargon sweep, docs refreshed
+
+- Android Emulator Smoke no longer runs on push (workflow_dispatch only):
+  the API 34 leg overran its 40-minute ceiling on most runs and cost a
+  manual re-run each time, while the Flutter workflow already compiles,
+  tests and gates the same code. Dispatch it from the Actions tab when
+  emulator evidence is specifically wanted.
+- Jargon sweep across main + test sources: internal shorthand (BUG-N
+  numbers, prior-project names, "owner's rule N") replaced with plain
+  descriptions; the read-loop rules now have one canonical home in
+  README.md ("Read-loop economics, rules 1-6") that code comments cite.
+  Dead stillStartingMessage() removed (auto-apply made it unreachable).
+- Documentation surface confirmed at exactly three files and all three
+  refreshed: README.md (snapshot, new capabilities, read-loop rules,
+  test-strategy and CI sections, correct commit author), ROADMAP.md
+  (2026-08-21 status head, 901-test evidence, manual-only emulator),
+  SESSION-LOG.txt (this ledger). The other tracked .txt files are data and
+  font licenses, not documents.
+- JVM suite green at 901 after the sweep.

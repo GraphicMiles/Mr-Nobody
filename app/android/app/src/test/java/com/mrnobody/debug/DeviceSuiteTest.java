@@ -100,7 +100,7 @@ public class DeviceSuiteTest {
     @Test
     public void theDartPanelFixtureExpectsQuestionsToBeTasks() throws IOException {
         // The one ❌ of the first device run: the Dart fixture still said
-        // `search` for a question, long after BUG-7 fixed both routers.
+        // `search` for a question, long after the routers made questions tasks.
         String panel = read("../../lib/screens/dev_panel_screen.dart");
         assertTrue(panel.contains(
                 "IntentRouter.route('what is the capital of ghana') == IntentType.task"));

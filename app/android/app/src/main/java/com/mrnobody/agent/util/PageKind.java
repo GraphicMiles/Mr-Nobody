@@ -5,7 +5,7 @@ import java.util.Locale;
 /**
  * What a raw HTTP body actually is.
  *
- * <p>From the web-scraper skill's Phase 0 gate and scrapling's fetcher
+ * <p>A pre-read classification gate in the spirit of tiered-fetcher
  * tree: decide HTTP vs browser from the document, not from a site list.
  * A challenge page that returns 200 is not a successful read. A Next.js
  * dump is not empty just because the visible DOM is a spinner.
