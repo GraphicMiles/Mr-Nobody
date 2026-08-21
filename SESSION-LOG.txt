@@ -226,3 +226,23 @@ non-initializing Class.forName is also what keeps Gradle unit tests from
 loading libtor). Flutter Build ✅ + Emulator Smoke API 31/34 ✅ at 5340051.
 JVM suite 881 green. Owner retest: T1/T2 (crash is prevented by packaging
 LocalBroadcastManager; verify Nobody now applies and exits via Tor).
+
+---
+
+## 2026-08-21 (later still) — DEFECT 2: release-only crash in the tor thread
+
+**Report:** owner stack trace — NoSuchFieldError: no "J" field
+"torConfiguration" in TorService, thrown from mainConfigurationFree (native),
+frames showing R8-obfuscated names (TorService.i, inner class $c).
+
+**Root cause:** release builds minify with R8; libtor.so resolves
+TorService's fields via JNI (GetFieldID) at RUNTIME, invisible to R8, which
+stripped the private fields. The 0.4.7.14 AAR ships no consumer proguard
+rules. Debug builds don't minify — hence green CI emulators alongside a
+crashing release APK. Lesson recorded: for JNI-heavy deps, emulator-green ≠
+release-green; the smoke tests exercise debug.
+
+**Fix:** app-level proguard-rules.pro keeping org.torproject.jni.** and
+net.freehaven.tor.control.**, applied via proguardFile on the release build
+type (appended to Flutter's own rules). Wiring test pins the rules AND that
+the file is actually referenced. JVM suite 881 green.
