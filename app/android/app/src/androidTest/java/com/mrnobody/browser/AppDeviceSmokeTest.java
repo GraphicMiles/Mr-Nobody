@@ -28,6 +28,7 @@ import org.junit.runner.RunWith;
 import java.io.File;
 import java.util.List;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -67,6 +68,19 @@ public final class AppDeviceSmokeTest {
                     target.getPackageName(), Manifest.permission.POST_NOTIFICATIONS);
         } catch (Throwable ignored) {
             // Android 12 has no runtime notification permission.
+        }
+    }
+
+    @Test
+    public void providerKeyRoundTripsThroughAndroidKeystore() {
+        Settings settings = new Settings(target);
+        String synthetic = "android-keystore-test-only";
+        settings.removeApiKey("openai");
+        try {
+            assertTrue("provider key should encrypt", settings.setApiKey("openai", synthetic));
+            assertEquals("provider key should decrypt", synthetic, settings.apiKey("openai"));
+        } finally {
+            settings.removeApiKey("openai");
         }
     }
 
