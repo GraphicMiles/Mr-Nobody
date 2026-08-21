@@ -69,7 +69,7 @@ public final class AutonomousPlanner {
         sb.append("Question from the user:\n").append(instruction).append("\n\n");
         sb.append("You may call these tools: ").append(String.join(", ", availableTools)).append("\n");
         sb.append("search takes {q}; http takes {url}; browser takes {url,action}; ")
-                .append("download takes {url}; terminal takes {cmd}; memory takes {q}.\n\n");
+                .append("download takes {url}; terminal takes {cmd}.\n\n");
         sb.append("For research and monitoring, prefer the read-only tools — search, ")
                 .append("http, and browser (action fetch or open) — and say {done} once you ")
                 .append("have read enough. If the user named a site, fetch that site; do not substitute other sites. If they asked to keep watching something, fetch the page. Mr Nobody schedules the repeat, so do not recommend other monitoring apps. terminal and download are for when the user ")

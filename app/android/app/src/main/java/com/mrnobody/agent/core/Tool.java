@@ -22,6 +22,15 @@ public interface Tool {
      */
     ToolResult execute(Context context, ToolRequest request);
 
+    /**
+     * Cancellable execution seam. Existing short tools inherit the legacy
+     * implementation; side-effecting/long-running tools override it and stop
+     * their underlying work, not merely the wrapper Future.
+     */
+    default ToolResult execute(Context context, ToolRequest request, Cancellation cancellation) {
+        return execute(context, request);
+    }
+
     /** Stable tool name used in routing and logging. */
     default String name() {
         return spec().name();

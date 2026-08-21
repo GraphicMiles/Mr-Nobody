@@ -23,7 +23,7 @@ import java.util.List;
 public final class DownloadStore extends SQLiteOpenHelper {
 
     private static final String DB = "downloads.db";
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final String TABLE = "downloads";
 
     private static volatile DownloadStore instance;
@@ -60,6 +60,7 @@ public final class DownloadStore extends SQLiteOpenHelper {
                 + "error TEXT,"
                 + "etag TEXT,"
                 + "resumable INTEGER NOT NULL DEFAULT 0,"
+                + "risky_approved INTEGER NOT NULL DEFAULT 0,"
                 + "created_at INTEGER NOT NULL,"
                 + "updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_downloads_status ON " + TABLE + "(status)");
@@ -67,8 +68,11 @@ public final class DownloadStore extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // Version 1 is the first schema. Future migrations belong here; a
-        // download list is user data, so this must never be a drop-and-create.
+        // Never drop this table: partial downloads are user data.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE " + TABLE
+                    + " ADD COLUMN risky_approved INTEGER NOT NULL DEFAULT 1");
+        }
     }
 
     // ----------------------------------------------------------------- writes
@@ -158,6 +162,7 @@ public final class DownloadStore extends SQLiteOpenHelper {
         v.put("error", r.error);
         v.put("etag", r.etag);
         v.put("resumable", r.resumable ? 1 : 0);
+        v.put("risky_approved", r.riskyApproved ? 1 : 0);
         v.put("created_at", r.createdAt);
         v.put("updated_at", r.updatedAt);
         return v;
@@ -179,6 +184,7 @@ public final class DownloadStore extends SQLiteOpenHelper {
         r.error = c.getString(c.getColumnIndexOrThrow("error"));
         r.etag = c.getString(c.getColumnIndexOrThrow("etag"));
         r.resumable = c.getInt(c.getColumnIndexOrThrow("resumable")) == 1;
+        r.riskyApproved = c.getInt(c.getColumnIndexOrThrow("risky_approved")) == 1;
         r.createdAt = c.getLong(c.getColumnIndexOrThrow("created_at"));
         r.updatedAt = c.getLong(c.getColumnIndexOrThrow("updated_at"));
         return r;

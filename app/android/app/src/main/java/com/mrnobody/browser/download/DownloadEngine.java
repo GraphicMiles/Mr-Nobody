@@ -6,6 +6,7 @@ import android.net.Uri;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.mrnobody.agent.util.NetworkTargetPolicy;
 import com.mrnobody.browser.net.NetworkGate;
 import com.mrnobody.debug.ErrorLog;
 
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -118,17 +120,29 @@ public final class DownloadEngine {
      */
     @Nullable
     public DownloadRecord awaitTerminal(long id, long timeoutMs) {
+        return awaitTerminal(id, timeoutMs, () -> false);
+    }
+
+    /** Cancellable wait; cancellation or interruption also stops the transfer. */
+    @Nullable
+    public DownloadRecord awaitTerminal(long id, long timeoutMs,
+                                        java.util.function.BooleanSupplier cancelled) {
         long deadline = System.currentTimeMillis() + Math.max(250L, timeoutMs);
         DownloadRecord latest = store.find(id);
         while (System.currentTimeMillis() < deadline) {
+            if (cancelled != null && cancelled.getAsBoolean()) {
+                cancel(id);
+                return store.find(id);
+            }
             latest = store.find(id);
             if (latest == null) return null;
             if (latest.status != null && latest.status.isTerminal()) return latest;
             try {
                 Thread.sleep(250);
             } catch (InterruptedException e) {
+                cancel(id);
                 Thread.currentThread().interrupt();
-                return latest;
+                return store.find(id);
             }
         }
         return latest;
@@ -141,13 +155,23 @@ public final class DownloadEngine {
     public DownloadRecord enqueue(@NonNull String url, @NonNull String fileName,
                                   @Nullable String mime, @Nullable String userAgent,
                                   @Nullable String referrer) {
+        return enqueue(url, fileName, mime, userAgent, referrer, false);
+    }
+
+    public DownloadRecord enqueue(@NonNull String url, @NonNull String fileName,
+                                  @Nullable String mime, @Nullable String userAgent,
+                                  @Nullable String referrer, boolean riskyApproved) {
         DownloadDestination destination = new DownloadDestination(context);
         DownloadRecord record = DownloadRecord.create(
-                url, fileName, mime, userAgent, referrer, destination.label());
+                url, fileName, mime, userAgent, referrer, destination.label(), riskyApproved);
         store.insert(record);
+        // Register the job before publishing QUEUED. A listener can act on that
+        // first event immediately; it must find the job and set its stop flag
+        // before the pool is allowed to start it.
+        Job job = prepare(record);
         publish(record);
         DownloadService.wake(context);
-        submit(record);
+        start(job);
         return record;
     }
 
@@ -157,8 +181,7 @@ public final class DownloadEngine {
      */
     public boolean pause(long id) {
         Job job = jobs.get(id);
-        if (job != null) {
-            job.pauseRequested = true;
+        if (job != null && job.requestPause()) {
             job.cancelStream();
             return true;
         }
@@ -180,17 +203,17 @@ public final class DownloadEngine {
         record.status = DownloadRecord.Status.QUEUED;
         record.error = null;
         store.update(record);
+        Job job = prepare(record);
         publish(record);
         DownloadService.wake(context);
-        submit(record);
+        start(job);
         return true;
     }
 
     /** Stop for good and delete the partial file. */
     public boolean cancel(long id) {
         Job job = jobs.get(id);
-        if (job != null) {
-            job.cancelRequested = true;
+        if (job != null && job.requestCancel()) {
             job.cancelStream();
         }
         DownloadRecord record = store.find(id);
@@ -242,17 +265,20 @@ public final class DownloadEngine {
 
     private void cancelQuietly(long id) {
         Job job = jobs.get(id);
-        if (job != null) {
-            job.cancelRequested = true;
+        if (job != null && job.requestCancel()) {
             job.cancelStream();
         }
     }
 
     // ------------------------------------------------------------- plumbing
 
-    private void submit(DownloadRecord record) {
+    private Job prepare(DownloadRecord record) {
         Job job = new Job(record);
         jobs.put(record.id, job);
+        return job;
+    }
+
+    private void start(Job job) {
         job.future = pool.submit(job);
     }
 
@@ -274,10 +300,25 @@ public final class DownloadEngine {
         volatile boolean cancelRequested;
         volatile boolean finished;
         volatile Future<?> future;
+        private boolean completionCommitted;
         private volatile HttpURLConnection connection;
 
         Job(DownloadRecord record) {
             this.record = record;
+        }
+
+        /** Claim cancellation unless completion already committed atomically. */
+        synchronized boolean requestCancel() {
+            if (completionCommitted || finished) return false;
+            cancelRequested = true;
+            return true;
+        }
+
+        /** Claim a pause unless completion already committed atomically. */
+        synchronized boolean requestPause() {
+            if (completionCommitted || finished || cancelRequested) return false;
+            pauseRequested = true;
+            return true;
         }
 
         /**
@@ -300,7 +341,16 @@ public final class DownloadEngine {
             try {
                 transfer();
             } catch (Throwable t) {
-                fail(friendly(t));
+                // disconnect() is how pause/cancel breaks a connect or read.
+                // Never let that expected exception overwrite the user's
+                // terminal state with FAILED.
+                if (cancelRequested) {
+                    // cancel() already persisted CANCELLED and removed bytes.
+                } else if (pauseRequested) {
+                    park(record.bytes);
+                } else {
+                    fail(friendly(t));
+                }
             } finally {
                 finished = true;
                 jobs.remove(record.id);
@@ -308,18 +358,42 @@ public final class DownloadEngine {
         }
 
         private void transfer() throws IOException {
-            record.status = DownloadRecord.Status.RUNNING;
-            record.error = null;
-            store.update(record);
-            publish(record);
+            // A queued job can be cancelled or paused before its pool thread
+            // starts. Serialize that decision with the RUNNING transition so
+            // this worker cannot resurrect a terminal database row.
+            synchronized (this) {
+                if (cancelRequested) return;
+                if (pauseRequested) {
+                    park(record.bytes);
+                    return;
+                }
+                record.status = DownloadRecord.Status.RUNNING;
+                record.error = null;
+                store.update(record);
+                publish(record);
+            }
 
             DownloadSink sink = openSink();
             // Trust the file, not the database: if a previous run died between
             // writing bytes and recording them, the file length is the truth.
             long from = sink == null ? 0 : sink.size();
+            if (from > 0 && (record.etag == null || record.etag.trim().isEmpty())) {
+                // Appending without an ETag/Last-Modified validator can splice
+                // a replaced remote file onto an old prefix. Sacrifice the
+                // resume rather than the file's integrity.
+                DownloadSink.discard(context, record.destUri);
+                record.destUri = null;
+                record.bytes = 0;
+                record.total = DownloadRecord.UNKNOWN_SIZE;
+                sink = null;
+                from = 0;
+                store.update(record);
+            }
 
-            HttpURLConnection conn = connect(from);
+            Connected connected = connect(from);
+            HttpURLConnection conn = connected.connection;
             this.connection = conn;
+            try {
             int code = conn.getResponseCode();
 
             if (!DownloadResume.isUsable(code)) {
@@ -333,14 +407,27 @@ public final class DownloadEngine {
 
             record.resumable = DownloadResume.supportsRanges(
                     code, conn.getHeaderField("Accept-Ranges"));
-            String validator = DownloadResume.validator(
-                    conn.getHeaderField("ETag"), conn.getHeaderField("Last-Modified"));
-            if (validator != null) record.etag = validator;
+            String responseEtag = conn.getHeaderField("ETag");
+            String responseLastModified = conn.getHeaderField("Last-Modified");
+            String validator = DownloadResume.validator(responseEtag, responseLastModified);
 
             // Content-Range first: the server stating the whole size beats us
             // inferring it by adding our offset to a body length, which
             // double-counts whenever a CDN answers a range with the full file.
             String contentRange = conn.getHeaderField("Content-Range");
+            if (from > 0 && code == DownloadResume.PARTIAL) {
+                if (!DownloadResume.startsAt(contentRange, from)) {
+                    throw new IOException("Server returned a different byte range; partial file was not changed");
+                }
+                if (!DownloadResume.responseMatchesValidator(
+                        record.etag, responseEtag, responseLastModified)) {
+                    throw new IOException("The remote file changed; partial file was not changed");
+                }
+            }
+            // Do not replace the validator until the response has proved safe
+            // to append. Persisting a mismatched new validator beside an old
+            // prefix would make the next retry corrupt the file.
+            if (validator != null) record.etag = validator;
             if (DownloadResume.lengthDescribesTheStream(conn.getContentEncoding())) {
                 record.total = DownloadResume.totalSize(
                         code, from, contentLength(conn), contentRange);
@@ -352,14 +439,30 @@ public final class DownloadEngine {
                 record.total = stated > 0 ? stated : DownloadRecord.UNKNOWN_SIZE;
             }
 
+            // Now — and only now — final redirects and response headers tell
+            // us what this file really is. Re-run the executable risk gate
+            // before opening a destination or writing one byte.
+            refineMetadata(conn, connected.url);
+            DownloadRisk.Assessment finalRisk = DownloadRisk.assess(
+                    record.fileName, record.mime, connected.url);
+            if (finalRisk.requiresConfirmation && !record.riskyApproved) {
+                throw new IOException("Download changed to a risky file: " + finalRisk.reason);
+            }
             if (sink == null) {
-                // Now — and only now — we know what this file really is.
-                sink = createSink(conn);
+                sink = createSink();
                 record.destUri = sink.uri().toString();
             }
             record.bytes = from;
             store.update(record);
             publish(record);
+            } catch (Throwable t) {
+                this.connection = null;
+                try { conn.disconnect(); } catch (Throwable ignored) { }
+                if (t instanceof IOException) throw (IOException) t;
+                if (t instanceof RuntimeException) throw (RuntimeException) t;
+                if (t instanceof Error) throw (Error) t;
+                throw new IOException(t);
+            }
 
             long written = from;
             long lastTick = 0;
@@ -406,14 +509,36 @@ public final class DownloadEngine {
             }
 
             if (cancelRequested) return;
+            if (pauseRequested) {
+                park(written);
+                return;
+            }
+            if (!DownloadResume.isComplete(written, record.total)) {
+                record.bytes = written;
+                store.update(record);
+                throw new IOException("Download ended after " + written
+                        + " bytes; expected " + record.total);
+            }
 
-            sink.publish();
-            record.bytes = written;
-            if (record.total <= 0) record.total = written;
-            record.status = DownloadRecord.Status.COMPLETED;
-            record.error = null;
-            store.update(record);
-            publish(record);
+            // Serialize the final publish with pause/cancel. Whichever claims
+            // the job first wins: a completed file cannot be cancelled as a
+            // partial, and a claimed cancellation cannot be resurrected as
+            // COMPLETED a few instructions later.
+            synchronized (this) {
+                if (cancelRequested) return;
+                if (pauseRequested) {
+                    park(written);
+                    return;
+                }
+                sink.publish();
+                record.bytes = written;
+                if (record.total <= 0) record.total = written;
+                record.status = DownloadRecord.Status.COMPLETED;
+                record.error = null;
+                store.update(record);
+                publish(record);
+                completionCommitted = true;
+            }
         }
 
         /** Stop cleanly, keeping the offset so Resume can pick it up. */
@@ -441,56 +566,122 @@ public final class DownloadEngine {
             return sink.size() > 0 || record.bytes == 0 ? sink : null;
         }
 
-        private DownloadSink createSink(HttpURLConnection conn) throws IOException {
+        private void refineMetadata(HttpURLConnection conn, String responseUrl) {
             String disposition = conn.getHeaderField("Content-Disposition");
             String type = conn.getContentType();
-            // The server's headers beat anything guessed from the link: this is
-            // what stops an .mkv being saved as downloadfile.bin.
-            String name = DownloadNaming.fileName(record.url, disposition,
+            // The final URL/headers beat anything guessed from the original
+            // link: this is what stops an .mkv being saved as downloadfile.bin.
+            String name = DownloadNaming.fileName(responseUrl, disposition,
                     type != null ? type : record.mime);
             if (name != null && !name.isEmpty()) record.fileName = name;
             if (type != null && !type.isEmpty()) {
                 int semi = type.indexOf(';');
                 record.mime = (semi > 0 ? type.substring(0, semi) : type).trim();
             }
+        }
+
+        private DownloadSink createSink() throws IOException {
             DownloadDestination destination = new DownloadDestination(context);
             Uri tree = destination.treeUri();
             record.destLabel = destination.label();
             return DownloadSink.create(context, tree, record.fileName, record.mime);
         }
 
-        private HttpURLConnection connect(long from) throws IOException {
-            HttpURLConnection conn = NetworkGate.openHttp(record.url);
-            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            conn.setReadTimeout(READ_TIMEOUT_MS);
-            conn.setInstanceFollowRedirects(true);
-            if (record.userAgent != null && !record.userAgent.isEmpty()) {
-                conn.setRequestProperty("User-Agent", record.userAgent);
+        private final class Connected {
+            final HttpURLConnection connection;
+            final String url;
+
+            Connected(HttpURLConnection connection, String url) {
+                this.connection = connection;
+                this.url = url;
             }
-            if (record.referrer != null && !record.referrer.isEmpty()) {
-                conn.setRequestProperty("Referer", record.referrer);
+        }
+
+        /** Follow redirects manually so every hop is checked and credentials are re-scoped. */
+        private Connected connect(long from) throws IOException {
+            String current = record.url;
+            if (current.regionMatches(true, 0, "http://", 0, 7)) {
+                throw new IOException("Cleartext HTTP downloads are not supported; use HTTPS");
             }
-            try {
-                String cookie = com.mrnobody.browser.MrNobodyApp.accounts()
-                        .headerForUrl(record.url);
-                if (cookie != null && !cookie.isEmpty()) {
-                    conn.setRequestProperty("Cookie", cookie);
+            boolean sendReferrer = true;
+            // A public-looking start may never pivot into localhost/LAN. A user
+            // who explicitly starts on a local URL keeps that visible-browser
+            // capability, while autonomous tools reject such starts earlier.
+            boolean publicStart = NetworkTargetPolicy.publicReason(current, false) == null;
+            for (int redirects = 0; redirects <= 5; redirects++) {
+                if (publicStart) {
+                    NetworkTargetPolicy.requirePublic(current,
+                            NetworkGate.canConnect() && NetworkGate.resolvesTargetsLocally());
                 }
-            } catch (Throwable ignored) {
+                HttpURLConnection conn = NetworkGate.openHttp(current);
+                this.connection = conn;
+                conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                conn.setReadTimeout(READ_TIMEOUT_MS);
+                conn.setInstanceFollowRedirects(false);
+                if (record.userAgent != null && !record.userAgent.isEmpty()) {
+                    conn.setRequestProperty("User-Agent", record.userAgent);
+                }
+                if (sendReferrer && current.regionMatches(true, 0, "https://", 0, 8)
+                        && record.referrer != null && !record.referrer.isEmpty()) {
+                    conn.setRequestProperty("Referer", record.referrer);
+                }
+                try {
+                    String cookie = com.mrnobody.browser.MrNobodyApp.accounts()
+                            .headerForUrl(current);
+                    if (cookie != null && !cookie.isEmpty()) {
+                        conn.setRequestProperty("Cookie", cookie);
+                    }
+                } catch (Throwable ignored) {
+                }
+                // Keep Content-Length and written bytes in the same units.
+                conn.setRequestProperty("Accept-Encoding", "identity");
+                if (from > 0) {
+                    conn.setRequestProperty("Range", DownloadResume.rangeHeader(from));
+                    if (record.etag != null) conn.setRequestProperty("If-Range", record.etag);
+                }
+
+                final int code;
+                try {
+                    code = conn.getResponseCode();
+                } catch (IOException e) {
+                    this.connection = null;
+                    conn.disconnect();
+                    throw e;
+                }
+                if (!isRedirect(code)) return new Connected(conn, current);
+                String location = conn.getHeaderField("Location");
+                conn.disconnect();
+                this.connection = null;
+                if (location == null || location.trim().isEmpty()) {
+                    throw new IOException("Redirect had no Location header");
+                }
+                if (redirects == 5) throw new IOException("Too many redirects");
+                String next = new URL(new URL(current), location).toString();
+                if (!sameOrigin(current, next)) sendReferrer = false;
+                current = next;
             }
-            // Without this the client advertises gzip and decompresses
-            // silently, so Content-Length describes the compressed body while
-            // we count expanded bytes -- two different measurements either
-            // side of the same percentage. A file transfer wants the bytes as
-            // they are, not a re-encoded copy of them.
-            conn.setRequestProperty("Accept-Encoding", "identity");
-            if (from > 0) {
-                conn.setRequestProperty("Range", DownloadResume.rangeHeader(from));
-                // If the file changed, the server sends 200 and we start over,
-                // instead of appending new bytes onto a stale prefix.
-                if (record.etag != null) conn.setRequestProperty("If-Range", record.etag);
+            throw new IOException("Too many redirects");
+        }
+
+        private boolean isRedirect(int code) {
+            return code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
+        }
+
+        private boolean sameOrigin(String first, String second) {
+            try {
+                URL a = new URL(first);
+                URL b = new URL(second);
+                return a.getProtocol().equalsIgnoreCase(b.getProtocol())
+                        && a.getHost().equalsIgnoreCase(b.getHost())
+                        && effectivePort(a) == effectivePort(b);
+            } catch (Exception e) {
+                return false;
             }
-            return conn;
+        }
+
+        private int effectivePort(URL url) {
+            int explicit = url.getPort();
+            return explicit >= 0 ? explicit : url.getDefaultPort();
         }
     }
 

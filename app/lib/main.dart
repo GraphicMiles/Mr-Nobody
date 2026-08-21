@@ -75,6 +75,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   ShellTab _tab = ShellTab.home;
   bool? _launched; // null = still asking the core
   bool _navVisible = true;
+  bool _deepLinkPromptOpen = false;
   final Map<ShellTab, double> _lastScrollOffset = {
     for (final t in ShellTab.values) t: 0,
   };
@@ -149,11 +150,23 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _handleDeepLink(call.arguments as String);
       }
     });
+    // Pull only after the Dart handler exists and the first frame can safely
+    // show a route/dialog. Native queues the cold VIEW intent until this call.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final initial = await ch.invokeMethod<String>('getInitialLink');
+        if (mounted && initial != null && initial.isNotEmpty) {
+          _handleDeepLink(initial);
+        }
+      } on PlatformException catch (e) {
+        ErrorLog.instance.add('initial deep link unavailable: ${e.message ?? e.code}');
+      }
+    });
   }
 
   void _handleDeepLink(String uri) {
     if (uri.startsWith('http://') || uri.startsWith('https://')) {
-      _openBrowser(uri);
+      _openBrowser(IntentRouter.toUrl(uri));
       return;
     }
     if (!uri.startsWith('mrnobody://')) return;
@@ -161,7 +174,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final body = uri.substring('mrnobody://'.length);
     final parts = body.split('?');
     final path = parts.first;
-    final q = parts.length > 1 ? Uri.splitQueryString(parts[1]) : const <String, String>{};
+    Map<String, String> q;
+    try {
+      q = parts.length > 1
+          ? Uri.splitQueryString(parts.sublist(1).join('?'))
+          : const <String, String>{};
+    } on FormatException {
+      ErrorLog.instance.add('malformed deep link ignored');
+      return;
+    }
 
     switch (path) {
       case 'open':
@@ -183,7 +204,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           break;
         }
         final instruction = q['instruction'] ?? '';
-        if (instruction.isNotEmpty) _runTask(instruction);
+        if (instruction.isNotEmpty) _confirmDeepLinkedTask(instruction);
         break;
       case 'tabs':
         _select(ShellTab.tabs);
@@ -206,6 +227,44 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       default:
         ErrorLog.instance.add('unknown deep link: $uri');
     }
+  }
+
+  /// A custom-scheme intent is controlled by another app or a web page. It may
+  /// suggest work, but it must never silently create network traffic, provider
+  /// charges, or files. The user sees the decoded instruction before enqueue.
+  Future<void> _confirmDeepLinkedTask(String instruction) async {
+    if (!mounted || _deepLinkPromptOpen) return;
+    if (instruction.length > 4000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This linked task is too long to review safely.')),
+      );
+      return;
+    }
+    _deepLinkPromptOpen = true;
+    bool? allowed;
+    try {
+      allowed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Start this agent task?'),
+          content: SingleChildScrollView(child: SelectableText(instruction)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Start task'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _deepLinkPromptOpen = false;
+    }
+    if (allowed == true && mounted) await _runTask(instruction);
   }
 
   // -------------------------------------------------------------- routing

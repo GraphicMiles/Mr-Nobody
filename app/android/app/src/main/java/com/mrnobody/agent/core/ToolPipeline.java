@@ -181,7 +181,9 @@ public final class ToolPipeline {
         // browser suppliers resolve to null.
         long taskId = TaskScope.currentTask();
         Future<ToolResult> future = EXECUTOR.submit(
-                () -> TaskScope.callAs(taskId, () -> tool.execute(context, request)));
+                () -> TaskScope.callAs(taskId,
+                        () -> tool.execute(context, request,
+                                cancellation == null ? Cancellation.NONE : cancellation)));
         long deadline = System.currentTimeMillis() + spec.timeoutMs();
         try {
             while (true) {

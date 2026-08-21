@@ -16,7 +16,10 @@ import androidx.test.filters.LargeTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
+import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiDevice;
+import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -79,6 +82,12 @@ public final class AppDeviceSmokeTest {
         taskIntent.setPackage(target.getPackageName());
         taskIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         target.startActivity(taskIntent);
+
+        // External task links must be visible and explicitly confirmed before
+        // any work is enqueued. Confirm through the production Flutter dialog.
+        UiObject2 startTask = device.wait(Until.findObject(By.text("Start task")), 5_000L);
+        assertNotNull("deep-link task confirmation", startTask);
+        startTask.click();
 
         // Leave immediately: WorkManager/foreground execution, not a visible
         // Activity loop, must finish and persist the task.

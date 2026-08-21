@@ -61,6 +61,23 @@ public interface AiProvider {
         });
     }
 
+    /** Handle for aborting an in-flight provider request. */
+    interface RequestHandle {
+        RequestHandle NONE = () -> { };
+        void cancel();
+    }
+
+    /**
+     * Start a stream and return something that can abort its socket/thread.
+     * Providers that have not implemented cancellation keep working through
+     * the legacy method, but remote HTTP providers must override this.
+     */
+    default RequestHandle streamCancellable(String systemPrompt, String userMessage,
+                                            StreamCallback callback) {
+        stream(systemPrompt, userMessage, callback);
+        return RequestHandle.NONE;
+    }
+
     /**
      * Ask the provider which models the user's key can actually use.
      *

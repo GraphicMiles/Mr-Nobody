@@ -266,6 +266,7 @@ public final class Diagnostics {
                             "recall found the right task; digest built");
                 }));
 
+        out.addAll(SecurityDiagnostics.runPure());
         return out;
     }
 
@@ -521,6 +522,7 @@ public final class Diagnostics {
                                     detail + " — in NOBODY while the route is down");
                 }));
 
+        out.addAll(SecurityDiagnostics.runDevice(context));
         return out;
     }
 

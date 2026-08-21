@@ -24,7 +24,6 @@ import com.mrnobody.agent.util.Hosts;
 import com.mrnobody.agent.util.RobotsRules;
 import com.mrnobody.agent.util.TitleMatch;
 import com.mrnobody.agent.util.XQuery;
-import com.mrnobody.agent.memory.MemoryDigest;
 import com.mrnobody.agent.tasks.ChangeDetector;
 import com.mrnobody.agent.tasks.Schedule;
 import com.mrnobody.agent.tasks.TaskEventDetail;
@@ -1063,17 +1062,12 @@ public final class DeterministicEngine implements AgentEngine {
                         + "\"follow this account\". Describe what is on the page, and "
                         + "the schedule note will be appended.";
             }
-            // Auto-injected memory: what the agent already did, as context only.
-            // It is not a citable source — the verifier still checks every
-            // citation against the pages actually read — but it gives the
-            // answer continuity without the user repeating themselves.
-            String memory = MemoryDigest.digest(
-                    MrNobodyApp.tasks().recent(50),
-                    r.asked != null ? r.asked : task.conversation());
-            if (!memory.isEmpty()) {
-                prompt = "Context — your recent work on this device (for continuity "
-                        + "only; do not cite it as a source):\n" + memory + "\n\n" + prompt;
-            }
+            // Task history is deliberately not added to a remote-provider
+            // prompt. The Memory screen promises that remembered work stays on
+            // this device, and MemoryPolicy is not yet wired to an explicit
+            // opt-in store. Reintroducing continuity here must first add that
+            // consent boundary, apply the secret filter, and fence every stored
+            // value as untrusted content.
             if (r.capReason != null) {
                 // The ceiling was reached mid-run: report it rather than making
                 // yet another billed call to say so.
@@ -1568,53 +1562,50 @@ public final class DeterministicEngine implements AgentEngine {
                                long taskId, Research r) {
         final CountDownLatch latch = new CountDownLatch(1);
         final String[] out = {null};
+        final java.util.concurrent.atomic.AtomicBoolean accepting =
+                new java.util.concurrent.atomic.AtomicBoolean(true);
+        AiProvider.RequestHandle request = provider.streamCancellable(
+                SYSTEM_PROMPT, prompt, new AiProvider.StreamCallback() {
+            @Override public void onToken(String token) {
+                if (!accepting.get()) return;
+                TaskStreamHub.instance().emitToken(taskId, token);
+            }
+            @Override public void onDone(String fullText) {
+                if (!accepting.compareAndSet(true, false)) return;
+                out[0] = fullText;
+                TaskStreamHub.instance().emitDone(taskId, fullText);
+                latch.countDown();
+            }
+            @Override public void onError(String error) {
+                if (!accepting.compareAndSet(true, false)) return;
+                com.mrnobody.debug.ErrorLog.record("AI provider: " + error);
+                TaskStreamHub.instance().emitError(taskId, error);
+                if (r != null) r.providerError = error;
+                latch.countDown();
+            }
+            @Override public void onUsage(com.mrnobody.agent.ai.TokenUsage usage) {
+                if (accepting.get() && r != null) r.usage = r.usage.add(usage);
+            }
+        });
         try {
-            // Stream, so the answer reaches the task chat as it is generated
-            // rather than all at once at the end. The same callback path that
-            // used to call complete() now forwards each token to the hub; the
-            // final text still comes back whole for verification. A provider
-            // that cannot stream falls back to one token, so nothing here
-            // branches on capability.
-            provider.stream(SYSTEM_PROMPT, prompt, new AiProvider.StreamCallback() {
-                @Override public void onToken(String token) {
-                    TaskStreamHub.instance().emitToken(taskId, token);
-                }
-                @Override public void onDone(String fullText) {
-                    out[0] = fullText;
-                    TaskStreamHub.instance().emitDone(taskId, fullText);
-                    latch.countDown();
-                }
-                @Override public void onError(String error) {
-                    // A provider failure is NOT an answer. Returning "AI error:
-                    // …" as the answer is how a DNS failure got verified as if it
-                    // were prose, flagged "api.groq.com" as an uncited source,
-                    // and then scheduled "checking every hour" anyway.
-                    com.mrnobody.debug.ErrorLog.record("AI provider: " + error);
-                    TaskStreamHub.instance().emitError(taskId, error);
-                    if (r != null) r.providerError = error;
-                    latch.countDown();
-                }
-                @Override public void onUsage(com.mrnobody.agent.ai.TokenUsage usage) {
-                    // Accumulate the run's authoritative token spend.
-                    if (r != null) {
-                        r.usage = r.usage.add(usage);
-                    }
-                }
-            });
             long deadline = System.currentTimeMillis() + PROVIDER_TIMEOUT_MS;
             while (System.currentTimeMillis() < deadline) {
                 if (latch.await(POLL_MS, TimeUnit.MILLISECONDS)) return out[0];
                 if (cancellation != null && cancellation.isCancelled()) return "(cancelled)";
             }
-            // Timed out waiting for the provider: same as an error, no answer.
             if (r != null && r.providerError == null) {
                 r.providerError = "the AI provider timed out";
             }
             return null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            return out[0];
+        } finally {
+            // Both cancellation and timeout abort the underlying HTTP request;
+            // accepting=false also makes any racing callback harmless.
+            accepting.set(false);
+            request.cancel();
         }
-        return out[0];
     }
 
     private static String truncate(String s, int max) {

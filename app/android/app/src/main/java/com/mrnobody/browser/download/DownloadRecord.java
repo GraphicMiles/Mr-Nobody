@@ -91,6 +91,9 @@ public final class DownloadRecord {
     /** Whether the server honoured (or advertised) byte ranges. */
     public boolean resumable;
 
+    /** User/policy explicitly approved executable or otherwise risky content. */
+    public boolean riskyApproved;
+
     public long createdAt;
     public long updatedAt;
 
@@ -100,6 +103,13 @@ public final class DownloadRecord {
     public static DownloadRecord create(@NonNull String url, @NonNull String fileName,
                                         @Nullable String mime, @Nullable String userAgent,
                                         @Nullable String referrer, @Nullable String destLabel) {
+        return create(url, fileName, mime, userAgent, referrer, destLabel, false);
+    }
+
+    public static DownloadRecord create(@NonNull String url, @NonNull String fileName,
+                                        @Nullable String mime, @Nullable String userAgent,
+                                        @Nullable String referrer, @Nullable String destLabel,
+                                        boolean riskyApproved) {
         DownloadRecord r = new DownloadRecord();
         r.url = url;
         r.fileName = fileName;
@@ -107,6 +117,7 @@ public final class DownloadRecord {
         r.userAgent = userAgent;
         r.referrer = referrer;
         r.destLabel = destLabel;
+        r.riskyApproved = riskyApproved;
         r.status = Status.QUEUED;
         r.createdAt = System.currentTimeMillis();
         r.updatedAt = r.createdAt;
@@ -136,6 +147,7 @@ public final class DownloadRecord {
         m.put("percent", percent());
         m.put("error", error);
         m.put("resumable", resumable);
+        m.put("riskApproved", riskyApproved);
         m.put("canResume", status.isResumable());
         m.put("localUri", destUri);
         m.put("folder", destLabel);

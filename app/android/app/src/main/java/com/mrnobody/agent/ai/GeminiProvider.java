@@ -1,5 +1,6 @@
 package com.mrnobody.agent.ai;
 
+import com.mrnobody.agent.util.EndpointPolicy;
 import com.mrnobody.browser.net.NetworkGate;
 
 import org.json.JSONArray;
@@ -63,11 +64,22 @@ public final class GeminiProvider implements AiProvider {
 
     @Override
     public void stream(String systemPrompt, String userMessage, StreamCallback callback) {
-        new Thread(() -> doStream(systemPrompt, userMessage, callback)).start();
+        streamCancellable(systemPrompt, userMessage, callback);
+    }
+
+    @Override
+    public RequestHandle streamCancellable(String systemPrompt, String userMessage,
+                                           StreamCallback callback) {
+        ProviderRequest request = new ProviderRequest();
+        request.start("provider-gemini",
+                () -> doStream(systemPrompt, userMessage, callback, request));
+        return request;
     }
 
     /** Why a completion cannot even start, or null when it can. */
     private String configProblem() {
+        String endpointProblem = EndpointPolicy.secureBaseReason(baseUrl);
+        if (endpointProblem != null) return endpointProblem;
         if (model.isEmpty()) {
             return "No model chosen for Gemini. Open Settings → AI provider, "
                     + "refresh the model list and pick one.";
@@ -84,8 +96,9 @@ public final class GeminiProvider implements AiProvider {
             callback.onError(problem);
             return;
         }
+        HttpURLConnection conn = null;
         try {
-            HttpURLConnection conn = post(system, user, false);
+            conn = post(system, user, false);
             int code = conn.getResponseCode();
             InputStream in = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
             String response = readAll(in);
@@ -101,20 +114,27 @@ public final class GeminiProvider implements AiProvider {
             callback.onResult(text);
         } catch (Exception e) {
             callback.onError(e.getMessage());
+        } finally {
+            if (conn != null) conn.disconnect();
         }
     }
 
-    private void doStream(String system, String user, StreamCallback callback) {
+    private void doStream(String system, String user, StreamCallback callback,
+                          ProviderRequest request) {
         String problem = configProblem();
         if (problem != null) {
-            callback.onError(problem);
+            if (!request.isCancelled()) callback.onError(problem);
             return;
         }
+        HttpURLConnection conn = null;
         try {
-            HttpURLConnection conn = post(system, user, true);
+            conn = post(system, user, true, request);
+            if (request.isCancelled()) return;
             int code = conn.getResponseCode();
             if (code < 200 || code >= 300) {
-                callback.onError(explain(code, readAll(conn.getErrorStream())));
+                if (!request.isCancelled()) {
+                    callback.onError(explain(code, readAll(conn.getErrorStream())));
+                }
                 return;
             }
             final StringBuilder acc = new StringBuilder();
@@ -122,26 +142,36 @@ public final class GeminiProvider implements AiProvider {
             try (InputStream in = conn.getInputStream();
                  Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
                 SseFrames.read(reader, json -> {
+                    if (request.isCancelled()) throw new java.io.IOException("cancelled");
                     String text = candidateText(json);
                     if (!text.isEmpty()) {
                         acc.append(text);
                         callback.onToken(text);
                     }
-                    // streamGenerateContent carries usageMetadata on chunks;
-                    // keep the most recent non-zero figure.
                     TokenUsage u = usageOfJson(json);
                     if (u.totalTokens() > 0) usage[0] = u;
                 });
             }
+            if (request.isCancelled()) return;
             callback.onUsage(usage[0]);
             callback.onDone(acc.toString());
         } catch (Exception e) {
-            callback.onError(e.getMessage());
+            if (!request.isCancelled()) callback.onError(e.getMessage());
+        } finally {
+            if (conn != null) {
+                request.unbind(conn);
+                conn.disconnect();
+            }
         }
     }
 
     /** POST the generateContent request and return the connection, body written. */
     private HttpURLConnection post(String system, String user, boolean stream) throws Exception {
+        return post(system, user, stream, null);
+    }
+
+    private HttpURLConnection post(String system, String user, boolean stream,
+                                   ProviderRequest request) throws Exception {
         // Streaming goes through streamGenerateContent; the one-shot path
         // through generateContent. Both accept the same body.
         String action = stream ? ":streamGenerateContent?alt=sse&key=" : ":generateContent?key=";
@@ -160,16 +190,23 @@ public final class GeminiProvider implements AiProvider {
         body.put("contents", new JSONArray().put(contents));
 
         HttpURLConnection conn = NetworkGate.openHttp(url);
-        conn.setRequestMethod("POST");
-        conn.setConnectTimeout(15_000);
-        conn.setReadTimeout(60_000);
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/json");
+        if (request != null) request.bind(conn);
+        try {
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(15_000);
+            conn.setReadTimeout(60_000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
 
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            return conn;
+        } catch (Exception e) {
+            if (request != null) request.unbind(conn);
+            conn.disconnect();
+            throw e;
         }
-        return conn;
     }
 
     /** The usageMetadata block of a response, or {@link TokenUsage#ZERO} when absent. */
@@ -215,13 +252,18 @@ public final class GeminiProvider implements AiProvider {
     @Override
     public void listModels(ModelsCallback callback) {
         new Thread(() -> {
+            String endpointProblem = EndpointPolicy.secureBaseReason(baseUrl);
+            if (endpointProblem != null) {
+                callback.onError(endpointProblem);
+                return;
+            }
             if (apiKey == null || apiKey.trim().isEmpty()) {
                 callback.onError("Add an API key first.");
                 return;
             }
+            HttpURLConnection conn = null;
             try {
-                HttpURLConnection conn = (HttpURLConnection)
-                        NetworkGate.openHttp(baseUrl + "/models?key=" + apiKey);
+                conn = NetworkGate.openHttp(baseUrl + "/models?key=" + apiKey);
                 conn.setRequestMethod("GET");
                 conn.setConnectTimeout(15_000);
                 conn.setReadTimeout(20_000);
@@ -260,6 +302,8 @@ public final class GeminiProvider implements AiProvider {
             } catch (Exception e) {
                 String m = e.getMessage();
                 callback.onError(m == null ? e.getClass().getSimpleName() : m);
+            } finally {
+                if (conn != null) conn.disconnect();
             }
         }, "models-gemini").start();
     }

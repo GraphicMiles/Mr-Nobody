@@ -160,6 +160,24 @@ public class NetworkGateTest {
     }
 
     @Test
+    public void transitionBlockerNeverFallsBackToDirect() throws Exception {
+        BlockedRoute blocked = BlockedRoute.forRoute(
+                new ProxyRoute(ProxyRoute.Kind.SOCKS, "127.0.0.1", 9050));
+        NetworkGate.setRoute(blocked);
+        assertTrue(blocked.failClosed());
+        assertFalse(blocked.isAvailable());
+        assertFalse(NetworkGate.canConnect());
+        try {
+            NetworkGate.open(new URL("https://example.com"));
+            fail("a pending privacy route must block all native networking");
+        } catch (NetworkGate.RouteUnavailableException expected) {
+            // correct
+        } finally {
+            NetworkGate.setRoute(new DirectRoute());
+        }
+    }
+
+    @Test
     public void portsFallBackToTheSchemeDefault() {
         assertEquals(1080, new ProxyRoute(ProxyRoute.Kind.SOCKS, "h", 0).port());
         assertEquals(8080, new ProxyRoute(ProxyRoute.Kind.HTTP, "h", -1).port());

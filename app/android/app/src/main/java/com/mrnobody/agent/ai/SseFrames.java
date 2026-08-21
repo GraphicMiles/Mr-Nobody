@@ -34,17 +34,22 @@ public final class SseFrames {
     }
 
     /**
-     * Read SSE frames from {@code in} until end of stream, calling
-     * {@code handler.onData} for each non-empty {@code data:} payload.
+     * Read frames until EOF or {@code [DONE]}. The return value exposes the
+     * protocol terminator so callers can distinguish a complete stream from a
+     * clean-looking premature EOF.
+     *
+     * @return true when a {@code [DONE]} marker ended the stream
      */
-    public static void read(Reader in, FrameHandler handler) throws IOException {
+    public static boolean read(Reader in, FrameHandler handler) throws IOException {
         BufferedReader reader = new BufferedReader(in);
         String line;
         while ((line = reader.readLine()) != null) {
             if (!line.startsWith("data:")) continue;
             String payload = line.substring("data:".length()).trim();
-            if (payload.isEmpty() || DONE.equals(payload)) continue;
+            if (payload.isEmpty()) continue;
+            if (DONE.equals(payload)) return true;
             handler.onData(payload);
         }
+        return false;
     }
 }

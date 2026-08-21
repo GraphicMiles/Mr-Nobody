@@ -37,7 +37,7 @@ public class RemoteClientTest {
         final String response;
         boolean disconnected;
 
-        FakeConnection(int code, String response) throws Exception {
+        FakeConnection(int code, String response) throws IOException {
             super(new URL("https://example.invalid/"));
             this.code = code;
             this.response = response;
@@ -106,6 +106,50 @@ public class RemoteClientTest {
         assertEquals("done", events.get(2)[0]);
         assertEquals("Hello world", events.get(2)[1]);
         assertTrue(conn.disconnected);
+    }
+
+    @Test
+    public void terminalEventStopsBeforeLateFrames() throws Exception {
+        String sse = "data: {\"type\":\"done\",\"text\":\"answer\"}\n\n"
+                + "data: {\"type\":\"error\",\"text\":\"late\"}\n\n";
+        FakeConnection conn = new FakeConnection(200, sse);
+        RemoteClient client = new RemoteClient("https://worker.example", url -> conn);
+        List<String[]> events = new ArrayList<>();
+        client.stream(42, (type, text) -> events.add(new String[]{type, text}),
+                com.mrnobody.agent.core.Cancellation.NONE);
+        assertEquals(1, events.size());
+        assertEquals("done", events.get(0)[0]);
+    }
+
+    @Test
+    public void standardDoneMarkerIsSurfacedAsATerminalEvent() throws Exception {
+        String sse = "data: {\"type\":\"token\",\"text\":\"answer\"}\n\n"
+                + "data: [DONE]\n\n";
+        FakeConnection conn = new FakeConnection(200, sse);
+        RemoteClient client = new RemoteClient("https://worker.example", url -> conn);
+        List<String[]> events = new ArrayList<>();
+        client.stream(42, (type, text) -> events.add(new String[]{type, text}),
+                com.mrnobody.agent.core.Cancellation.NONE);
+        assertEquals(2, events.size());
+        assertEquals("done", events.get(1)[0]);
+    }
+
+    @Test
+    public void cleartextWorkerIsRefusedBeforeAConnectionOpens() throws Exception {
+        java.util.concurrent.atomic.AtomicBoolean opened =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        RemoteClient client = new RemoteClient("http://worker.example", url -> {
+            opened.set(true);
+            return new FakeConnection(200, "");
+        });
+        try {
+            client.stream(42, (type, text) -> { },
+                    com.mrnobody.agent.core.Cancellation.NONE);
+            org.junit.Assert.fail("expected IOException");
+        } catch (Exception expected) {
+            assertTrue(expected.getMessage().contains("HTTPS"));
+        }
+        org.junit.Assert.assertFalse(opened.get());
     }
 
     @Test

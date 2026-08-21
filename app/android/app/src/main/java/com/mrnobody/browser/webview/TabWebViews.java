@@ -139,6 +139,10 @@ public final class TabWebViews {
                 }
             }
             if (oldest == null) return;
+            // Eviction destroys the native target just like closing a tab.
+            // Detach the stable channel first so no settings/navigation call
+            // can reach the destroyed WebView before Flutter recreates it.
+            MrNobodyWebView.releaseChannel(oldest);
             destroy(LIVE.remove(oldest));
         }
     }

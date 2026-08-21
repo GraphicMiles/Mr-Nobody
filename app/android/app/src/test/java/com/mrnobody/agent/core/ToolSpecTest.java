@@ -24,7 +24,8 @@ public class ToolSpecTest {
     public void urlParametersRejectSchemesThatEscapeTheSandbox() {
         ParamSpec url = ParamSpec.url("url", true, "");
         assertNull(url.validate("https://example.com/x?y=1"));
-        assertNull(url.validate("http://192.168.0.1:8080"));
+        assertFalse("agent tools must not address the LAN",
+                url.validate("http://192.168.0.1:8080") == null);
         for (String hostile : new String[]{
                 "file:///data/data/com.mrnobody.browser/databases/tasks.db",
                 "content://com.android.contacts/contacts",

@@ -30,7 +30,6 @@ import com.mrnobody.agent.tools.TerminalTool;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.core.BookmarksStore;
 import com.mrnobody.browser.core.PerSiteSettings;
-import com.mrnobody.browser.core.PermissionStore;
 import com.mrnobody.browser.core.PrivacyProfile;
 import com.mrnobody.browser.core.PrivacyReport;
 import com.mrnobody.browser.core.Settings;
@@ -61,7 +60,6 @@ public final class MrNobodyApp extends Application {
     private static HistoryStore historyStore;
     private static BookmarksStore bookmarksStore;
     private static PrivacyReport privacyReport;
-    private static PermissionStore permissionStore;
     private static PerSiteSettings perSiteSettings;
     private static AccountStore accountStore;
 
@@ -104,7 +102,6 @@ public final class MrNobodyApp extends Application {
         historyStore = new HistoryStore(this);
         bookmarksStore = new BookmarksStore(this);
         privacyReport = new PrivacyReport(this);
-        permissionStore = new PermissionStore(this);
         perSiteSettings = new PerSiteSettings(this);
         accountStore = new AccountStore(this);
 
@@ -151,8 +148,9 @@ public final class MrNobodyApp extends Application {
         // answers a plain fetch with a challenge page.
         engine.registerTool(new com.mrnobody.agent.tools.SearchTool(HeadlessSessions::current));
         engine.registerTool(new DownloadTool());
-        // The agent's own memory: it can recall past tasks, on-device only.
-        engine.registerTool(new com.mrnobody.agent.tools.MemoryTool());
+        // Long-term retrieval is not registered until its opt-in storage policy
+        // is wired end to end. Task history remains visible/erasable in Memory,
+        // but a planner cannot invoke a capability outside its actual scope.
         agentEngine = engine;
         applyTerminalSetting();
 
@@ -230,7 +228,6 @@ public final class MrNobodyApp extends Application {
     public static HistoryStore history() { return historyStore; }
     public static BookmarksStore bookmarks() { return bookmarksStore; }
     public static PrivacyReport report() { return privacyReport; }
-    public static PermissionStore permissions() { return permissionStore; }
     public static PerSiteSettings perSite() { return perSiteSettings; }
     public static AccountStore accounts() { return accountStore; }
 

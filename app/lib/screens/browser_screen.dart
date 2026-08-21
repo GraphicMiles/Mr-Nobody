@@ -339,6 +339,13 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   size: 14,
                   color: tab.isSecure ? AppColors.text : AppColors.textFaint,
                 ),
+                if (tab.url.startsWith('http://')) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    'Not secure',
+                    style: AppTheme.mono(size: 9, color: AppColors.textFaint),
+                  ),
+                ],
                 if (tab.blocked.total > 0) ...[
                   const SizedBox(width: 5),
                   Text(

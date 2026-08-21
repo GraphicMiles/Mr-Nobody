@@ -103,6 +103,12 @@ public final class ParamSpec {
                 if (value.contains(" ") || value.contains("\n")) {
                     return name + " must not contain whitespace";
                 }
+                // Cheap lexical/literal guard at the schema boundary. Tool
+                // execution performs the DNS-aware check without leaking DNS
+                // around a configured privacy proxy.
+                String unsafe = com.mrnobody.agent.util.NetworkTargetPolicy
+                        .publicReason(value, false);
+                if (unsafe != null) return name + " refused: " + unsafe;
                 return null;
             case ENUM:
                 for (String option : allowed) {

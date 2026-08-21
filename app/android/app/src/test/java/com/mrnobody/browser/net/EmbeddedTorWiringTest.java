@@ -105,6 +105,23 @@ public class EmbeddedTorWiringTest {
     }
 
     @Test
+    public void pendingAndProxyHandoffRemainFailClosed() throws IOException {
+        String controller = java("browser/net/PrivacyController.java");
+        assertTrue("Tor bootstrap installs a blocker before returning pending",
+                controller.contains("NetworkGate.setRoute(BlockedRoute.forRoute(route))"));
+        assertTrue("the usable route is installed only inside proxy completion",
+                controller.contains("WebViewRouter.apply(route, success ->")
+                        && controller.indexOf("NetworkGate.setRoute(route)")
+                        > controller.indexOf("WebViewRouter.apply(route, success ->"));
+
+        String visible = java("browser/webview/MrNobodyWebView.java");
+        String headless = java("agent/browser/HeadlessWebViewEngine.java");
+        assertTrue(visible.contains("String routeBlock = NetworkGate.blockedReason()")
+                && visible.contains("if (routeBlock != null)"));
+        assertTrue(headless.contains("blockedByRoute(request)"));
+    }
+
+    @Test
     public void theChannelAndTheDartUiCarryThePendingState() throws IOException {
         String activity = java("browser/MainActivity.java");
         assertTrue(activity.contains("m.put(\"pending\", r.pending);"));
@@ -118,7 +135,7 @@ public class EmbeddedTorWiringTest {
         assertTrue("the UI watches for the auto-applied flip",
                 state.contains("_watchTorStartup()"));
         assertTrue("the user is told what is happening, not refused",
-                state.contains("Starting built-in Tor"));
+                state.contains("Preparing the protected route"));
         assertTrue("the poll is bounded and covers the extended bootstrap waits",
                 state.contains("> 240"));
     }
