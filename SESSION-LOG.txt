@@ -176,3 +176,20 @@ substitutes is called out. Mismatches also land in the error log.
 EmbeddedTorPolicyTest, EmbeddedTorWiringTest, ToolScopeTest, AnswerGateTest,
 OutcomeCheckTest, DeterministicEngineScopeTest (end-to-end scope enforcement
 with fake tools incl. the unscoped host path), HarnessWiringTest.
+
+### CI journey (three real toolchain facts, now pinned in tests/comments)
+
+1. tor-android 0.4.9.x AARs carry class files Jetifier cannot parse
+   (major 68) → `android.jetifier.ignorelist=tor-android`.
+2. 0.4.9.x also declares a compileSdk-37 AAR constraint; this project is
+   pinned to compileSdk 34 by Flutter 3.24/AGP 8.1 → shipped 0.4.7.14
+   (contract verified identical against its tag: same service class, same
+   STATUS broadcasts, same 9050-if-free bind). Bump Tor with the next
+   Flutter/AGP upgrade.
+3. `ndk.abiFilters` conflicts with the CI's `--split-per-abi` splits →
+   removed; the splits already select arm64-v8a/armeabi-v7a/x86_64.
+
+Final state at `20914b8`: Flutter Build ✅ (APK + 45MiB/ABI size gate),
+Emulator Smoke API 31 ✅ + API 34 ✅ (API 34 needed one re-run — the same
+40-minute-timeout flake that cancelled it at baseline a83b4af; pre-existing,
+not introduced here).
