@@ -177,6 +177,23 @@ public class EmbeddedTorWiringTest {
     }
 
     @Test
+    public void theAvailabilityProbeSurvivesTheMainThread() throws IOException {
+        // Android forbids socket connects on the main thread; the old probe
+        // swallowed that exception as "not listening" and refused a running
+        // Tor on every manual toggle. The probe now hops to a worker when it
+        // finds itself on the main looper.
+        String route = java("browser/net/OrbotTorRoute.java");
+        assertTrue(route.contains("NetworkOnMainThreadException"));
+        assertTrue(route.contains("onMainThread()"));
+        assertTrue(route.contains("Looper.getMainLooper()"));
+        assertTrue("plain JVM (tests) probes directly", route.contains("rawProbe(host, port, timeoutMs)"));
+
+        String pc = java("browser/net/PrivacyController.java");
+        assertTrue("the waiter always logs its outcome — silent verdicts hid this bug",
+                pc.contains("embedded tor waiter: up="));
+    }
+
+    @Test
     public void theManifestDeclaresTheServiceUnexported() throws IOException {
         String manifest = read("src/main/AndroidManifest.xml");
         int service = manifest.indexOf("org.torproject.jni.TorService");

@@ -84,6 +84,36 @@ public final class OrbotTorRoute implements NetworkRoute {
     }
 
     private static boolean socketProbe(String host, int port, int timeoutMs) {
+        // Android throws NetworkOnMainThreadException for ANY socket connect
+        // on the main thread - even loopback. The old catch swallowed it as
+        // "not listening", so every availability check made from the mode
+        // toggle (a main-thread channel call) reported a running Tor as
+        // unreachable. Device-observed: refusal with [tor status=ON]. On the
+        // main thread the connect runs on a short-lived worker instead.
+        if (onMainThread()) {
+            java.util.concurrent.FutureTask<Boolean> task =
+                    new java.util.concurrent.FutureTask<>(() -> rawProbe(host, port, timeoutMs));
+            Thread worker = new Thread(task, "socks-probe");
+            worker.setDaemon(true);
+            worker.start();
+            try {
+                return task.get(timeoutMs + 200L, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return rawProbe(host, port, timeoutMs);
+    }
+
+    private static boolean onMainThread() {
+        try {
+            return android.os.Looper.myLooper() == android.os.Looper.getMainLooper();
+        } catch (Throwable t) {
+            return false; // plain JVM (tests): no looper, probe directly
+        }
+    }
+
+    private static boolean rawProbe(String host, int port, int timeoutMs) {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(host, port), timeoutMs);
             return true;
