@@ -10,6 +10,7 @@ import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
+import com.mrnobody.agent.execution.ExecutionIdentity;
 import com.mrnobody.agent.util.NetworkTargetPolicy;
 import com.mrnobody.browser.net.NetworkGate;
 import com.mrnobody.browser.download.DownloadDestination;
@@ -77,11 +78,39 @@ public final class DownloadTool implements Tool {
 
     @Override
     public ToolResult execute(Context context, ToolRequest request) {
-        return execute(context, request, Cancellation.NONE);
+        return executeInternal(context, request, Cancellation.NONE, null);
     }
 
     @Override
     public ToolResult execute(Context context, ToolRequest request, Cancellation cancellation) {
+        return executeInternal(context, request, cancellation, null);
+    }
+
+    @Override
+    public ToolResult execute(Context context, ToolRequest request, Cancellation cancellation,
+                              ExecutionIdentity execution) {
+        return executeInternal(context, request, cancellation, execution);
+    }
+
+    @Override
+    public boolean supportsIdempotency(ToolRequest request) {
+        return true;
+    }
+
+    @Override
+    public ToolResult reconcile(Context context, ToolRequest request,
+                                ExecutionIdentity execution) {
+        if (context == null || execution == null || execution.idempotencyKey().isEmpty()) {
+            return null;
+        }
+        DownloadRecord existing = DownloadEngine.get(context).store()
+                .findByRequestKey(execution.idempotencyKey());
+        return existing == null ? null : result(context, request.param("url"), existing);
+    }
+
+    private ToolResult executeInternal(Context context, ToolRequest request,
+                                       Cancellation cancellation,
+                                       ExecutionIdentity execution) {
         String url = request.param("url");
         try {
             if (!NetworkGate.canConnect()) {
@@ -92,37 +121,38 @@ public final class DownloadTool implements Tool {
             DownloadRisk.Assessment initialRisk = DownloadRisk.assess(name, null, url);
             String referer = request.param("referer");
             DownloadEngine engine = DownloadEngine.get(context);
+            String requestKey = execution == null ? null : execution.idempotencyKey();
             DownloadRecord record = engine.enqueue(url, name, null, BROWSER_UA,
                     referer == null || referer.isEmpty() ? null : referer,
-                    initialRisk.requiresConfirmation);
+                    initialRisk.requiresConfirmation, requestKey);
             DownloadRecord done = engine.awaitTerminal(record.id, WAIT_MS,
                     () -> cancellation != null && cancellation.isCancelled());
             if (done == null) done = record;
-
-            boolean customFolder = new DownloadDestination(context).isCustom();
-            Map<String, Object> value = new LinkedHashMap<>();
-            value.put("url", url);
-            value.put("id", done.id);
-            value.put("name", done.fileName);
-            value.put("folder", done.destLabel);
-            value.put("customFolder", customFolder);
-            value.put("status", done.status == null ? "UNKNOWN" : done.status.name());
-            value.put("bytes", done.bytes);
-            value.put("total", done.total);
-            if (done.error != null && !done.error.isEmpty()) {
-                value.put("error", done.error);
-            }
-
-            if (done.status == DownloadRecord.Status.FAILED
-                    || done.status == DownloadRecord.Status.CANCELLED) {
-                String why = done.error == null || done.error.isEmpty()
-                        ? done.status.name() : done.error;
-                return ToolResult.fail("download failed: " + why);
-            }
-            return ToolResult.ok(value);
+            return result(context, url, done);
         } catch (Exception e) {
             return ToolResult.fail("download failed: " + e.getMessage());
         }
+    }
+
+    private static ToolResult result(Context context, String url, DownloadRecord done) {
+        boolean customFolder = new DownloadDestination(context).isCustom();
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("url", url == null ? done.url : url);
+        value.put("id", done.id);
+        value.put("name", done.fileName);
+        value.put("folder", done.destLabel);
+        value.put("customFolder", customFolder);
+        value.put("status", done.status == null ? "UNKNOWN" : done.status.name());
+        value.put("bytes", done.bytes);
+        value.put("total", done.total);
+        if (done.error != null && !done.error.isEmpty()) value.put("error", done.error);
+        if (done.status == DownloadRecord.Status.FAILED
+                || done.status == DownloadRecord.Status.CANCELLED) {
+            String why = done.error == null || done.error.isEmpty()
+                    ? done.status.name() : done.error;
+            return ToolResult.fail("download failed: " + why);
+        }
+        return ToolResult.ok(value);
     }
 
     private static String render(Map<String, Object> value) {

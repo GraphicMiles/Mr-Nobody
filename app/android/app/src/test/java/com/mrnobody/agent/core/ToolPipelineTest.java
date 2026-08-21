@@ -8,6 +8,10 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 
+import com.mrnobody.agent.execution.ExecutionIdentity;
+import com.mrnobody.agent.execution.InMemoryExecutionLedger;
+import com.mrnobody.agent.execution.RunScope;
+
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -374,6 +378,87 @@ public class ToolPipelineTest {
         assertTrue(decisions.get(0).isDeny());
         assertEquals(ApprovalDecision.Source.GUARD, decisions.get(0).source());
         assertNotNull(decisions.get(0).reason());
+    }
+
+    // ------------------------------------------------------- durable replay
+
+    @Test
+    public void aCompletedCallIsReplayedWithoutRunningTheToolAgain() {
+        FakeTool tool = new FakeTool(readSpec());
+        InMemoryExecutionLedger ledger = new InMemoryExecutionLedger();
+        ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
+        pipeline.setLedger(ledger);
+
+        RunScope.bind(42L, "run-a", ledger);
+        ToolResult first;
+        try {
+            first = pipeline.run(NO_CONTEXT, tool, goodRequest());
+        } finally {
+            RunScope.clear();
+        }
+        RunScope.bind(42L, "run-a", ledger);
+        ToolResult replay;
+        try {
+            replay = pipeline.run(NO_CONTEXT, tool, goodRequest());
+        } finally {
+            RunScope.clear();
+        }
+
+        assertTrue(first.isSuccess());
+        assertTrue(replay.isSuccess());
+        assertEquals(first.result(), replay.result());
+        assertEquals("the committed operation must execute once", 1, tool.runs.get());
+    }
+
+    @Test
+    public void theSameTaskExecutesAgainUnderANewRunId() {
+        FakeTool tool = new FakeTool(readSpec());
+        InMemoryExecutionLedger ledger = new InMemoryExecutionLedger();
+        ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
+        pipeline.setLedger(ledger);
+
+        for (String run : new String[]{"run-a", "run-b"}) {
+            RunScope.bind(42L, run, ledger);
+            try {
+                assertTrue(pipeline.run(NO_CONTEXT, tool, goodRequest()).isSuccess());
+            } finally {
+                RunScope.clear();
+            }
+        }
+        assertEquals(2, tool.runs.get());
+    }
+
+    @Test
+    public void anInDoubtNonIdempotentEffectIsNotRepeated() {
+        ToolSpec spec = ToolSpec.named("writer")
+                .tier(Tier.SANDBOX)
+                .returns(OutputSpec.of(v -> String.valueOf(v.get("text")), "text"))
+                .build();
+        FakeTool tool = new FakeTool(spec);
+        InMemoryExecutionLedger ledger = new InMemoryExecutionLedger();
+        ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
+        pipeline.setLedger(ledger);
+
+        RunScope.bind(8L, "run-a", ledger);
+        try {
+            ExecutionIdentity identity = RunScope.next("writer", "write",
+                    java.util.Collections.emptyMap());
+            ledger.prepare(identity, "writer", "write", Tier.SANDBOX);
+            ledger.markRunning(identity);
+        } finally {
+            RunScope.clear();
+        }
+
+        RunScope.bind(8L, "run-a", ledger);
+        ToolResult result;
+        try {
+            result = pipeline.run(NO_CONTEXT, tool, ToolRequest.of("write"));
+        } finally {
+            RunScope.clear();
+        }
+        assertTrue(result.isError());
+        assertTrue(result.error(), result.error().contains("unknown outcome"));
+        assertEquals(0, tool.runs.get());
     }
 
     // ---------------------------------------------------------- task scope

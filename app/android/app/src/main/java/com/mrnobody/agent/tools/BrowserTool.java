@@ -12,6 +12,7 @@ import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
+import com.mrnobody.agent.execution.ExecutionIdentity;
 import com.mrnobody.agent.util.NetworkTargetPolicy;
 import com.mrnobody.browser.net.NetworkGate;
 
@@ -148,6 +149,37 @@ public final class BrowserTool implements Tool {
 
     @Override
     public ToolResult execute(Context context, ToolRequest request) {
+        return executeInternal(context, request, null);
+    }
+
+    @Override
+    public ToolResult execute(Context context, ToolRequest request,
+                              com.mrnobody.agent.core.Cancellation cancellation,
+                              ExecutionIdentity execution) {
+        return executeInternal(context, request, execution);
+    }
+
+    @Override
+    public boolean supportsIdempotency(ToolRequest request) {
+        return request != null && "save".equals(request.action());
+    }
+
+    @Override
+    public ToolResult reconcile(Context context, ToolRequest request,
+                                ExecutionIdentity execution) {
+        if (!supportsIdempotency(request) || context == null || execution == null) return null;
+        com.mrnobody.browser.download.DownloadRecord record =
+                com.mrnobody.browser.download.DownloadEngine.get(context).store()
+                        .findByRequestKey(execution.idempotencyKey());
+        if (record == null) return null;
+        return value("save", "url", record.url,
+                "id", String.valueOf(record.id),
+                "name", record.fileName,
+                "status", record.status.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    private ToolResult executeInternal(Context context, ToolRequest request,
+                                       ExecutionIdentity execution) {
         BrowserEngine engine = engine();
         if (engine == null) return ToolResult.fail("no browser engine configured");
         String action = request.action();
@@ -343,9 +375,11 @@ public final class BrowserTool implements Tool {
                 try {
                     String name = com.mrnobody.browser.download.DownloadNaming
                             .fileName(saveUrl, null, null);
+                    String requestKey = execution == null ? null : execution.idempotencyKey();
                     com.mrnobody.browser.download.DownloadRecord record =
                             com.mrnobody.browser.download.DownloadEngine.get(context)
-                                    .enqueue(saveUrl, name, null, null, lastKnownUrl);
+                                    .enqueue(saveUrl, name, null, null, lastKnownUrl,
+                                            false, requestKey);
                     return value("save", "url", saveUrl,
                             "id", String.valueOf(record.id),
                             "name", record.fileName,

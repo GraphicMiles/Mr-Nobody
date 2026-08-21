@@ -2,8 +2,11 @@ package com.mrnobody.agent.planner;
 
 import com.mrnobody.agent.ai.AiProvider;
 import com.mrnobody.agent.ai.TokenUsage;
+import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.execution.LedgeredCall;
 
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -92,27 +95,43 @@ public final class AutonomousPlanner {
 
     /** Blocking ask of the provider, with a timeout. Null on error or timeout. */
     private String ask(String prompt) {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final String[] out = new String[1];
-        try {
+        java.util.Map<String, String> identity = new LinkedHashMap<>();
+        identity.put("provider", provider.id());
+        identity.put("model", provider.modelId());
+        identity.put("system", systemPrompt());
+        identity.put("prompt", prompt);
+        ToolResult result = LedgeredCall.run("ai", "plan", identity, () -> {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final String[] out = new String[1];
+            final String[] error = new String[1];
             provider.complete(systemPrompt(), prompt, new AiProvider.CompletionCallback() {
                 @Override public void onResult(String text) {
                     out[0] = text;
                     latch.countDown();
                 }
-                @Override public void onError(String error) {
+                @Override public void onError(String message) {
+                    error[0] = message;
                     latch.countDown();
                 }
                 @Override public void onUsage(TokenUsage usage) {
                     if (usageSink != null) usageSink.accept(usage);
                 }
             });
-            if (!latch.await(ASK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) return null;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null;
-        }
-        return out[0];
+            try {
+                if (!latch.await(ASK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                    return ToolResult.fail("AI planning timed out");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return ToolResult.fail("AI planning interrupted");
+            }
+            if (out[0] == null) {
+                return ToolResult.fail(error[0] == null ? "AI planning failed" : error[0]);
+            }
+            return ToolResult.okText(out[0]);
+        });
+        return result != null && result.isSuccess()
+                ? String.valueOf(result.value().get("text")) : null;
     }
 
     private String systemPrompt() {

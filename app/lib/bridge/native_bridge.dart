@@ -8,11 +8,23 @@ import '../state/error_log.dart';
 /// core stays the owner of all persisted state.
 class NativeBridge {
   static const MethodChannel _ch = MethodChannel('mrnobody/core');
+  static int _submissionSequence = 0;
 
   /// Run an instruction through the agent core (deterministic → search/extract).
-  /// Returns the created task's id.
-  static Future<Map<String, dynamic>> runTask(String instruction) async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('runTask', {'instruction': instruction}));
+  /// Returns the created task's id. The opaque key lets the native store return
+  /// the same id if a platform-channel submission is delivered twice.
+  static Future<Map<String, dynamic>> runTask(
+    String instruction, {
+    String? submissionKey,
+    String? contextKey,
+  }) async {
+    final key = submissionKey ??
+        '${DateTime.now().microsecondsSinceEpoch}-${_submissionSequence++}';
+    return Map<String, dynamic>.from(await _ch.invokeMethod('runTask', {
+      'instruction': instruction,
+      'submissionKey': key,
+      'contextKey': contextKey,
+    }));
   }
 
   /// Re-run an existing task in place — a "check again" follow-up. Returns true

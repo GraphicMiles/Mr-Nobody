@@ -4,6 +4,10 @@ import android.content.Context;
 
 import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
+import com.mrnobody.agent.core.Tier;
+import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.execution.ExecutionIdentity;
+import com.mrnobody.agent.execution.ExecutionLedger;
 import com.mrnobody.agent.tasks.TaskEventDetail;
 import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.agent.tasks.TaskStreamHub;
@@ -14,7 +18,8 @@ import com.mrnobody.identity.AndroidKeyStoreIdentity;
 import com.mrnobody.identity.DeviceIdentity;
 import com.mrnobody.remote.RemoteClient;
 
-import java.util.UUID;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -51,6 +56,7 @@ public final class RemoteWorker implements Worker {
     public void execute(Context context, Task task, Cancellation cancellation) {
         task.setWorker("remote");
         task.setStatus(Task.Status.RUNNING);
+        try { MrNobodyApp.tasks().update(task); } catch (Throwable ignored) { }
         append(task, TaskEventStore.TASK_STARTED, "remote");
         append(task, TaskEventStore.STEP_CHANGED, TaskEventDetail.activity(
                 "Running on the remote worker", "remote",
@@ -80,7 +86,9 @@ public final class RemoteWorker implements Worker {
         RemoteClient client = new RemoteClient(endpoint, NetworkGate::openHttp);
         try {
             DeviceIdentity identity = AndroidKeyStoreIdentity.loadOrCreate();
-            long remoteId = client.submit(identity, UUID.randomUUID().toString(), task.instruction());
+            long remoteId = submitOnce(client, identity, task);
+            if (remoteId < 0) throw new java.io.IOException(
+                    "remote submission outcome could not be recovered");
 
             // Forward the result stream to the same hub the local path uses.
             // A terminal transition is compare-and-set: transport errors that
@@ -142,6 +150,49 @@ public final class RemoteWorker implements Worker {
                 TaskStreamHub.instance().emitError(taskId, message);
             }
         }
+    }
+
+    /** Submit once per run and reconnect to the committed remote id on retry. */
+    private static long submitOnce(RemoteClient client, DeviceIdentity identity, Task task)
+            throws Exception {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("instruction", task.instruction());
+        params.put("worker", "remote");
+        ExecutionIdentity execution = ExecutionIdentity.of(task.id(), task.runId(),
+                "remote.submit", 0, "remote-worker", "submit", params);
+        ExecutionLedger ledger = MrNobodyApp.executionLedger();
+        ExecutionLedger.Entry entry = ledger == null ? null
+                : ledger.prepare(execution, "remote-worker", "submit", Tier.EXEC);
+        if (entry == null) {
+            throw new java.io.IOException("execution ledger unavailable; remote task was not submitted");
+        }
+        if (entry.state == ExecutionLedger.State.SUCCEEDED && entry.result != null) {
+            Object prior = entry.result.value().get("remoteTaskId");
+            if (prior instanceof Number) return ((Number) prior).longValue();
+            try { return Long.parseLong(String.valueOf(prior)); }
+            catch (Exception ignored) { }
+        }
+
+        // The remote contract receives the same key on every recovery attempt;
+        // a compliant server returns the original task instead of creating one.
+        ledger.markRunning(execution);
+        final long remoteId;
+        try {
+            // Use the stable key as the signed nonce as well as the explicit
+            // request key, so a server cannot accept an altered dedup identity.
+            remoteId = client.submit(identity, execution.idempotencyKey(),
+                    task.instruction(), execution.idempotencyKey());
+        } catch (Exception e) {
+            ledger.markUnknown(execution, "Remote submission outcome unknown: "
+                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+            throw e;
+        }
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("remoteTaskId", remoteId);
+        ToolResult committed = ToolResult.ok(value);
+        ledger.setExternalRef(execution, String.valueOf(remoteId));
+        ledger.complete(execution, committed);
+        return remoteId;
     }
 
     private static void append(Task task, String type, String detail) {

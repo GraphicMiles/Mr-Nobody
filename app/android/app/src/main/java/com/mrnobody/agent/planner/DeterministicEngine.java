@@ -10,6 +10,8 @@ import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolPipeline;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.execution.LedgeredCall;
+import com.mrnobody.agent.execution.RunScope;
 import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.policy.ApprovalPolicy;
 import com.mrnobody.agent.policy.BudgetGuard;
@@ -299,7 +301,7 @@ public final class DeterministicEngine implements AgentEngine {
     private void executeRouted(Context context, Task task, Plan.Step step,
                                Cancellation cancellation) {
         enterStep(task, step);
-        ToolResult result = callScoped(context, step.tool, step.request, cancellation);
+        ToolResult result = callScoped(context, step, cancellation);
         if (stopped(task, cancellation)) return;
         if (parkIfNeeded(task, result)) return;
 
@@ -357,7 +359,7 @@ public final class DeterministicEngine implements AgentEngine {
                     continue;
                 }
                 enterStep(task, step);
-                ToolResult result = callScoped(context, step.tool, step.request, cancellation);
+                ToolResult result = callScoped(context, step, cancellation);
                 if (parkIfNeeded(task, result)) return;
                 if ("search".equals(step.tool)) {
                     // Search is the anchor: an answer with no sources is a
@@ -529,7 +531,7 @@ public final class DeterministicEngine implements AgentEngine {
             if (step == null) break; // the model is done gathering
 
             enterStep(task, step);
-            ToolResult result = callScoped(context, step.tool, step.request, cancellation);
+            ToolResult result = callScoped(context, step, cancellation);
             if (stopped(task, cancellation)) return;
             if (parkIfNeeded(task, result)) return;
             applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
@@ -594,7 +596,7 @@ public final class DeterministicEngine implements AgentEngine {
         while (!plan.isFinished()) {
             Plan.Step step = plan.current();
             if (step != null && step.isToolStep() && "download".equals(step.tool)) {
-                ToolResult result = callScoped(context, "download", step.request, cancellation);
+                ToolResult result = callScoped(context, step, cancellation);
                 r.lastResult = result;
                 if (result != null && result.needsApproval()) return;
                 applyDownloadNote(r, result);
@@ -1434,6 +1436,13 @@ public final class DeterministicEngine implements AgentEngine {
      * The public {@link #callTool} stays unscoped on purpose — it serves
      * host features (the address-bar search), not task steps.
      */
+    ToolResult callScoped(Context context, Plan.Step step, Cancellation cancellation) {
+        if (step == null || !step.isToolStep()) return ToolResult.fail("no tool step");
+        try (RunScope.StepBinding ignored = RunScope.enterLogicalStep(step.logicalId)) {
+            return callScoped(context, step.tool, step.request, cancellation);
+        }
+    }
+
     ToolResult callScoped(Context context, String name, ToolRequest request,
                           Cancellation cancellation) {
         java.util.Set<String> scope = runScope;
@@ -1560,6 +1569,28 @@ public final class DeterministicEngine implements AgentEngine {
 
     private String askProvider(AiProvider provider, String prompt, Cancellation cancellation,
                                long taskId, Research r) {
+        Map<String, String> identity = new LinkedHashMap<>();
+        identity.put("provider", provider.id());
+        identity.put("model", provider.modelId());
+        identity.put("system", SYSTEM_PROMPT);
+        identity.put("prompt", prompt);
+        ToolResult ledgered = LedgeredCall.run("ai", "complete", identity, () -> {
+            String text = askProviderUnledgered(provider, prompt, cancellation, taskId, r);
+            if (text != null) return ToolResult.okText(text);
+            String error = r == null || r.providerError == null
+                    ? "AI provider returned no answer" : r.providerError;
+            return ToolResult.fail(error);
+        });
+        if (ledgered != null && ledgered.isSuccess()) {
+            if (r != null) r.providerError = null;
+            return String.valueOf(ledgered.value().get("text"));
+        }
+        if (r != null && ledgered != null) r.providerError = ledgered.error();
+        return null;
+    }
+
+    private String askProviderUnledgered(AiProvider provider, String prompt,
+                                         Cancellation cancellation, long taskId, Research r) {
         final CountDownLatch latch = new CountDownLatch(1);
         final String[] out = {null};
         final java.util.concurrent.atomic.AtomicBoolean accepting =

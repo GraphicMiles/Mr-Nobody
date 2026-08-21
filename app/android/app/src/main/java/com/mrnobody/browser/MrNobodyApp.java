@@ -14,6 +14,11 @@ import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.dispatcher.LocalWorker;
 import com.mrnobody.agent.dispatcher.RemoteWorker;
 import com.mrnobody.agent.dispatcher.TaskDispatcher;
+import com.mrnobody.agent.execution.ExecutionLedger;
+import com.mrnobody.agent.execution.SqliteExecutionLedger;
+import com.mrnobody.agent.jobs.AsyncJobCoordinator;
+import com.mrnobody.agent.jobs.AsyncJobStore;
+import com.mrnobody.agent.jobs.SqliteAsyncJobStore;
 import com.mrnobody.agent.planner.DeterministicEngine;
 import com.mrnobody.agent.tasks.TaskReconciler;
 import com.mrnobody.agent.tasks.TaskStore;
@@ -67,6 +72,9 @@ public final class MrNobodyApp extends Application {
     private static AgentEngine agentEngine;
     private static TaskStore taskStore;
     private static TaskEventStore taskEvents;
+    private static ExecutionLedger executionLedger;
+    private static AsyncJobStore asyncJobs;
+    private static AsyncJobCoordinator asyncJobCoordinator;
     private static ApprovalPolicy.MapOverrides approvalOverrides;
     private static TaskDispatcher taskDispatcher;
     private static TaskScheduler taskScheduler;
@@ -158,13 +166,16 @@ public final class MrNobodyApp extends Application {
 
         taskStore = new TaskStore(this);
         taskEvents = new TaskEventStore(this);
+        executionLedger = new SqliteExecutionLedger(this);
+        asyncJobs = new SqliteAsyncJobStore(this);
+        asyncJobCoordinator = new AsyncJobCoordinator(asyncJobs, executionLedger);
 
-        // Attach the two pipeline seams that had never been connected. Until
-        // now every tool call vanished on return, and every CONFIRM resolved
-        // to a refusal because there was nothing able to ask.
+        // Attach the pipeline seams: user-facing audit, durable execution
+        // authority, approval policy, and confirmation UI.
         if (agentEngine instanceof DeterministicEngine) {
             DeterministicEngine de = (DeterministicEngine) agentEngine;
             de.pipeline().setRecorder(new EventLogRecorder(taskEvents));
+            de.pipeline().setLedger(executionLedger);
             approvalOverrides = new ApprovalPolicy.MapOverrides();
             // The prompt writes "always allow" here and the policy reads it
             // here: one instance, or the choice is recorded and ignored.
@@ -173,7 +184,7 @@ public final class MrNobodyApp extends Application {
             de.policy().setMode(ApprovalMode.fromName(settings.approvalMode()));
         }
         taskDispatcher = new TaskDispatcher("local");
-        taskDispatcher.register(new LocalWorker(agentEngine));
+        taskDispatcher.register(new LocalWorker(agentEngine, executionLedger));
         // Remote execution is opt-in: the worker fails honestly until a server
         // URL is configured, and local remains the default.
         taskDispatcher.register(new RemoteWorker(() -> settings.remoteServer()));
@@ -188,6 +199,12 @@ public final class MrNobodyApp extends Application {
                 int closed = store.reconcileStale(TaskReconciler.DEFAULT_STALE_AFTER_MS);
                 if (closed > 0) {
                     ErrorLog.record("Reconciled " + closed + " interrupted task(s) at startup");
+                }
+                // A crash between TaskStore.submit and WorkManager enqueue
+                // leaves a durable QUEUED outbox row. Unique work makes this
+                // safe to replay and closes that scheduling gap.
+                for (com.mrnobody.agent.core.Task queued : store.queued()) {
+                    taskScheduler.schedule(MrNobodyApp.this, queued.id());
                 }
             } catch (Exception e) {
                 ErrorLog.record("Task reconciliation failed: " + e);
@@ -249,6 +266,9 @@ public final class MrNobodyApp extends Application {
     }
     public static TaskStore tasks() { return taskStore; }
     public static TaskEventStore taskEvents() { return taskEvents; }
+    public static ExecutionLedger executionLedger() { return executionLedger; }
+    public static AsyncJobStore asyncJobs() { return asyncJobs; }
+    public static AsyncJobCoordinator asyncJobCoordinator() { return asyncJobCoordinator; }
     public static ApprovalPolicy.MapOverrides approvalOverrides() { return approvalOverrides; }
 
     /** Change how often the agent stops to ask, and remember it. */

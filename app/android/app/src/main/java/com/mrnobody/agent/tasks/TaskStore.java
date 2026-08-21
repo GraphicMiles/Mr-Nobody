@@ -10,6 +10,7 @@ import com.mrnobody.agent.core.Task;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Durable task storage (SQLite). Task state survives process death so a task
@@ -23,9 +24,10 @@ public final class TaskStore extends SQLiteOpenHelper {
      * {@code prev_result} for recurring-task change detection; v5 adds
      * {@code pending_tool} so a WAITING task knows what to resume; v6 adds
      * {@code follow_up} so a reply stays on this task; v7 adds artifacts and
-     * the plan snapshot. Every bump needs a real onUpgrade.
+     * the plan snapshot; v8 adds durable run identity and submission dedup.
+     * Every bump needs a real onUpgrade.
      */
-    private static final int VERSION = 7;
+    private static final int VERSION = 8;
 
     private static final String T = "tasks";
     private static final String C_ID = "_id";
@@ -50,6 +52,12 @@ public final class TaskStore extends SQLiteOpenHelper {
     private static final String C_FOLLOW_UP = "follow_up";
     private static final String C_ARTIFACTS = "artifacts";
     private static final String C_PLAN = "plan_json";
+    private static final String C_RUN_ID = "run_id";
+    private static final String C_SUBMISSION_KEY = "submission_key";
+    private static final String C_SUBMISSION_FINGERPRINT = "submission_fingerprint";
+
+    /** Double taps are duplicates; an explicit later repeat is not. */
+    public static final long DEFAULT_DEDUP_WINDOW_MS = 5_000L;
 
     public TaskStore(Context context) {
         super(context, DB, null, VERSION);
@@ -76,7 +84,14 @@ public final class TaskStore extends SQLiteOpenHelper {
                 + C_PENDING_TOOL + " TEXT, "
                 + C_FOLLOW_UP + " TEXT, "
                 + C_ARTIFACTS + " TEXT, "
-                + C_PLAN + " TEXT)");
+                + C_PLAN + " TEXT, "
+                + C_RUN_ID + " TEXT NOT NULL, "
+                + C_SUBMISSION_KEY + " TEXT, "
+                + C_SUBMISSION_FINGERPRINT + " TEXT)");
+        db.execSQL("CREATE UNIQUE INDEX idx_tasks_submission_key ON " + T
+                + "(" + C_SUBMISSION_KEY + ")");
+        db.execSQL("CREATE INDEX idx_tasks_submission_fingerprint ON " + T
+                + "(" + C_SUBMISSION_FINGERPRINT + "," + C_CREATED + ")");
     }
 
     @Override
@@ -106,18 +121,130 @@ public final class TaskStore extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_ARTIFACTS + " TEXT");
             db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_PLAN + " TEXT");
         }
+        if (oldVersion < 8) {
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_RUN_ID + " TEXT");
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_SUBMISSION_KEY + " TEXT");
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN "
+                    + C_SUBMISSION_FINGERPRINT + " TEXT");
+            // Existing rows each represent one current cycle. randomblob gives
+            // every row a different durable id without exposing task content.
+            db.execSQL("UPDATE " + T + " SET " + C_RUN_ID
+                    + "=lower(hex(randomblob(16))) WHERE " + C_RUN_ID
+                    + " IS NULL OR " + C_RUN_ID + "='' ");
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_submission_key ON " + T
+                    + "(" + C_SUBMISSION_KEY + ")");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_submission_fingerprint ON " + T
+                    + "(" + C_SUBMISSION_FINGERPRINT + "," + C_CREATED + ")");
+        }
     }
 
+    /** Outcome of an atomic submission: a new row or the live duplicate. */
+    public static final class Submission {
+        public final long taskId;
+        public final boolean created;
+
+        Submission(long taskId, boolean created) {
+            this.taskId = taskId;
+            this.created = created;
+        }
+    }
+
+    /** Internal callers explicitly asking for a fresh row bypass short-window dedup. */
     public long insert(String instruction) {
-        ContentValues v = new ContentValues();
-        v.put(C_INSTRUCTION, instruction);
-        v.put(C_STATUS, Task.Status.QUEUED.name());
+        return insertNew(getWritableDatabase(), instruction, "local",
+                UUID.randomUUID().toString(), null, null, System.currentTimeMillis());
+    }
+
+    /**
+     * Atomically deduplicate one user submission.
+     *
+     * <p>The client key handles transport replay. The fingerprint catches two
+     * UI taps that generated different keys inside a very short window. Only a
+     * live task is reused; an explicit later repeat remains a new run.
+     */
+    public Submission submit(String instruction, String submissionKey, String contextKey) {
+        return submit(instruction, submissionKey, contextKey, DEFAULT_DEDUP_WINDOW_MS);
+    }
+
+    public Submission submit(String instruction, String submissionKey, String contextKey,
+                             long dedupWindowMs) {
+        String text = instruction == null ? "" : instruction.trim();
+        String key = cleanKey(submissionKey);
+        String fingerprint = SubmissionFingerprint.of(text, "local", contextKey);
         long now = System.currentTimeMillis();
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            long byKey = key == null ? -1L : findBySubmissionKey(db, key);
+            if (byKey > 0) {
+                db.setTransactionSuccessful();
+                return new Submission(byKey, false);
+            }
+            long duplicate = findLiveFingerprint(db, fingerprint,
+                    now - Math.max(0L, dedupWindowMs));
+            if (duplicate > 0) {
+                db.setTransactionSuccessful();
+                return new Submission(duplicate, false);
+            }
+            long id = insertNew(db, text, "local", UUID.randomUUID().toString(),
+                    key, fingerprint, now);
+            if (id < 0 && key != null) {
+                id = findBySubmissionKey(db, key);
+                db.setTransactionSuccessful();
+                return new Submission(id, false);
+            }
+            db.setTransactionSuccessful();
+            return new Submission(id, true);
+        } catch (Exception e) {
+            return new Submission(-1L, false);
+        } finally {
+            try { db.endTransaction(); } catch (Exception ignored) { }
+        }
+    }
+
+    private static long insertNew(SQLiteDatabase db, String instruction, String worker,
+                                  String runId, String submissionKey,
+                                  String fingerprint, long now) {
+        ContentValues v = new ContentValues();
+        v.put(C_INSTRUCTION, instruction == null ? "" : instruction);
+        v.put(C_STATUS, Task.Status.QUEUED.name());
         v.put(C_CREATED, now);
         v.put(C_UPDATED, now);
         v.put(C_RETRY, 0);
-        v.put(C_WORKER, "local");
-        return getWritableDatabase().insert(T, null, v);
+        v.put(C_WORKER, worker == null ? "local" : worker);
+        v.put(C_RUN_ID, runId);
+        v.put(C_SUBMISSION_KEY, submissionKey);
+        v.put(C_SUBMISSION_FINGERPRINT, fingerprint);
+        return db.insert(T, null, v);
+    }
+
+    private static long findBySubmissionKey(SQLiteDatabase db, String key) {
+        try (Cursor c = db.query(T, new String[]{C_ID}, C_SUBMISSION_KEY + "=?",
+                new String[]{key}, null, null, null, "1")) {
+            return c.moveToFirst() ? c.getLong(0) : -1L;
+        }
+    }
+
+    private static long findLiveFingerprint(SQLiteDatabase db, String fingerprint,
+                                            long createdAfter) {
+        String live = "(?,?,?,?)";
+        try (Cursor c = db.query(T, new String[]{C_ID},
+                C_SUBMISSION_FINGERPRINT + "=? AND " + C_CREATED + ">=? AND "
+                        + C_STATUS + " IN " + live,
+                new String[]{fingerprint, String.valueOf(createdAfter),
+                        Task.Status.QUEUED.name(), Task.Status.RUNNING.name(),
+                        Task.Status.WAITING.name(), Task.Status.VERIFYING.name()},
+                null, null, C_CREATED + " DESC", "1")) {
+            return c.moveToFirst() ? c.getLong(0) : -1L;
+        }
+    }
+
+    private static String cleanKey(String value) {
+        if (value == null) return null;
+        String clean = value.trim();
+        if (clean.isEmpty()) return null;
+        // A key is an opaque identifier, never an instruction-sized payload.
+        return clean.length() <= 160 ? clean : clean.substring(0, 160);
     }
 
     public void update(Task task) {
@@ -129,6 +256,7 @@ public final class TaskStore extends SQLiteOpenHelper {
         v.put(C_UPDATED, System.currentTimeMillis());
         v.put(C_RETRY, task.retryCount());
         v.put(C_WORKER, task.worker());
+        v.put(C_RUN_ID, task.runId());
         v.put(C_FOLLOW_UP, task.followUp());
         v.put(C_ARTIFACTS, task.artifacts());
         v.put(C_PLAN, task.planJson());
@@ -366,6 +494,17 @@ public final class TaskStore extends SQLiteOpenHelper {
         return list;
     }
 
+    /** Queued rows are a durable scheduling outbox after a process crash. */
+    public List<Task> queued() {
+        List<Task> list = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().query(T, null, C_STATUS + "=?",
+                new String[]{Task.Status.QUEUED.name()}, null, null, C_CREATED + " ASC")) {
+            while (c.moveToNext()) list.add(fromCursor(c));
+        } catch (Exception ignored) {
+        }
+        return list;
+    }
+
     /** Every durable id, used to cancel scheduler state before erasing rows. */
     public List<Long> allIds() {
         List<Long> ids = new ArrayList<>();
@@ -382,11 +521,17 @@ public final class TaskStore extends SQLiteOpenHelper {
 
     private Task fromCursor(Cursor c) {
         long persistedUpdatedAt = c.getLong(c.getColumnIndexOrThrow(C_UPDATED));
+        String persistedRunId = "";
+        try {
+            int runColumn = c.getColumnIndex(C_RUN_ID);
+            if (runColumn >= 0) persistedRunId = c.getString(runColumn);
+        } catch (Exception ignored) { }
         Task t = new Task(
                 c.getLong(c.getColumnIndexOrThrow(C_ID)),
                 c.getString(c.getColumnIndexOrThrow(C_INSTRUCTION)),
                 c.getLong(c.getColumnIndexOrThrow(C_CREATED)),
-                persistedUpdatedAt);
+                persistedUpdatedAt,
+                persistedRunId);
         try { t.setStatus(Task.Status.valueOf(c.getString(c.getColumnIndexOrThrow(C_STATUS)))); }
         catch (Exception ignored) { }
         t.setCurrentStep(c.getString(c.getColumnIndexOrThrow(C_STEP)));

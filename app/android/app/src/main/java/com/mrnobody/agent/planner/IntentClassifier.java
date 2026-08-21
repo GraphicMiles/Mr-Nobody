@@ -2,7 +2,11 @@ package com.mrnobody.agent.planner;
 
 import com.mrnobody.agent.ai.AiProvider;
 import com.mrnobody.agent.ai.TokenUsage;
+import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.execution.LedgeredCall;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -123,24 +127,40 @@ public final class IntentClassifier {
     }
 
     private static String ask(AiProvider provider, String system, String user) {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final String[] out = new String[1];
-        try {
+        Map<String, String> identity = new LinkedHashMap<>();
+        identity.put("provider", provider.id());
+        identity.put("model", provider.modelId());
+        identity.put("system", system);
+        identity.put("prompt", user);
+        ToolResult result = LedgeredCall.run("ai", "classify", identity, () -> {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final String[] out = new String[1];
+            final String[] error = new String[1];
             provider.complete(system, user, new AiProvider.CompletionCallback() {
                 @Override public void onResult(String text) {
                     out[0] = text;
                     latch.countDown();
                 }
-                @Override public void onError(String error) {
+                @Override public void onError(String message) {
+                    error[0] = message;
                     latch.countDown();
                 }
                 @Override public void onUsage(TokenUsage usage) { }
             });
-            if (!latch.await(ASK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) return null;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null;
-        }
-        return out[0];
+            try {
+                if (!latch.await(ASK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                    return ToolResult.fail("AI classification timed out");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return ToolResult.fail("AI classification interrupted");
+            }
+            if (out[0] == null) {
+                return ToolResult.fail(error[0] == null ? "AI classification failed" : error[0]);
+            }
+            return ToolResult.okText(out[0]);
+        });
+        return result != null && result.isSuccess()
+                ? String.valueOf(result.value().get("text")) : null;
     }
 }

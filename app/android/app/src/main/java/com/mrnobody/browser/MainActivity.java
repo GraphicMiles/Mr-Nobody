@@ -103,9 +103,27 @@ public class MainActivity extends FlutterActivity {
                                 return;
                             }
                             ensureNotificationPermission();
-                            long id = MrNobodyApp.tasks().insert(instruction.trim());
-                            MrNobodyApp.scheduler().schedule(getApplicationContext(), id);
-                            result.success(Map.of("id", id));
+                            String submissionKey = call.argument("submissionKey");
+                            String contextKey = call.argument("contextKey");
+                            com.mrnobody.agent.tasks.TaskStore.Submission submission =
+                                    MrNobodyApp.tasks().submit(
+                                            instruction.trim(), submissionKey, contextKey);
+                            if (submission.taskId < 0) {
+                                result.error("task_store", "could not create the task", null);
+                                return;
+                            }
+                            Task submitted = MrNobodyApp.tasks().get(submission.taskId);
+                            // Re-scheduling a deduplicated QUEUED row also heals
+                            // a process death between the insert and WorkManager.
+                            if (submission.created || (submitted != null
+                                    && submitted.status() == Task.Status.QUEUED)) {
+                                MrNobodyApp.scheduler().schedule(
+                                        getApplicationContext(), submission.taskId);
+                            }
+                            Map<String, Object> started = new HashMap<>();
+                            started.put("id", submission.taskId);
+                            started.put("deduplicated", !submission.created);
+                            result.success(started);
                             return;
                         }
                         case "rerunTask": {
@@ -124,6 +142,7 @@ public class MainActivity extends FlutterActivity {
                                 result.success(false);
                                 return;
                             }
+                            t.startNewRun();
                             t.setStatus(Task.Status.QUEUED);
                             t.setCurrentStep("");
                             t.setResult("");
@@ -179,6 +198,7 @@ public class MainActivity extends FlutterActivity {
                             MrNobodyApp.taskEvents().append(t.id(),
                                     TaskEventStore.USER_FOLLOWUP, text.trim());
                             t.setFollowUp(text.trim());
+                            t.startNewRun();
                             t.setStatus(Task.Status.QUEUED);
                             t.setCurrentStep("");
                             t.setResult("");
@@ -337,6 +357,8 @@ public class MainActivity extends FlutterActivity {
                                     .commit();
                             MrNobodyApp.tasks().clear();
                             MrNobodyApp.taskEvents().clearAll();
+                            MrNobodyApp.executionLedger().clearAll();
+                            MrNobodyApp.asyncJobs().clearAll();
                             result.success(true);
                             return;
                         }
@@ -901,6 +923,8 @@ public class MainActivity extends FlutterActivity {
                                 }
                                 MrNobodyApp.tasks().clear();
                                 MrNobodyApp.taskEvents().clearAll();
+                                MrNobodyApp.executionLedger().clearAll();
+                                MrNobodyApp.asyncJobs().clearAll();
                                 runOnUiThread(() -> result.success(null));
                             });
                             return;
@@ -1212,6 +1236,7 @@ public class MainActivity extends FlutterActivity {
         m.put("result", t.result() == null ? "" : t.result());
         m.put("error", t.error() == null ? "" : t.error());
         m.put("worker", t.worker() == null ? "local" : t.worker());
+        m.put("runId", t.runId());
         m.put("createdAt", t.createdAt());
         m.put("updatedAt", t.updatedAt());
         m.put("artifacts", t.artifacts() == null ? "" : t.artifacts());
@@ -1297,6 +1322,9 @@ public class MainActivity extends FlutterActivity {
                         break;
                     case "taskstate":
                         MrNobodyApp.tasks().clear();
+                        MrNobodyApp.taskEvents().clearAll();
+                        MrNobodyApp.executionLedger().clearAll();
+                        MrNobodyApp.asyncJobs().clearAll();
                         cleared.put("taskstate", true);
                         break;
                     case "workspace":

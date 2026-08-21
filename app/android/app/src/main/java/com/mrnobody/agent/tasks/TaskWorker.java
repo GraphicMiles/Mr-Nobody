@@ -90,6 +90,7 @@ public final class TaskWorker extends Worker {
                     return Result.success();
                 }
                 MrNobodyApp.tasks().setPreviousResult(taskId, task.result());
+                task.startNewRun();
                 task.setStatus(Task.Status.QUEUED);
                 task.setCurrentStep("");
                 task.setResult("");

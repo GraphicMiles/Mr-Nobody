@@ -2,6 +2,9 @@ package com.mrnobody.agent.core;
 
 import android.content.Context;
 
+import com.mrnobody.agent.execution.ExecutionIdentity;
+import com.mrnobody.agent.execution.ExecutionLedger;
+import com.mrnobody.agent.execution.RunScope;
 import com.mrnobody.debug.ErrorLog;
 
 import java.util.ArrayList;
@@ -20,8 +23,9 @@ import java.util.concurrent.TimeoutException;
  * <p>Every guarantee the agent offers is enforced here, in this order:
  *
  * <pre>
- *   record the call        durable before execution, so a crash still leaves evidence
+ *   record the call        user-facing audit before execution
  *   validate parameters    against the tool's declared spec
+ *   prepare/replay ledger  durable identity; return a committed result if present
  *   approval               ALLOW / CONFIRM / DENY, with a source and a reason
  *   guards                 may DENY or abstain — never grant
  *   confirmation           and if nobody can answer, DENY
@@ -85,6 +89,7 @@ public final class ToolPipeline {
     private final List<Guard> guards = new ArrayList<>();
     private Confirmer confirmer;      // null until a UI is attached — deny until then
     private Recorder recorder = Recorder.NONE;
+    private ExecutionLedger ledger = ExecutionLedger.NONE;
 
     public ToolPipeline(Approval approval) {
         this.approval = approval == null ? new TierApproval() : approval;
@@ -104,20 +109,42 @@ public final class ToolPipeline {
         this.recorder = recorder == null ? Recorder.NONE : recorder;
     }
 
+    /** Attach the durable execution authority used for replay and idempotency. */
+    public void setLedger(ExecutionLedger ledger) {
+        this.ledger = ledger == null ? ExecutionLedger.NONE : ledger;
+    }
+
     /** Run a tool call through the whole pipeline. Never throws. */
     public ToolResult run(Context context, Tool tool, ToolRequest request, Cancellation cancellation) {
         ToolSpec spec = tool.spec();
-        ToolCall call = ToolCall.of(spec.name(), request, tool.tierFor(request));
+        Tier tier = tool.tierFor(request);
+        ExecutionIdentity execution = RunScope.next(spec.name(), request.action(), request.params());
+        ToolCall call = ToolCall.of(spec.name(), request, tier, execution);
         recorder.onCall(call);
         long startedAt = System.currentTimeMillis();
 
         ApprovalDecision decision = ApprovalDecision.allow(ApprovalDecision.Source.DEFAULT, "");
         ToolResult result;
+        ExecutionLedger.Entry entry = null;
         try {
             String invalid = spec.validate(request);
             if (invalid != null) {
                 result = ToolResult.fail(spec.name() + ": " + invalid);
                 return finish(call, result, decision, startedAt);
+            }
+
+            if (execution.isDurable() && ledger != ExecutionLedger.NONE) {
+                entry = ledger.prepare(execution, spec.name(), request.action(), tier);
+                if (entry == null && tier.atLeast(Tier.SANDBOX)) {
+                    result = ToolResult.fail("Execution ledger unavailable; "
+                            + spec.name() + " was not run.");
+                    return finish(call, result, decision, startedAt);
+                }
+                ToolResult prior = priorOutcome(context, tool, request, spec,
+                        execution, entry, tier);
+                if (prior != null) {
+                    return finish(call, prior, decision, startedAt);
+                }
             }
 
             decision = approval.decide(call);
@@ -133,6 +160,7 @@ public final class ToolPipeline {
 
             if (decision.isDeny()) {
                 result = ToolResult.fail("Refused: " + reasonOr(decision, "not permitted"));
+                commit(execution, result, false);
                 return finish(call, result, decision, startedAt);
             }
 
@@ -148,21 +176,32 @@ public final class ToolPipeline {
                     result = ToolResult.needsApproval(call.tool(),
                             "Needs your approval: " + call.summary()
                                     + " — open Mr Nobody to allow it.");
+                    if (execution.isDurable()) ledger.markWaiting(execution, result);
                     return finish(call, ApprovalDecision.deny(decision.source(),
                             "no one available to confirm"), result, startedAt);
                 }
                 if (answer == Confirmation.DENIED) {
                     result = ToolResult.fail("Declined: " + call.summary());
+                    commit(execution, result, false);
                     return finish(call, ApprovalDecision.deny(ApprovalDecision.Source.USER_OVERRIDE,
                             "declined by the user"), result, startedAt);
                 }
             }
 
-            result = execute(context, tool, request, spec, cancellation);
+            if (execution.isDurable() && ledger != ExecutionLedger.NONE) {
+                ledger.markRunning(execution);
+            }
+            ToolExecution attempted = execute(context, tool, request, spec,
+                    cancellation, execution);
+            result = attempted.result;
+            commit(execution, result, attempted.ambiguous);
         } catch (Throwable t) {
-            // A tool that throws is a failed call, not a dead agent.
+            // A tool that throws is a failed call, not a dead agent. Once a
+            // consequential call entered RUNNING, a throw is an unknown
+            // outcome and must not be blindly repeated.
             ErrorLog.record("tool " + spec.name() + " threw: " + t);
             result = ToolResult.fail(spec.name() + " failed: " + describe(t));
+            commit(execution, result, tier.atLeast(Tier.SANDBOX));
         }
         return finish(call, result, decision, startedAt);
     }
@@ -171,10 +210,67 @@ public final class ToolPipeline {
         return run(context, tool, request, Cancellation.NONE);
     }
 
+    /** Return a committed outcome, refuse an unsafe replay, or null to execute. */
+    private ToolResult priorOutcome(Context context, Tool tool, ToolRequest request,
+                                    ToolSpec spec, ExecutionIdentity execution,
+                                    ExecutionLedger.Entry entry, Tier tier) {
+        if (entry == null) return null;
+        if (entry.state == ExecutionLedger.State.SUCCEEDED && entry.result != null) {
+            return entry.result;
+        }
+        if (entry.state == ExecutionLedger.State.FAILED) {
+            if (tier == Tier.READ || tool.supportsIdempotency(request)) return null;
+            return entry.result == null
+                    ? ToolResult.fail("The prior call failed and was not repeated.")
+                    : entry.result;
+        }
+        if (entry.state != ExecutionLedger.State.RUNNING
+                && entry.state != ExecutionLedger.State.UNKNOWN) {
+            // PREPARED means no effect began; WAITING means approval parked it.
+            return null;
+        }
+
+        try {
+            ToolResult reconciled = tool.reconcile(context, request, execution);
+            if (reconciled != null) {
+                ToolResult checked = validate(spec, reconciled);
+                ledger.complete(execution, checked);
+                return checked;
+            }
+        } catch (Throwable t) {
+            ErrorLog.record("tool " + spec.name() + " reconciliation failed: " + t);
+        }
+
+        if (tier == Tier.READ || tool.supportsIdempotency(request)) {
+            // Reads are harmless to repeat. An idempotent effect must receive
+            // the exact same key through Tool.execute(..., execution).
+            return null;
+        }
+
+        String message = "A previous " + spec.name()
+                + " attempt has an unknown outcome; it was not repeated.";
+        ledger.markUnknown(execution, message);
+        return ToolResult.fail(message);
+    }
+
+    private void commit(ExecutionIdentity execution, ToolResult result, boolean ambiguous) {
+        if (execution == null || !execution.isDurable() || ledger == ExecutionLedger.NONE) return;
+        if (result != null && result.needsApproval()) {
+            ledger.markWaiting(execution, result);
+        } else if (ambiguous) {
+            ledger.markUnknown(execution,
+                    result == null || result.error() == null
+                            ? "outcome unknown" : result.error());
+        } else {
+            ledger.complete(execution, result);
+        }
+    }
+
     // ------------------------------------------------------------ execution
 
-    private ToolResult execute(Context context, Tool tool, ToolRequest request,
-                               ToolSpec spec, Cancellation cancellation) {
+    private ToolExecution execute(Context context, Tool tool, ToolRequest request,
+                                  ToolSpec spec, Cancellation cancellation,
+                                  ExecutionIdentity execution) {
         // Tool bodies run on pooled threads. Capture and explicitly propagate
         // the task identity; a plain ThreadLocal set by WorkManager is absent
         // on a reused executor thread, which previously made task-scoped
@@ -183,7 +279,8 @@ public final class ToolPipeline {
         Future<ToolResult> future = EXECUTOR.submit(
                 () -> TaskScope.callAs(taskId,
                         () -> tool.execute(context, request,
-                                cancellation == null ? Cancellation.NONE : cancellation)));
+                                cancellation == null ? Cancellation.NONE : cancellation,
+                                execution)));
         long deadline = System.currentTimeMillis() + spec.timeoutMs();
         try {
             while (true) {
@@ -192,24 +289,38 @@ public final class ToolPipeline {
                 try {
                     // Poll rather than block for the whole budget, so a cancel
                     // request is noticed while a slow tool is still running.
-                    return validate(spec, future.get(Math.min(remaining, 250), TimeUnit.MILLISECONDS));
+                    return new ToolExecution(validate(spec,
+                            future.get(Math.min(remaining, 250), TimeUnit.MILLISECONDS)), false);
                 } catch (TimeoutException waiting) {
                     if (cancellation != null && cancellation.isCancelled()) {
                         future.cancel(true);
-                        return ToolResult.fail(spec.name() + " cancelled");
+                        return new ToolExecution(
+                                ToolResult.fail(spec.name() + " cancelled"), true);
                     }
                 }
             }
             future.cancel(true);
-            return ToolResult.fail(spec.name() + " timed out after " + spec.timeoutMs() + "ms");
+            return new ToolExecution(ToolResult.fail(
+                    spec.name() + " timed out after " + spec.timeoutMs() + "ms"), true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             future.cancel(true);
-            return ToolResult.fail(spec.name() + " interrupted");
+            return new ToolExecution(ToolResult.fail(spec.name() + " interrupted"), true);
         } catch (Exception e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             ErrorLog.record("tool " + spec.name() + " threw: " + cause);
-            return ToolResult.fail(spec.name() + " failed: " + describe(cause));
+            return new ToolExecution(ToolResult.fail(
+                    spec.name() + " failed: " + describe(cause)), true);
+        }
+    }
+
+    private static final class ToolExecution {
+        final ToolResult result;
+        final boolean ambiguous;
+
+        ToolExecution(ToolResult result, boolean ambiguous) {
+            this.result = result;
+            this.ambiguous = ambiguous;
         }
     }
 

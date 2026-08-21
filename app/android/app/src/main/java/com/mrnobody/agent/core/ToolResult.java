@@ -63,6 +63,19 @@ public final class ToolResult {
         return new ToolResult(success, value, error, text, awaitingApproval);
     }
 
+    /**
+     * Restore a value committed by the execution ledger.
+     *
+     * <p>This is intentionally a structured factory rather than Java object
+     * serialisation: ledger rows stay versionable and never instantiate an
+     * arbitrary class from disk.
+     */
+    public static ToolResult restore(boolean success, Map<String, Object> value,
+                                     String error, String modelText,
+                                     boolean awaitingApproval) {
+        return new ToolResult(success, value, error, modelText, awaitingApproval);
+    }
+
     public boolean isSuccess() { return success; }
 
     public boolean isError() { return !success; }

@@ -6,6 +6,8 @@ import com.mrnobody.agent.browser.HeadlessSessions;
 import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
+import com.mrnobody.agent.execution.ExecutionLedger;
+import com.mrnobody.agent.execution.RunScope;
 import com.mrnobody.agent.tasks.EventLogRecorder;
 import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.browser.MrNobodyApp;
@@ -18,6 +20,7 @@ import com.mrnobody.browser.MrNobodyApp;
 public final class LocalWorker implements Worker {
 
     private final AgentEngine engine;
+    private final ExecutionLedger ledger;
 
     /**
      * The current engine owns mutable planner, guard and tool state. Run one
@@ -27,7 +30,12 @@ public final class LocalWorker implements Worker {
     private final Object executionLock = new Object();
 
     public LocalWorker(AgentEngine engine) {
+        this(engine, ExecutionLedger.NONE);
+    }
+
+    public LocalWorker(AgentEngine engine, ExecutionLedger ledger) {
         this.engine = engine;
+        this.ledger = ledger == null ? ExecutionLedger.NONE : ledger;
     }
 
     @Override
@@ -41,11 +49,15 @@ public final class LocalWorker implements Worker {
 
         synchronized (executionLock) {
             task.setStatus(Task.Status.RUNNING);
+            // Commit the run id and RUNNING transition before the first effect.
+            // A process death can now reload this exact cycle and replay its ledger.
+            try { MrNobodyApp.tasks().update(task); } catch (Throwable ignored) { }
 
             // TaskScope is propagated by ToolPipeline onto its executor. The
             // worker still owns the outer binding and always clears it, so a
             // reused WorkManager thread cannot inherit the next task's id.
             EventLogRecorder.bind(task.id());
+            RunScope.bind(task.id(), task.runId(), ledger);
             HeadlessSessions.acquire(context, task.id());
             com.mrnobody.agent.tasks.CompletionStats.beginRun();
             try {
@@ -60,6 +72,7 @@ public final class LocalWorker implements Worker {
                 append(task, terminal, task.status().name());
                 com.mrnobody.agent.tasks.CompletionStats.endRun(
                         task.status() == Task.Status.COMPLETED);
+                RunScope.clear();
                 EventLogRecorder.clear();
                 HeadlessSessions.release(task.id());
             }

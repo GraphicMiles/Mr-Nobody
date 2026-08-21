@@ -535,3 +535,35 @@ and routing is what was proven. Features closed: built-in Tor end-to-end
 
 Remaining Tor-adjacent device items: Orbot-priority variant, fail-closed
 kill/relaunch under Nobody, airplane-mode refusal.
+
+---
+
+## 2026-08-22 — Tier 0 execution safety: durable identity before design tools
+
+The agent harness now distinguishes a reusable task row from one execution
+cycle. Every new task/follow-up/recurring wake receives a durable run ID;
+retries keep it. Tool operations combine task + run + logical step + effect
+slot + an argument fingerprint into a deterministic idempotency key.
+
+A separate SQLite execution ledger is now the recovery authority. It stores
+step/effect state, bounded replay results, external references, and reserved /
+actual cost fields. On retry, committed calls replay without execution. Reads
+may be repeated; idempotent adapters receive the same key; an ambiguous
+non-idempotent effect fails closed instead of being guessed or repeated.
+Remote AI calls use the same ledger boundary, and remote-worker submission
+persists/reuses its remote task ID.
+
+Task submission now has an atomic client-key + short-window fingerprint dedup
+path. Startup re-enqueues durable QUEUED rows, closing the insert-before-
+WorkManager crash gap. Agent downloads persist the harness key in their own
+store so a retry returns the original transfer instead of creating a second
+file.
+
+Generic async infrastructure landed separately from any design vendor:
+AsyncJobAdapter, durable job store, and coordinator for submit, poll,
+reconcile, terminal result, external reference, and cost. No Canva/Figma
+adapter or credential is present.
+
+Verification: full JVM suite 987 green; privacy-auditor suite 13 green;
+repository privacy audit clean. Flutter tooling was unavailable locally, so
+strict Dart analysis/widget tests remain for CI.

@@ -1,5 +1,7 @@
 package com.mrnobody.agent.core;
 
+import com.mrnobody.agent.execution.ExecutionIdentity;
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -22,21 +24,28 @@ public final class ToolCall {
     private final Map<String, String> params;
     private final Tier tier;
     private final long createdAt;
+    private final ExecutionIdentity execution;
 
     private ToolCall(String id, String tool, String action, Map<String, String> params,
-                     Tier tier, long createdAt) {
+                     Tier tier, long createdAt, ExecutionIdentity execution) {
         this.id = id;
         this.tool = tool;
         this.action = action;
         this.params = Collections.unmodifiableMap(new LinkedHashMap<>(params));
         this.tier = tier;
         this.createdAt = createdAt;
+        this.execution = execution;
     }
 
     public static ToolCall of(String tool, ToolRequest request, Tier tier) {
+        return of(tool, request, tier, null);
+    }
+
+    public static ToolCall of(String tool, ToolRequest request, Tier tier,
+                              ExecutionIdentity execution) {
         String id = "call-" + SEQUENCE.incrementAndGet();
         return new ToolCall(id, tool, request.action(), request.params(), tier,
-                System.currentTimeMillis());
+                System.currentTimeMillis(), execution);
     }
 
     public String id() { return id; }
@@ -45,6 +54,19 @@ public final class ToolCall {
     public Map<String, String> params() { return params; }
     public Tier tier() { return tier; }
     public long createdAt() { return createdAt; }
+    public ExecutionIdentity execution() { return execution; }
+
+    public String runId() {
+        return execution == null ? "" : execution.runId();
+    }
+
+    public String logicalStepId() {
+        return execution == null ? "" : execution.logicalStepId();
+    }
+
+    public String idempotencyKey() {
+        return execution == null ? "" : execution.idempotencyKey();
+    }
 
     /**
      * A one-line summary for a confirmation prompt or a log. Values are

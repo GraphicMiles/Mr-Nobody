@@ -2,7 +2,7 @@
 
 This is the single source of truth for delivery status. Implementation guidance lives in `README.md`; per-batch history lives in `SESSION-LOG.txt`. No additional standing documents.
 
-Status baseline: 2026-08-21. The Flutter CI workflow is green at head with 901 JVM tests; the Android emulator workflow is manual-dispatch only (its last full run passed API 31 and API 34).
+Status baseline: 2026-08-22. The Tier 0 execution-safety foundation is implemented locally with 987 JVM tests passing; the pushed GitHub CI result is pending. The Android emulator workflow remains manual-dispatch only (its last full run passed API 31 and API 34).
 
 Status vocabulary:
 
@@ -13,10 +13,11 @@ Status vocabulary:
 
 ## Executive status
 
-Two delivery batches landed on 2026-08-20/21 on top of the hardening baseline:
+Three delivery batches now sit on top of the hardening baseline:
 
 1. **Read-loop economics** — the local agent stopped over-working: evidence-sufficiency early exit, escalation only on validated failure (8 s cap), a device-clock skill, single-retry policy, 90 s/120 s wall-clock budgets, and cheap-success candidate ranking. Device-verified effect: a fact question that previously ran 69+ seconds over six pages now answers in ~11 seconds with citations.
 2. **Bundled Tor + agent harness** — Nobody mode no longer requires Orbot: TorService (tor-android 0.4.7.14) starts on demand, applies the mode itself at the first circuit (readiness is Tor's own status word, never just an open port), fails closed otherwise, and yields to a running Orbot. The agent gained per-task tool scope, blocking answer verification with an extractive fallback, an intent-vs-outcome check, and a one-tap on-device test suite.
+3. **Tier 0 execution safety** — every execution cycle has a durable run ID; logical operations receive deterministic idempotency keys; a separate SQLite ledger replays committed calls and fails closed on ambiguous effects; task submission is atomically deduplicated; downloads and remote-task submission propagate stable keys; and a generic persisted async submit/poll/reconcile contract is ready for adapters. No design adapter is included.
 
 First device runs of the suite surfaced and fixed: two app-killing packaging faults (an undeclared AAR dependency; missing JNI keep rules under R8), premature Tor readiness, CSS leaking into answers via `textContent` extraction, and image downloads blind to query-declared formats and lazy-loaded galleries. Each fix carries a regression or wiring test; the full history is in `SESSION-LOG.txt`.
 
@@ -28,10 +29,10 @@ Remote workers and credits remain unstarted by design. The next toolchain step i
 
 | Evidence | Result |
 |---|---|
-| GitHub Actions run | **Passed** at head (Flutter workflow) |
+| GitHub Actions run | **Pending** for the Tier 0 commit; prior head passed |
 | Strict Flutter analysis | **Passed** |
 | Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **901 tests passed** at the current head |
+| Java/JVM suite | **987 tests passed locally** at the current head |
 | Android Gradle unit suite | **Passed** |
 | Privacy-auditor suite | **13 tests passed** |
 | Repository privacy audit | **Clean** |
@@ -104,7 +105,10 @@ Privacy is not anonymity. A remote AI provider receives the task context sent to
 | Specialised search-skill router (YouTube, fresh info/news, public Facebook, materials/explicit Google, academic, docs, fact-checking, finance, weather, government) | **Built, device-unverified** | Live provider/result quality, host constraints, login walls, recency and official-source checks |
 | Task-scoped headless browser resolution | **Verified off-device** | Real WebView executor behavior on Android |
 | Cross-task state isolation | **Verified structurally/off-device** | Back-to-back and queued task tests on a phone |
-| Remote-provider autonomous planner | **Verified off-device** | Live provider/model matrix, timeout and cancellation |
+| Durable run/effect identity and execution replay | **Verified off-device** | Kill after a committed read/download and confirm replay without duplicate effect on a phone |
+| Task-submission dedup and queued-work reconciliation | **Verified off-device** | Double tap plus process death between insert and WorkManager enqueue on a phone |
+| Generic async-job coordinator/store | **Verified off-device, no production adapter** | Exercise submit/poll/reconcile with the first real adapter after its own security review |
+| Remote-provider autonomous planner | **Verified off-device** | Live provider/model matrix, timeout, cancellation, and process-death unknown-outcome behavior |
 | Tool schemas, approval and guards | **Verified off-device** | Foreground/background approval lifecycle |
 | Honest oversized-output previews | **Verified off-device** | Large-page behavior in a live task |
 | App-owned downloads | **Built, device-unverified** | SAF, MediaStore, HTTP range, process death and notifications |
@@ -283,6 +287,14 @@ Screenshot or screen recording:
 - [ ] CI remains green after every patch.
 
 ## Later phases
+
+### Resilience before design adapters
+
+- Add typed retry classification on top of the execution ledger.
+- Add explicitly consented AI-provider fallback without replaying committed effects.
+- Move mutable planner/guard state into per-run objects before replacing the serialized local lane with a bounded pool.
+- Add a top-level skill registry, separate safety/creative/finalization gates, platform-neutral design sessions, and a fake adapter.
+- Implement Canva only after the fake adapter passes duplicate-submit, ambiguous-timeout, process-death, quota, and review-loop tests.
 
 ### Remote execution end to end
 

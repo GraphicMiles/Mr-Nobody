@@ -1,6 +1,7 @@
 package com.mrnobody.agent.planner;
 
 import com.mrnobody.agent.core.ToolRequest;
+import com.mrnobody.agent.execution.ExecutionIdentity;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +31,8 @@ public final class Plan {
         public final String label;
         public final String tool;
         public final String reason;
+        /** Stable within a reconstructed plan; participates in effect identity. */
+        public final String logicalId;
 
         /** The arguments for a tool step; null for an internal step. */
         public final ToolRequest request;
@@ -43,6 +46,7 @@ public final class Plan {
             this.tool = tool;
             this.reason = reason == null ? "" : reason;
             this.request = request;
+            this.logicalId = logicalId(label, tool, request);
         }
 
         /** A step the planner runs itself rather than delegating to a tool. */
@@ -57,6 +61,16 @@ public final class Plan {
 
         public boolean isToolStep() {
             return tool != null && !tool.isEmpty();
+        }
+
+        private static String logicalId(String label, String tool, ToolRequest request) {
+            String base = (label == null ? "step" : label).trim()
+                    .replaceAll("[^A-Za-z0-9._-]", "-");
+            if (base.isEmpty()) base = "step";
+            if (request == null || tool == null || tool.isEmpty()) return base;
+            String fingerprint = ExecutionIdentity.fingerprint(
+                    tool, request.action(), request.params());
+            return base + "." + fingerprint.substring(0, 12);
         }
 
         @Override
