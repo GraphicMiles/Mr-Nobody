@@ -43,6 +43,8 @@ public final class EmbeddedTor {
     /** TorService's documented broadcast contract. */
     public static final String ACTION_STATUS = "org.torproject.android.intent.action.STATUS";
     public static final String EXTRA_STATUS = "org.torproject.android.intent.extra.STATUS";
+    /** TorService broadcasts its internal failures here; they go to the ⓘ log. */
+    public static final String ACTION_ERROR = "org.torproject.android.intent.action.ERROR";
 
     /**
      * Set the moment this process asks the service to start. TorService runs
@@ -133,6 +135,13 @@ public final class EmbeddedTor {
             @Override
             public void onReceive(Context c, Intent intent) {
                 if (intent == null) return;
+                if (ACTION_ERROR.equals(intent.getAction())) {
+                    // Tor's own failure text is the only real diagnostic when
+                    // a bootstrap dies; a silent OFF taught us nothing.
+                    ErrorLog.record("embedded tor error: "
+                            + String.valueOf(intent.getStringExtra(Intent.EXTRA_TEXT)));
+                    return;
+                }
                 String status = intent.getStringExtra(EXTRA_STATUS);
                 if (EmbeddedTorPolicy.statusMeansReady(status)) onStatus.countDown();
             }
@@ -157,7 +166,15 @@ public final class EmbeddedTor {
                     return ready() || waitForReady(deadline);
                 }
             }
-            return ready();
+            if (!ready()) {
+                // Which failure is it? STARTING at the deadline = a slow or
+                // interfered-with bootstrap (network); OFF = the service died
+                // (our side). The distinction drives the next fix.
+                ErrorLog.record("embedded tor: not ready after " + (waitMs / 1000)
+                        + "s, status=" + String.valueOf(torStatus()));
+                return false;
+            }
+            return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return ready();
@@ -214,6 +231,7 @@ public final class EmbeddedTor {
     private static boolean registerStatusReceiver(Context app, BroadcastReceiver receiver) {
         try {
             IntentFilter filter = new IntentFilter(ACTION_STATUS);
+            filter.addAction(ACTION_ERROR);
             if (Build.VERSION.SDK_INT >= 33) {
                 app.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
@@ -236,8 +254,10 @@ public final class EmbeddedTor {
             Class<?> lbm = Class.forName(
                     "androidx.localbroadcastmanager.content.LocalBroadcastManager");
             Object manager = lbm.getMethod("getInstance", Context.class).invoke(null, app);
+            IntentFilter filter = new IntentFilter(ACTION_STATUS);
+            filter.addAction(ACTION_ERROR);
             lbm.getMethod("registerReceiver", BroadcastReceiver.class, IntentFilter.class)
-                    .invoke(manager, receiver, new IntentFilter(ACTION_STATUS));
+                    .invoke(manager, receiver, filter);
             return manager;
         } catch (Throwable t) {
             return null; // the system broadcast and the port probe still cover us

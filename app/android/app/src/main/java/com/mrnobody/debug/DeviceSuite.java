@@ -47,7 +47,7 @@ public final class DeviceSuite {
     /** Wall ceilings per check — every check must end, pass or fail. */
     static final long AGENT_CHECK_MS = 90_000L;
     static final long DOWNLOAD_CHECK_MS = 150_000L;
-    static final long TOR_CHECK_MS = 110_000L;
+    static final long TOR_CHECK_MS = 200_000L; // covers the 180s bootstrap budget
 
     /** The mode the suite found, restored by the final check. */
     private static volatile String modeBeforeSuite;
@@ -94,7 +94,7 @@ public final class DeviceSuite {
         add(out, "suite.agent_speed", "Live agent: question speed (network)");
         add(out, "suite.image_download", "Live agent: png icon download (network)");
         add(out, "suite.tor_bundled", "Built-in Tor packaged");
-        add(out, "suite.tor_nobody", "Nobody mode reaches Tor (network, ~1 min)");
+        add(out, "suite.tor_nobody", "Nobody mode reaches Tor (network, up to ~3 min)");
         add(out, "suite.tor_exit", "Traffic exits via Tor (check.torproject.org)");
         add(out, "suite.tor_restore", "Restore the mode the suite found");
         return out;
@@ -259,14 +259,18 @@ public final class DeviceSuite {
         long started = System.currentTimeMillis();
         Task task = runAsWorker(context, "download a png icon from pngtree");
         long elapsed = System.currentTimeMillis() - started;
-        String answer = (task.result() == null ? "" : task.result())
-                .toLowerCase(Locale.ROOT);
-        boolean downloaded = answer.contains("download") && answer.contains(".png");
+        String raw = task.result() == null ? "" : task.result();
+        String answer = raw.toLowerCase(Locale.ROOT);
+        boolean downloaded = answer.contains("downloaded ") && answer.contains(".png");
+        boolean nothingReadable = answer.contains("search listings");
         boolean pass = task.status() == Task.Status.COMPLETED && downloaded
                 && elapsed <= DOWNLOAD_CHECK_MS;
-        return result(id, name, pass, (elapsed / 1000) + "s — "
-                + (downloaded ? "a .png was resolved and enqueued"
-                        : "no .png in the outcome: " + downloadLine(task.result())));
+        String story = downloaded ? "a .png was resolved and enqueued"
+                : (nothingReadable
+                        ? "no page could be read at all (challenge walls?) — note: "
+                        : "pages were read but no file resolved — note: ")
+                        + downloadLine(raw);
+        return result(id, name, pass, (elapsed / 1000) + "s — " + story);
     }
 
     /** The line of the answer that talks about the download, or the first line. */
@@ -325,8 +329,15 @@ public final class DeviceSuite {
             }
         }
         String problem = PrivacyController.consumePendingProblem();
-        return result(id, name, false, problem != null ? problem
-                : "did not reach Nobody within " + (TOR_CHECK_MS / 1000) + "s");
+        String status = String.valueOf(EmbeddedTor.torStatus());
+        String meaning = "STARTING".equals(status)
+                ? " — Tor is still bootstrapping: slow or interfered-with on this network"
+                : ("OFF".equals(status)
+                        ? " — the Tor service died; check the ⓘ log for 'embedded tor error'"
+                        : "");
+        return result(id, name, false, (problem != null ? problem
+                : "did not reach Nobody within " + (TOR_CHECK_MS / 1000) + "s")
+                + " [tor status=" + status + meaning + "]");
     }
 
     private static Map<String, Object> torExit(String id, String name) {

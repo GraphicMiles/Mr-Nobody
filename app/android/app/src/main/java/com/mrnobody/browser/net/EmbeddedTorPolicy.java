@@ -31,11 +31,12 @@ public final class EmbeddedTorPolicy {
     public static final long PROBE_INTERVAL_MS = 400L;
 
     /**
-     * The background waiter's full bootstrap budget (the auto-apply
-     * UX). First-ever bootstrap on mobile data is realistically 10–60s; past
-     * this, it is reported as a failure rather than waited on forever.
+     * The background waiter's full bootstrap budget (the auto-apply UX).
+     * Device evidence (2026-08-21, 4G): 90s was not enough for a first
+     * bootstrap — the consensus download on mobile data can take minutes.
+     * The waiter is asynchronous, so a generous ceiling costs nothing.
      */
-    public static final long BOOTSTRAP_WAIT_MS = 90_000L;
+    public static final long BOOTSTRAP_WAIT_MS = 180_000L;
 
     private EmbeddedTorPolicy() {
     }
