@@ -802,6 +802,16 @@ public class MainActivity extends FlutterActivity {
                             result.success(null);
                             return;
                         }
+                        case "removeBookmark": {
+                            Number id = call.argument("id");
+                            if (id == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            MrNobodyApp.bookmarks().remove(id.longValue());
+                            result.success(null);
+                            return;
+                        }
                         case "clearData": {
                             List<String> buckets = call.argument("buckets");
                             result.success(clearData(buckets));

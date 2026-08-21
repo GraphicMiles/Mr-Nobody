@@ -277,7 +277,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 _push(const PrivacyScreen());
                 break;
               case BrowserDestination.settings:
-                _push(SettingsScreen(onBeforeBrowserDataClear: _onBeforeBrowserDataClear));
+                _push(SettingsScreen(
+                    onBeforeBrowserDataClear: _onBeforeBrowserDataClear,
+                    onOpenUrl: _openUrlFromTask));
                 break;
               case BrowserDestination.downloads:
                 _push(const DownloadsScreen());
@@ -410,6 +412,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   scrollController: _scrollControllers[ShellTab.settings],
                   onBack: () => _select(ShellTab.home),
                   onBeforeBrowserDataClear: _onBeforeBrowserDataClear,
+                  onOpenUrl: _openUrlFromTask,
                 ),
               ],
             ),
