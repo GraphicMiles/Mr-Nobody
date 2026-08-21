@@ -260,6 +260,9 @@ public final class PrivacyController {
                         EmbeddedTorPolicy.BOOTSTRAP_WAIT_MS);
             }
             boolean gaveUpStarting = !up && EmbeddedTor.isStarting();
+            com.mrnobody.debug.ErrorLog.record("embedded tor waiter: up=" + up
+                    + ", status=" + String.valueOf(EmbeddedTor.torStatus())
+                    + ", elapsed=" + ((System.currentTimeMillis() - began) / 1000) + "s");
             if (generation != PENDING_GENERATION.get()) return; // superseded
             android.os.Handler main =
                     new android.os.Handler(android.os.Looper.getMainLooper());

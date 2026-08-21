@@ -500,3 +500,24 @@ Also this batch (owner's licensing question):
   never used.
 
 JVM suite 910 green.
+
+---
+
+## 2026-08-21 — Bug 10 (THE Tor bug): the availability probe lied on the main thread
+
+Owner ⓘ after fresh install: refusal pair with NO waiter breadcrumbs — the
+waiter succeeded and the post-bootstrap re-apply still refused. Root cause:
+route.isAvailable()'s socket probe, when called from the mode toggle (a
+main-thread platform-channel call), hits Android's NetworkOnMainThread
+policy; the catch treated that exception as "not listening". A running,
+ready Tor was therefore refused at the final gate on every MANUAL toggle —
+while the suite, running on an executor thread, probed fine. This single
+defect explains the entire family of "refused with [tor status=ON]"
+device results.
+
+Fix: the probe detects the main looper and runs the connect on a
+short-lived worker (bounded by the same timeout); plain JVM tests probe
+directly. The background waiter now always logs its outcome (up/status/
+elapsed) so no verdict is ever silent again.
+
+JVM suite 911 green.
