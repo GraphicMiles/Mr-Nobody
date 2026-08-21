@@ -38,13 +38,10 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // The bundled Tor carries a native library per ABI (~5 MB each).
-        // Every ABI this product actually ships is kept — including x86_64,
-        // which the CI emulators run — and 32-bit x86, which nothing does,
-        // is dropped.
-        ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86_64"
-        }
+        // No ndk.abiFilters here: the release CI builds with
+        // --split-per-abi, whose splits (arm64-v8a, armeabi-v7a, x86_64 —
+        // exactly the shipped set) CONFLICT with abiFilters if both are
+        // present. Debug builds stay universal, which only costs debug size.
     }
 
     testOptions {
