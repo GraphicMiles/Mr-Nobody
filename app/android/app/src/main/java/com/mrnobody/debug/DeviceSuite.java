@@ -337,7 +337,8 @@ public final class DeviceSuite {
                         : "");
         return result(id, name, false, (problem != null ? problem
                 : "did not reach Nobody within " + (TOR_CHECK_MS / 1000) + "s")
-                + " [tor status=" + status + meaning + "]");
+                + " [tor status=" + status + ", socks="
+                + EmbeddedTor.readySocksPort() + meaning + "]");
     }
 
     private static Map<String, Object> torExit(String id, String name) {

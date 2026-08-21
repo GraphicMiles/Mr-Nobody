@@ -423,3 +423,31 @@ delete — from Settings there was no trace of them. Shipped:
 - BookmarksWiringTest pins channel → bridge → screen → shell.
 
 JVM suite 904 green. Dart side verified by CI (strict analyze + tests).
+
+---
+
+## 2026-08-21 — DEVICE RUN 4: the instrumentation paid off — two bugs nailed
+
+The new diagnostics turned both remaining failures into exact causes:
+
+**Bug 7 — refusal with [tor status=ON].** Tor bootstrapped successfully but
+TorService had auto-ported: 9050 was in TIME_WAIT from the previous killed
+process at ITS configuration time, so Tor came up ON at a random port while
+the route kept probing 9050 and refused a working Tor. Fix: the route now
+follows the real port — EmbeddedTor.readySocksPort() reads TorService's own
+socksPort field (guarded, reflection); OrbotTorRoute gains a static
+activePort used by probe/proxy/WebView rule (9050 default, so the Orbot
+path is untouched); PrivacyController re-aims the port on every apply and
+after every bootstrap wait. Suite detail now prints the socks port too.
+
+**Bug 8 — resolved .png answered 403.** The resolver WORKED (seeklogo .png
+found and enqueued — the query-format/lazy-src fixes proven on device); the
+CDN then hotlink-refused a bare "MrNobody/1.0" with no Referer. Fix: the
+engine tracks where every candidate was harvested and passes that page as a
+new `referer` param; DownloadTool sends it plus a browser-class client
+string. The download engine had supported both headers since V1 — nothing
+ever set them.
+
+Also in the report: the agent-task-424242 owed-deletion line is the
+designed cleanup fallback after each suite run; the relaunch sweep (A1)
+collects it. JVM suite 908 green.

@@ -84,6 +84,7 @@ public class EmbeddedTorPolicyTest {
         org.junit.Assert.assertNull(EmbeddedTor.torStatus());
         assertFalse(EmbeddedTor.isStarting());
         assertFalse(EmbeddedTor.isReady());
+        org.junit.Assert.assertEquals(-1, EmbeddedTor.readySocksPort());
     }
 
     private static boolean classPresent(String name) {

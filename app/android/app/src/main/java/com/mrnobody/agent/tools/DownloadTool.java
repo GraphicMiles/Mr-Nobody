@@ -35,12 +35,25 @@ public final class DownloadTool implements Tool {
     /** How long we will sit on a single transfer before reporting "still going". */
     static final long WAIT_MS = 180_000L;
 
+    /**
+     * Sent on agent-initiated downloads. A device run proved the need: a
+     * resolved icon URL came back 403 because the CDN hotlink-checks the
+     * client, and "MrNobody/1.0" with no Referer looks exactly like a
+     * scraper. This is the same class of client string every browser sends.
+     */
+    static final String BROWSER_UA =
+            "Mozilla/5.0 (Linux; Android 12; Mobile) AppleWebKit/537.36 "
+            + "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+
     private static final ToolSpec SPEC = ToolSpec.named("download")
             .describedAs("Download a file from a URL to the user's download folder.")
             // Sandbox write: a new file in the app's download folder. Not a
             // click on a live page, not an overwrite of the user's documents.
             .tier(Tier.SANDBOX)
             .param(ParamSpec.url("url", true, "The http(s) file URL to download."))
+            .param(ParamSpec.url("referer", false,
+                    "The page the file link came from; sent as the Referer header. "
+                    + "Image CDNs hotlink-protect: without it they answer 403."))
             .returns(OutputSpec.of(DownloadTool::render, "url", "id", "status"))
             .timeout(WAIT_MS + 15_000L)
             .build();
@@ -55,8 +68,10 @@ public final class DownloadTool implements Tool {
         String url = request.param("url");
         try {
             String name = DownloadNaming.fileName(url, null, null);
+            String referer = request.param("referer");
             DownloadEngine engine = DownloadEngine.get(context);
-            DownloadRecord record = engine.enqueue(url, name, null, null, null);
+            DownloadRecord record = engine.enqueue(url, name, null, BROWSER_UA,
+                    referer == null || referer.isEmpty() ? null : referer);
             DownloadRecord done = engine.awaitTerminal(record.id, WAIT_MS);
             if (done == null) done = record;
 

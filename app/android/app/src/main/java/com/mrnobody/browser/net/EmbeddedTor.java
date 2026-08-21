@@ -110,6 +110,27 @@ public final class EmbeddedTor {
     }
 
     /**
+     * The SOCKS port our bundled Tor actually bound, or -1 when unknown or
+     * not ready. TorService prefers 9050 but falls back to an auto port when
+     * 9050 is unavailable at ITS configuration time — device-observed after
+     * a process restart left 9050 in TIME_WAIT: Tor reached ON on an auto
+     * port while the route kept probing 9050 and refusing a working Tor.
+     */
+    public static int readySocksPort() {
+        if (!isReady()) return -1;
+        try {
+            Class<?> service = Class.forName(SERVICE_CLASS, false,
+                    EmbeddedTor.class.getClassLoader());
+            java.lang.reflect.Field f = service.getDeclaredField("socksPort");
+            f.setAccessible(true);
+            int port = f.getInt(null);
+            return port > 0 ? port : -1;
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /**
      * True while the bundled Tor is between start and first circuit — the
      * window where its SOCKS port may already be listening but nothing can
      * flow yet. A port listener during this window is OURS and not ready;

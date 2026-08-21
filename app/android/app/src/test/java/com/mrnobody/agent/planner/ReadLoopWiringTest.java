@@ -126,10 +126,12 @@ public class ReadLoopWiringTest {
         String engine = engine();
         int method = engine.indexOf("private void resolveDownload");
         assertTrue(engine.indexOf("DownloadLinkResolver.wantsImage(r.asked)", method) > method);
-        assertTrue("img preview harvest from the read loop is reused",
-                engine.indexOf("r.images.values()", method) > method);
+        assertTrue("img preview harvest from the read loop is reused, with origins",
+                engine.indexOf("r.images.entrySet()", method) > method);
         assertTrue("the links call asks the browser for images",
                 engine.indexOf("params.put(\"images\", \"true\")", method) > method);
+        assertTrue("the winning candidate's source page rides along as the Referer",
+                engine.indexOf("params.put(\"referer\", origin)", method) > method);
 
         String browser = read("agent/tools/BrowserTool.java");
         assertTrue(browser.contains("LINKS_AND_IMAGES_SCRIPT"));
