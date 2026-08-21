@@ -217,3 +217,12 @@ inside the service lifecycle, past any try/catch in EmbeddedTor.
    check no longer triggers TorService's static `System.loadLibrary("tor")`.
 
 Wiring tests pin all three. JVM suite green at 879.
+
+**Fix journey to green:** f0430d6 (the fix) → b907773 (sandbox had stripped
+the exec bit off tools/*.sh; restored — recurring environment gotcha, watch
+for it in every commit) → 5340051 (bundled-check test made environment-aware:
+Gradle's unit-test classpath HAS the AAR, the javac harness does not; the
+non-initializing Class.forName is also what keeps Gradle unit tests from
+loading libtor). Flutter Build ✅ + Emulator Smoke API 31/34 ✅ at 5340051.
+JVM suite 881 green. Owner retest: T1/T2 (crash is prevented by packaging
+LocalBroadcastManager; verify Nobody now applies and exits via Tor).
