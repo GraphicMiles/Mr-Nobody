@@ -377,3 +377,31 @@ time of this entry.
   SESSION-LOG.txt (this ledger). The other tracked .txt files are data and
   font licenses, not documents.
 - JVM suite green at 901 after the sweep.
+
+---
+
+## 2026-08-21 — DEVICE RUN 3 (suite on the fixed APK): everything green except Tor + png
+
+Green on device: agent question 19s cited, clock/routing/scope/outcome/junk,
+Tor packaged, mode restore, address-bar and Orbot benchmarks now ✅, all
+manual "needs your eyes" items the owner exercised marked PASS.
+
+Two remaining ❌, both now instrumented instead of guessed at:
+
+1. tor_nobody — the refusal text was the BACKGROUND WAITER's verdict: apply
+   correctly went pending, Tor got its full 90s, no circuit. With run 2's
+   port-open-no-circuits evidence, conclusion: first bootstrap on this 4G
+   network needs more than 90s (or is interfered with). Changes:
+   BOOTSTRAP_WAIT_MS 90s→180s (waiter is async, generous costs nothing);
+   TorService ACTION_ERROR broadcasts now land in the ⓘ log; timeout logs
+   the final status word; the suite check reports [tor status=STARTING|OFF]
+   with what each means, ceiling raised to cover the budget.
+2. image_download — the quoted "outcome" was a search-LISTING row: ZERO
+   pages were readable that run (challenge walls), so the resolver had
+   nothing to harvest; the query-format fix never got exercised. The check
+   now says explicitly whether nothing was readable vs pages-read-but-no-
+   file, and quotes the engine's own download-note line.
+
+Next device run tells us: STARTING at 180s = network reality (bridges out
+of V1 scope, message stays honest); OFF = our service bug with the error
+text captured. JVM suite 901 green.
