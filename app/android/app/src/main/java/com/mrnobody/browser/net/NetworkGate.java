@@ -108,6 +108,13 @@ public final class NetworkGate {
         return (HttpURLConnection) conn;
     }
 
+    /** Whether validating a target may use the device DNS without bypassing a proxy. */
+    public static boolean resolvesTargetsLocally() {
+        NetworkRoute current = route;
+        Proxy proxy = current.proxy();
+        return proxy == null || proxy == Proxy.NO_PROXY || proxy.type() == Proxy.Type.DIRECT;
+    }
+
     /** {@link #openHttp(URL)} from a string. */
     public static HttpURLConnection openHttp(String url) throws IOException {
         return openHttp(new URL(url));

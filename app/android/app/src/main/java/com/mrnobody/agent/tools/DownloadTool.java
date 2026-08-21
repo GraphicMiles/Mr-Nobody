@@ -2,6 +2,7 @@ package com.mrnobody.agent.tools;
 
 import android.content.Context;
 
+import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.OutputSpec;
 import com.mrnobody.agent.core.ParamSpec;
 import com.mrnobody.agent.core.Tier;
@@ -9,10 +10,13 @@ import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
+import com.mrnobody.agent.util.NetworkTargetPolicy;
+import com.mrnobody.browser.net.NetworkGate;
 import com.mrnobody.browser.download.DownloadDestination;
 import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadNaming;
 import com.mrnobody.browser.download.DownloadRecord;
+import com.mrnobody.browser.download.DownloadRisk;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -64,15 +68,35 @@ public final class DownloadTool implements Tool {
     }
 
     @Override
+    public Tier tierFor(ToolRequest request) {
+        String url = request == null ? null : request.param("url");
+        String name = DownloadNaming.fileName(url, null, null);
+        return DownloadRisk.assess(name, null, url).requiresConfirmation
+                ? Tier.EXEC : Tier.SANDBOX;
+    }
+
+    @Override
     public ToolResult execute(Context context, ToolRequest request) {
+        return execute(context, request, Cancellation.NONE);
+    }
+
+    @Override
+    public ToolResult execute(Context context, ToolRequest request, Cancellation cancellation) {
         String url = request.param("url");
         try {
+            if (!NetworkGate.canConnect()) {
+                return ToolResult.needsApproval("network", NetworkGate.blockedReason());
+            }
+            NetworkTargetPolicy.requirePublic(url, NetworkGate.resolvesTargetsLocally());
             String name = DownloadNaming.fileName(url, null, null);
+            DownloadRisk.Assessment initialRisk = DownloadRisk.assess(name, null, url);
             String referer = request.param("referer");
             DownloadEngine engine = DownloadEngine.get(context);
             DownloadRecord record = engine.enqueue(url, name, null, BROWSER_UA,
-                    referer == null || referer.isEmpty() ? null : referer);
-            DownloadRecord done = engine.awaitTerminal(record.id, WAIT_MS);
+                    referer == null || referer.isEmpty() ? null : referer,
+                    initialRisk.requiresConfirmation);
+            DownloadRecord done = engine.awaitTerminal(record.id, WAIT_MS,
+                    () -> cancellation != null && cancellation.isCancelled());
             if (done == null) done = record;
 
             boolean customFolder = new DownloadDestination(context).isCustom();

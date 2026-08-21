@@ -1,6 +1,8 @@
 package com.mrnobody.agent.ai;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -27,13 +29,19 @@ public class SseFramesTest {
     }
 
     @Test
-    public void dataLinesAreEmittedInOrderAndDoneIsDropped() throws IOException {
+    public void doneStopsTheStreamBeforeLateFrames() throws IOException {
         List<String> f = frames(
                 "data: {\"a\":1}\n\n"
                 + "data: {\"a\":2}\n\n"
                 + "data: [DONE]\n\n"
                 + "data: {\"a\":3}\n");
-        assertEquals(List.of("{\"a\":1}", "{\"a\":2}", "{\"a\":3}"), f);
+        assertEquals(List.of("{\"a\":1}", "{\"a\":2}"), f);
+    }
+
+    @Test
+    public void doneMarkerIsExposedToCallers() throws IOException {
+        assertTrue(SseFrames.read(new StringReader("data: [DONE]\n\n"), json -> { }));
+        assertFalse(SseFrames.read(new StringReader("data: {\"a\":1}\n\n"), json -> { }));
     }
 
     @Test

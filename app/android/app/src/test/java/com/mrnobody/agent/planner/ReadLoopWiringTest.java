@@ -115,8 +115,8 @@ public class ReadLoopWiringTest {
     public void httpOutcomesFeedTheScore() throws IOException {
         String src = read("agent/tools/HttpTool.java");
         assertTrue("success/failure of every fetch is recorded",
-                src.contains("SiteMemory.recordHttpOutcome(host,")
-                        && src.contains("recordHttpOutcome(host, false)"));
+                src.contains("SiteMemory.recordHttpOutcome(outcomeHost,")
+                        && src.contains("recordHttpOutcome(outcomeHost, false)"));
     }
 
     // ------------------------------------------------------- image downloads

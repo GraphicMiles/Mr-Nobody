@@ -190,7 +190,16 @@ public final class PrivacyController {
                 }
                 // Auto-apply UX: report pending, keep waiting off the UI
                 // thread, and apply the mode ourselves at the first circuit.
-                // Fail-closed meanwhile — nothing changed yet.
+                // Install the fail-closed native blocker *before* returning:
+                // retaining DirectRoute here would let a resumed worker escape
+                // while Tor bootstraps. Point the WebView at the unavailable
+                // proxy too; its request interceptor consults NetworkGate and
+                // refuses every request until the final proxy callback commits.
+                NetworkGate.setRoute(BlockedRoute.forRoute(route));
+                if (!WebViewRouter.apply(route)) {
+                    return refuse(mode, "This device's WebView cannot prepare the protected route.",
+                            settings);
+                }
                 awaitTorThenApply(mode, settings, context, generation);
                 return new Result(mode, current, false, false, null, true);
             }
@@ -211,24 +220,74 @@ public final class PrivacyController {
                         : "Check the proxy settings."), settings);
         }
 
-        // Order matters: gate first. If applying to the engine fails we roll
-        // back, and a moment of over-restriction is safe where the reverse is
-        // not.
-        NetworkGate.setRoute(route);
+        // ProxyController is asynchronous. Stay in a no-network state until
+        // Chromium confirms the override instead of reporting Nobody while the
+        // old direct route may still be live.
+        return beginProtectedCommit(mode, route, settings, generation);
+    }
 
-        if (!WebViewRouter.apply(route)) {
-            NetworkGate.setRoute(new DirectRoute());
+    /**
+     * Begin the WebView half of a protected-route commit.
+     *
+     * <p>The socket gate remains blocked until AndroidX's completion callback;
+     * only that callback installs the usable route and publishes NOBODY as the
+     * effective mode. A newer user choice invalidates it through generation.
+     */
+    private static Result beginProtectedCommit(PrivacyMode mode, NetworkRoute route,
+                                                 Settings settings, long generation) {
+        NetworkGate.setRoute(BlockedRoute.forRoute(route));
+        torPending = true;
+        pendingProblem = null;
+
+        java.util.concurrent.atomic.AtomicBoolean callbackFinished =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        java.util.concurrent.atomic.AtomicBoolean callbackSucceeded =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        boolean accepted = WebViewRouter.apply(route, success -> {
+            if (generation != PENDING_GENERATION.get()) return;
+            callbackSucceeded.set(success);
+            callbackFinished.set(true);
+            if (!success) {
+                torPending = false;
+                String problem = "This device's WebView could not finish applying the protected route.";
+                pendingProblem = problem;
+                Result ignored = refuse(mode, problem, settings);
+                try {
+                    if (settings != null) settings.setPrivacyMode(ignored.effective.name());
+                } catch (Throwable ignoredWrite) {
+                    // The live fail-safe state is authoritative.
+                }
+                return;
+            }
+
+            // The WebView is now proxied. Only now may native connections use
+            // the same route and only now may the UI call Nobody effective.
+            NetworkGate.setRoute(route);
+            enableFingerprintForNobody(settings);
+            current = mode;
+            torPending = false;
+            try {
+                if (settings != null) settings.setPrivacyMode(mode.name());
+            } catch (Throwable ignoredWrite) {
+                // Persistence is best-effort; the live state is protected.
+            }
+        });
+
+        if (!accepted) {
+            torPending = false;
+            // apply() reports a synchronous failure through the callback too;
+            // refuse() is idempotent and keeps this return value honest.
             return refuse(mode, "This device's WebView cannot route through a proxy, "
-                    + "so browsing could not be protected. Nothing was changed.",
-                    settings);
+                    + "so browsing could not be protected.", settings);
         }
-
-        // The mode's own description promises reduced identification. The
-        // flag exists for this; leaving it unused meant Nobody hid the IP
-        // and left the fingerprint patches off.
-        enableFingerprintForNobody(settings);
-        current = mode;
-        return new Result(mode, mode, true, true, null);
+        if (callbackFinished.get()) {
+            if (callbackSucceeded.get()) {
+                return new Result(mode, mode, true, true, null);
+            }
+            return new Result(mode, PrivacyMode.NORMAL, false, false, pendingProblem);
+        }
+        return new Result(mode, current, false, false, null, true);
     }
 
     /**
@@ -268,9 +327,12 @@ public final class PrivacyController {
                     new android.os.Handler(android.os.Looper.getMainLooper());
             main.post(() -> {
                 if (generation != PENDING_GENERATION.get()) return;
-                torPending = false;
                 Result result = applyInternal(mode, settings, context, false, generation);
-                // Persist what was achieved, exactly as the toggle path does.
+                // A ready route still waits for ProxyController's asynchronous
+                // completion. beginProtectedCommit owns persistence and clears
+                // torPending in that case.
+                if (result.pending) return;
+                torPending = false;
                 try {
                     if (settings != null) settings.setPrivacyMode(result.effective.name());
                 } catch (Throwable ignored) {
@@ -311,6 +373,7 @@ public final class PrivacyController {
 
     private static Result refuse(PrivacyMode requested, String problem, Settings settings) {
         ErrorLog.record("privacy mode " + requested + " refused: " + problem);
+        torPending = false;
         NetworkGate.setRoute(new DirectRoute());
         WebViewRouter.clear();
         restoreFingerprint(settings);

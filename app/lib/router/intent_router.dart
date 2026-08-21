@@ -104,8 +104,11 @@ class IntentRouter {
   /// search query for the configured engine (DuckDuckGo default).
   static String toUrl(String input) {
     final s = input.trim();
+    if (s.toLowerCase().startsWith('http://')) {
+      return 'https://${s.substring('http://'.length)}';
+    }
     if (_scheme.hasMatch(s)) return s;
-    if (_ip.hasMatch(s) || _localhost.hasMatch(s)) return 'http://$s';
+    if (_ip.hasMatch(s) || _localhost.hasMatch(s)) return 'https://$s';
     if (_looksLikeDomain(s)) return 'https://$s';
     return 'https://duckduckgo.com/?q=${Uri.encodeComponent(s)}';
   }

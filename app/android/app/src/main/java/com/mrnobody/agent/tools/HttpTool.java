@@ -13,12 +13,14 @@ import com.mrnobody.agent.util.EmbeddedJson;
 import com.mrnobody.agent.util.FeedDiscover;
 import com.mrnobody.agent.util.HtmlText;
 import com.mrnobody.agent.util.PageKind;
+import com.mrnobody.agent.util.NetworkTargetPolicy;
 import com.mrnobody.browser.net.NetworkGate;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,56 +52,53 @@ public final class HttpTool implements Tool {
 
     @Override
     public ToolResult execute(Context context, ToolRequest request) {
-        String url = request.param("url");
+        String requestedUrl = request.param("url");
         if (!NetworkGate.canConnect()) {
             return ToolResult.needsApproval("network", NetworkGate.blockedReason());
         }
-        String host = com.mrnobody.agent.util.Hosts.firstIn(url);
-        if (!com.mrnobody.agent.util.HostRateLimit.tryAcquire(host)) {
-            return ToolResult.fail(com.mrnobody.agent.util.HostRateLimit.denyMessage(host));
-        }
+        String outcomeHost = com.mrnobody.agent.util.Hosts.firstIn(requestedUrl);
         try {
+            NetworkTargetPolicy.requirePublic(requestedUrl, NetworkGate.resolvesTargetsLocally());
             int code = 0;
             String body = "";
-            for (int attempt = 0; attempt < com.mrnobody.agent.util.FetchRetry.MAX_ATTEMPTS; attempt++) {
-                if (attempt > 0 && !com.mrnobody.agent.util.HostRateLimit.tryAcquire(host)) {
-                    return ToolResult.fail(com.mrnobody.agent.util.HostRateLimit.denyMessage(host));
-                }
-                HttpURLConnection conn = NetworkGate.openHttp(url);
-                conn.setConnectTimeout(10_000);
-                conn.setReadTimeout(15_000);
-                conn.setRequestProperty("User-Agent", "MrNobody/1.0");
-                conn.setInstanceFollowRedirects(true);
-                String cookie = cookieHeader(url);
-                if (!cookie.isEmpty()) conn.setRequestProperty("Cookie", cookie);
-                code = conn.getResponseCode();
-                if (com.mrnobody.agent.util.FetchRetry.shouldRetry(code)
-                        && com.mrnobody.agent.util.FetchRetry.hasAttemptsLeft(attempt)) {
-                    sleepQuietly(com.mrnobody.agent.util.FetchRetry.delayMs(
-                            attempt, conn.getHeaderField("Retry-After")));
+            String finalUrl = requestedUrl;
+            for (int attempt = 0;
+                 attempt < com.mrnobody.agent.util.FetchRetry.MAX_ATTEMPTS; attempt++) {
+                Opened opened = openFollowingRedirects(requestedUrl);
+                HttpURLConnection conn = opened.connection;
+                finalUrl = opened.url;
+                outcomeHost = com.mrnobody.agent.util.Hosts.firstIn(finalUrl);
+                try {
+                    code = conn.getResponseCode();
+                    if (com.mrnobody.agent.util.FetchRetry.shouldRetry(code)
+                            && com.mrnobody.agent.util.FetchRetry.hasAttemptsLeft(attempt)) {
+                        sleepQuietly(com.mrnobody.agent.util.FetchRetry.delayMs(
+                                attempt, conn.getHeaderField("Retry-After")));
+                        continue;
+                    }
+                    if (code < 200 || code >= 300) {
+                        com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(outcomeHost, false);
+                        return ToolResult.fail("HTTP " + code + " for " + finalUrl);
+                    }
+                    body = readBounded(conn.getInputStream());
+                    break;
+                } finally {
                     conn.disconnect();
-                    continue;
                 }
-                if (code < 200 || code >= 300) {
-                    com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(host, false);
-                    return ToolResult.fail("HTTP " + code + " for " + url);
-                }
-                body = readBounded(conn.getInputStream());
-                break;
             }
             PageKind.Kind kind = PageKind.classify(body);
-            com.mrnobody.agent.util.SiteMemory.remember(host, kind);
-            String text = extract(url, kind, body);
+            com.mrnobody.agent.util.SiteMemory.remember(outcomeHost, kind);
+            String text = extract(finalUrl, kind, body);
             // Rule 6's evidence: did plain HTTP yield text the read loop can
             // actually use? This score ranks the next task's read candidates.
-            com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(host,
+            com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(outcomeHost,
                     !kind.needsBrowser() && com.mrnobody.agent.util.ReadableText.usable(text));
             Map<String, Object> value = new LinkedHashMap<>();
-            value.put("url", url);
+            value.put("url", finalUrl);
             value.put("status", code);
             value.put("kind", kind.name());
             value.put("needsBrowser", kind.needsBrowser());
-            value.put("preferBrowser", com.mrnobody.agent.util.SiteMemory.preferBrowser(host));
+            value.put("preferBrowser", com.mrnobody.agent.util.SiteMemory.preferBrowser(outcomeHost));
             if (com.mrnobody.agent.util.RobotsRules.looksLikeRobots(body)) {
                 com.mrnobody.agent.util.RobotsRules robots =
                         com.mrnobody.agent.util.RobotsRules.parse(body);
@@ -110,15 +109,64 @@ public final class HttpTool implements Tool {
             if (com.mrnobody.agent.util.RobotsRules.looksLikeSitemap(body)) {
                 value.put("locs", com.mrnobody.agent.util.RobotsRules.locsFrom(body));
             }
-            String image = HtmlText.previewImage(body, url);
+            String image = HtmlText.previewImage(body, finalUrl);
             if (!image.isEmpty()) value.put("image", image);
             value.put("truncated", text.length() > MAX_RESULT);
             value.put("text", truncate(text, MAX_RESULT));
             return ToolResult.ok(value);
         } catch (Exception e) {
-            com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(host, false);
+            com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(outcomeHost, false);
             return ToolResult.fail("http fetch failed: " + e.getMessage());
         }
+    }
+
+    private static final class Opened {
+        final HttpURLConnection connection;
+        final String url;
+
+        Opened(HttpURLConnection connection, String url) {
+            this.connection = connection;
+            this.url = url;
+        }
+    }
+
+    /** Follow a small redirect chain, revalidating and re-scoping cookies per hop. */
+    private static Opened openFollowingRedirects(String start) throws Exception {
+        String current = start;
+        for (int redirects = 0; redirects <= 5; redirects++) {
+            NetworkTargetPolicy.requirePublic(current, NetworkGate.resolvesTargetsLocally());
+            String host = com.mrnobody.agent.util.Hosts.firstIn(current);
+            if (!com.mrnobody.agent.util.HostRateLimit.tryAcquire(host)) {
+                throw new java.io.IOException(com.mrnobody.agent.util.HostRateLimit.denyMessage(host));
+            }
+            HttpURLConnection conn = NetworkGate.openHttp(current);
+            conn.setConnectTimeout(10_000);
+            conn.setReadTimeout(15_000);
+            conn.setRequestProperty("User-Agent", "MrNobody/1.0");
+            conn.setInstanceFollowRedirects(false);
+            String cookie = cookieHeader(current);
+            if (!cookie.isEmpty()) conn.setRequestProperty("Cookie", cookie);
+            final int code;
+            try {
+                code = conn.getResponseCode();
+            } catch (Exception e) {
+                conn.disconnect();
+                throw e;
+            }
+            if (!isRedirect(code)) return new Opened(conn, current);
+            String location = conn.getHeaderField("Location");
+            conn.disconnect();
+            if (location == null || location.trim().isEmpty()) {
+                throw new java.io.IOException("redirect had no Location header");
+            }
+            if (redirects == 5) throw new java.io.IOException("too many redirects");
+            current = new URL(new URL(current), location).toString();
+        }
+        throw new java.io.IOException("too many redirects");
+    }
+
+    private static boolean isRedirect(int code) {
+        return code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
     }
 
     private static String extract(String url, PageKind.Kind kind, String body) {

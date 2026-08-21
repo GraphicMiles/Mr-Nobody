@@ -88,6 +88,26 @@ final class DownloadResume {
         return totalSize(statusCode, from, contentLength);
     }
 
+    /** True only when a 206 body begins at the byte we asked for. */
+    static boolean startsAt(@Nullable String contentRange, long expected) {
+        if (contentRange == null || expected < 0) return false;
+        String value = contentRange.trim();
+        if (!value.regionMatches(true, 0, "bytes", 0, 5)) return false;
+        int space = value.indexOf(' ');
+        int dash = value.indexOf('-', space + 1);
+        if (space < 0 || dash <= space + 1) return false;
+        try {
+            return Long.parseLong(value.substring(space + 1, dash).trim()) == expected;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    /** A known total must exactly equal what landed; unknown length is allowed. */
+    static boolean isComplete(long written, long total) {
+        return total <= 0 || written == total;
+    }
+
     /**
      * The total from a {@code Content-Range} header, or -1.
      *
@@ -142,6 +162,29 @@ final class DownloadResume {
         if (etag != null && !etag.trim().isEmpty()) return etag.trim();
         if (lastModified != null && !lastModified.trim().isEmpty()) return lastModified.trim();
         return null;
+    }
+
+    /**
+     * A resumed 206 must not advertise a validator different from the one that
+     * protects the prefix on disk. Some servers omit validators on 206 even
+     * though they honoured If-Range, so absence alone is not treated as a
+     * mismatch; any validator they do send must agree.
+     */
+    static boolean responseMatchesValidator(@Nullable String expected,
+                                            @Nullable String etag,
+                                            @Nullable String lastModified) {
+        if (expected == null || expected.trim().isEmpty()) return false;
+        String wanted = expected.trim();
+        boolean supplied = false;
+        if (etag != null && !etag.trim().isEmpty()) {
+            supplied = true;
+            if (wanted.equals(etag.trim())) return true;
+        }
+        if (lastModified != null && !lastModified.trim().isEmpty()) {
+            supplied = true;
+            if (wanted.equals(lastModified.trim())) return true;
+        }
+        return !supplied;
     }
 
     /** What to tell the user when the server says no. */

@@ -72,6 +72,25 @@ public final class WorkManagerTaskScheduler implements TaskScheduler {
         WorkManager.getInstance(context).cancelUniqueWork(repeatingName(taskId));
     }
 
+    @Override
+    public boolean cancelAndAwait(Context context, long taskId, long timeoutMs) {
+        WorkManager manager = WorkManager.getInstance(context);
+        androidx.work.Operation oneShot = manager.cancelUniqueWork("task-" + taskId);
+        androidx.work.Operation repeating = manager.cancelUniqueWork(repeatingName(taskId));
+        long deadline = System.currentTimeMillis() + Math.max(1L, timeoutMs);
+        try {
+            oneShot.getResult().get(Math.max(1L, deadline - System.currentTimeMillis()),
+                    TimeUnit.MILLISECONDS);
+            repeating.getResult().get(Math.max(1L, deadline - System.currentTimeMillis()),
+                    TimeUnit.MILLISECONDS);
+            return true;
+        } catch (Exception e) {
+            com.mrnobody.debug.ErrorLog.record(
+                    "could not confirm task schedule cancellation for " + taskId + ": " + e);
+            return false;
+        }
+    }
+
     private static String repeatingName(long taskId) {
         return "task-repeat-" + taskId;
     }

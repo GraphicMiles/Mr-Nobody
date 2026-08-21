@@ -25,8 +25,9 @@ class BenchmarkResult {
 /// Dev mode — the Phase 1 device benchmark.
 ///
 /// Runs every subsystem checkable from here (routing, search parsing, planner,
-/// terminal gate, sandbox, identity, network, and — on device — filter engine,
-/// WebView capabilities, Keystore identity, task store) and shows a pass/fail
+/// terminal gate, sandbox, identity, network, security/privacy guardrails, and
+/// — on device — filter engine, WebView capabilities, manifest, Keystore identity,
+/// task store) and shows a pass/fail
 /// line for each. Failures are recorded to the error log, so the ⓘ badge and
 /// its copyable panel carry exactly which point failed — the user reads the
 /// line back and the next fix targets it instead of guessing.
@@ -293,8 +294,9 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   child: Text(
-                    'Every subsystem reports pass/fail. Failures are written to the '
-                    'ⓘ debug log, so a device run is a list you read off — not a guess.',
+                    'Every subsystem reports pass/fail, including an offline security '
+                    'and privacy suite. Failures are written to the ⓘ debug log, so a '
+                    'device run is a list you read off — not a guess.',
                     style: AppTheme.sans(size: 12, color: AppColors.textDim, height: 1.5),
                   ),
                 ),
@@ -321,7 +323,41 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                           ),
                         )
                       else
-                        for (final r in _results) _resultRow(r),
+                        for (final r in _results.where(
+                            (item) => !item.id.startsWith('security.')))
+                          _resultRow(r),
+                    ]),
+                  ),
+                ),
+                const SectionLabel('Security & privacy'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'Offline, non-destructive probes of the shipped guardrails. '
+                    'They use synthetic values, open no sockets, and read no user '
+                    'content; the device check only inspects the installed manifest.',
+                    style: AppTheme.sans(size: 12, color: AppColors.textDim, height: 1.5),
+                  ),
+                ),
+                AppCard(
+                  child: Column(
+                    children: withDividers([
+                      if (_running)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 1.5, color: AppColors.accent),
+                            ),
+                          ),
+                        )
+                      else
+                        for (final r in _results.where(
+                            (item) => item.id.startsWith('security.')))
+                          _resultRow(r),
                     ]),
                   ),
                 ),

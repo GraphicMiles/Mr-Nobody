@@ -4,7 +4,6 @@ import android.content.Context;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
 
-import com.mrnobody.agent.util.Hosts;
 import com.mrnobody.browser.net.ProfileManager;
 import com.mrnobody.security.EncryptedPreferences;
 
@@ -78,31 +77,36 @@ public final class AccountStore {
         String h = AccountGrant.normaliseHost(host);
         if (h.isEmpty()) return null;
         for (AccountGrant g : list()) {
-            if (h.equals(g.host) || h.endsWith("." + g.host) || g.host.endsWith("." + h)) {
-                return g;
-            }
+            if (g.matchesHost(h)) return g;
         }
         return null;
     }
 
-    public String headerForUrl(String url) {
-        String host = Hosts.firstIn(url);
-        AccountGrant g = forHost(host);
-        return g == null ? "" : g.header;
+    /** Build a request header from every cookie whose domain/path/scheme still matches. */
+    public synchronized String headerForUrl(String url) {
+        StringBuilder out = new StringBuilder();
+        for (AccountGrant grant : list()) {
+            String part = grant.headerForUrl(url);
+            if (part.isEmpty()) continue;
+            if (out.length() > 0) out.append("; ");
+            out.append(part);
+        }
+        return out.toString();
     }
 
-    /** Inject a grant into a WebView's cookie jar. Call on the main thread. */
-    public void applyTo(WebView webView, String url) {
+    /** Inject only URL-matching grants into a WebView's cookie jar. Call on the main thread. */
+    public synchronized void applyTo(WebView webView, String url) {
         if (webView == null || url == null || url.isEmpty()) return;
-        String header = headerForUrl(url);
-        if (header.isEmpty()) return;
         CookieManager cm = ProfileManager.cookiesFor(webView);
         if (cm == null) cm = CookieManager.getInstance();
-        for (String part : header.split(";")) {
-            String cookie = part.trim();
-            if (!cookie.isEmpty()) cm.setCookie(url, cookie);
+        boolean wrote = false;
+        for (AccountGrant grant : list()) {
+            for (String cookie : grant.setCookieLinesForUrl(url)) {
+                cm.setCookie(url, cookie);
+                wrote = true;
+            }
         }
-        cm.flush();
+        if (wrote) cm.flush();
     }
 
     private void save(List<AccountGrant> grants) {

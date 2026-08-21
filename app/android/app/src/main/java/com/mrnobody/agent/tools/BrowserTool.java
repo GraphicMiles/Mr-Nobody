@@ -12,6 +12,8 @@ import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
+import com.mrnobody.agent.util.NetworkTargetPolicy;
+import com.mrnobody.browser.net.NetworkGate;
 
 import java.util.function.Supplier;
 
@@ -149,6 +151,19 @@ public final class BrowserTool implements Tool {
         BrowserEngine engine = engine();
         if (engine == null) return ToolResult.fail("no browser engine configured");
         String action = request.action();
+        boolean navigates = "open".equals(action) || "fetch".equals(action)
+                || "links".equals(action) || "save".equals(action);
+        if (navigates && !NetworkGate.canConnect()) {
+            return ToolResult.needsApproval("network", NetworkGate.blockedReason());
+        }
+        if (navigates) {
+            String target = request.param("url");
+            if (target != null && !target.isEmpty()) {
+                String unsafe = NetworkTargetPolicy.publicReason(
+                        target, NetworkGate.resolvesTargetsLocally());
+                if (unsafe != null) return ToolResult.fail("Refused URL: " + unsafe);
+            }
+        }
         switch (action) {
             case "open":
                 String url = request.param("url");

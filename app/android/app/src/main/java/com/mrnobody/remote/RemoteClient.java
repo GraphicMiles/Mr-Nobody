@@ -2,6 +2,7 @@ package com.mrnobody.remote;
 
 import com.mrnobody.agent.ai.SseFrames;
 import com.mrnobody.agent.core.Cancellation;
+import com.mrnobody.agent.util.EndpointPolicy;
 import com.mrnobody.identity.DeviceIdentity;
 import com.mrnobody.identity.SignedRequest;
 
@@ -57,6 +58,7 @@ public final class RemoteClient {
      * @throws IOException on any transport or rejection failure.
      */
     public long submit(DeviceIdentity identity, String nonce, String payload) throws Exception {
+        EndpointPolicy.requireSecureBase(baseUrl);
         SignedRequest req = SignedRequest.sign(identity, nonce, payload);
 
         JSONObject body = new JSONObject();
@@ -97,6 +99,7 @@ public final class RemoteClient {
      */
     public void stream(long taskId, StreamListener listener, Cancellation cancellation)
             throws Exception {
+        EndpointPolicy.requireSecureBase(baseUrl);
         if (cancellation != null && cancellation.isCancelled()) {
             throw new IOException("cancelled");
         }
@@ -113,22 +116,43 @@ public final class RemoteClient {
             }
             try (InputStream in = conn.getInputStream();
                  Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
-                SseFrames.read(reader, json -> {
-                    if (cancellation != null && cancellation.isCancelled()) {
-                        throw new IOException("cancelled");
-                    }
-                    try {
-                        JSONObject ev = new JSONObject(json);
-                        listener.onEvent(ev.optString("type", ""), ev.optString("text", ""));
-                    } catch (org.json.JSONException e) {
-                        // A malformed frame is skipped, not fatal to the stream.
-                    }
-                });
+                final boolean[] terminalEvent = {false};
+                boolean doneMarker = false;
+                try {
+                    doneMarker = SseFrames.read(reader, json -> {
+                        if (cancellation != null && cancellation.isCancelled()) {
+                            throw new IOException("cancelled");
+                        }
+                        try {
+                            JSONObject ev = new JSONObject(json);
+                            String type = ev.optString("type", "");
+                            listener.onEvent(type, ev.optString("text", ""));
+                            if ("done".equals(type) || "error".equals(type)) {
+                                terminalEvent[0] = true;
+                                throw new TerminalEvent();
+                            }
+                        } catch (org.json.JSONException e) {
+                            // A malformed frame is skipped, not fatal to the stream.
+                        }
+                    });
+                } catch (TerminalEvent finished) {
+                    // A JSON terminal event is authoritative; do not keep
+                    // reading a transport that can only produce late errors.
+                }
+                if (!terminalEvent[0] && doneMarker) {
+                    // Some SSE servers use the standard marker instead of a
+                    // JSON done event. Surface it rather than turning it into
+                    // an indistinguishable EOF.
+                    listener.onEvent("done", "");
+                }
             }
         } finally {
             conn.disconnect();
         }
     }
+
+    /** Internal control flow used to stop consuming bytes after a terminal JSON event. */
+    private static final class TerminalEvent extends IOException { }
 
     private static String readAll(InputStream in) throws IOException {
         StringBuilder sb = new StringBuilder();

@@ -366,6 +366,16 @@ public final class TaskStore extends SQLiteOpenHelper {
         return list;
     }
 
+    /** Every durable id, used to cancel scheduler state before erasing rows. */
+    public List<Long> allIds() {
+        List<Long> ids = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().query(
+                T, new String[]{C_ID}, null, null, null, null, null)) {
+            while (c.moveToNext()) ids.add(c.getLong(0));
+        }
+        return ids;
+    }
+
     public void clear() {
         getWritableDatabase().delete(T, null, null);
     }

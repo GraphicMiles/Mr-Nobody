@@ -27,6 +27,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.mrnobody.browser.MrNobodyApp;
 import com.mrnobody.browser.net.FingerprintDefence;
 import com.mrnobody.browser.net.ProfileManager;
+import com.mrnobody.browser.net.NetworkGate;
 import com.mrnobody.browser.blocking.FilterEngine;
 import com.mrnobody.browser.blocking.NavigationGuard;
 import com.mrnobody.browser.blocking.TrackingParams;
@@ -360,6 +361,19 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             // Runs off the UI thread, once per request. Keep it cheap.
             boolean mainFrame = request.isForMainFrame();
+            // During Tor bootstrap and the asynchronous proxy hand-off,
+            // NetworkGate carries BlockedRoute. WebView has its own network
+            // stack, so it must consult the same gate or it could escape while
+            // native requests are correctly refused.
+            String routeBlock = NetworkGate.blockedReason();
+            if (routeBlock != null) {
+                byte[] body = mainFrame
+                        ? routeBlock.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                        : new byte[0];
+                return new WebResourceResponse(mainFrame ? "text/plain" : BLOCKED_MIME,
+                        "utf-8", 503, "Protected route not ready",
+                        Collections.emptyMap(), new ByteArrayInputStream(body));
+            }
             if (mainFrame) {
                 // A new document: the per-page counters start again. Main-frame
                 // ad hosts must still be checked; returning here was how
@@ -507,6 +521,22 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
 
         @Override
+        public void onPermissionRequest(android.webkit.PermissionRequest request) {
+            // Camera/microphone capture is not a shipped capability. Deny it
+            // explicitly instead of declaring dangerous Android permissions
+            // that have no origin prompt, runtime flow, or revocation UI.
+            if (request != null) request.deny();
+            sendNotice("Camera and microphone access are not supported");
+        }
+
+        @Override
+        public void onGeolocationPermissionsShowPrompt(
+                String origin, android.webkit.GeolocationPermissions.Callback callback) {
+            if (callback != null) callback.invoke(origin, false, false);
+            sendNotice("Location access is not supported");
+        }
+
+        @Override
         public boolean onCreateWindow(WebView view, boolean isDialog,
                                       boolean isUserGesture,
                                       android.os.Message resultMsg) {
@@ -558,7 +588,11 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      */
     private void onDownloadRequested(String url, String userAgent, String contentDisposition,
                                      String mimeType, long contentLength) {
-        if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+        if (url != null && url.startsWith("http://")) {
+            sendDownloadError("Cleartext HTTP downloads are not supported; use HTTPS");
+            return;
+        }
+        if (url != null && url.startsWith("https://")) {
             offerNetworkDownload(url, userAgent, contentDisposition, mimeType,
                     webView.getUrl());
             return;
@@ -603,7 +637,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
         DownloadRisk.Assessment risk = DownloadRisk.assess(name, mimeType, url);
         if (!risk.requiresConfirmation) {
-            startNetworkDownload(url, userAgent, contentDisposition, mimeType, referrer);
+            startNetworkDownload(url, userAgent, contentDisposition, mimeType, referrer, false);
             return;
         }
 
@@ -627,12 +661,12 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
     private void startNetworkDownload(String url, String userAgent,
                                       String contentDisposition, String mimeType,
-                                      String referrer) {
+                                      String referrer, boolean riskyApproved) {
         Map<String, Object> data = new HashMap<>();
         String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
         try {
             DownloadRecord record = DownloadEngine.get(context)
-                    .enqueue(url, name, mimeType, userAgent, referrer);
+                    .enqueue(url, name, mimeType, userAgent, referrer, riskyApproved);
             data.put("name", record.fileName);
             data.put("id", record.id);
             data.put("folder", record.destLabel);
@@ -705,7 +739,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 }
                 if (allow) {
                     startNetworkDownload(pending.url, pending.userAgent,
-                            pending.contentDisposition, pending.mimeType, pending.referrer);
+                            pending.contentDisposition, pending.mimeType, pending.referrer, true);
                 }
                 result.success(true);
                 return;

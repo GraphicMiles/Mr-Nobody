@@ -46,8 +46,38 @@ public final class Task {
 
     public long id() { return id; }
     public String instruction() { return instruction; }
-    public Status status() { return status; }
-    public void setStatus(Status s) { this.status = s; this.updatedAt = System.currentTimeMillis(); }
+    public synchronized Status status() { return status; }
+    public synchronized void setStatus(Status s) {
+        this.status = s;
+        this.updatedAt = System.currentTimeMillis();
+    }
+
+    /** Atomically move one expected state so late callbacks cannot overwrite a terminal result. */
+    public synchronized boolean transitionStatus(Status expected, Status next) {
+        if (status != expected) return false;
+        status = next;
+        updatedAt = System.currentTimeMillis();
+        return true;
+    }
+
+    /** Atomically publish a completed result from one expected live state. */
+    public synchronized boolean completeIf(Status expected, String value) {
+        if (status != expected) return false;
+        result = value;
+        error = "";
+        status = Status.COMPLETED;
+        updatedAt = System.currentTimeMillis();
+        return true;
+    }
+
+    /** Atomically publish a failure without overwriting a terminal task. */
+    public synchronized boolean failIf(Status expected, String message) {
+        if (status != expected) return false;
+        error = message;
+        status = Status.FAILED;
+        updatedAt = System.currentTimeMillis();
+        return true;
+    }
     public String currentStep() { return currentStep; }
     public void setCurrentStep(String s) { this.currentStep = s; this.updatedAt = System.currentTimeMillis(); }
     public String result() { return result; }

@@ -75,6 +75,11 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
   bool get _isLocal => _selected == 'local';
 
   Future<void> _refreshModels() async {
+    final endpointProblem = _secureEndpointProblem(_base.text.trim());
+    if (endpointProblem != null) {
+      setState(() => _modelError = endpointProblem);
+      return;
+    }
     setState(() {
       _loadingModels = true;
       _modelError = null;
@@ -110,8 +115,9 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
       Navigator.of(context).pop();
       return;
     }
-    if (_base.text.trim().isEmpty) {
-      AppToast.show(context, 'This provider needs a base URL');
+    final endpointProblem = _secureEndpointProblem(_base.text.trim());
+    if (endpointProblem != null) {
+      AppToast.show(context, endpointProblem);
       return;
     }
     if (_key.text.trim().isEmpty && !_hasStoredKey) {
@@ -409,6 +415,19 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
         ],
       ),
     );
+  }
+
+  static String? _secureEndpointProblem(String raw) {
+    final uri = Uri.tryParse(raw);
+    if (uri == null || uri.scheme.toLowerCase() != 'https') {
+      return 'Provider endpoints must use HTTPS';
+    }
+    if (uri.host.isEmpty) return 'Enter a valid provider host';
+    if (uri.userInfo.isNotEmpty) return 'Do not put credentials in the endpoint URL';
+    if (uri.hasQuery || uri.hasFragment) {
+      return 'Use a base URL without a query or fragment';
+    }
+    return null;
   }
 
   static IconData _icon(String id) {

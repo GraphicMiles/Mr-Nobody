@@ -7,6 +7,7 @@ import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.tasks.TaskEventDetail;
 import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.agent.tasks.TaskStreamHub;
+import com.mrnobody.agent.util.EndpointPolicy;
 import com.mrnobody.browser.MrNobodyApp;
 import com.mrnobody.browser.net.NetworkGate;
 import com.mrnobody.identity.AndroidKeyStoreIdentity;
@@ -64,43 +65,82 @@ public final class RemoteWorker implements Worker {
             return;
         }
 
+        String endpointProblem = EndpointPolicy.secureBaseReason(endpoint);
+        if (endpointProblem != null) {
+            String message = "Remote worker is not configured safely: " + endpointProblem + ". No task data was sent.";
+            task.failIf(Task.Status.RUNNING, message);
+            append(task, TaskEventStore.TASK_FAILED, message);
+            return;
+        }
+
         final long taskId = task.id();
+        final java.util.concurrent.atomic.AtomicBoolean terminal =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        final StringBuilder streamed = new StringBuilder();
         RemoteClient client = new RemoteClient(endpoint, NetworkGate::openHttp);
         try {
             DeviceIdentity identity = AndroidKeyStoreIdentity.loadOrCreate();
             long remoteId = client.submit(identity, UUID.randomUUID().toString(), task.instruction());
 
-            // Forward the result stream to the same hub the local path uses,
-            // and persist the finished answer onto the task row.
+            // Forward the result stream to the same hub the local path uses.
+            // A terminal transition is compare-and-set: transport errors that
+            // race after done/error cannot rewrite the durable outcome.
             client.stream(remoteId, (type, text) -> {
+                if (terminal.get()) return;
                 switch (type) {
                     case "token":
+                        streamed.append(text == null ? "" : text);
                         TaskStreamHub.instance().emitToken(taskId, text);
                         break;
-                    case "done":
-                        task.setResult(text);
-                        task.setStatus(Task.Status.COMPLETED);
-                        append(task, TaskEventStore.AGENT_ANSWER, text);
+                    case "done": {
+                        String answer = text == null || text.isEmpty()
+                                ? streamed.toString() : text;
+                        if (!task.completeIf(Task.Status.RUNNING, answer)) {
+                            terminal.set(true);
+                            return;
+                        }
+                        terminal.set(true);
+                        append(task, TaskEventStore.AGENT_ANSWER, answer);
                         append(task, TaskEventStore.TURN_PRESENTATION,
                                 TaskEventDetail.presentation(task.artifacts()));
                         append(task, TaskEventStore.TASK_FINISHED, "COMPLETED");
-                        TaskStreamHub.instance().emitDone(taskId, text);
+                        TaskStreamHub.instance().emitDone(taskId, answer);
                         break;
-                    case "error":
-                        task.setError(text);
-                        task.setStatus(Task.Status.FAILED);
-                        append(task, TaskEventStore.TASK_FAILED, text);
-                        TaskStreamHub.instance().emitError(taskId, text);
+                    }
+                    case "error": {
+                        String message = text == null || text.isEmpty()
+                                ? "Remote worker reported an error" : text;
+                        if (!task.failIf(Task.Status.RUNNING, message)) {
+                            terminal.set(true);
+                            return;
+                        }
+                        terminal.set(true);
+                        append(task, TaskEventStore.TASK_FAILED, message);
+                        TaskStreamHub.instance().emitError(taskId, message);
                         break;
+                    }
                     default:
                         break;
                 }
             }, cancellation);
+
+            if (!terminal.get()) {
+                throw new java.io.IOException("result stream ended before a terminal event");
+            }
         } catch (Exception e) {
-            task.setError("Remote worker failed: " + e.getMessage());
-            task.setStatus(Task.Status.FAILED);
-            append(task, TaskEventStore.TASK_FAILED, task.error());
-            TaskStreamHub.instance().emitError(taskId, task.error());
+            if (terminal.get()) return;
+            if (cancellation != null && cancellation.isCancelled()) {
+                if (task.transitionStatus(Task.Status.RUNNING, Task.Status.CANCELLED)) {
+                    append(task, TaskEventStore.TASK_FINISHED, "CANCELLED");
+                }
+                return;
+            }
+            String message = "Remote worker failed: "
+                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            if (task.failIf(Task.Status.RUNNING, message)) {
+                append(task, TaskEventStore.TASK_FAILED, message);
+                TaskStreamHub.instance().emitError(taskId, message);
+            }
         }
     }
 

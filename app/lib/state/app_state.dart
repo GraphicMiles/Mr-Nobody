@@ -151,8 +151,8 @@ class AppState extends ChangeNotifier {
         // Built-in Tor is bootstrapping; the core applies the mode itself at
         // the first circuit. Watch for the flip so the UI follows.
         _watchTorStartup();
-        return 'Starting built-in Tor — Nobody switches on when it connects '
-            '(first start can take a minute).';
+        return 'Preparing the protected route — Nobody switches on only after '
+            'the browser and network route both confirm it. Built-in Tor can take a minute.';
       }
       if (problem != null && problem.isNotEmpty) return problem;
       return null;

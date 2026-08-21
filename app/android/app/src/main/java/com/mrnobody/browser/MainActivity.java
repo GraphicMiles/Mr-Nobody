@@ -22,6 +22,7 @@ import com.mrnobody.agent.policy.RestrictedTools;
 import com.mrnobody.agent.tasks.TaskEventDetail;
 import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.agent.tasks.TaskStreamHub;
+import com.mrnobody.agent.util.EndpointPolicy;
 import com.mrnobody.browser.net.EngineInfo;
 import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
@@ -70,6 +71,12 @@ public class MainActivity extends FlutterActivity {
 
     @Nullable
     private MethodChannel deeplinkChannel;
+
+    /** Cold/warm VIEW intent held until Dart has installed its handler. */
+    @Nullable
+    private String pendingDeepLink;
+    private boolean deepLinkReady;
+    private boolean initialIntentCaptured;
 
     /** Task-stream listeners, keyed by task id, so {@code onCancel} can drop them. */
     private final Map<Long, TaskStreamHub.Listener> streamListeners = new HashMap<>();
@@ -689,6 +696,14 @@ public class MainActivity extends FlutterActivity {
                             if (base == null || base.trim().isEmpty()) {
                                 base = MrNobodyApp.settings().apiBase(id);
                             }
+                            String endpointProblem = EndpointPolicy.secureBaseReason(base);
+                            if (endpointProblem != null) {
+                                Map<String, Object> m = new HashMap<>();
+                                m.put("models", new ArrayList<String>());
+                                m.put("error", endpointProblem);
+                                result.success(m);
+                                return;
+                            }
                             AiProvider probe = MrNobodyApp.buildProvider(id, base, "", key);
                             probe.listModels(new AiProvider.ModelsCallback() {
                                 @Override
@@ -730,6 +745,15 @@ public class MainActivity extends FlutterActivity {
                             String key = call.argument("key");
                             String base = call.argument("base");
                             String model = call.argument("model");
+                            if (!"local".equals(id)) {
+                                String endpointBase = base == null || base.trim().isEmpty()
+                                        ? MrNobodyApp.settings().apiBase(id) : base;
+                                String endpointProblem = EndpointPolicy.secureBaseReason(endpointBase);
+                                if (endpointProblem != null) {
+                                    result.error("bad_endpoint", endpointProblem, null);
+                                    return;
+                                }
+                            }
                             if (key != null && !key.isEmpty()) MrNobodyApp.settings().setApiKey(id, key);
                             if (base != null) MrNobodyApp.settings().setApiBase(id, base);
                             if (model != null) MrNobodyApp.settings().setApiModel(id, model);
@@ -814,7 +838,18 @@ public class MainActivity extends FlutterActivity {
                         }
                         case "clearData": {
                             List<String> buckets = call.argument("buckets");
-                            result.success(clearData(buckets));
+                            if (buckets != null && buckets.contains("taskstate")) {
+                                executor.execute(() -> {
+                                    if (!cancelAllTaskSchedules()) {
+                                        runOnUiThread(() -> result.error("cancel_failed",
+                                                "Could not stop every scheduled task; task state was not cleared.", null));
+                                        return;
+                                    }
+                                    runOnUiThread(() -> result.success(clearData(buckets)));
+                                });
+                            } else {
+                                result.success(clearData(buckets));
+                            }
                             return;
                         }
                         case "memoryInfo": {
@@ -838,11 +873,19 @@ public class MainActivity extends FlutterActivity {
                             return;
                         }
                         case "forgetMemory": {
-                            // Erase everything the agent remembers. Local and
-                            // immediate; the only memory that exists is here.
-                            MrNobodyApp.tasks().clear();
-                            MrNobodyApp.taskEvents().clearAll();
-                            result.success(null);
+                            // Scheduler cancellation is asynchronous, so do the
+                            // whole erase off-main and do not report success
+                            // until no one-shot/periodic task can wake again.
+                            executor.execute(() -> {
+                                if (!cancelAllTaskSchedules()) {
+                                    runOnUiThread(() -> result.error("cancel_failed",
+                                            "Could not stop every remembered task; nothing was erased.", null));
+                                    return;
+                                }
+                                MrNobodyApp.tasks().clear();
+                                MrNobodyApp.taskEvents().clearAll();
+                                runOnUiThread(() -> result.success(null));
+                            });
                             return;
                         }
                         default:
@@ -896,9 +939,26 @@ public class MainActivity extends FlutterActivity {
                     }
                 });
 
-        // Deep-link channel: forward incoming intents to Dart.
+        // Deep-link channel: Dart first installs its incoming handler, then
+        // pulls this queued value. Invoking a method here would race Flutter's
+        // listener registration and is why cold-start links disappeared.
         deeplinkChannel = new MethodChannel(
                 flutterEngine.getDartExecutor().getBinaryMessenger(), DEEPLINK);
+        if (!initialIntentCaptured) {
+            initialIntentCaptured = true;
+            String initial = viewUri(getIntent());
+            if (pendingDeepLink == null && initial != null) pendingDeepLink = initial;
+        }
+        deeplinkChannel.setMethodCallHandler((call, result) -> {
+            if (!"getInitialLink".equals(call.method)) {
+                result.notImplemented();
+                return;
+            }
+            deepLinkReady = true;
+            String pending = pendingDeepLink;
+            pendingDeepLink = null;
+            result.success(pending);
+        });
     }
 
     /** One task-stream event, as the task chat expects it. */
@@ -1143,6 +1203,16 @@ public class MainActivity extends FlutterActivity {
         return m;
     }
 
+    /** Stop every durable one-shot and repeating task before deleting its row. */
+    private boolean cancelAllTaskSchedules() {
+        for (Long id : MrNobodyApp.tasks().allIds()) {
+            if (id == null) continue;
+            if (!MrNobodyApp.scheduler().cancelAndAwait(
+                    getApplicationContext(), id, 5_000L)) return false;
+        }
+        return true;
+    }
+
     /**
      * Clear the buckets the user ticked on the Clear-data screen. Everything is
      * local, so this is a straight delete — nothing is reported anywhere.
@@ -1290,14 +1360,22 @@ public class MainActivity extends FlutterActivity {
         return true;
     }
 
-    /** Forward a deep link (mrnobody:// or a shared http(s) URL) to Dart. */
-    private void dispatchDeepLink(Intent intent) {
-        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+    /** A VIEW URI, or null for ordinary launches and malformed intents. */
+    @Nullable
+    private static String viewUri(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return null;
         Uri data = intent.getData();
-        if (data == null) return;
-        final String uri = data.toString();
-        if (deeplinkChannel != null) {
+        return data == null ? null : data.toString();
+    }
+
+    /** Forward a deep link, or queue it until Dart proves its handler is ready. */
+    private void dispatchDeepLink(Intent intent) {
+        String uri = viewUri(intent);
+        if (uri == null) return;
+        if (deeplinkChannel != null && deepLinkReady) {
             deeplinkChannel.invokeMethod("link", uri);
+        } else {
+            pendingDeepLink = uri;
         }
     }
 

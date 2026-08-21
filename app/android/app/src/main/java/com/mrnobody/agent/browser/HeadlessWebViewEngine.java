@@ -3,10 +3,18 @@ package com.mrnobody.agent.browser;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import com.mrnobody.agent.util.NetworkTargetPolicy;
+import com.mrnobody.browser.net.NetworkGate;
 import com.mrnobody.browser.net.ProfileManager;
+
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import com.mrnobody.debug.ErrorLog;
 
 import java.util.concurrent.CountDownLatch;
@@ -76,6 +84,7 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
             webView.getSettings().setDomStorageEnabled(true);
             // Same rule as the visible WebView: do not send agent URLs to Google.
             webView.getSettings().setSafeBrowsingEnabled(false);
+            webView.setWebViewClient(routeGuardClient());
             // Data Saver grade, applied before first load so it holds from the
             // first request. Reads the current setting; OFF by default.
             try {
@@ -95,6 +104,52 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
             applyGrantedCookies(wv, url);
             wv.loadUrl(url);
         });
+    }
+
+    /** A WebView client that refuses every request while the route is blocked. */
+    private static WebViewClient routeGuardClient() {
+        return new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view,
+                                                               WebResourceRequest request) {
+                return blockedByRoute(request);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return unsafeAgentRedirect(request);
+            }
+        };
+    }
+
+    private static WebResourceResponse blockedByRoute(WebResourceRequest request) {
+        boolean main = request != null && request.isForMainFrame();
+        String reason = NetworkGate.blockedReason();
+        int status = 503;
+        String statusText = "Protected route not ready";
+        if (reason == null && request != null && request.getUrl() != null) {
+            String target = request.getUrl().toString();
+            String lower = target.toLowerCase(java.util.Locale.ROOT);
+            // Data/blob resources do not open a network target. Main-frame
+            // navigations and every HTTP(S) subresource do cross the boundary.
+            if (main || lower.startsWith("http://") || lower.startsWith("https://")) {
+                reason = NetworkTargetPolicy.publicReason(target,
+                        NetworkGate.canConnect() && NetworkGate.resolvesTargetsLocally());
+                status = 403;
+                statusText = "Agent target refused";
+            }
+        }
+        if (reason == null) return null;
+        byte[] body = main ? reason.getBytes(StandardCharsets.UTF_8) : new byte[0];
+        return new WebResourceResponse("text/plain", "utf-8",
+                status, statusText, Collections.emptyMap(),
+                new ByteArrayInputStream(body));
+    }
+
+    /** Block a redirect to an obviously local/literal target on the UI thread. */
+    private static boolean unsafeAgentRedirect(WebResourceRequest request) {
+        if (request == null || !request.isForMainFrame() || request.getUrl() == null) return false;
+        return NetworkTargetPolicy.publicReason(request.getUrl().toString(), false) != null;
     }
 
     private static void applyGrantedCookies(WebView wv, String url) {
@@ -157,6 +212,18 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
                 WebView wv = webView();
                 wv.setWebViewClient(new WebViewClient() {
                     @Override
+                    public WebResourceResponse shouldInterceptRequest(WebView view,
+                                                                       WebResourceRequest request) {
+                        return blockedByRoute(request);
+                    }
+
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view,
+                                                            WebResourceRequest request) {
+                        return unsafeAgentRedirect(request);
+                    }
+
+                    @Override
                     public void onPageFinished(WebView view, String finishedUrl) {
                         if (isBlankNavigation(finishedUrl)) return;
                         currentTitle = view.getTitle() == null ? "" : view.getTitle();
@@ -195,6 +262,18 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
             onMain(() -> {
                 WebView wv = webView();
                 wv.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public WebResourceResponse shouldInterceptRequest(WebView view,
+                                                                       WebResourceRequest request) {
+                        return blockedByRoute(request);
+                    }
+
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view,
+                                                            WebResourceRequest request) {
+                        return unsafeAgentRedirect(request);
+                    }
+
                     @Override
                     public void onPageFinished(WebView view, String finishedUrl) {
                         if (isBlankNavigation(finishedUrl)) return;

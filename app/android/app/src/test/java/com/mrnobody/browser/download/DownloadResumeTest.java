@@ -162,6 +162,37 @@ public class DownloadResumeTest {
     }
 
     @Test
+    public void resumedRangeMustBeginAtTheRequestedOffset() {
+        assertTrue(DownloadResume.startsAt("bytes 12582912-31457279/31457280", 12_582_912L));
+        assertFalse(DownloadResume.startsAt("bytes 0-31457279/31457280", 12_582_912L));
+        assertFalse(DownloadResume.startsAt("bytes */31457280", 12_582_912L));
+        assertFalse(DownloadResume.startsAt(null, 12_582_912L));
+    }
+
+    @Test
+    public void knownLengthMustMatchBeforeCompletion() {
+        assertTrue(DownloadResume.isComplete(100, 100));
+        assertFalse(DownloadResume.isComplete(99, 100));
+        assertFalse(DownloadResume.isComplete(101, 100));
+        assertTrue(DownloadResume.isComplete(99, DownloadRecord.UNKNOWN_SIZE));
+    }
+
+    @Test
+    public void resumedResponseMustNotReplaceThePrefixValidator() {
+        assertTrue(DownloadResume.responseMatchesValidator("\"old\"", "\"old\"", null));
+        assertFalse(DownloadResume.responseMatchesValidator("\"old\"", "\"new\"", null));
+        assertTrue(DownloadResume.responseMatchesValidator(
+                "Tue, 18 Aug 2026 00:00:00 GMT", "\"newly-added\"",
+                "Tue, 18 Aug 2026 00:00:00 GMT"));
+    }
+
+    @Test
+    public void omittedResponseValidatorCanStillHaveHonouredIfRange() {
+        assertTrue(DownloadResume.responseMatchesValidator("\"old\"", null, null));
+        assertFalse(DownloadResume.responseMatchesValidator(null, null, null));
+    }
+
+    @Test
     public void refusalsAreExplainedInWordsNotCodes() {
         assertEquals("The file is no longer there (404)", DownloadResume.message(404, "Not Found"));
         assertEquals("The server refused this download (403)",

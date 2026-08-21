@@ -24,4 +24,13 @@ public interface TaskScheduler {
 
     /** Cancel a scheduled task, one-shot or recurring. */
     void cancel(Context context, long taskId);
+
+    /**
+     * Cancel and wait for the scheduler to acknowledge it. Stores that have no
+     * asynchronous operation can inherit this immediate implementation.
+     */
+    default boolean cancelAndAwait(Context context, long taskId, long timeoutMs) {
+        cancel(context, taskId);
+        return true;
+    }
 }
