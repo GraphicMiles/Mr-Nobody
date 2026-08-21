@@ -33,6 +33,25 @@ public final class OrbotTorRoute implements NetworkRoute {
     public static final String HOST = "127.0.0.1";
     public static final int PORT = 9050;
 
+    /**
+     * The port this route actually targets. 9050 unless the bundled Tor
+     * reported binding an auto port (TorService falls back when 9050 is
+     * unavailable at its configuration time — seen on-device after a process
+     * restart left 9050 in TIME_WAIT). Static: every instance of this route
+     * must agree, and {@code PrivacyController} refreshes it on each apply.
+     */
+    private static volatile int activePort = PORT;
+
+    /** Point the route at the bundled Tor's real port; any value <= 0 resets to 9050. */
+    public static void setActivePort(int port) {
+        activePort = port > 0 ? port : PORT;
+    }
+
+    /** The port currently probed and proxied to. */
+    public static int activePort() {
+        return activePort;
+    }
+
     /** How long a liveness answer is trusted. */
     static final long CACHE_MS = 3_000L;
 
@@ -85,7 +104,7 @@ public final class OrbotTorRoute implements NetworkRoute {
 
     @Override
     public Proxy proxy() {
-        return new Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(HOST, PORT));
+        return new Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(HOST, activePort));
     }
 
     @Override
@@ -104,7 +123,7 @@ public final class OrbotTorRoute implements NetworkRoute {
         if (lastCheckedAt != Long.MIN_VALUE && age >= 0 && age < CACHE_MS) {
             return lastResult;
         }
-        boolean listening = probe.isListening(HOST, PORT, PROBE_TIMEOUT_MS);
+        boolean listening = probe.isListening(HOST, activePort, PROBE_TIMEOUT_MS);
         lastResult = listening;
         lastCheckedAt = now;
         return listening;
@@ -117,6 +136,6 @@ public final class OrbotTorRoute implements NetworkRoute {
 
     @Override
     public String webViewProxyRule() {
-        return "socks://" + HOST + ":" + PORT;
+        return "socks://" + HOST + ":" + activePort;
     }
 }

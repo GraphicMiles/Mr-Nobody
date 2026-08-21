@@ -134,6 +134,24 @@ public class EmbeddedTorWiringTest {
     }
 
     @Test
+    public void theRouteIsAimedAtTheRealSocksPortOnEveryApply() throws IOException {
+        String pc = java("browser/net/PrivacyController.java");
+        int aims = pc.split("OrbotTorRoute.setActivePort\\(EmbeddedTor.readySocksPort\\(\\)\\)", -1).length - 1;
+        assertTrue("apply must re-aim the port before availability is judged; found " + aims,
+                aims >= 2);
+    }
+
+    @Test
+    public void agentDownloadsSendARefererAndABrowserClientString() throws IOException {
+        // A resolved icon URL answered 403: hotlink-protecting CDNs refuse a
+        // bare "MrNobody/1.0" with no Referer (device, 2026-08-21).
+        String tool = java("agent/tools/DownloadTool.java");
+        assertTrue(tool.contains("BROWSER_UA"));
+        assertTrue(tool.contains("ParamSpec.url(\"referer\""));
+        assertTrue(tool.contains("engine.enqueue(url, name, null, BROWSER_UA,"));
+    }
+
+    @Test
     public void theManifestDeclaresTheServiceUnexported() throws IOException {
         String manifest = read("src/main/AndroidManifest.xml");
         int service = manifest.indexOf("org.torproject.jni.TorService");

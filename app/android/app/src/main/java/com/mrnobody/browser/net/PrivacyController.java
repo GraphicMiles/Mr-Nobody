@@ -153,6 +153,13 @@ public final class PrivacyController {
             return refuse(mode, "Nobody needs Orbot or a proxy. Pick one in Settings → Proxy.",
                     settings);
         }
+        // Aim the Tor route at the port Tor actually bound: the bundled
+        // service auto-ports when 9050 is briefly unavailable, and a ready
+        // Tor on an auto port must not be refused for the sin of not being
+        // on 9050 (device-observed: refusal with [tor status=ON]).
+        if (route instanceof OrbotTorRoute) {
+            OrbotTorRoute.setActivePort(EmbeddedTor.readySocksPort());
+        }
         route.refresh();
 
         // Orbot takes priority: if the SOCKS port is already served by a
@@ -167,6 +174,7 @@ public final class PrivacyController {
                 && EmbeddedTorPolicy.shouldStart(true, portUp && !oursStarting,
                         EmbeddedTor.isBundled())) {
             boolean up = EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS);
+            OrbotTorRoute.setActivePort(EmbeddedTor.readySocksPort());
             route.refresh();
             if (!up) {
                 if (!allowTorWait) {

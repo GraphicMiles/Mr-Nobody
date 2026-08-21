@@ -134,4 +134,37 @@ public class OrbotTorRouteTest {
         OrbotTorRoute r = new OrbotTorRoute(new FakeProbe(true), new FakeClock());
         assertTrue(r.label(), r.label().contains("Tor"));
     }
+
+    // ------------------------------------------------------ dynamic port
+
+    @org.junit.After
+    public void resetActivePort() {
+        OrbotTorRoute.setActivePort(-1);
+    }
+
+    @Test
+    public void theRouteFollowsTheBundledTorsRealPort() {
+        // Device-observed: TorService auto-ported (9050 was in TIME_WAIT
+        // after a process restart), reached ON, and the route refused a
+        // working Tor because it only ever probed 9050.
+        final int[] probed = {0};
+        OrbotTorRoute route = new OrbotTorRoute(
+                (host, port, timeout) -> { probed[0] = port; return true; },
+                () -> 0L);
+        OrbotTorRoute.setActivePort(37421);
+        route.refresh();
+        org.junit.Assert.assertTrue(route.isAvailable());
+        org.junit.Assert.assertEquals(37421, probed[0]);
+        org.junit.Assert.assertEquals("socks://127.0.0.1:37421", route.webViewProxyRule());
+        org.junit.Assert.assertTrue(route.proxy().address().toString().contains("37421"));
+    }
+
+    @Test
+    public void anUnknownPortResetsToTheOrbotDefault() {
+        OrbotTorRoute.setActivePort(37421);
+        OrbotTorRoute.setActivePort(-1);
+        org.junit.Assert.assertEquals(OrbotTorRoute.PORT, OrbotTorRoute.activePort());
+        OrbotTorRoute.setActivePort(0);
+        org.junit.Assert.assertEquals(OrbotTorRoute.PORT, OrbotTorRoute.activePort());
+    }
 }

@@ -931,6 +931,9 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private void resolveDownload(Context context, Plan plan, Research r, Cancellation cancellation) {
         java.util.List<String> candidates = new java.util.ArrayList<>();
+        // Where each candidate was found: hotlink-protecting CDNs demand the
+        // Referer of the page that exposed the link (device-observed 403).
+        Map<String, String> origins = new LinkedHashMap<>();
         boolean wantsImage = com.mrnobody.agent.util.DownloadLinkResolver.wantsImage(r.asked);
         String imageExt = wantsImage
                 ? com.mrnobody.agent.util.DownloadLinkResolver.requestedImageExt(r.asked) : null;
@@ -948,8 +951,12 @@ public final class DeterministicEngine implements AgentEngine {
         // fetches. "download a png icon from pngtree" found 0 links in 92.6s
         // while the icons sat in img srcs nothing was collecting.
         if (wantsImage) {
-            for (String img : r.images.values()) {
-                if (!candidates.contains(img)) candidates.add(img);
+            for (Map.Entry<String, String> e : r.images.entrySet()) {
+                String img = e.getValue();
+                if (!candidates.contains(img)) {
+                    candidates.add(img);
+                    origins.put(img, e.getKey()); // page URL → its preview image
+                }
             }
         }
 
@@ -994,7 +1001,10 @@ public final class DeterministicEngine implements AgentEngine {
                 Object o = links.value().get("links");
                 if (o instanceof java.util.List) {
                     for (Object item : (java.util.List<?>) o) {
-                        if (item instanceof String) candidates.add((String) item);
+                        if (item instanceof String) {
+                            candidates.add((String) item);
+                            origins.putIfAbsent((String) item, page);
+                        }
                     }
                 }
             }
@@ -1004,8 +1014,12 @@ public final class DeterministicEngine implements AgentEngine {
                 ? DownloadLinkResolver.resolveImage(candidates, preferred, r.asked, imageExt)
                 : DownloadLinkResolver.resolve(candidates, preferred);
         if (best != null) {
+            Map<String, String> params = new LinkedHashMap<>();
+            params.put("url", best);
+            String origin = origins.get(best);
+            if (origin != null && !origin.isEmpty()) params.put("referer", origin);
             plan.insertNext(Plan.Step.tool("Download", "download",
-                    ToolRequest.of("download", "url", best), "resolved download link"));
+                    new ToolRequest("download", params), "resolved download link"));
         } else {
             r.downloadNote = "No downloadable file was found on the pages read.";
         }
