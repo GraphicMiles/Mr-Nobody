@@ -44,6 +44,11 @@ class DevPanelScreen extends StatefulWidget {
 class _DevPanelScreenState extends State<DevPanelScreen> {
   List<BenchmarkResult> _results = const [];
   bool _running = false;
+
+  /// The one-tap device suite (live agent + Tor, real network).
+  List<BenchmarkResult> _suiteResults = const [];
+  bool _suiteRunning = false;
+  String _suiteCurrent = '';
   Map<String, dynamic> _completion = const {};
 
   /// Manual observations, keyed by id: null = unanswered.
@@ -149,6 +154,54 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
     }
   }
 
+  /// The device suite: one check at a time so progress is visible and a
+  /// mid-run exit costs nothing. The agent and Tor checks use the real
+  /// network and can take minutes; the suite restores the privacy mode it
+  /// found as its final step.
+  Future<void> _runSuite() async {
+    setState(() {
+      _suiteRunning = true;
+      _suiteResults = const [];
+      _suiteCurrent = 'listing checks…';
+    });
+    final results = <BenchmarkResult>[];
+    final checks = await NativeBridge.guard(
+      NativeBridge.deviceSuiteChecks,
+      const <Map<String, dynamic>>[],
+      'device suite unavailable',
+    );
+    for (final c in checks) {
+      final id = c['id'] as String? ?? '?';
+      final name = c['name'] as String? ?? id;
+      if (!mounted) return;
+      setState(() => _suiteCurrent = name);
+      final r = await NativeBridge.guard(
+        () => NativeBridge.deviceSuiteRun(id),
+        <String, dynamic>{'id': id, 'name': name, 'pass': false, 'detail': 'check did not answer'},
+        'device suite check failed',
+      );
+      results.add(BenchmarkResult(
+        r['id'] as String? ?? id,
+        r['name'] as String? ?? name,
+        pass: r['pass'] == true,
+        detail: r['detail'] as String? ?? '',
+      ));
+      if (!mounted) return;
+      setState(() => _suiteResults = List.of(results));
+    }
+    if (!mounted) return;
+    setState(() {
+      _suiteRunning = false;
+      _suiteCurrent = '';
+    });
+    for (final r in results) {
+      if (!r.pass && !_recorded.contains(r.id)) {
+        _recorded.add(r.id);
+        ErrorLog.instance.add('device suite FAIL — ${r.name}: ${r.detail}');
+      }
+    }
+  }
+
   BenchmarkResult _checkInputRoute() {
     final url = IntentRouter.route('https://example.com') == IntentType.url;
     final domain = IntentRouter.route('example.com') == IntentType.url;
@@ -193,6 +246,12 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
     final sb = StringBuffer('Mr Nobody — dev benchmarks\n');
     for (final r in _results) {
       sb.writeln('${r.pass ? 'PASS' : 'FAIL'}  ${r.name} — ${r.detail}');
+    }
+    if (_suiteResults.isNotEmpty) {
+      sb.writeln('— device suite —');
+      for (final r in _suiteResults) {
+        sb.writeln('${r.pass ? 'PASS' : 'FAIL'}  ${r.name} — ${r.detail}');
+      }
     }
     for (final e in _manualChecks.entries) {
       final v = _manual[e.key];
@@ -262,6 +321,45 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                     ]),
                   ),
                 ),
+                const SectionLabel('Device suite'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'Runs the live agent and the Tor route on this device and '
+                    'network — clock, routing, scope, a real research task, a '
+                    'real png download, and Nobody end-to-end. Takes a few '
+                    'minutes; leaves the privacy mode as it found it.',
+                    style: AppTheme.sans(size: 12, color: AppColors.textDim, height: 1.5),
+                  ),
+                ),
+                ActionButton(
+                  _suiteRunning
+                      ? 'Running: $_suiteCurrent'
+                      : 'Run device suite',
+                  onTap: _suiteRunning ? () {} : _runSuite,
+                ),
+                if (_suiteResults.isNotEmpty || _suiteRunning) ...[
+                  const SizedBox(height: 10),
+                  AppCard(
+                    child: Column(
+                      children: withDividers([
+                        for (final r in _suiteResults) _resultRow(r),
+                        if (_suiteRunning)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Center(
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 1.5, color: AppColors.accent),
+                              ),
+                            ),
+                          ),
+                      ]),
+                    ),
+                  ),
+                ],
                 const SectionLabel('Unattended completion'),
                 AppCard(
                   child: Padding(

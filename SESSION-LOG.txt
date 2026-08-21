@@ -266,3 +266,30 @@ surface exactly once via the new privacyStatus channel method. Dart:
 setPrivacyMode shows "Starting built-in Tor — Nobody switches on when it
 connects", polls privacyStatus (2s interval, bounded at 60 polls), and the
 mode label flips by itself. JVM suite 884 green.
+
+---
+
+## 2026-08-21 — FEATURE: one-tap Device Suite (owner-requested test automation)
+
+Owner asked for an overlay widget to automate the device checklist; overlay
+rejected on principle (SYSTEM_ALERT_WINDOW + AccessibilityService in a
+privacy browser, and it dies with the app anyway). Built instead: Dev mode →
+Benchmarks → "Device suite" — runs the REAL core on the real device/network.
+
+- debug/DeviceSuite.java: 12 checks, one channel call each so progress is
+  visible ("deviceSuiteChecks" catalogue + "deviceSuiteRun" per id).
+  Instant: clock (local/zone/negatives), slash+verb routing, YouTube skill,
+  tool scope, outcome checks, boilerplate gate. Live: agent question speed
+  (real research task, wall-ceiling 90s, citation check), png-icon download
+  (150s), Tor bundled, Nobody end-to-end (auto-apply watched up to 110s),
+  exit verified against check.torproject.org, and a final check restoring
+  the privacy mode the suite found.
+- Dart: suite section in dev_panel with per-row progress; results join the
+  copyable report ("— device suite —") and failures land in the ⓘ log.
+- Every check returns a row rather than throwing (a crash would eat the
+  report); pure checks are executed verbatim by DeviceSuiteTest on the JVM.
+
+Manual rump that stays human: kill→relaunch sweep, airplane-mode bootstrap,
+chips/UI feel, debug-log backlog, remote-verifier (needs the owner's key),
+terminal command, plain named-site download, Orbot-priority variant.
+JVM suite 889 green.

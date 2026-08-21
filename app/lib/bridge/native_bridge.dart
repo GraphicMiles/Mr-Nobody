@@ -304,6 +304,19 @@ class NativeBridge {
     return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
+  /// The one-tap device suite: check ids + names, rendered before running.
+  static Future<List<Map<String, dynamic>>> deviceSuiteChecks() async {
+    final r = await _ch.invokeMethod('deviceSuiteChecks');
+    return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  /// Run one device-suite check. Blocks until that check finishes (the agent
+  /// and Tor checks take up to their wall ceilings — minutes, not seconds).
+  static Future<Map<String, dynamic>> deviceSuiteRun(String id) async {
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('deviceSuiteRun', {'id': id}) as Map);
+  }
+
   static Future<List<String>> debugLog() async {
     final r = Map<String, dynamic>.from(await _ch.invokeMethod('debugLog') as Map);
     return (r['entries'] as List?)?.cast<String>() ?? const <String>[];
