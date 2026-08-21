@@ -46,6 +46,10 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
   List<BenchmarkResult> _results = const [];
   bool _running = false;
 
+  /// Dedicated offline/non-destructive guardrail suite.
+  List<BenchmarkResult> _securityResults = const [];
+  bool _securityRunning = false;
+
   /// The one-tap device suite (live agent + Tor, real network).
   List<BenchmarkResult> _suiteResults = const [];
   bool _suiteRunning = false;
@@ -78,7 +82,9 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
   @override
   void initState() {
     super.initState();
-    _run();
+    // Security checks are safe to run on entry: they open no sockets and read
+    // no user content. Network/device benchmarks remain an explicit action.
+    _runSecurity();
     _loadDataSaver();
     _loadCompletion();
   }
@@ -151,6 +157,36 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
       if (!r.pass && r.manual == false && !_recorded.contains(r.id)) {
         _recorded.add(r.id);
         ErrorLog.instance.add('benchmark FAIL — ${r.name}: ${r.detail}');
+      }
+    }
+  }
+
+  Future<void> _runSecurity() async {
+    setState(() => _securityRunning = true);
+    final results = <BenchmarkResult>[];
+    final checks = await NativeBridge.guard(
+      NativeBridge.securityDiagnostics,
+      const <Map<String, dynamic>>[],
+      'security suite unavailable',
+    );
+    for (final check in checks) {
+      results.add(BenchmarkResult(
+        check['id'] as String? ?? '?',
+        check['name'] as String? ?? '?',
+        pass: check['pass'] == true,
+        detail: check['detail'] as String? ?? '',
+      ));
+    }
+    if (!mounted) return;
+    setState(() {
+      _securityResults = results;
+      _securityRunning = false;
+    });
+    for (final result in results) {
+      if (!result.pass && !_recorded.contains(result.id)) {
+        _recorded.add(result.id);
+        ErrorLog.instance.add(
+            'security suite FAIL — ${result.name}: ${result.detail}');
       }
     }
   }
@@ -252,6 +288,12 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
     for (final r in _results) {
       sb.writeln('${r.pass ? 'PASS' : 'FAIL'}  ${r.name} — ${r.detail}');
     }
+    if (_securityResults.isNotEmpty) {
+      sb.writeln('— security & privacy —');
+      for (final r in _securityResults) {
+        sb.writeln('${r.pass ? 'PASS' : 'FAIL'}  ${r.name} — ${r.detail}');
+      }
+    }
     if (_suiteResults.isNotEmpty) {
       sb.writeln('— device suite —');
       for (final r in _suiteResults) {
@@ -322,10 +364,17 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                             ),
                           ),
                         )
+                      else if (_results.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            'Not run — these benchmarks may use the network.',
+                            style: AppTheme.mono(
+                                size: 10, color: AppColors.textFaint),
+                          ),
+                        )
                       else
-                        for (final r in _results.where(
-                            (item) => !item.id.startsWith('security.')))
-                          _resultRow(r),
+                        for (final r in _results) _resultRow(r),
                     ]),
                   ),
                 ),
@@ -339,10 +388,15 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                     style: AppTheme.sans(size: 12, color: AppColors.textDim, height: 1.5),
                   ),
                 ),
+                ActionButton(
+                  _securityRunning ? 'Running…' : 'Run security suite',
+                  onTap: _securityRunning ? () {} : _runSecurity,
+                ),
+                const SizedBox(height: 10),
                 AppCard(
                   child: Column(
                     children: withDividers([
-                      if (_running)
+                      if (_securityRunning)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
                           child: Center(
@@ -355,9 +409,7 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
                           ),
                         )
                       else
-                        for (final r in _results.where(
-                            (item) => item.id.startsWith('security.')))
-                          _resultRow(r),
+                        for (final r in _securityResults) _resultRow(r),
                     ]),
                   ),
                 ),

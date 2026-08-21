@@ -28,6 +28,7 @@ import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
 import com.mrnobody.debug.Diagnostics;
 import com.mrnobody.debug.ErrorLog;
+import com.mrnobody.debug.SecurityDiagnostics;
 import com.mrnobody.browser.webview.MrNobodyWebViewFactory;
 
 import android.database.Cursor;
@@ -501,6 +502,16 @@ public class MainActivity extends FlutterActivity {
                                 Map<String, Object> r = com.mrnobody.debug.DeviceSuite.run(
                                         getApplicationContext(), checkId);
                                 runOnUiThread(() -> result.success(r));
+                            });
+                            return;
+                        }
+                        case "securityDiagnostics": {
+                            // Dedicated non-destructive battery: synthetic values,
+                            // no sockets, no user content, and manifest inspection only.
+                            executor.execute(() -> {
+                                List<Map<String, Object>> maps =
+                                        SecurityDiagnostics.runAsMaps(MainActivity.this);
+                                runOnUiThread(() -> result.success(maps));
                             });
                             return;
                         }
