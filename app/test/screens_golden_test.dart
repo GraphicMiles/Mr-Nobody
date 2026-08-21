@@ -5,12 +5,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mrnobody/browser/browser_tab.dart';
 import 'package:mrnobody/browser/tab_manager.dart';
 import 'package:mrnobody/screens/ai_provider_screen.dart';
+import 'package:mrnobody/screens/bookmarks_screen.dart';
 import 'package:mrnobody/screens/browser_screen.dart';
 import 'package:mrnobody/screens/clear_data_screen.dart';
 import 'package:mrnobody/screens/downloads_screen.dart';
+import 'package:mrnobody/screens/dev_panel_screen.dart';
 import 'package:mrnobody/screens/home_screen.dart';
 import 'package:mrnobody/screens/launch_screen.dart';
+import 'package:mrnobody/screens/memory_screen.dart';
 import 'package:mrnobody/screens/privacy_screen.dart';
+import 'package:mrnobody/screens/restricted_tools_screen.dart';
 import 'package:mrnobody/screens/settings_screen.dart';
 import 'package:mrnobody/screens/tabs_screen.dart';
 import 'package:mrnobody/screens/task_chat_screen.dart';
@@ -35,7 +39,10 @@ void main() {
     await loadTestFonts();
     _mockCore();
     // No Android platform view in a widget test.
-    BrowserTab.engineFactory = ({required int tabId, required String url, required bool isPrivate}) =>
+    BrowserTab.engineFactory = (
+            {required int tabId,
+            required String url,
+            required bool isPrivate}) =>
         FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
     // The task chat subscribes to the answer stream. In a golden capture there
     // is no live stream, so register an empty one — an un-mocked EventChannel
@@ -52,125 +59,190 @@ void main() {
 
   tearDownAll(() => BrowserTab.engineFactory = null);
 
-  Future<void> pumpScreen(WidgetTester tester, Widget child, String golden) async {
+  Future<void> pumpScreen(
+    WidgetTester tester,
+    Widget Function() build,
+    String golden, {
+    required String themeId,
+  }) async {
     tester.view.physicalSize = phone * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
+    // Set the runtime palette before constructing wrappers whose colours are
+    // constructor arguments (for example a destination Scaffold).
+    final theme = AppTheme.forTheme(themeId);
+    final child = build();
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark(),
+        theme: theme,
         home: child,
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));
-    await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/$golden.png'));
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/$golden.png'),
+    );
   }
 
-  testWidgets('S1 launch', (tester) async {
-    await pumpScreen(
-      tester,
-      LaunchScreen(onStart: () {}, onPrivacy: () {}),
+  final cases = <_GoldenCase>[
+    _GoldenCase(
+      'S1 launch',
       's1_launch',
-    );
-  });
-
-  testWidgets('S2 agent home', (tester) async {
-    await pumpScreen(
-      tester,
-      Scaffold(
-        backgroundColor: AppColors.bg,
-        body: HomeScreen(onSubmit: (_) {}, onShortcut: (_) {}, onOpenTask: (_) {}),
-        bottomNavigationBar: BottomNav(selected: 0, onSelect: (_) {}, onNew: () {}),
-      ),
+      () => LaunchScreen(onStart: () {}, onPrivacy: () {}),
+    ),
+    _GoldenCase(
+      'S2 agent home',
       's2_home',
-    );
-  });
-
-  testWidgets('S2 browser', (tester) async {
-    final tabs = TabManager();
-    tabs.newTab(url: 'https://example.com');
-    await pumpScreen(
-      tester,
-      BrowserScreen(tabs: tabs, onShowTabs: () {}, onOpenDestination: (_) {}),
-      's2_browser',
-    );
-  });
-
-  testWidgets('S3 tabs', (tester) async {
-    final tabs = TabManager();
-    tabs.newTab(url: 'https://example.com');
-    tabs.newTab(url: 'https://duckduckgo.com/?q=arsenal');
-    tabs.newTab(isPrivate: true, url: 'https://news.ycombinator.com');
-    await pumpScreen(
-      tester,
-      Scaffold(
+      () => Scaffold(
         backgroundColor: AppColors.bg,
-        body: TabsScreen(tabs: tabs, onOpenTab: () {}),
-        bottomNavigationBar: BottomNav(selected: 1, onSelect: (_) {}, onNew: () {}),
+        body: HomeScreen(
+          onSubmit: (_) {},
+          onShortcut: (_) {},
+          onOpenTask: (_) {},
+        ),
+        bottomNavigationBar:
+            BottomNav(selected: 0, onSelect: (_) {}, onNew: () {}),
       ),
+    ),
+    _GoldenCase(
+      'S2 browser',
+      's2_browser',
+      () {
+        final tabs = TabManager();
+        tabs.newTab(url: 'https://example.com');
+        return BrowserScreen(
+          tabs: tabs,
+          onShowTabs: () {},
+          onOpenDestination: (_) {},
+        );
+      },
+    ),
+    _GoldenCase(
+      'S3 tabs',
       's3_tabs',
-    );
-  });
-
-  testWidgets('S4 privacy', (tester) async {
-    await pumpScreen(tester, const PrivacyScreen(), 's4_privacy');
-  });
-
-  testWidgets('S5 tasks', (tester) async {
-    await pumpScreen(
-      tester,
-      Scaffold(
+      () {
+        final tabs = TabManager();
+        tabs.newTab(url: 'https://example.com');
+        tabs.newTab(url: 'https://duckduckgo.com/?q=arsenal');
+        tabs.newTab(isPrivate: true, url: 'https://news.ycombinator.com');
+        return Scaffold(
+          backgroundColor: AppColors.bg,
+          body: TabsScreen(tabs: tabs, onOpenTab: () {}),
+          bottomNavigationBar:
+              BottomNav(selected: 1, onSelect: (_) {}, onNew: () {}),
+        );
+      },
+    ),
+    _GoldenCase('S4 privacy', 's4_privacy', () => const PrivacyScreen()),
+    _GoldenCase(
+      'S5 tasks',
+      's5_tasks',
+      () => Scaffold(
         backgroundColor: AppColors.bg,
         body: TasksScreen(onOpenTask: (_) {}),
-        bottomNavigationBar: BottomNav(selected: 2, onSelect: (_) {}, onNew: () {}),
+        bottomNavigationBar:
+            BottomNav(selected: 2, onSelect: (_) {}, onNew: () {}),
       ),
-      's5_tasks',
-    );
-  });
-
-  testWidgets('S5 task detail', (tester) async {
-    await pumpScreen(
-      tester,
-      const TaskChatScreen(
+    ),
+    _GoldenCase(
+      'S5 task detail',
+      's5_task_detail',
+      () => const TaskChatScreen(
         taskId: 1,
         title: 'Find laptops under 500000',
         instruction: 'Find laptops under 500000',
       ),
-      's5_task_detail',
-    );
-  });
-
-  testWidgets('S6 settings', (tester) async {
-    await AppState.instance.load();
-    await pumpScreen(
-      tester,
-      Scaffold(
+    ),
+    _GoldenCase(
+      'S6 settings',
+      's6_settings',
+      () => Scaffold(
         backgroundColor: AppColors.bg,
         body: const SettingsScreen(),
-        bottomNavigationBar: BottomNav(selected: 3, onSelect: (_) {}, onNew: () {}),
+        bottomNavigationBar:
+            BottomNav(selected: 3, onSelect: (_) {}, onNew: () {}),
       ),
-      's6_settings',
-    );
-  });
+      loadsSettings: true,
+    ),
+    _GoldenCase(
+      'S6 AI provider',
+      's6_ai_provider',
+      () => const AiProviderScreen(initialProvider: 'groq'),
+    ),
+    _GoldenCase(
+      'S7 clear data',
+      's7_clear_data',
+      () => const ClearDataScreen(),
+    ),
+    _GoldenCase(
+      'S8 downloads',
+      's8_downloads',
+      () => const DownloadsScreen(),
+    ),
+    _GoldenCase(
+      'S9 bookmarks',
+      's9_bookmarks',
+      () => BookmarksScreen(onOpenUrl: (_) {}),
+    ),
+    _GoldenCase(
+      'S10 restricted tools',
+      's10_restricted_tools',
+      () => const RestrictedToolsScreen(),
+    ),
+    _GoldenCase(
+      'S11 developer panel',
+      's11_developer_panel',
+      () => const DevPanelScreen(),
+    ),
+    _GoldenCase(
+      'S12 memory',
+      's12_memory',
+      () => const MemoryScreen(),
+    ),
+  ];
 
-  testWidgets('S6 AI provider', (tester) async {
-    await pumpScreen(tester, const AiProviderScreen(initialProvider: 'groq'), 's6_ai_provider');
-  });
+  for (final themeId in const [AppColors.classicId, AppColors.warmId]) {
+    final prefix = themeId == AppColors.warmId ? 'warm_' : '';
+    group(themeId == AppColors.warmId ? 'Warm cream' : 'Classic dark', () {
+      for (final screen in cases) {
+        testWidgets(screen.name, (tester) async {
+          _mockTheme = themeId;
+          if (screen.loadsSettings) await AppState.instance.load();
+          await pumpScreen(
+            tester,
+            screen.build,
+            '$prefix${screen.file}',
+            themeId: themeId,
+          );
+        });
+      }
+    });
+  }
+}
 
-  testWidgets('S7 clear data', (tester) async {
-    await pumpScreen(tester, const ClearDataScreen(), 's7_clear_data');
-  });
+class _GoldenCase {
+  final String name;
+  final String file;
+  final Widget Function() build;
+  final bool loadsSettings;
 
-  testWidgets('S8 downloads', (tester) async {
-    await pumpScreen(tester, const DownloadsScreen(), 's8_downloads');
+  const _GoldenCase(
+    this.name,
+    this.file,
+    this.build, {
+    this.loadsSettings = false,
   });
 }
 
+String _mockTheme = AppColors.classicId;
+
 /// A stand-in for the Java core, so screens render with representative data.
 void _mockCore() {
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
     const MethodChannel('mrnobody/core'),
     (call) async {
       switch (call.method) {
@@ -188,6 +260,8 @@ void _mockCore() {
             'profile': 'BALANCED',
             'searchEngine': 'https://duckduckgo.com/?q=',
             'provider': 'local',
+            'theme': _mockTheme,
+            'resourcePolicy': 'OFF',
           };
         case 'engineInfo':
           return {
@@ -206,8 +280,54 @@ void _mockCore() {
           };
         case 'listMonitors':
         case 'listAccounts':
-        case 'listRestrictedTools':
           return <Map<String, Object>>[];
+        case 'listRestrictedTools':
+          return [
+            {
+              'id': 'twikit',
+              'title': 'X / Twitter automation',
+              'summary': 'Login and account actions stay compiled off.',
+              'grade': 'off',
+              'active': false,
+            },
+            {
+              'id': 'playwright',
+              'title': 'Browser automation',
+              'summary': 'The execute path is present but cannot be enabled.',
+              'grade': 'safe',
+              'active': false,
+            },
+          ];
+        case 'diagnostics':
+          return [
+            {
+              'id': 'core.storage',
+              'name': 'Private task storage',
+              'pass': true,
+              'detail': 'available on device',
+            },
+            {
+              'id': 'core.network',
+              'name': 'Network policy gate',
+              'pass': true,
+              'detail': 'deny-first checks loaded',
+            },
+          ];
+        case 'securityDiagnostics':
+          return [
+            {
+              'id': 'privacy.history',
+              'name': 'Browsing history defaults off',
+              'pass': true,
+              'detail': 'no automatic history writes',
+            },
+            {
+              'id': 'privacy.secrets',
+              'name': 'Secrets excluded from debug output',
+              'pass': true,
+              'detail': 'redaction active',
+            },
+          ];
         case 'completionStats':
           return {
             'finished': 0,
@@ -346,7 +466,36 @@ void _mockCore() {
             },
           ];
         case 'bookmarks':
-          return <Map<String, Object>>[];
+          return [
+            {
+              'id': 1,
+              'title': 'Example Domain',
+              'url': 'https://example.com',
+            },
+            {
+              'id': 2,
+              'title': 'Privacy Guides',
+              'url': 'https://www.privacyguides.org',
+            },
+          ];
+        case 'memoryInfo':
+          return {
+            'count': 2,
+            'tasks': [
+              {
+                'id': 1,
+                'instruction': 'Find laptops under 500000',
+                'status': 'COMPLETED',
+                'result': 'Found three current options.',
+              },
+              {
+                'id': 2,
+                'instruction': 'Compare phone prices',
+                'status': 'FAILED',
+                'result': '',
+              },
+            ],
+          };
         default:
           return null;
       }

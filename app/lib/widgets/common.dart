@@ -22,8 +22,15 @@ class AppCard extends StatelessWidget {
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.isWarm ? null : AppColors.surface,
+        gradient: AppColors.isWarm
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.surface2, AppColors.surface],
+              )
+            : null,
+        borderRadius: BorderRadius.circular(AppColors.isWarm ? 20 : 16),
         border: Border.all(color: AppColors.line),
       ),
       child: child,
@@ -37,7 +44,7 @@ class RowDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const Divider(height: 1, thickness: 1, color: AppColors.line);
+      Divider(height: 1, thickness: 1, color: AppColors.line);
 }
 
 /// `.section-label` — uppercase mono, wide tracking, muted.
@@ -150,7 +157,7 @@ class ProgressBar extends StatelessWidget {
         value: value?.clamp(0.0, 1.0),
         minHeight: 3,
         backgroundColor: AppColors.surface2,
-        valueColor: const AlwaysStoppedAnimation(AppColors.accent),
+        valueColor: AlwaysStoppedAnimation(AppColors.accent),
       ),
     );
   }
@@ -181,7 +188,7 @@ class TopBar extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.line),
                 ),
-                child: const Icon(Icons.arrow_back, size: 15, color: AppColors.textDim),
+                child: Icon(Icons.arrow_back, size: 15, color: AppColors.textDim),
               ),
             ),
             const SizedBox(width: 10),
@@ -214,6 +221,9 @@ class PanelShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
+        Positioned.fill(
+          child: DecoratedBox(decoration: AppTheme.backdrop),
+        ),
         Column(
           children: [
             SafeArea(bottom: false, child: TopBar(title: title, onBack: onBack)),
@@ -321,7 +331,7 @@ class SquareCheck extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: value ? AppColors.accent : AppColors.lineStrong, width: 1.5),
       ),
-      child: value ? const Icon(Icons.check, size: 12, color: AppColors.accentInk) : null,
+      child: value ? Icon(Icons.check, size: 12, color: AppColors.accentInk) : null,
     );
   }
 }
@@ -367,7 +377,7 @@ class SettingRow extends StatelessWidget {
             if (trailing != null)
               trailing!
             else if (onTap != null)
-              const Icon(Icons.chevron_right, size: 16, color: AppColors.textMuted),
+              Icon(Icons.chevron_right, size: 16, color: AppColors.textMuted),
           ],
         ),
       ),
@@ -497,7 +507,10 @@ class ScreenSurface extends StatelessWidget {
       // The app draws its own typography everywhere; this is a surface, not a
       // theme, so nothing here should tint or restyle what it wraps.
       type: MaterialType.canvas,
-      child: child,
+      child: DecoratedBox(
+        decoration: AppTheme.backdrop,
+        child: child,
+      ),
     );
   }
 }

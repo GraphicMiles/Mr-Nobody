@@ -163,7 +163,7 @@ class _TabsScreenState extends State<TabsScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, size: 14, color: AppColors.textFaint),
+          Icon(Icons.search, size: 14, color: AppColors.textFaint),
           const SizedBox(width: 9),
           Expanded(
             child: TextField(
@@ -185,7 +185,7 @@ class _TabsScreenState extends State<TabsScreen> {
                 _search.clear();
                 setState(() => _query = '');
               },
-              child: const Icon(Icons.close, size: 14, color: AppColors.textFaint),
+              child: Icon(Icons.close, size: 14, color: AppColors.textFaint),
             ),
         ],
       ),
@@ -243,8 +243,8 @@ class _TabCard extends StatelessWidget {
                   GestureDetector(
                     onTap: onClose,
                     behavior: HitTestBehavior.opaque,
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
                       child: Icon(Icons.close, size: 13, color: AppColors.textFaint),
                     ),
                   ),
@@ -346,7 +346,7 @@ class _NewTabCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.add, size: 20, color: AppColors.textMuted),
+            Icon(Icons.add, size: 20, color: AppColors.textMuted),
             if (label != null) ...[
               const SizedBox(height: 8),
               Padding(

@@ -295,7 +295,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
               },
             ),
             const SizedBox(height: 11),
-            const Divider(height: 1, thickness: 1, color: AppColors.line),
+            Divider(height: 1, thickness: 1, color: AppColors.line),
             const SizedBox(height: 8),
             AgentActions(
               sources: sources,
@@ -828,7 +828,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                               onTap: _sendText,
                             ),
                           const SizedBox(height: 11),
-                          const Divider(
+                          Divider(
                               height: 1, thickness: 1, color: AppColors.line),
                           const SizedBox(height: 8),
                           AgentActions(
@@ -868,7 +868,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: AppColors.line),
               ),
-              child: const Icon(Icons.chevron_left,
+              child: Icon(Icons.chevron_left,
                   size: 17, color: AppColors.textDim),
             ),
           ),
@@ -888,7 +888,7 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
 
   Widget _composer() {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
       padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),

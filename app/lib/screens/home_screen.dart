@@ -93,10 +93,13 @@ class HomeScreenState extends State<HomeScreen> {
       controller: widget.scrollController,
       padding: const EdgeInsets.only(bottom: 120),
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 30, bottom: 22),
-          child: Center(child: BrandLogo(size: 80)),
-        ),
+        if (AppColors.isWarm)
+          const _HomeHero()
+        else
+          const Padding(
+            padding: EdgeInsets.only(top: 30, bottom: 22),
+            child: Center(child: BrandLogo(size: 80)),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: _searchPill(),
@@ -133,7 +136,7 @@ class HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, size: 16, color: AppColors.textFaint),
+          Icon(Icons.search, size: 16, color: AppColors.textFaint),
           const SizedBox(width: 11),
           Expanded(
             child: TextField(
@@ -156,8 +159,8 @@ class HomeScreenState extends State<HomeScreen> {
             child: Container(
               width: 34,
               height: 34,
-              decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
-              child: const Icon(Icons.arrow_forward, size: 16, color: AppColors.accentInk),
+              decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+              child: Icon(Icons.arrow_forward, size: 16, color: AppColors.accentInk),
             ),
           ),
         ],
@@ -182,8 +185,62 @@ class HomeScreenState extends State<HomeScreen> {
     return ListRow(
       icon: icon,
       title: label,
-      trailing: const Icon(Icons.chevron_right, size: 14, color: AppColors.textMuted),
+      trailing: Icon(Icons.chevron_right, size: 14, color: AppColors.textMuted),
       onTap: () => widget.onShortcut(dest),
+    );
+  }
+}
+
+/// Warm, entirely local hero treatment from the approved visual direction.
+/// The two abstract cards suggest open pages without loading thumbnails or
+/// leaking browsing state onto the home screen.
+class _HomeHero extends StatelessWidget {
+  const _HomeHero();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 136,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            left: 42,
+            top: 24,
+            child: Transform.rotate(angle: -0.18, child: const _PageShape()),
+          ),
+          Positioned(
+            right: 38,
+            top: 36,
+            child: Transform.rotate(angle: 0.2, child: const _PageShape()),
+          ),
+          const BrandLogo(size: 80),
+        ],
+      ),
+    );
+  }
+}
+
+class _PageShape extends StatelessWidget {
+  const _PageShape();
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: 0.42,
+      child: Container(
+        width: 58,
+        height: 76,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.surface3, AppColors.surface],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: AppColors.line),
+        ),
+      ),
     );
   }
 }

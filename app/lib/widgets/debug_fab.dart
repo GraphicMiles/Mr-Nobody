@@ -95,7 +95,8 @@ class _DebugOverlayState extends State<DebugOverlay> {
                         shape: BoxShape.circle,
                         border: Border.all(color: AppColors.lineStrong),
                       ),
-                      child: const Icon(Icons.info_outline, size: 15, color: AppColors.accent),
+                      child: Icon(Icons.info_outline,
+                          size: 15, color: AppColors.accent),
                     ),
                     Positioned(
                       top: -3,
@@ -106,10 +107,13 @@ class _DebugOverlayState extends State<DebugOverlay> {
                         alignment: Alignment.center,
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         decoration: BoxDecoration(
-                          color: count > 0 ? AppColors.accent : AppColors.surface3,
+                          color:
+                              count > 0 ? AppColors.accent : AppColors.surface3,
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
-                            color: count > 0 ? AppColors.accent : AppColors.lineStrong,
+                            color: count > 0
+                                ? AppColors.accent
+                                : AppColors.lineStrong,
                           ),
                         ),
                         child: Text(
@@ -117,7 +121,9 @@ class _DebugOverlayState extends State<DebugOverlay> {
                           style: AppTheme.mono(
                             size: 9.5,
                             w: FontWeight.w700,
-                            color: count > 0 ? AppColors.accentInk : AppColors.textFaint,
+                            color: count > 0
+                                ? AppColors.accentInk
+                                : AppColors.textFaint,
                           ),
                         ),
                       ),
@@ -134,13 +140,24 @@ class _DebugOverlayState extends State<DebugOverlay> {
 
   Widget _panel(BuildContext context, int count) {
     final entries = ErrorLog.instance.entries;
-    final tail = entries.length > 5 ? entries.sublist(entries.length - 5) : entries;
+    final tail =
+        entries.length > 5 ? entries.sublist(entries.length - 5) : entries;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(AppColors.isWarm ? 13 : 12),
       decoration: BoxDecoration(
-        color: AppColors.surface2,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.lineStrong),
+        color: AppColors.isWarm ? AppColors.overlay : AppColors.surface2,
+        borderRadius: BorderRadius.circular(AppColors.isWarm ? 20 : 14),
+        border:
+            AppColors.isWarm ? null : Border.all(color: AppColors.lineStrong),
+        boxShadow: AppColors.isWarm
+            ? const [
+                BoxShadow(
+                  color: Color(0x99000000),
+                  blurRadius: 36,
+                  offset: Offset(0, 14),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,83 +165,123 @@ class _DebugOverlayState extends State<DebugOverlay> {
         children: [
           Row(
             children: [
-              Text('DEBUG',
-                  style: AppTheme.mono(size: 9.5, w: FontWeight.w700, color: AppColors.text, letterSpacing: 0.95)),
+              Text(
+                'DEBUG',
+                style: AppTheme.mono(
+                  size: 9.5,
+                  w: FontWeight.w700,
+                  color:
+                      AppColors.isWarm ? AppColors.overlayInk : AppColors.text,
+                  letterSpacing: 0.95,
+                ),
+              ),
               const SizedBox(width: 10),
-              Text('$count ${count == 1 ? 'error' : 'errors'}',
-                  style: AppTheme.mono(size: 9.5, color: AppColors.textFaint, w: FontWeight.w600)),
+              Text(
+                '$count ${count == 1 ? 'error' : 'errors'}',
+                style: AppTheme.mono(
+                  size: 9.5,
+                  color: AppColors.isWarm
+                      ? AppColors.overlayFaint
+                      : AppColors.textFaint,
+                  w: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
-              GestureDetector(
-                onTap: () {
-                  // The agent's memory: what it remembers, visibly, with a
-                  // forget button. On-device only.
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const MemoryScreen()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface3,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.lineStrong),
-                  ),
-                  child: Text('MEM',
-                      style: AppTheme.mono(size: 8.5, w: FontWeight.w700, color: AppColors.accent)),
+              _DebugAction(
+                label: 'MEM',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MemoryScreen()),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  // Dev mode: the Phase 1 device benchmark. Same channel as the
-                  // errors this panel already reports — a failed point is
-                  // written here too, so one place carries both.
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const DevPanelScreen()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface3,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.lineStrong),
-                  ),
-                  child: Text('BENCH',
-                      style: AppTheme.mono(size: 8.5, w: FontWeight.w700, color: AppColors.accent)),
+              const SizedBox(width: 6),
+              _DebugAction(
+                label: 'BENCH',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DevPanelScreen()),
                 ),
               ),
-              GestureDetector(
+              const SizedBox(width: 6),
+              _DebugAction(
+                label: 'COPY',
                 onTap: () {
-                  Clipboard.setData(ClipboardData(text: ErrorLog.instance.dump));
+                  Clipboard.setData(
+                      ClipboardData(text: ErrorLog.instance.dump));
                   AppToast.show(context, 'Log copied');
                 },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface3,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.lineStrong),
-                  ),
-                  child: Text('COPY',
-                      style: AppTheme.mono(size: 8.5, w: FontWeight.w700, color: AppColors.accent)),
-                ),
               ),
             ],
           ),
-          const SizedBox(height: 7),
+          SizedBox(height: AppColors.isWarm ? 8 : 7),
+          if (AppColors.isWarm) ...[
+            Container(height: 1, color: AppColors.overlayLine),
+            const SizedBox(height: 8),
+          ],
           if (tail.isEmpty)
-            Text('no errors', style: AppTheme.mono(size: 10, color: AppColors.textMuted, height: 1.6))
+            Text(
+              'no errors',
+              style: AppTheme.mono(
+                size: 10,
+                color: AppColors.isWarm
+                    ? AppColors.overlayFaint
+                    : AppColors.textMuted,
+                height: 1.6,
+              ),
+            )
           else
             ...tail.map(
               (e) => Padding(
                 padding: const EdgeInsets.only(bottom: 2),
-                child: Text('✗ $e',
-                    style: AppTheme.mono(size: 10, color: AppColors.text, height: 1.5)),
+                child: Text(
+                  '✗ $e',
+                  style: AppTheme.mono(
+                    size: 10,
+                    color: AppColors.isWarm
+                        ? AppColors.overlayInk
+                        : AppColors.text,
+                    height: 1.5,
+                  ),
+                ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _DebugAction extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _DebugAction({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: AppColors.isWarm ? 8 : 9,
+          vertical: AppColors.isWarm ? 5 : 4,
+        ),
+        decoration: BoxDecoration(
+          color:
+              AppColors.isWarm ? AppColors.overlaySelected : AppColors.surface3,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color:
+                AppColors.isWarm ? AppColors.overlayLine : AppColors.lineStrong,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTheme.mono(
+            size: 8.5,
+            w: FontWeight.w700,
+            color: AppColors.isWarm ? AppColors.overlayInk : AppColors.accent,
+          ),
+        ),
       ),
     );
   }

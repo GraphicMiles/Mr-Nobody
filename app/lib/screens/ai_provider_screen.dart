@@ -251,13 +251,13 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_loadingModels)
-                        const SizedBox(
+                        SizedBox(
                           width: 10,
                           height: 10,
                           child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.accent),
                         )
                       else
-                        const Icon(Icons.refresh, size: 12, color: AppColors.accent),
+                        Icon(Icons.refresh, size: 12, color: AppColors.accent),
                       const SizedBox(width: 6),
                       Text('Refresh',
                           style: AppTheme.mono(size: 9.5, w: FontWeight.w700, color: AppColors.accent)),

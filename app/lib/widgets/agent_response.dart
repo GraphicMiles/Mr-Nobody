@@ -61,8 +61,8 @@ abstract final class AgentMetrics {
 }
 
 /// Warm amber is reserved for explicit warnings that need judgement.
-const _warn = Color(0xFFE8B339);
-const _warnInk = Color(0xFFF0CF8A);
+const _warn = AppColors.warning;
+const _warnInk = AppColors.warningInk;
 
 // ═══════════════════════════════════════════════════════════ turn scaffold
 
@@ -122,9 +122,9 @@ class UserTurn extends StatelessWidget {
             ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.accent,
-                borderRadius: BorderRadius.only(
+                borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(15),
                   topRight: Radius.circular(15),
                   bottomLeft: Radius.circular(15),
@@ -244,7 +244,7 @@ class _ShimmerLabelState extends State<ShimmerLabel>
         return ShaderMask(
           blendMode: BlendMode.srcIn,
           shaderCallback: (bounds) => LinearGradient(
-            colors: const [
+            colors: [
               AppColors.textMuted,
               AppColors.text,
               AppColors.textMuted,
@@ -505,7 +505,7 @@ class _AgentTraceState extends State<AgentTrace> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.auto_awesome,
+                Icon(Icons.auto_awesome,
                     size: 14, color: AppColors.textMuted),
                 const SizedBox(width: 7),
                 Flexible(
@@ -516,7 +516,7 @@ class _AgentTraceState extends State<AgentTrace> {
                   turns: _expanded ? 0 : -0.25,
                   duration: const Duration(milliseconds: 300),
                   curve: AgentMetrics.ease,
-                  child: const Icon(Icons.keyboard_arrow_down,
+                  child: Icon(Icons.keyboard_arrow_down,
                       size: 15, color: AppColors.textMuted),
                 ),
               ],
@@ -535,7 +535,7 @@ class _AgentTraceState extends State<AgentTrace> {
               child: Container(
                 margin: const EdgeInsets.only(top: 3),
                 padding: const EdgeInsets.only(left: 4),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
                       left: BorderSide(color: AppColors.line, width: 1)),
                 ),
@@ -694,23 +694,23 @@ class _AgentTraceState extends State<AgentTrace> {
   Widget _marker(TraceStep step) {
     if (step.running) return const _Spinner();
     if (step.denied) {
-      return const Icon(Icons.block, size: 14, color: AppColors.textMuted);
+      return Icon(Icons.block, size: 14, color: AppColors.textMuted);
     }
     if (step.waiting) {
-      return const Icon(
+      return Icon(
           Icons.hourglass_top, size: 14, color: AppColors.textMuted);
     }
     if (step.recovered) {
-      return const Icon(Icons.refresh, size: 14, color: AppColors.textMuted);
+      return Icon(Icons.refresh, size: 14, color: AppColors.textMuted);
     }
     if (step.failed) {
-      return const Icon(
+      return Icon(
           Icons.error_outline, size: 14, color: AppColors.textMuted);
     }
     if (step.cancelled) {
-      return const Icon(Icons.close, size: 14, color: AppColors.textMuted);
+      return Icon(Icons.close, size: 14, color: AppColors.textMuted);
     }
-    return const Icon(Icons.check, size: 14, color: AppColors.textMuted);
+    return Icon(Icons.check, size: 14, color: AppColors.textMuted);
   }
 
   String _statusLabel(TraceStep step) {
@@ -754,7 +754,7 @@ class _SpinnerState extends State<_Spinner>
   Widget build(BuildContext context) {
     return RotationTransition(
       turns: _c,
-      child: const SizedBox(
+      child: SizedBox(
         width: 11,
         height: 11,
         child: CircularProgressIndicator(
@@ -1150,7 +1150,7 @@ class _AgentActionsState extends State<AgentActions> {
                               Positioned(
                                 left: i * 11.0,
                                 child: Container(
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: AppColors.bg,
                                   ),
@@ -1274,12 +1274,12 @@ class AgentFollowUps extends StatelessWidget {
                 decoration: BoxDecoration(
                   border: i == items.length - 1
                       ? null
-                      : const Border(
+                      : Border(
                           bottom: BorderSide(color: AppColors.line)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.subdirectory_arrow_left,
+                    Icon(Icons.subdirectory_arrow_left,
                         size: 12, color: AppColors.textMuted),
                     const SizedBox(width: 9),
                     Expanded(

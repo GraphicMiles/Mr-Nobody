@@ -139,19 +139,22 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           const SectionLabel('Recent'),
           AppCard(
             child: !_loaded
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
+                ? Padding(
+                    padding: const EdgeInsets.all(24),
                     child: Center(
                       child: SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.accent),
                       ),
                     ),
                   )
                 : _items.isEmpty
                     ? const EmptyNote('No downloads yet')
-                    : Column(children: withDividers([for (final d in _items) _row(d)])),
+                    : Column(
+                        children:
+                            withDividers([for (final d in _items) _row(d)])),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -159,7 +162,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               'Mr Nobody downloads these itself, so they can be paused and resumed, they '
               'go to the folder you chose, and they stop if you uninstall the app. '
               'Cancelling deletes the partial file.',
-              style: AppTheme.mono(size: 10.5, color: AppColors.textMuted, height: 1.5),
+              style: AppTheme.mono(
+                  size: 10.5, color: AppColors.textMuted, height: 1.5),
             ),
           ),
         ],
@@ -221,7 +225,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 borderRadius: BorderRadius.circular(9),
                 border: Border.all(color: AppColors.line),
               ),
-              child: Icon(_iconFor(name, d['mime'] as String?), size: 14, color: AppColors.textDim),
+              child: Icon(_iconFor(name, d['mime'] as String?),
+                  size: 14, color: AppColors.textDim),
             ),
             const SizedBox(width: 11),
             Expanded(
@@ -243,7 +248,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       const SizedBox(width: 10),
                       Text(
                         _typeLabel(name, d['mime'] as String?),
-                        style: AppTheme.mono(size: 9, color: AppColors.textMuted),
+                        style:
+                            AppTheme.mono(size: 9, color: AppColors.textMuted),
                       ),
                     ],
                   ),
@@ -255,7 +261,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                         const SizedBox(width: 10),
                         Text(
                           _progressLabel(status, downloaded, size, speed),
-                          style: AppTheme.mono(size: 9.5, color: AppColors.textMuted),
+                          style: AppTheme.mono(
+                              size: 9.5, color: AppColors.textMuted),
                         ),
                       ],
                     )
@@ -266,7 +273,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                           : status == _cancelled
                               ? 'cancelled'
                               : '${humanBytes(size)} · tap to open',
-                      style: AppTheme.mono(size: 10, color: AppColors.textMuted),
+                      style:
+                          AppTheme.mono(size: 10, color: AppColors.textMuted),
                     ),
                 ],
               ),
@@ -303,7 +311,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     );
   }
 
-  static String _progressLabel(String status, int downloaded, int size, double speed) {
+  static String _progressLabel(
+      String status, int downloaded, int size, double speed) {
     if (status == _paused) return 'paused · ${humanBytes(downloaded)}';
     if (status == _waiting) return 'stopped · tap resume';
     if (status == _queued) return 'waiting…';
@@ -312,7 +321,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     return '${humanBytes(downloaded)} / $of$rate';
   }
 
-  static String _status(Map<String, dynamic> d) => d['status'] as String? ?? _queued;
+  static String _status(Map<String, dynamic> d) =>
+      d['status'] as String? ?? _queued;
 
   Future<void> _pause(int id, String name) async {
     final ok = await NativeBridge.guard(
@@ -344,7 +354,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         'could not open download',
       );
       if (!mounted) return;
-      AppToast.show(context, opened ? 'Opening $name…' : 'No app can open this file');
+      AppToast.show(
+          context, opened ? 'Opening $name…' : 'No app can open this file');
       return;
     }
     if (status == _failed) {
@@ -367,9 +378,12 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final canResume = d['canResume'] as bool? ?? false;
 
     showMenuSheet(context, [
-      if (finished) SheetItem(Icons.open_in_new, 'Open', () => _openOrExplain(id, status, name)),
+      if (finished)
+        SheetItem(
+            Icons.open_in_new, 'Open', () => _openOrExplain(id, status, name)),
       if (running) SheetItem(Icons.pause, 'Pause', () => _pause(id, name)),
-      if (canResume) SheetItem(Icons.play_arrow, 'Resume', () => _resume(id, name)),
+      if (canResume)
+        SheetItem(Icons.play_arrow, 'Resume', () => _resume(id, name)),
       SheetItem(Icons.info_outline, 'Details', () => _showDetails(d)),
       // Cancel and remove are different things: one stops a transfer, the
       // other clears the row. Collapsing them is what left the user with a
@@ -382,7 +396,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             'could not cancel download',
           );
           if (!mounted) return;
-          AppToast.show(context, ok ? 'Cancelled $name' : 'Could not cancel it');
+          AppToast.show(
+              context, ok ? 'Cancelled $name' : 'Could not cancel it');
           _load();
         }),
       SheetItem(
@@ -395,7 +410,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             'could not remove download',
           );
           if (!mounted) return;
-          AppToast.show(context, removed ? 'Removed $name' : 'Could not remove it');
+          AppToast.show(
+              context, removed ? 'Removed $name' : 'Could not remove it');
           _load();
         },
       ),
@@ -408,32 +424,52 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(d['name'] as String? ?? 'download',
-            style: AppTheme.sans(size: 14, w: FontWeight.w700)),
+        backgroundColor: AppColors.overlay,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppColors.isWarm ? 24 : 16),
+        ),
+        title: Text(
+          d['name'] as String? ?? 'download',
+          style: AppTheme.sans(
+            size: 16,
+            color: AppColors.overlayInk,
+            w: FontWeight.w700,
+          ),
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _detail('Type', _typeLabel(d['name'] as String? ?? '', d['mime'] as String?)),
-              _detail('Status', _statusLabel(_status(d), d['error'] as String?)),
+              _detail('Type',
+                  _typeLabel(d['name'] as String? ?? '', d['mime'] as String?)),
+              _detail(
+                  'Status', _statusLabel(_status(d), d['error'] as String?)),
               _detail('Size', size > 0 ? humanBytes(size) : 'unknown'),
-              if (downloaded > 0 && downloaded != size) _detail('Received', humanBytes(downloaded)),
+              if (downloaded > 0 && downloaded != size)
+                _detail('Received', humanBytes(downloaded)),
               _detail('From', d['url'] as String? ?? '—'),
               _detail('Folder', d['folder'] as String? ?? 'Downloads (system)'),
               _detail('Saved to', _location(d['localUri'] as String?)),
               if (d['resumable'] == false && _status(d) != _completed)
-                _detail('Resumable', 'No — this server will not continue a part-file'),
+                _detail('Resumable',
+                    'No — this server will not continue a part-file'),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: Text('Close',
-                style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w600)),
+            child: Text(
+              'Close',
+              style: AppTheme.sans(
+                size: 13,
+                color: AppColors.isWarm
+                    ? AppColors.overlayInk
+                    : AppColors.accent,
+                w: AppColors.isWarm ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -446,11 +482,25 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(),
-              style: AppTheme.mono(size: 9, color: AppColors.textMuted, w: FontWeight.w600)),
+          Text(
+            label.toUpperCase(),
+            style: AppTheme.mono(
+              size: 9,
+              color: AppColors.isWarm
+                  ? AppColors.overlayFaint
+                  : AppColors.textMuted,
+              w: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 3),
-          SelectableText(value,
-              style: AppTheme.sans(size: 12, color: AppColors.textDim, height: 1.4)),
+          SelectableText(
+            value,
+            style: AppTheme.sans(
+              size: 12,
+              color: AppColors.overlayMuted,
+              height: 1.4,
+            ),
+          ),
         ],
       ),
     );
@@ -493,7 +543,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       final extension = name.substring(dot + 1).toUpperCase();
       if (extension.length <= 6) return extension;
     }
-    if (mime != null && mime.contains('/')) return mime.split('/').last.toUpperCase();
+    if (mime != null && mime.contains('/')) {
+      return mime.split('/').last.toUpperCase();
+    }
     return 'FILE';
   }
 
@@ -501,17 +553,22 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final n = name.toLowerCase();
     final m = (mime ?? '').toLowerCase();
     bool any(List<String> endings) => endings.any(n.endsWith);
-    if (m.startsWith('video/') || any(['.mkv', '.mp4', '.webm', '.mov', '.avi', '.m4v'])) {
+    if (m.startsWith('video/') ||
+        any(['.mkv', '.mp4', '.webm', '.mov', '.avi', '.m4v'])) {
       return Icons.movie_outlined;
     }
-    if (m.startsWith('audio/') || any(['.mp3', '.m4a', '.flac', '.wav', '.ogg'])) {
+    if (m.startsWith('audio/') ||
+        any(['.mp3', '.m4a', '.flac', '.wav', '.ogg'])) {
       return Icons.music_note_outlined;
     }
-    if (m.startsWith('image/') || any(['.jpg', '.jpeg', '.png', '.gif', '.webp'])) {
+    if (m.startsWith('image/') ||
+        any(['.jpg', '.jpeg', '.png', '.gif', '.webp'])) {
       return Icons.image_outlined;
     }
     if (n.endsWith('.pdf')) return Icons.picture_as_pdf_outlined;
-    if (any(['.zip', '.rar', '.7z', '.tar', '.gz'])) return Icons.folder_zip_outlined;
+    if (any(['.zip', '.rar', '.7z', '.tar', '.gz'])) {
+      return Icons.folder_zip_outlined;
+    }
     if (n.endsWith('.apk')) return Icons.android;
     return Icons.insert_drive_file_outlined;
   }
@@ -522,6 +579,8 @@ String humanBytes(int bytes) {
   if (bytes <= 0) return '0 B';
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} KB';
-  if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }

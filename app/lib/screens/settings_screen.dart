@@ -48,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _proxyKind = 'http';
   String _proxyHost = '';
   int _proxyPort = 0;
+
   /// Null until asked: do not claim isolation without a fact.
   bool? _multiProfile;
 
@@ -119,8 +120,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: 'Download folder',
         selected: 'keep',
         options: const [
-          MenuOption(id: 'keep', label: 'Choose another folder', icon: Icons.folder_open),
-          MenuOption(id: 'system', label: 'Use system Downloads', icon: Icons.undo),
+          MenuOption(
+              id: 'keep',
+              label: 'Choose another folder',
+              icon: Icons.folder_open),
+          MenuOption(
+              id: 'system', label: 'Use system Downloads', icon: Icons.undo),
         ],
       );
       if (picked == null) return;
@@ -186,7 +191,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SafeArea(bottom: false, child: TopBar(title: 'Settings', onBack: widget.onBack)),
+            SafeArea(
+                bottom: false,
+                child: TopBar(title: 'Settings', onBack: widget.onBack)),
             Expanded(
               child: ListView(
                 controller: widget.scrollController,
@@ -196,6 +203,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppCard(
                     child: Column(
                       children: withDividers([
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Theme',
+                            value: _state.themeLabel,
+                            valueOn: _state.themeId == 'warm',
+                            onTap: () => _pickTheme(rowContext),
+                          ),
+                        ),
                         _toggle('Save browsing history', _state.history, (v) {
                           _state.setHistory(v);
                           AppToast.show(context, 'History ${v ? 'ON' : 'OFF'}');
@@ -211,14 +226,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         }),
                         _toggle('Search suggestions', _state.suggestions, (v) {
                           _state.setSuggestions(v);
-                          AppToast.show(context, 'Suggestions ${v ? 'ON' : 'OFF'}');
+                          AppToast.show(
+                              context, 'Suggestions ${v ? 'ON' : 'OFF'}');
                         }),
                         _toggle('Block ads & trackers', _state.blocking, (v) {
                           _state.setBlocking(v);
-                          AppToast.show(
-                              context, 'Ad blocking ${v ? 'ON' : 'OFF'} — reload the page to apply');
+                          AppToast.show(context,
+                              'Ad blocking ${v ? 'ON' : 'OFF'} — reload the page to apply');
                         }),
-                        _toggle('Strip tracking parameters', _state.paramStripping, (v) {
+                        _toggle(
+                            'Strip tracking parameters', _state.paramStripping,
+                            (v) {
                           _state.setParamStripping(v);
                           AppToast.show(context,
                               'Parameter stripping ${v ? 'ON' : 'OFF'} — reload the page to apply');
@@ -307,9 +325,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         SettingRow(
                           label: 'Clear browsing data',
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          onTap: () =>
+                              Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => ClearDataScreen(
-                              onBeforeBrowserDataClear: widget.onBeforeBrowserDataClear,
+                              onBeforeBrowserDataClear:
+                                  widget.onBeforeBrowserDataClear,
                             ),
                           )),
                         ),
@@ -326,8 +346,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           value: _bookmarkCount?.toString(),
                           onTap: () async {
                             await Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) =>
-                                    BookmarksScreen(onOpenUrl: widget.onOpenUrl)));
+                                builder: (_) => BookmarksScreen(onOpenUrl: widget.onOpenUrl)));
                             _loadBookmarkCount();
                           },
                         ),
@@ -335,15 +354,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: 'Downloads',
                           value: _downloadCount?.toString(),
                           onTap: () async {
-                            await Navigator.of(context)
-                                .push(MaterialPageRoute(builder: (_) => const DownloadsScreen()));
+                            await Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => const DownloadsScreen()));
                             _loadDownloadCount();
                           },
                         ),
                         SettingRow(
                           label: 'Privacy dashboard',
-                          onTap: () => Navigator.of(context)
-                              .push(MaterialPageRoute(builder: (_) => const PrivacyScreen())),
+                          onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) => const PrivacyScreen())),
                         ),
                         SettingRow(label: 'About', onTap: _about),
                       ]),
@@ -382,16 +402,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _pickTheme(BuildContext rowContext) async {
+    final picked = await showAnchoredMenu<String>(
+      context: rowContext,
+      title: 'Theme',
+      selected: _state.themeId,
+      options: const [
+        MenuOption(
+          id: 'classic',
+          label: 'Classic dark',
+          icon: Icons.contrast,
+          tag: 'original',
+        ),
+        MenuOption(
+          id: 'warm',
+          label: 'Warm cream',
+          icon: Icons.light_mode_outlined,
+          tag: 'new',
+        ),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    await _state.setTheme(picked);
+    if (!mounted) return;
+    AppToast.show(context, 'Theme: ${_state.themeLabel}');
+  }
+
   Future<void> _pickProfile(BuildContext rowContext) async {
     final picked = await showAnchoredMenu<String>(
       context: rowContext,
       title: 'Privacy profile',
       selected: _state.profile,
       options: const [
-        MenuOption(id: 'BALANCED', label: 'Balanced', icon: Icons.balance, tag: 'default'),
         MenuOption(
-            id: 'STRICT', label: 'Strict', icon: Icons.shield_outlined, tag: '3P cookies blocked'),
-        MenuOption(id: 'MAXIMUM', label: 'Maximum', icon: Icons.lock_outline, tag: 'JS off'),
+            id: 'BALANCED',
+            label: 'Balanced',
+            icon: Icons.balance,
+            tag: 'default'),
+        MenuOption(
+            id: 'STRICT',
+            label: 'Strict',
+            icon: Icons.shield_outlined,
+            tag: '3P cookies blocked'),
+        MenuOption(
+            id: 'MAXIMUM',
+            label: 'Maximum',
+            icon: Icons.lock_outline,
+            tag: 'JS off'),
       ],
     );
     if (picked == null || !mounted) return;
@@ -435,7 +492,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       selected: _state.providerId,
       options: [
         for (final p in AiProviderOption.all)
-          MenuOption(id: p.id, label: p.name, icon: _providerIcon(p.id), tag: p.tag),
+          MenuOption(
+              id: p.id, label: p.name, icon: _providerIcon(p.id), tag: p.tag),
       ],
     );
     if (picked == null || !mounted) return;
@@ -449,7 +507,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // send the user to the provider screen instead of silently enabling it.
     if (!mounted) return;
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AiProviderScreen(initialProvider: picked)),
+      MaterialPageRoute(
+          builder: (_) => AiProviderScreen(initialProvider: picked)),
     );
     if (mounted) setState(() {});
   }
@@ -460,7 +519,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: 'Privacy mode',
       selected: _state.privacyMode,
       options: [
-        const MenuOption(id: 'NORMAL', label: 'Normal', icon: Icons.language, tag: 'direct'),
+        const MenuOption(
+            id: 'NORMAL', label: 'Normal', icon: Icons.language, tag: 'direct'),
         MenuOption(
             id: 'PRIVATE',
             label: 'Private',
@@ -496,9 +556,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: 'Proxy route',
       selected: _proxyRoute,
       options: const [
-        MenuOption(id: 'tor-orbot', label: 'Orbot (Tor)', icon: Icons.shield_outlined, tag: 'SOCKS 9050'),
-        MenuOption(id: 'proxy', label: 'HTTP proxy', icon: Icons.swap_horiz, tag: 'host : port'),
-        MenuOption(id: 'direct', label: 'Direct', icon: Icons.language, tag: 'no proxy'),
+        MenuOption(
+            id: 'tor-orbot',
+            label: 'Orbot (Tor)',
+            icon: Icons.shield_outlined,
+            tag: 'SOCKS 9050'),
+        MenuOption(
+            id: 'proxy',
+            label: 'HTTP proxy',
+            icon: Icons.swap_horiz,
+            tag: 'host : port'),
+        MenuOption(
+            id: 'direct',
+            label: 'Direct',
+            icon: Icons.language,
+            tag: 'no proxy'),
       ],
     );
     if (picked == null || !mounted) return;
@@ -530,37 +602,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Host and port for the HTTP proxy. Empty host is not a configured proxy.
   Future<bool?> _editProxyEndpoint() async {
     final hostCtrl = TextEditingController(text: _proxyHost);
-    final portCtrl = TextEditingController(
-        text: _proxyPort == 0 ? '8080' : '$_proxyPort');
+    final portCtrl =
+        TextEditingController(text: _proxyPort == 0 ? '8080' : '$_proxyPort');
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('HTTP proxy', style: AppTheme.sans(size: 16, w: FontWeight.w700)),
+        backgroundColor: AppColors.overlay,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppColors.isWarm ? 24 : 16),
+        ),
+        title: Text(
+          'HTTP proxy',
+          style: AppTheme.sans(
+            size: AppColors.isWarm ? 17 : 16,
+            color: AppColors.overlayInk,
+            w: FontWeight.w700,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: hostCtrl,
               autofocus: true,
-              style: AppTheme.mono(size: 13),
-              cursorColor: AppColors.accent,
+              style: AppTheme.mono(
+                size: 13,
+                color: AppColors.isWarm
+                    ? AppColors.overlayInk
+                    : AppColors.textDim,
+              ),
+              cursorColor: AppColors.isWarm ? AppColors.overlayInk : AppColors.accent,
               decoration: InputDecoration(
+                filled: AppColors.isWarm,
+                fillColor: AppColors.overlaySelected,
+                border: AppColors.isWarm
+                    ? OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.overlayLine),
+                      )
+                    : null,
+                enabledBorder: AppColors.isWarm
+                    ? OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.overlayLine),
+                      )
+                    : null,
+                focusedBorder: AppColors.isWarm
+                    ? OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.overlayInk),
+                      )
+                    : null,
                 labelText: 'Host',
-                labelStyle: AppTheme.sans(size: 12, color: AppColors.textMuted),
+                labelStyle: AppTheme.sans(
+                  size: 12,
+                  color: AppColors.isWarm
+                      ? AppColors.overlayFaint
+                      : AppColors.textMuted,
+                ),
                 hintText: '127.0.0.1',
-                hintStyle: AppTheme.mono(size: 12, color: AppColors.textFaint),
+                hintStyle: AppTheme.mono(
+                  size: 12,
+                  color: AppColors.overlayFaint,
+                ),
               ),
             ),
+            if (AppColors.isWarm) const SizedBox(height: 12),
             TextField(
               controller: portCtrl,
               keyboardType: TextInputType.number,
-              style: AppTheme.mono(size: 13),
-              cursorColor: AppColors.accent,
+              style: AppTheme.mono(
+                size: 13,
+                color: AppColors.isWarm
+                    ? AppColors.overlayInk
+                    : AppColors.textDim,
+              ),
+              cursorColor: AppColors.isWarm ? AppColors.overlayInk : AppColors.accent,
               decoration: InputDecoration(
+                filled: AppColors.isWarm,
+                fillColor: AppColors.overlaySelected,
+                border: AppColors.isWarm
+                    ? OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.overlayLine),
+                      )
+                    : null,
+                enabledBorder: AppColors.isWarm
+                    ? OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.overlayLine),
+                      )
+                    : null,
+                focusedBorder: AppColors.isWarm
+                    ? OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.overlayInk),
+                      )
+                    : null,
                 labelText: 'Port',
-                labelStyle: AppTheme.sans(size: 12, color: AppColors.textMuted),
+                labelStyle: AppTheme.sans(
+                  size: 12,
+                  color: AppColors.isWarm
+                      ? AppColors.overlayFaint
+                      : AppColors.textMuted,
+                ),
               ),
             ),
           ],
@@ -568,14 +713,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text('Cancel',
-                style: AppTheme.sans(size: 13, color: AppColors.textDim)),
+            child: Text(
+              'Cancel',
+              style: AppTheme.sans(
+                size: 13,
+                color: AppColors.overlayMuted,
+                w: AppColors.isWarm ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: Text('Save',
-                style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w600)),
-          ),
+          if (AppColors.isWarm)
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.overlayInk,
+                foregroundColor: AppColors.overlay,
+              ),
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Save'),
+            )
+          else
+            TextButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: Text(
+                'Save',
+                style: AppTheme.sans(
+                  size: 13,
+                  color: AppColors.accent,
+                  w: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -638,13 +805,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: 'Data Saver',
       selected: _state.resourcePolicy,
       options: const [
-        MenuOption(id: 'OFF', label: 'Off', icon: Icons.wifi, tag: 'nothing restricted'),
         MenuOption(
-            id: 'BALANCED', label: 'Balanced', icon: Icons.pause_circle_outline, tag: 'autoplay off'),
+            id: 'OFF',
+            label: 'Off',
+            icon: Icons.wifi,
+            tag: 'nothing restricted'),
         MenuOption(
-            id: 'AGGRESSIVE', label: 'Aggressive', icon: Icons.image_not_supported_outlined, tag: '+ images off'),
+            id: 'BALANCED',
+            label: 'Balanced',
+            icon: Icons.pause_circle_outline,
+            tag: 'autoplay off'),
         MenuOption(
-            id: 'EXTREME', label: 'Extreme', icon: Icons.offline_bolt, tag: '+ no caching'),
+            id: 'AGGRESSIVE',
+            label: 'Aggressive',
+            icon: Icons.image_not_supported_outlined,
+            tag: '+ images off'),
+        MenuOption(
+            id: 'EXTREME',
+            label: 'Extreme',
+            icon: Icons.offline_bolt,
+            tag: '+ no caching'),
       ],
     );
     if (picked == null || !mounted) return;
@@ -670,9 +850,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Mr Nobody', style: AppTheme.sans(size: 16, w: FontWeight.w700)),
+        backgroundColor: AppColors.overlay,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppColors.isWarm ? 24 : 16),
+        ),
+        title: Text(
+          'Mr Nobody',
+          style: AppTheme.sans(
+            size: AppColors.isWarm ? 17 : 16,
+            color: AppColors.overlayInk,
+            w: FontWeight.w700,
+          ),
+        ),
         content: SingleChildScrollView(
           child: Text(
             'A small, private, agentic browser.\n\n'
@@ -686,15 +875,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Mr Nobody is an independent product, not affiliated with or '
             'endorsed by The Tor Project. Tor is run by volunteers — '
             'donate.torproject.org.',
-            style: AppTheme.sans(size: 12.5, color: AppColors.textDim, height: 1.5),
+            style: AppTheme.sans(
+              size: 12.5,
+              color: AppColors.overlayMuted,
+              height: 1.5,
+            ),
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: Text('OK',
-                style: AppTheme.sans(size: 13, color: AppColors.accent, w: FontWeight.w600)),
-          ),
+          if (AppColors.isWarm)
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.overlayInk,
+                foregroundColor: AppColors.overlay,
+              ),
+              onPressed: () => Navigator.pop(c),
+              child: const Text('OK'),
+            )
+          else
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: Text(
+                'OK',
+                style: AppTheme.sans(
+                  size: 13,
+                  color: AppColors.accent,
+                  w: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );

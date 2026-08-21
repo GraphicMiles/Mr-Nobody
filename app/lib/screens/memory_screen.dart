@@ -102,7 +102,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
                           style: AppTheme.mono(
                               size: 8.5,
                               w: FontWeight.w700,
-                              color: const Color(0xFFE5484D))),
+                              color: AppColors.danger)),
                     ),
                   ),
               ],
@@ -111,7 +111,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
           const SizedBox(height: 10),
           Expanded(
             child: _loading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(
                         strokeWidth: 1.5, color: AppColors.accent))
                 : ListView(
@@ -145,9 +145,9 @@ class _MemoryScreenState extends State<MemoryScreen> {
     final done = status == 'COMPLETED';
     final result = (t['result'] as String?) ?? '';
     final color = done
-        ? const Color(0xFF3DDC84)
+        ? AppColors.success
         : status == 'FAILED'
-            ? const Color(0xFFE5484D)
+            ? AppColors.danger
             : AppColors.textMuted;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
