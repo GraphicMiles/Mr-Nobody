@@ -27,6 +27,7 @@ import com.mrnobody.browser.net.EngineInfo;
 import com.mrnobody.browser.net.FingerprintDefence;
 import com.mrnobody.browser.net.NetworkGate;
 import com.mrnobody.browser.net.NetworkRoute;
+import com.mrnobody.browser.net.EmbeddedTor;
 import com.mrnobody.browser.net.OrbotTorRoute;
 import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
@@ -402,19 +403,27 @@ public final class Diagnostics {
                     }
                 }));
 
-        // Tor is the precondition for the manual NOBODY egress test. This only
-        // says whether Orbot's SOCKS port answers — it does not, and cannot,
-        // prove traffic actually routes through Tor from inside the process.
-        out.add(check("tor.orbot", "Tor route (Orbot) reachable",
+        // Tor is the precondition for the manual NOBODY egress test. A quiet
+        // port is no longer a failure: since the Tor batch, a bundled
+        // TorService starts on demand when Nobody is selected. Fail only
+        // when there is no Tor of any kind to reach.
+        out.add(check("tor.orbot", "Tor available (Orbot or built-in)",
                 () -> {
                     OrbotTorRoute route = new OrbotTorRoute();
                     route.refresh();
-                    return route.isAvailable()
-                            ? Result.pass("tor.orbot", "Tor route (Orbot) reachable",
-                                    "Orbot SOCKS on " + OrbotTorRoute.HOST + ":" + OrbotTorRoute.PORT)
-                            : Result.fail("tor.orbot", "Tor route (Orbot) reachable",
-                                    "Orbot not reachable on " + OrbotTorRoute.HOST + ":"
-                                            + OrbotTorRoute.PORT + " — start Orbot to test Tor routing");
+                    if (route.isAvailable()) {
+                        return Result.pass("tor.orbot", "Tor available (Orbot or built-in)",
+                                "SOCKS listener up on " + OrbotTorRoute.HOST + ":"
+                                        + OrbotTorRoute.PORT + " (Orbot or a warm built-in Tor)");
+                    }
+                    if (EmbeddedTor.isBundled()) {
+                        return Result.pass("tor.orbot", "Tor available (Orbot or built-in)",
+                                "no listener right now — built-in Tor starts on demand "
+                                        + "when Nobody is selected");
+                    }
+                    return Result.fail("tor.orbot", "Tor available (Orbot or built-in)",
+                            "no listener on " + OrbotTorRoute.HOST + ":" + OrbotTorRoute.PORT
+                                    + " and no built-in Tor in this build — install Orbot");
                 }));
 
         // Data Saver: apply the strictest grade and read the WebView settings

@@ -75,6 +75,16 @@ public class EmbeddedTorPolicyTest {
         assertEquals(tor && lbm, EmbeddedTor.isBundled());
     }
 
+    @Test
+    public void statusReadinessIsInertOnTheJvmAndBeforeAnyStart() {
+        // torStatus is guarded behind "we started the service in this
+        // process": for Orbot users (and this JVM) it must stay null and
+        // never force TorService's native-loading initialiser.
+        org.junit.Assert.assertNull(EmbeddedTor.torStatus());
+        assertFalse(EmbeddedTor.isStarting());
+        assertFalse(EmbeddedTor.isReady());
+    }
+
     private static boolean classPresent(String name) {
         try {
             Class.forName(name, false, EmbeddedTorPolicyTest.class.getClassLoader());

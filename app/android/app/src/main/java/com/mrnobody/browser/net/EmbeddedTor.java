@@ -44,6 +44,15 @@ public final class EmbeddedTor {
     public static final String ACTION_STATUS = "org.torproject.android.intent.action.STATUS";
     public static final String EXTRA_STATUS = "org.torproject.android.intent.extra.STATUS";
 
+    /**
+     * Set the moment this process asks the service to start. TorService runs
+     * in-process, so its lifetime and this flag's lifetime are the same.
+     * Guarding {@link #torStatus()} behind it keeps the reflective status
+     * read from force-initialising TorService (and loading the native
+     * library) for users whose Tor is Orbot and never ours.
+     */
+    private static volatile boolean startRequested;
+
     private EmbeddedTor() {
     }
 
@@ -68,6 +77,47 @@ public final class EmbeddedTor {
     }
 
     /**
+     * TorService's own status word (STARTING/ON/OFF/STOPPING), or null when
+     * it cannot be read (not bundled, class not initialised yet, reflection
+     * refused). Read by reflection from the field TorService itself keeps —
+     * the same value it broadcasts.
+     *
+     * <p>Why this exists: TorService binds the SOCKS port at configuration
+     * time, BEFORE any circuit is built. A device test proved the port probe
+     * alone lies — Nobody "applied immediately" against a listening but
+     * unbootstrapped Tor and every fetch then stalled to a timeout. The port
+     * says a socket is open; only STATUS_ON says traffic can flow.
+     */
+    public static String torStatus() {
+        if (!startRequested) return null; // never started by us = no status to read
+        try {
+            Class<?> service = Class.forName(SERVICE_CLASS, false,
+                    EmbeddedTor.class.getClassLoader());
+            java.lang.reflect.Field f = service.getDeclaredField("currentStatus");
+            f.setAccessible(true);
+            Object v = f.get(null);
+            return v == null ? null : String.valueOf(v);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** True when the bundled Tor has a circuit up and can carry traffic. */
+    public static boolean isReady() {
+        return isBundled() && EmbeddedTorPolicy.statusMeansReady(torStatus());
+    }
+
+    /**
+     * True while the bundled Tor is between start and first circuit — the
+     * window where its SOCKS port may already be listening but nothing can
+     * flow yet. A port listener during this window is OURS and not ready;
+     * outside it, a listener on 9050 is someone else's working Tor (Orbot).
+     */
+    public static boolean isStarting() {
+        return isBundled() && "STARTING".equals(torStatus());
+    }
+
+    /**
      * Start the bundled Tor (idempotent — TorService ignores a duplicate
      * start) and wait up to {@code waitMs} for it to become ready. Returns
      * true when the SOCKS port is up; false when it is still bootstrapping
@@ -78,19 +128,20 @@ public final class EmbeddedTor {
         if (context == null || !isBundled()) return false;
         Context app = context.getApplicationContext();
 
-        CountDownLatch ready = new CountDownLatch(1);
+        CountDownLatch onStatus = new CountDownLatch(1);
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context c, Intent intent) {
                 if (intent == null) return;
                 String status = intent.getStringExtra(EXTRA_STATUS);
-                if (EmbeddedTorPolicy.statusMeansReady(status)) ready.countDown();
+                if (EmbeddedTorPolicy.statusMeansReady(status)) onStatus.countDown();
             }
         };
 
         boolean registered = registerStatusReceiver(app, receiver);
         Object localManager = registerLocalReceiver(app, receiver);
         try {
+            startRequested = true;
             app.startService(new Intent().setClassName(app, SERVICE_CLASS));
         } catch (Throwable t) {
             ErrorLog.record("embedded tor: could not start service: " + t);
@@ -101,16 +152,15 @@ public final class EmbeddedTor {
         try {
             long deadline = System.currentTimeMillis() + Math.max(0L, waitMs);
             while (System.currentTimeMillis() < deadline) {
-                if (socksListening()) return true;
-                if (ready.await(EmbeddedTorPolicy.PROBE_INTERVAL_MS, TimeUnit.MILLISECONDS)) {
-                    // Status ON: circuits are up; the port follows immediately.
-                    return socksListening() || waitForPort(deadline);
+                if (ready()) return true;
+                if (onStatus.await(EmbeddedTorPolicy.PROBE_INTERVAL_MS, TimeUnit.MILLISECONDS)) {
+                    return ready() || waitForReady(deadline);
                 }
             }
-            return socksListening();
+            return ready();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return socksListening();
+            return ready();
         } finally {
             unregister(app, receiver, registered, localManager);
         }
@@ -129,12 +179,24 @@ public final class EmbeddedTor {
 
     // ------------------------------------------------------------- plumbing
 
-    private static boolean waitForPort(long deadline) throws InterruptedException {
+    /**
+     * Ready = STATUS_ON whenever the status is readable; the port probe is
+     * only trusted when it is not. The port lies during bootstrap — it binds
+     * before the first circuit (device-observed as a Nobody that applied
+     * instantly and then timed out every fetch).
+     */
+    private static boolean ready() {
+        String status = torStatus();
+        if (status != null) return EmbeddedTorPolicy.statusMeansReady(status);
+        return socksListening();
+    }
+
+    private static boolean waitForReady(long deadline) throws InterruptedException {
         while (System.currentTimeMillis() < deadline) {
-            if (socksListening()) return true;
+            if (ready()) return true;
             Thread.sleep(EmbeddedTorPolicy.PROBE_INTERVAL_MS);
         }
-        return socksListening();
+        return ready();
     }
 
     /** The same loopback probe OrbotTorRoute trusts. */

@@ -206,15 +206,19 @@ class _DevPanelScreenState extends State<DevPanelScreen> {
     final url = IntentRouter.route('https://example.com') == IntentType.url;
     final domain = IntentRouter.route('example.com') == IntentType.url;
     final task = IntentRouter.route('find laptops under 500000') == IntentType.task;
-    final search = IntentRouter.route('what is the capital of ghana') == IntentType.search;
-    final ok = url && domain && task && search;
+    // BUG-7: a natural-language question is an agent task, not a raw search.
+    // This fixture said `search` long after both routers were fixed — the
+    // one ❌ on an otherwise green device run (2026-08-21).
+    final question = IntentRouter.route('what is the capital of ghana') == IntentType.task;
+    final search = IntentRouter.route('arsenal') == IntentType.search;
+    final ok = url && domain && task && question && search;
     return BenchmarkResult(
       'input.route',
       'Address bar → URL / search / task',
       pass: ok,
       detail: ok
-          ? 'URL, bare domain, task verb and plain search all route correctly'
-          : 'one of URL / task / search misclassified',
+          ? 'URL, bare domain, task verb, question and plain search all route correctly'
+          : 'one of URL / task / question / search misclassified',
     );
   }
 
