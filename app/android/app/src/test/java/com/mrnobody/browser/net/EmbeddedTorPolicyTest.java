@@ -62,9 +62,25 @@ public class EmbeddedTorPolicyTest {
     }
 
     @Test
-    public void withoutTheAarOnTheClasspathBundledIsSimplyFalse() {
-        // The JVM harness has no tor-android jar, which is exactly the
-        // degraded build this must survive: no exception, no start.
-        assertFalse(EmbeddedTor.isBundled());
+    public void bundledExactlyWhenBothRuntimeClassesAreResolvable() {
+        // Two test environments run this: the javac harness (no AAR → false)
+        // and Gradle's testDebugUnitTest (AAR + androidx on the classpath →
+        // true). The contract is the same in both: bundled means TorService
+        // AND its LocalBroadcastManager dependency resolve — the missing-dep
+        // case is the one that crashed a device on 2026-08-21. Either way,
+        // asking must never load native code or throw.
+        boolean tor = classPresent("org.torproject.jni.TorService");
+        boolean lbm = classPresent(
+                "androidx.localbroadcastmanager.content.LocalBroadcastManager");
+        assertEquals(tor && lbm, EmbeddedTor.isBundled());
+    }
+
+    private static boolean classPresent(String name) {
+        try {
+            Class.forName(name, false, EmbeddedTorPolicyTest.class.getClassLoader());
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 }
