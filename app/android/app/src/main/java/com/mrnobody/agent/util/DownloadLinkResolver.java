@@ -75,11 +75,30 @@ public final class DownloadLinkResolver {
     /** True when the URL's path plainly names an image file. */
     public static boolean isImage(String url) {
         if (url == null) return false;
-        String path = pathOf(url.toLowerCase(Locale.ROOT).trim());
+        String lower = url.toLowerCase(Locale.ROOT).trim();
+        String path = pathOf(lower);
         for (String ext : IMAGE_EXTENSIONS) {
             if (path.endsWith(ext)) return true;
         }
-        return false;
+        // Icon CDNs declare the format in the query, not the path:
+        // img.icons8.com/?size=100&id=…&format=png — device-observed as the
+        // reason "download a png icon" found nothing downloadable.
+        return queryImageExt(lower) != null;
+    }
+
+    /** The image extension the URL's query declares ("format=png" → ".png"), or null. */
+    static String queryImageExt(String lowerUrl) {
+        int q = lowerUrl.indexOf('?');
+        if (q < 0) return null;
+        String query = lowerUrl.substring(q + 1);
+        for (String ext : IMAGE_EXTENSIONS) {
+            String name = ext.substring(1);
+            if (query.contains("format=" + name) || query.contains("ext=" + name)
+                    || query.contains("type=" + name)) {
+                return ext.equals(".jpeg") ? ".jpg" : ext;
+            }
+        }
+        return null;
     }
 
     /**
@@ -123,6 +142,9 @@ public final class DownloadLinkResolver {
                 || lowerUrl.contains("dl=true")) {
             return true;
         }
+        // A query that declares an image format is a file endpoint even with
+        // a bare path (icon CDNs: /?size=100&id=…&format=png).
+        if (queryImageExt(lowerUrl) != null) return true;
         if (path.contains("/download") || path.contains("/dl/")
                 || path.contains("/getfile") || path.contains("/file/download")
                 || path.contains("/media/download")) {
@@ -216,8 +238,12 @@ public final class DownloadLinkResolver {
         for (String c : candidates) {
             if (!isDownloadable(c)) continue;
             int score = 10;
+            String lower = c.toLowerCase(Locale.ROOT);
             if (isImage(c)) score += 40;
-            if (ext != null && pathOf(c.toLowerCase(Locale.ROOT)).endsWith(ext)) score += 60;
+            if (ext != null && (pathOf(lower).endsWith(ext)
+                    || ext.equals(queryImageExt(lower)))) {
+                score += 60;
+            }
             String host = hostOf(c);
             if (!wantHost.isEmpty() && wantHost.equals(host)) score += 100;
             if (query != null && !query.isEmpty()) {

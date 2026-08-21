@@ -376,10 +376,17 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
     static final String EXTRACT_JS =
             "(function(){try{"
                     + "var b=document.body;if(!b)return '';"
+                    // textContent includes <style>/<script> text — the ':root{--…}'
+                    // CSS soup a device answer once quoted as evidence. Clone the
+                    // node, cut those subtrees, then read textContent.
+                    + "function clean(n){var c=n.cloneNode(true);"
+                    + "var kill=c.querySelectorAll('style,script,noscript,template,svg');"
+                    + "for(var i=0;i<kill.length;i++){kill[i].parentNode.removeChild(kill[i]);}"
+                    + "return c.textContent||'';}"
                     + "var main=document.querySelector('article,main,[role=main]');"
-                    + "var t=main?(main.innerText||main.textContent||''):'';"
+                    + "var t=main?(main.innerText||clean(main)):'';"
                     + "if(!t||t.replace(/\\s+/g,'').length<40){"
-                    + "t=b.innerText||'';"
+                    + "t=b.innerText||clean(b);"
                     + "}"
                     + "return t;"
                     + "}catch(e){return ''}})()";

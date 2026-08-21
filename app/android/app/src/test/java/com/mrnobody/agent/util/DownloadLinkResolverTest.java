@@ -162,4 +162,31 @@ public class DownloadLinkResolverTest {
         assertNull(DownloadLinkResolver.resolveImage(Arrays.asList(), null, "png icon", ".png"));
         assertNull(DownloadLinkResolver.resolveImage(null, null, "png icon", ".png"));
     }
+
+    // ------------------------------------------- query-declared image formats
+
+    @Test
+    public void iconCdnUrlsDeclareTheirFormatInTheQuery() {
+        // Device-observed: every icons8-style candidate was rejected because
+        // the path has no extension — the format lives in the query.
+        String icons8 = "https://img.icons8.com/?size=100&id=ABC123&format=png";
+        assertTrue(DownloadLinkResolver.isDownloadable(icons8));
+        assertTrue(DownloadLinkResolver.isImage(icons8));
+        assertEquals(".png", DownloadLinkResolver.queryImageExt(icons8.toLowerCase()));
+    }
+
+    @Test
+    public void queryFormatCountsForTheAskedExtension() {
+        List<String> links = Arrays.asList(
+                "https://cdn.example/banner.jpg",
+                "https://img.icons8.example/?id=9&format=png");
+        assertEquals("https://img.icons8.example/?id=9&format=png",
+                DownloadLinkResolver.resolveImage(links, null, "png icon boy", ".png"));
+    }
+
+    @Test
+    public void aPlainQueryStringIsStillNotAFile() {
+        assertFalse(DownloadLinkResolver.isImage("https://example.com/search?q=png+icons"));
+        assertFalse(DownloadLinkResolver.isDownloadable("https://example.com/gallery?page=2"));
+    }
 }
