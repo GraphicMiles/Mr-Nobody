@@ -237,8 +237,23 @@ public final class PrivacyController {
         torPending = true;
         pendingProblem = null;
         Thread waiter = new Thread(() -> {
+            long began = System.currentTimeMillis();
             boolean up = EmbeddedTor.startAndAwait(context,
                     EmbeddedTorPolicy.BOOTSTRAP_WAIT_MS);
+            // A Tor that is still STARTING is making progress, not failing:
+            // device runs proved any fixed deadline is a guess (refused at
+            // 180s, ON moments later). Keep waiting while it works, up to
+            // the hard cap; only OFF/STOPPING or the cap end the wait.
+            while (!up && EmbeddedTor.isStarting()
+                    && generation == PENDING_GENERATION.get()
+                    && System.currentTimeMillis() - began
+                            < EmbeddedTorPolicy.BOOTSTRAP_HARD_CAP_MS) {
+                com.mrnobody.debug.ErrorLog.record("embedded tor: still bootstrapping after "
+                        + ((System.currentTimeMillis() - began) / 1000) + "s — waiting on");
+                up = EmbeddedTor.startAndAwait(context,
+                        EmbeddedTorPolicy.BOOTSTRAP_WAIT_MS);
+            }
+            boolean gaveUpStarting = !up && EmbeddedTor.isStarting();
             if (generation != PENDING_GENERATION.get()) return; // superseded
             android.os.Handler main =
                     new android.os.Handler(android.os.Looper.getMainLooper());
@@ -253,9 +268,11 @@ public final class PrivacyController {
                     // Persistence is best-effort; the live state is applied.
                 }
                 if (!result.isFullyApplied()) {
-                    pendingProblem = result.problem != null
-                            ? result.problem
-                            : EmbeddedTorPolicy.unavailableMessage(true);
+                    pendingProblem = gaveUpStarting
+                            ? EmbeddedTorPolicy.slowNetworkMessage()
+                            : (result.problem != null
+                                    ? result.problem
+                                    : EmbeddedTorPolicy.unavailableMessage(true));
                 }
             });
         }, "embedded-tor-wait");

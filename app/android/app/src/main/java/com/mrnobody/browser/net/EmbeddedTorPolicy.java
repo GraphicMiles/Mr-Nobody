@@ -38,6 +38,15 @@ public final class EmbeddedTorPolicy {
      */
     public static final long BOOTSTRAP_WAIT_MS = 180_000L;
 
+    /**
+     * The absolute ceiling on waiting for a bootstrap that keeps reporting
+     * STARTING. Device runs 4 and 5 proved fixed deadlines are guesses: the
+     * waiter refused at 180s and Tor reached ON moments later. While Tor is
+     * actively bootstrapping the waiter now keeps waiting; this cap only
+     * ends a bootstrap that will clearly never finish.
+     */
+    public static final long BOOTSTRAP_HARD_CAP_MS = 600_000L;
+
     private EmbeddedTorPolicy() {
     }
 
@@ -55,6 +64,14 @@ public final class EmbeddedTorPolicy {
     /** True when a TorService status extra means it gave up. */
     public static boolean statusMeansStopped(String status) {
         return "OFF".equals(status) || "STOPPING".equals(status);
+    }
+
+    /** The refusal when Tor was still bootstrapping at the hard cap. */
+    public static String slowNetworkMessage() {
+        return "Tor has been trying to connect for 10 minutes on this network "
+                + "and still has no circuit. Nothing was sent over your normal "
+                + "connection. Try again on another network, or keep Nobody "
+                + "off for now.";
     }
 
     /** The user-facing refusal when no Tor of any kind is available. */

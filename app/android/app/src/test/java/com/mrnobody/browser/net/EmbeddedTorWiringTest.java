@@ -70,6 +70,12 @@ public class EmbeddedTorWiringTest {
                 src.contains("return new Result(mode, current, false, false, null, true);"));
         assertTrue("the waiter gets the full bootstrap budget",
                 src.contains("EmbeddedTorPolicy.BOOTSTRAP_WAIT_MS"));
+        assertTrue("a Tor still reporting STARTING is waited on, not refused",
+                src.contains("while (!up && EmbeddedTor.isStarting()"));
+        assertTrue("only a hopeless bootstrap ends at the hard cap",
+                src.contains("EmbeddedTorPolicy.BOOTSTRAP_HARD_CAP_MS"));
+        assertTrue("the cap failure explains itself",
+                src.contains("EmbeddedTorPolicy.slowNetworkMessage()"));
         assertTrue("a newer user decision supersedes the waiter",
                 src.contains("if (generation != PENDING_GENERATION.get()) return;"));
         assertTrue("the waiter's second attempt cannot recurse into pending",
@@ -95,7 +101,8 @@ public class EmbeddedTorWiringTest {
                 state.contains("_watchTorStartup()"));
         assertTrue("the user is told what is happening, not refused",
                 state.contains("Starting built-in Tor"));
-        assertTrue("the poll is bounded", state.contains("> 60"));
+        assertTrue("the poll is bounded and covers the extended bootstrap waits",
+                state.contains("> 240"));
     }
 
     @Test

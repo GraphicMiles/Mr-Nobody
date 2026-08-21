@@ -451,3 +451,29 @@ ever set them.
 Also in the report: the agent-task-424242 owed-deletion line is the
 designed cleanup fallback after each suite run; the relaunch sweep (A1)
 collects it. JVM suite 908 green.
+
+---
+
+## 2026-08-21 — DEVICE RUN 5: Tor waits while Tor works (owner: Tor-only focus)
+
+Evidence: refusal with [tor status=ON, socks=9050] — Tor bootstrapped on
+the right port moments AFTER the waiter's 180s deadline refused. This 4G
+needs longer than any fixed guess, so the guess is gone:
+
+- The waiter now keeps waiting while TorService reports STARTING (progress,
+  not failure), in 180s slices with ⓘ breadcrumbs, up to a 600s hard cap.
+  Only OFF/STOPPING or the cap refuse — the cap with its own honest message
+  (slowNetworkMessage). A user mode-switch still supersedes instantly.
+- Suite second chance: if Tor reached ON right after the first wait, the
+  check re-applies NOBODY and takes the success ("bootstrap outlasted the
+  first wait; applied on retry") instead of reporting a stale refusal.
+- Suite STARTING verdict now says what is actually true: the core keeps
+  waiting in the background; toggling Nobody again in a few minutes sticks.
+- Dart status poll bound raised 60→240 ticks to cover the longer waits.
+
+Parked for next turn per owner: the icon download saved pngtree's .jpg
+preview banner instead of a .png (referer fix proven — the download itself
+now completes; extension preference needs to be a requirement when the user
+names one), plus general agent logic and device optimisation.
+
+JVM suite 909 green.
