@@ -259,6 +259,12 @@ class NativeBridge {
     return Map<String, dynamic>.from(await _ch.invokeMethod('privacyMode', {'mode': mode}) as Map);
   }
 
+  /// The poll behind the built-in Tor auto-apply: current mode, whether a
+  /// bootstrap is still running, and the last async failure (delivered once).
+  static Future<Map<String, dynamic>> privacyStatus() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('privacyStatus') as Map);
+  }
+
   /// Configure the privacy route (Orbot Tor / HTTP proxy / direct) and re-apply
   /// the current mode so a live session picks up the change.
   static Future<Map<String, dynamic>> setProxy({

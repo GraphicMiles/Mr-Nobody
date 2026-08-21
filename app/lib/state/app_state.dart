@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../bridge/native_bridge.dart';
 import 'error_log.dart';
@@ -141,9 +143,17 @@ class AppState extends ChangeNotifier {
       final r = await NativeBridge.applyPrivacyMode(v);
       final effective = (r['effective'] as String? ?? v).toUpperCase();
       final problem = r['problem'] as String?;
+      final pending = r['pending'] == true;
       privacyMode = effective;
       notifyListeners();
       await load();
+      if (pending) {
+        // Built-in Tor is bootstrapping; the core applies the mode itself at
+        // the first circuit. Watch for the flip so the UI follows.
+        _watchTorStartup();
+        return 'Starting built-in Tor — Nobody switches on when it connects '
+            '(first start can take a minute).';
+      }
       if (problem != null && problem.isNotEmpty) return problem;
       return null;
     } catch (e) {
@@ -152,6 +162,42 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return 'Could not apply privacy mode.';
     }
+  }
+
+  Timer? _torWatch;
+  int _torWatchPolls = 0;
+
+  /// Poll the core while the bundled Tor bootstraps. The core is the source
+  /// of truth and applies the mode itself; this only keeps the UI honest —
+  /// and if the poll dies (screen closed, app backgrounded), the next
+  /// [load] shows the right mode anyway.
+  void _watchTorStartup() {
+    _torWatch?.cancel();
+    _torWatchPolls = 0;
+    _torWatch = Timer.periodic(const Duration(seconds: 2), (t) async {
+      if (++_torWatchPolls > 60) {
+        t.cancel();
+        return;
+      }
+      try {
+        final s = await NativeBridge.privacyStatus();
+        final mode = (s['mode'] as String? ?? '').toUpperCase();
+        final pending = s['pending'] == true;
+        final problem = s['problem'] as String?;
+        if (mode.isNotEmpty && mode != privacyMode) {
+          privacyMode = mode;
+          notifyListeners();
+        }
+        if (!pending) {
+          t.cancel();
+          if (problem != null && problem.isNotEmpty) {
+            ErrorLog.instance.add('built-in Tor: $problem');
+          }
+        }
+      } catch (_) {
+        t.cancel();
+      }
+    });
   }
 
   /// Called when the app comes to the foreground. If Orbot died, Nobody

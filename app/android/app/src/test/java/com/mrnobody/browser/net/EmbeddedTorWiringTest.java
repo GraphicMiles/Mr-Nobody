@@ -53,13 +53,49 @@ public class EmbeddedTorWiringTest {
                 "PrivacyControllerRoute", "PrivacyController"));
         int available = src.indexOf("if (!route.isAvailable() && route instanceof OrbotTorRoute");
         int start = src.indexOf("EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS)");
-        int refuseStarting = src.indexOf("EmbeddedTorPolicy.stillStartingMessage()");
         assertTrue("start only when the port has no listener (Orbot priority)",
                 available > 0 && start > available);
-        assertTrue("still-bootstrapping is a fail-closed refusal, not a downgrade",
-                refuseStarting > start);
         assertTrue("the context-less overload keeps the old Orbot-only behaviour",
                 src.contains("return apply(mode, settings, null);"));
+    }
+
+    @Test
+    public void bootstrapAutoAppliesInsteadOfDemandingARetry() throws IOException {
+        // Owner-chosen UX (2026-08-21): no manual re-toggle. The apply
+        // reports pending, a background waiter holds the request open for
+        // the real bootstrap budget, and the mode applies itself at the
+        // first circuit — still fail-closed the whole time.
+        String src = java("browser/net/PrivacyController.java");
+        assertTrue("a still-bootstrapping Tor is pending, not a refusal",
+                src.contains("return new Result(mode, current, false, false, null, true);"));
+        assertTrue("the waiter gets the full bootstrap budget",
+                src.contains("EmbeddedTorPolicy.BOOTSTRAP_WAIT_MS"));
+        assertTrue("a newer user decision supersedes the waiter",
+                src.contains("if (generation != PENDING_GENERATION.get()) return;"));
+        assertTrue("the waiter's second attempt cannot recurse into pending",
+                src.contains("applyInternal(mode, settings, context, false, generation)"));
+        assertTrue("what was achieved is persisted, like the toggle path",
+                src.contains("settings.setPrivacyMode(result.effective.name())"));
+        assertTrue("async failures surface exactly once",
+                src.contains("consumePendingProblem"));
+    }
+
+    @Test
+    public void theChannelAndTheDartUiCarryThePendingState() throws IOException {
+        String activity = java("browser/MainActivity.java");
+        assertTrue(activity.contains("m.put(\"pending\", r.pending);"));
+        assertTrue(activity.contains("case \"privacyStatus\":"));
+        assertTrue(activity.contains("PrivacyController.consumePendingProblem()"));
+
+        String bridge = read("../../lib/bridge/native_bridge.dart");
+        assertTrue(bridge.contains("privacyStatus"));
+
+        String state = read("../../lib/state/app_state.dart");
+        assertTrue("the UI watches for the auto-applied flip",
+                state.contains("_watchTorStartup()"));
+        assertTrue("the user is told what is happening, not refused",
+                state.contains("Starting built-in Tor"));
+        assertTrue("the poll is bounded", state.contains("> 60"));
     }
 
     @Test

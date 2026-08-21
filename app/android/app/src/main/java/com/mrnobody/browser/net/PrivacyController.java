@@ -25,14 +25,27 @@ public final class PrivacyController {
         public final boolean routeApplied;
         public final boolean engineProxied;
         public final String problem;
+        /**
+         * True while the bundled Tor is still bootstrapping: the mode is not
+         * applied yet (fail-closed), but it will apply itself the moment the
+         * first circuit is up. The UI shows progress instead of a refusal.
+         */
+        public final boolean pending;
 
         Result(PrivacyMode requested, PrivacyMode effective,
                boolean routeApplied, boolean engineProxied, String problem) {
+            this(requested, effective, routeApplied, engineProxied, problem, false);
+        }
+
+        Result(PrivacyMode requested, PrivacyMode effective,
+               boolean routeApplied, boolean engineProxied, String problem,
+               boolean pending) {
             this.requested = requested;
             this.effective = effective;
             this.routeApplied = routeApplied;
             this.engineProxied = engineProxied;
             this.problem = problem;
+            this.pending = pending;
         }
 
         /** True when the mode the user asked for is the mode they got. */
@@ -42,6 +55,33 @@ public final class PrivacyController {
     }
 
     private static volatile PrivacyMode current = PrivacyMode.NORMAL;
+
+    // ---- bundled-Tor auto-apply state (owner-chosen UX: no manual retry) ----
+
+    /** True while a background waiter is holding a NOBODY request open. */
+    private static volatile boolean torPending;
+
+    /** Why the last pending NOBODY did not apply, until the UI collects it. */
+    private static volatile String pendingProblem;
+
+    /**
+     * Every public apply() invalidates outstanding waiters: a user who
+     * switched to NORMAL mid-bootstrap must not be yanked into NOBODY later.
+     */
+    private static final java.util.concurrent.atomic.AtomicLong PENDING_GENERATION =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** For the UI's status poll. */
+    public static boolean isTorPending() {
+        return torPending;
+    }
+
+    /** The last async failure, delivered once, then cleared. */
+    public static String consumePendingProblem() {
+        String p = pendingProblem;
+        pendingProblem = null;
+        return p;
+    }
 
     private PrivacyController() {
     }
@@ -88,6 +128,16 @@ public final class PrivacyController {
      * overload behaves exactly as before: Orbot or nothing.
      */
     public static Result apply(PrivacyMode mode, Settings settings, android.content.Context context) {
+        // A fresh user decision cancels any waiter from an earlier one: whoever
+        // holds an older generation must not apply a stale NOBODY later.
+        long generation = PENDING_GENERATION.incrementAndGet();
+        torPending = false;
+        return applyInternal(mode, settings, context, true, generation);
+    }
+
+    private static Result applyInternal(PrivacyMode mode, Settings settings,
+                                        android.content.Context context,
+                                        boolean allowTorWait, long generation) {
         if (mode == null) mode = PrivacyMode.NORMAL;
 
         if (!mode.needsPrivacyRoute()) {
@@ -114,9 +164,16 @@ public final class PrivacyController {
             boolean up = EmbeddedTor.startAndAwait(context, EmbeddedTorPolicy.APPLY_WAIT_MS);
             route.refresh();
             if (!up && !route.isAvailable()) {
-                // Still bootstrapping: fail closed with an honest "retry
-                // shortly" — the service keeps building circuits meanwhile.
-                return refuse(mode, EmbeddedTorPolicy.stillStartingMessage(), settings);
+                if (!allowTorWait) {
+                    // The background waiter already spent the full bootstrap
+                    // budget; this is a real failure, not a "try again".
+                    return refuse(mode, EmbeddedTorPolicy.unavailableMessage(true), settings);
+                }
+                // Auto-apply UX: report pending, keep waiting off the UI
+                // thread, and apply the mode ourselves at the first circuit.
+                // Fail-closed meanwhile — nothing changed yet.
+                awaitTorThenApply(mode, settings, context, generation);
+                return new Result(mode, current, false, false, null, true);
             }
         }
 
@@ -147,6 +204,44 @@ public final class PrivacyController {
         enableFingerprintForNobody(settings);
         current = mode;
         return new Result(mode, mode, true, true, null);
+    }
+
+    /**
+     * The auto-apply waiter (owner-chosen UX): wait out the bootstrap on a
+     * background thread, then re-run the apply on the main thread. A newer
+     * user decision (any public {@code apply}) advances the generation and
+     * turns this waiter into a no-op — a user who chose NORMAL mid-bootstrap
+     * stays in NORMAL.
+     */
+    private static void awaitTorThenApply(PrivacyMode mode, Settings settings,
+                                          android.content.Context context, long generation) {
+        torPending = true;
+        pendingProblem = null;
+        Thread waiter = new Thread(() -> {
+            boolean up = EmbeddedTor.startAndAwait(context,
+                    EmbeddedTorPolicy.BOOTSTRAP_WAIT_MS);
+            if (generation != PENDING_GENERATION.get()) return; // superseded
+            android.os.Handler main =
+                    new android.os.Handler(android.os.Looper.getMainLooper());
+            main.post(() -> {
+                if (generation != PENDING_GENERATION.get()) return;
+                torPending = false;
+                Result result = applyInternal(mode, settings, context, false, generation);
+                // Persist what was achieved, exactly as the toggle path does.
+                try {
+                    if (settings != null) settings.setPrivacyMode(result.effective.name());
+                } catch (Throwable ignored) {
+                    // Persistence is best-effort; the live state is applied.
+                }
+                if (!result.isFullyApplied()) {
+                    pendingProblem = result.problem != null
+                            ? result.problem
+                            : EmbeddedTorPolicy.unavailableMessage(true);
+                }
+            });
+        }, "embedded-tor-wait");
+        waiter.setDaemon(true);
+        waiter.start();
     }
 
     /**

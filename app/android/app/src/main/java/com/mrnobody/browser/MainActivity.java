@@ -568,6 +568,20 @@ public class MainActivity extends FlutterActivity {
                             m.put("label", r.effective.label());
                             m.put("note", r.effective.description());
                             m.put("problem", r.problem);
+                            // Built-in Tor is still bootstrapping; the mode
+                            // will apply itself. The UI polls privacyStatus.
+                            m.put("pending", r.pending);
+                            result.success(m);
+                            return;
+                        }
+                        case "privacyStatus": {
+                            // The Dart poll behind the auto-apply UX: what
+                            // mode is live, is a bootstrap still running, and
+                            // did the last one fail (delivered exactly once).
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("mode", PrivacyController.current().name());
+                            m.put("pending", PrivacyController.isTorPending());
+                            m.put("problem", PrivacyController.consumePendingProblem());
                             result.success(m);
                             return;
                         }
