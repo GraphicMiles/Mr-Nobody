@@ -92,4 +92,22 @@ public class EmbeddedTorWiringTest {
         assertTrue("abiFilters must stay out of the release path",
                 !gradle.contains("abiFilters \""));
     }
+
+    @Test
+    public void torServicesOwnRuntimeDependencyIsPackagedExplicitly() throws IOException {
+        // tor-android's POM declares no dependencies; forgetting this line
+        // crashed the app on the first Nobody toggle (device, 2026-08-21).
+        String gradle = read("build.gradle");
+        assertTrue(gradle.contains(
+                "androidx.localbroadcastmanager:localbroadcastmanager:1.1.0"));
+    }
+
+    @Test
+    public void theAvailabilityCheckNeitherLoadsNativeCodeNorTrustsAnUnrunnableService() throws IOException {
+        String src = java("browser/net/EmbeddedTor.java");
+        assertTrue("Class.forName must not run TorService's native-loading static init",
+                src.contains("Class.forName(SERVICE_CLASS, false,"));
+        assertTrue("a build missing TorService's runtime dep reads as not-bundled, not a crash",
+                src.contains("Class.forName(\"androidx.localbroadcastmanager.content.LocalBroadcastManager\","));
+    }
 }

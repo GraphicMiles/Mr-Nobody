@@ -193,3 +193,27 @@ Final state at `20914b8`: Flutter Build ✅ (APK + 45MiB/ABI size gate),
 Emulator Smoke API 31 ✅ + API 34 ✅ (API 34 needed one re-run — the same
 40-minute-timeout flake that cancelled it at baseline a83b4af; pre-existing,
 not introduced here).
+
+---
+
+## 2026-08-21 (later) — DEFECT: crash on first Nobody toggle (embedded Tor)
+
+**Report:** owner screenshot — "Mr Nobody closed because this app has a bug"
+immediately on enabling Nobody mode, APK 20914b8, no Orbot installed.
+
+**Root cause (confirmed from sources, not guessed):** tor-android's POM
+declares ZERO dependencies. TorService.onCreate's first statement calls
+androidx LocalBroadcastManager, which therefore was not in the APK →
+NoClassDefFoundError on the main thread → process death. The crash happened
+inside the service lifecycle, past any try/catch in EmbeddedTor.
+
+**Fix (three layers):**
+1. Package `androidx.localbroadcastmanager:localbroadcastmanager:1.1.0`
+   explicitly (the actual repair).
+2. `EmbeddedTor.isBundled()` now also verifies LocalBroadcastManager is on
+   the classpath — a future build that loses the dep refuses Nobody honestly
+   (Orbot-only message) instead of crashing.
+3. `isBundled()` uses non-initializing Class.forName so the availability
+   check no longer triggers TorService's static `System.loadLibrary("tor")`.
+
+Wiring tests pin all three. JVM suite green at 879.

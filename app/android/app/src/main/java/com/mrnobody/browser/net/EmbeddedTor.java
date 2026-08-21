@@ -50,7 +50,17 @@ public final class EmbeddedTor {
     /** True when the tor-android service is packaged into this build. */
     public static boolean isBundled() {
         try {
-            Class.forName(SERVICE_CLASS);
+            // initialize=false: TorService's static initializer loads the
+            // native tor library, which is not a price an availability check
+            // should pay (and its failure mode is not an answer, it's a crash).
+            Class.forName(SERVICE_CLASS, false, EmbeddedTor.class.getClassLoader());
+            // TorService.onCreate's first act is LocalBroadcastManager, and
+            // tor-android's POM declares no dependencies at all — a build
+            // that forgot the androidx artifact would crash the whole app
+            // the moment the service starts. Device-observed on 2026-08-21.
+            // Missing dep = not bundled = honest Orbot-only refusal.
+            Class.forName("androidx.localbroadcastmanager.content.LocalBroadcastManager",
+                    false, EmbeddedTor.class.getClassLoader());
             return true;
         } catch (Throwable t) {
             return false;
