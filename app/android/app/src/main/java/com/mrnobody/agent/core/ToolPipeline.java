@@ -229,7 +229,7 @@ public final class ToolPipeline {
         // truncates the middle -- which is worse than refusing, because the
         // model then answers confidently from half a document without knowing
         // the other half existed. Previewing is normal, expected behaviour,
-        // so it is NOT recorded to ErrorLog (BUG-6: it flooded the debug
+        // so it is NOT recorded to ErrorLog (an earlier build flooded the debug
         // panel with a non-error on every large page read).
         if (OutputPreview.shouldTruncate(rendered)) {
             OutputPreview.Decision decision = OutputPreview.decide(rendered);

@@ -31,7 +31,7 @@ public final class EmbeddedTorPolicy {
     public static final long PROBE_INTERVAL_MS = 400L;
 
     /**
-     * The background waiter's full bootstrap budget (owner-chosen auto-apply
+     * The background waiter's full bootstrap budget (the auto-apply
      * UX). First-ever bootstrap on mobile data is realistically 10–60s; past
      * this, it is reported as a failure rather than waited on forever.
      */
@@ -54,12 +54,6 @@ public final class EmbeddedTorPolicy {
     /** True when a TorService status extra means it gave up. */
     public static boolean statusMeansStopped(String status) {
         return "OFF".equals(status) || "STOPPING".equals(status);
-    }
-
-    /** The user-facing refusal while the bundled Tor is still bootstrapping. */
-    public static String stillStartingMessage() {
-        return "Built-in Tor is starting — the first bootstrap can take a minute "
-                + "on mobile data. Try Nobody again in a moment.";
     }
 
     /** The user-facing refusal when no Tor of any kind is available. */

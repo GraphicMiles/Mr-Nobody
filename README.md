@@ -8,7 +8,7 @@ This is the repository's developer document. Product status and the next deliver
 
 ## Current snapshot
 
-Production-code audit baseline: `0afd06a` on 2026-08-19.
+Status baseline: 2026-08-21 (read-loop economics, bundled Tor, harness and device-suite batches merged).
 
 - App version: `1.0.0+1`
 - Android application ID: `com.mrnobody.browser`
@@ -16,12 +16,12 @@ Production-code audit baseline: `0afd06a` on 2026-08-19.
 - UI: Flutter 3.24.5 in CI, Dart SDK constraint `^3.5.4`
 - Native core: Java 11 bytecode, built with JDK 17 in CI
 - Rendering engine: the installed Android System WebView; no browser engine is bundled
-- Latest audited CI run: `32390059362`, successful across strict analysis, Flutter tests, JVM/Gradle tests, privacy checks, signed APK build, signature verification, and size gates; hosted emulator smoke run `32390059414` passed on API 31 and API 34
-- ABI-specific CI APKs: armeabi-v7a 14.62 MiB, arm64-v8a 17.06 MiB, x86_64 18.19 MiB; every artifact is below the 45 MiB limit
-- Java/JVM suite: 759 tests passing at the current head
+- Tor: bundled `info.guardianproject:tor-android:0.4.7.14` (the newest release consumable at compileSdk 34), started on demand for Nobody mode; Orbot, when running, always takes priority
+- Java/JVM suite: 901 tests passing at the current head
 - Python privacy-auditor suite: 13 tests passing
+- CI: the Flutter workflow (analysis, tests, privacy gates, signed ABI APKs, size gate) runs on every push; the Android emulator workflow is manual-dispatch only
 
-The source contains substantial Android functionality, but the complete local-agent, WebView, background-work, download, and privacy-route flows have not yet been signed off on a physical device. Do not convert “implemented and tested off-device” into a runtime claim.
+The source contains substantial Android functionality. Device verification is tracked in `ROADMAP.md`; the running defect ledger is `SESSION-LOG.txt`. Do not convert "implemented and tested off-device" into a runtime claim.
 
 ## Product boundaries
 
@@ -38,6 +38,13 @@ The source contains substantial Android functionality, but the complete local-ag
 - A local deterministic research path that searches, reads sources, produces an extractive answer, records evidence, and verifies citations/figures
 - Optional remote AI providers: Gemini, Groq, and an OpenAI-compatible endpoint
 - An autonomous observe/reason/act planner when a remote AI provider is selected
+- Read-loop economics (see the rules below): evidence-sufficiency early exit, escalation only on validated failure with an 8-second cap, wall-clock task budgets, cheap-success candidate ranking, single retry on hard failure
+- A clock skill answering time/date/day questions from the device clock with zero network use
+- Per-task tool scope: research tasks get reading tools only, download joins on download intent, the terminal only ever runs as a routed action
+- Blocking answer verification for remote providers: one corrective re-ask, then an extractive fallback that cannot hallucinate
+- An intent-vs-outcome check: unmet download asks and unread named sites are stated in the answer
+- Bundled Tor for Nobody mode with automatic apply at the first circuit (readiness is TorService's own status, never just an open port), fail-closed semantics, and Orbot priority
+- A one-tap device test suite (Dev mode → Benchmarks) that runs the live agent and the Tor route on the device and produces a copyable pass/fail report
 - Typed tool contracts, tiered approval, human confirmation, repeat/work/spend budgets, oversized-output preview decisions, prompt-injection fencing, and page anchors
 - Search, HTTP, browser, download, memory, and optional terminal tools
 - Normal, Private, and Nobody privacy modes, including proxy/Orbot route code and device capability reporting
@@ -70,7 +77,8 @@ The source contains substantial Android functionality, but the complete local-ag
 ├── tools/                              Test, privacy, filter, icon, and APK-size tooling
 ├── LICENSE                             MIT license
 ├── README.md                           This developer guide
-└── ROADMAP.md                          Current status and planned phases
+├── ROADMAP.md                          Current status and planned phases
+└── SESSION-LOG.txt                     Running defect/delivery ledger (plain text by CI policy)
 ```
 
 The APK ships `app/android/app/src/main/assets/blocklist.txt`. Keep it byte-identical to `filters/bundled/blocklist.txt`, and update the digest pin only through the documented tooling/checks.
@@ -203,6 +211,31 @@ This is separate from a remote AI provider. `RemoteWorker` is intended to move t
 
 There is no server implementation here, no production remote-task selector, and no end-to-end deployment. Keep this path off by default.
 
+### Read-loop economics (rules 1-6)
+
+The canonical statement of the agent's cost rules; code comments cite these
+by number. Core principle: **the cheapest sufficient action first; escalate
+only on validated failure, never preemptively.**
+
+1. **Evidence-sufficiency early exit** — after each read, if two distinct
+   (body-deduplicated) sources each contribute two question-matching prose
+   sentences, remaining reads are skipped (`EvidenceSufficiency`).
+2. **Escalation only on validated failure** — the headless browser runs only
+   when the plain HTTP fetch failed its contract, and escalated page loads
+   are capped at 8 seconds. A read that cannot be recorded (cap reached,
+   duplicate, evidence sufficient) escalates nothing.
+3. **Skill before search** — questions the device can answer locally
+   (`ClockSkill`) never touch a tool.
+4. **One retry, hard failures only** — 429/502/503 earn a single retry
+   honouring `Retry-After`; a success that is merely imperfect earns none
+   (`FetchRetry`).
+5. **Wall-clock budgets** — 90 s research / 120 s download (`TaskBudget`),
+   checked between steps on both planner paths; on expiry the engine answers
+   from the evidence in hand.
+6. **Cheap-success ranking** — candidates are read in order of each host's
+   plain-HTTP success score (`SiteMemory`, `CandidateRank`), so the early
+   exit fires on the cheap sources first.
+
 ## Privacy and security invariants
 
 Changes must preserve these rules:
@@ -300,12 +333,13 @@ artifacts. That public key must never sign a production release.
 | Privacy audit | `python3 tools/privacy_audit.py .` | Prohibited permissions/dependencies/network bypass patterns are absent |
 | Filter digest | `python3 tools/filter_digest_check.py .` | Shipped/source filter lists and digest pin agree |
 | APK gate | `tools/apk_size_check.py` | Artifact stays below the hard size ceiling |
-| Android emulator | `.github/workflows/android-emulator.yml` | Installs and drives API 31/34 virtual phones, exercises Flutter/native/SQLite/WorkManager integration, and captures device evidence |
+| On-device suite | Dev mode → Benchmarks → Device suite | Runs the live agent and the Tor route on real hardware and networks; copyable report |
+| Android emulator (manual) | `.github/workflows/android-emulator.yml` | Manual dispatch only; installs and drives API 31/34 virtual phones and captures device evidence |
 | Physical-device matrix | `ROADMAP.md` | OEM WebView, hardware, storage, route, notification and battery behavior an emulator cannot prove |
 
 ### Hosted Android emulator tests
 
-`Android Emulator Smoke` runs outside this workspace on GitHub-hosted KVM runners. It builds the debug application and instrumentation APKs, boots Pixel 6 profiles on Android 12 (API 31) and Android 14 (API 34), drives shipping Flutter widgets with `integration_test`, and crosses Android lifecycle/deep-link boundaries with instrumentation and UIAutomator. The stable smoke path covers first launch, a settings write and shell rebuild, a deep-linked local task, WorkManager completion, pipeline expansion/collapse, and conversation restoration after backgrounding.
+`Android Emulator Smoke` is **manual-dispatch only** (Actions tab): the hosted API 34 leg repeatedly exceeded its 40-minute ceiling on shared runners, and the Flutter workflow already compiles, tests and gates the same code on every push. Dispatch it when emulator evidence is specifically wanted. It runs on GitHub-hosted KVM runners. It builds the debug application and instrumentation APKs, boots Pixel 6 profiles on Android 12 (API 31) and Android 14 (API 34), drives shipping Flutter widgets with `integration_test`, and crosses Android lifecycle/deep-link boundaries with instrumentation and UIAutomator. The stable smoke path covers first launch, a settings write and shell rebuild, a deep-linked local task, WorkManager completion, pipeline expansion/collapse, and conversation restoration after backgrounding.
 
 Every matrix leg uploads:
 
@@ -401,7 +435,7 @@ Never edit one blocklist copy without the other.
 14. 45 MiB size gate on every ABI APK
 15. Explicitly named CI test-artifact upload
 
-`.github/workflows/android-emulator.yml` is the runtime companion gate. It runs for app changes on main and pull requests, and can be manually dispatched. Its API 31/34 jobs are independent so one platform failure does not hide the other; each uploads evidence even when instrumentation fails.
+`.github/workflows/android-emulator.yml` is the runtime companion gate, **manual dispatch only**. Its API 31/34 jobs are independent so one platform failure does not hide the other; each uploads evidence even when instrumentation fails.
 
 There is one size limit: 45 MiB per installable ABI artifact. The current
 artifacts are 14.62–18.19 MiB.
@@ -413,12 +447,12 @@ artifacts are 14.62–18.19 MiB.
 - Do not describe off-device tests as physical-device validation.
 - Include a regression test for bug fixes.
 - Treat privacy wording as code: a claim that exceeds effective behavior is a defect.
-- Update only this guide and `ROADMAP.md`; do not add one-off planning/status/spec documents. Fold durable developer information here and delivery status into the roadmap.
+- The documentation surface is exactly three files: this guide, `ROADMAP.md`, and the `SESSION-LOG.txt` ledger (plain text — the CI gate allows only the two Markdown files). Do not add one-off planning/status/spec documents; fold durable developer information here, delivery status into the roadmap, and per-batch history into the ledger.
 
 Commit author for this repository:
 
 ```bash
-git config user.name "rfarouq69"
+git config user.name "GraphicMiles"
 git config user.email "rfarouq69@gmail.com"
 ```
 

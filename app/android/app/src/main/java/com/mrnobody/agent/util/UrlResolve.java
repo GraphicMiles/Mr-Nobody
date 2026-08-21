@@ -3,7 +3,7 @@ package com.mrnobody.agent.util;
 /**
  * Join a possibly-relative reference to a page URL.
  *
- * <p>Lifted from the watch-party scraper's {@code resolveUrl}: pages expose
+ * <p>Relative-URL resolution for scraped pages: pages expose
  * {@code //cdn…}, {@code /file.mkv} and {@code episode/2} and a naive
  * concatenation either drops the host or doubles it. This is structure, not
  * a site list.

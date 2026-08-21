@@ -7,8 +7,8 @@ import java.util.TimeZone;
 /**
  * When to retry a fetch, and how long to wait.
  *
- * <p>SwiftAgent's {@code .retry} plus honouring {@code Retry-After}.
- * Only transient statuses retry, and only once (owner's rule 4: a fetch that
+ * <p>Bounded retry with backoff, honouring {@code Retry-After}.
+ * Only transient statuses retry, and only once (read-loop rule 4: a fetch that
  * failed hard gets one more chance, a fetch that succeeded imperfectly gets
  * none — the twenty-second "recovered" re-read of an already-answering host
  * was pure waste). A fail-closed privacy route must not be

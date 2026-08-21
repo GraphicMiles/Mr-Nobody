@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * Last successful fetch strategy per host.
  *
- * <p>From scrapling's site-patterns file: remember whether a host was a
+ * <p>Per-host fetch memory: remember whether a host was a
  * static page, a feed, or a challenge/SPA, so the next visit can start
  * on the right FetchLadder rung. No cookies, no selectors, no site names.
  * In-memory and bounded — a process restart forgets, which is fine.
@@ -71,7 +71,7 @@ public final class SiteMemory {
     /**
      * The cheap-success score for a host: positive when plain HTTP has been
      * yielding usable text, negative when it has not, zero when unknown.
-     * Read candidates are ranked by this (owner's rule 6).
+     * Read candidates are ranked by this (read-loop rule 6).
      */
     public static synchronized int httpScore(String host) {
         Observation o = MEM.get(norm(host));

@@ -67,7 +67,7 @@ public class ExtractiveAnswerTest {
 
     @Test
     public void mirrorPagesDoNotRepeatTheSameAnswerThreeTimes() {
-        // BUG-9: three URL variants of one spec produced the same sentence
+        // Regression: three URL variants of one spec produced the same sentence
         // three times under three citation numbers.
         String body = "The HTML standard defines the core language of the web platform. "
                 + "It is maintained by the WHATWG as a living standard with regular updates.";
@@ -103,7 +103,7 @@ public class ExtractiveAnswerTest {
 
     @Test
     public void consentWallBoilerplateCannotBecomeTheAnswer() {
-        // BUG-5: "Please enable JavaScript or switch to a supported browser"
+        // Regression: "Please enable JavaScript or switch to a supported browser"
         // was quoted as an answer on-device.
         String sources = "\n[1] YouTube\nhttps://youtube.com/watch?v=x\n"
                 + "Please enable JavaScript or switch to a supported browser to continue. "

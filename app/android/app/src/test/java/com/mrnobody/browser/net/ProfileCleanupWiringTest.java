@@ -9,7 +9,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * BUG-1 wiring: profile deletion on real hardware can outlive any in-process
+ * Profile-cleanup wiring: deletion on real hardware can outlive any in-process
  * retry ladder, so the cleanup must be persistent, swept at startup, and
  * backed by a data wipe that does not depend on deletion succeeding.
  *

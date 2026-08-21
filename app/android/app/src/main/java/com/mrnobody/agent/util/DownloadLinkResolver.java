@@ -116,8 +116,8 @@ public final class DownloadLinkResolver {
         if (!lower.startsWith("http://") && !lower.startsWith("https://")) return false;
 
         String path = pathOf(lower);
-        // A download *page* named film.mkv.html is not a file. The watch-party
-        // resolver learned this the hard way: those URLs returned HTML.
+        // A download *page* named film.mkv.html is not a file: such URLs
+        // return HTML, learned the hard way in an earlier resolver.
         if (path.endsWith(".html") || path.endsWith(".htm")
                 || path.endsWith(".php") || path.endsWith(".aspx")
                 || path.endsWith(".jsp") || path.endsWith(".asp")) {

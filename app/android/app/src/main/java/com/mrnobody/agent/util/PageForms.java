@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  * <p>Download hosts and logins are the same problem: a {@code <form>} with
  * hidden fields and a button. Walking that form — collect fields, pick the
  * one that looks like the action, POST — is what Puppeteer did in the
- * watch-party worker. Here it is a pure parse so the headless WebView can
+ * worker in an earlier project. Here it is a pure parse so the headless WebView can
  * submit without a Chromium binary.
  */
 public final class PageForms {

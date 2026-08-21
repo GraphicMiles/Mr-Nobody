@@ -34,7 +34,7 @@ public final class LatestVideoSkillTest {
 
     @Test
     public void channelPhrasingsBeyondFromAreUnderstood() {
-        // BUG-2: only "from … channel" was recognised; every other phrasing
+        // Regression: only "from … channel" was recognised; every other phrasing
         // sent a junk query to search.
         assertEquals("mkbhd", LatestVideoSkill.channel(
                 "find the latest video on the mkbhd channel"));

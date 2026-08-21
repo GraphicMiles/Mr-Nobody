@@ -8,7 +8,7 @@ import java.util.function.LongSupplier;
  * <p>The step budget ({@link BudgetGuard}) counts work; this counts time.
  * Device evidence showed why both are needed: "whats the time" ground through
  * five pages for 53 seconds and was stopped by the user, not by the engine.
- * The rule is the owner's: on expiry the engine composes an answer from the
+ * The rule: on expiry the engine composes an answer from the
  * evidence already in hand — a late answer beats a spinner death.
  *
  * <p>Checked between steps, never mid-step, so the task always stops in a

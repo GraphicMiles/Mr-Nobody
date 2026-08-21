@@ -67,7 +67,7 @@ public final class DeterministicEngine implements AgentEngine {
 
     /**
      * The page-load ceiling handed to the headless browser when the engine
-     * escalates a read (owner's rule 2). The browser tool's own default of
+     * escalates a read (read-loop rule 2). The browser tool's own default of
      * twenty seconds is for tasks that *are* browser tasks; an escalated read
      * is a fallback and must stay cheap.
      */
@@ -726,7 +726,7 @@ public final class DeterministicEngine implements AgentEngine {
 
     /**
      * HTTP first, unless this host already proved it needs a browser
-     * (scrapling site-memory). Never treats a challenge page as a source.
+     * (per-host fetch memory). Never treats a challenge page as a source.
      *
      * <p>Rule 2: the ~20s headless fallback is paid for only when the cheap
      * fetch validated as a failure — the result failed, was flagged

@@ -61,7 +61,7 @@ public class EmbeddedTorWiringTest {
 
     @Test
     public void bootstrapAutoAppliesInsteadOfDemandingARetry() throws IOException {
-        // Owner-chosen UX (2026-08-21): no manual re-toggle. The apply
+        // The auto-apply UX (2026-08-21): no manual re-toggle. The apply
         // reports pending, a background waiter holds the request open for
         // the real bootstrap budget, and the mode applies itself at the
         // first circuit — still fail-closed the whole time.

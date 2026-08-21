@@ -48,7 +48,8 @@ public class EmbeddedTorPolicyTest {
 
     @Test
     public void refusalsExplainTheActualSituation() {
-        assertTrue(EmbeddedTorPolicy.stillStartingMessage().contains("Try Nobody again"));
+        // The bootstrapping case no longer refuses at all — it auto-applies
+        // (pending); only genuine unavailability produces a message.
         assertTrue(EmbeddedTorPolicy.unavailableMessage(false).contains("Orbot"));
         assertFalse("with a bundled Tor, installing Orbot is not the fix",
                 EmbeddedTorPolicy.unavailableMessage(true).contains("Install Orbot"));

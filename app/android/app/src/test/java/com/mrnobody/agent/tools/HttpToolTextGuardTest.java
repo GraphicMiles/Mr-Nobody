@@ -7,7 +7,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * BUG-10: http.fetch promised markup-stripped text but shipped raw HTML when
+ * Regression: http.fetch promised markup-stripped text but shipped raw HTML when
  * the structured extractors failed on a malformed page, which then failed the
  * output contract and the whole read.
  */
