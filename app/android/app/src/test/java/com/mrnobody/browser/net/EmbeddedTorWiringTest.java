@@ -103,6 +103,20 @@ public class EmbeddedTorWiringTest {
     }
 
     @Test
+    public void jniKeepRulesProtectTorServiceFromR8() throws IOException {
+        // Release builds minify; libtor.so resolves TorService's fields by
+        // JNI at runtime. Without these rules the release APK dies with
+        // NoSuchFieldError("torConfiguration") — device, 2026-08-21. The
+        // 0.4.7.14 AAR ships no consumer rules, so the app carries them.
+        String rules = read("proguard-rules.pro");
+        assertTrue(rules.contains("-keep class org.torproject.jni.** { *; }"));
+        assertTrue(rules.contains("-keep class net.freehaven.tor.control.** { *; }"));
+        String gradle = read("build.gradle");
+        assertTrue("the rules file must actually be applied to release",
+                gradle.contains("proguardFile \"proguard-rules.pro\""));
+    }
+
+    @Test
     public void theAvailabilityCheckNeitherLoadsNativeCodeNorTrustsAnUnrunnableService() throws IOException {
         String src = java("browser/net/EmbeddedTor.java");
         assertTrue("Class.forName must not run TorService's native-loading static init",

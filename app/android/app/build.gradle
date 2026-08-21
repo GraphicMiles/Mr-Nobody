@@ -63,6 +63,9 @@ android {
     buildTypes {
         release {
             if (releaseSigningReady) signingConfig = signingConfigs.release
+            // JNI keep rules for the bundled Tor — see proguard-rules.pro.
+            // Appended to the Flutter plugin's own rules, not replacing them.
+            proguardFile "proguard-rules.pro"
         }
     }
 }
