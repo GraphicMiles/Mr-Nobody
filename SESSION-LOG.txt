@@ -521,3 +521,17 @@ directly. The background waiter now always logs its outcome (up/status/
 elapsed) so no verdict is ever silent again.
 
 JVM suite 911 green.
+
+---
+
+## 2026-08-21 — DEVICE VERIFIED ✅: Nobody exits via Tor (owner screenshot, 19:13)
+
+check.torproject.org inside Mr Nobody: "Congratulations. This browser is
+configured to use Tor." — built-in Tor, no Orbot, real device, 4G. The
+"does not appear to be Tor Browser" note is the expected fingerprint
+disclaimer every non-Tor-Browser client gets; routing is what was claimed
+and routing is what was proven. Features closed: built-in Tor end-to-end
+(bug chain 1-10 in this ledger), Nobody-mode Tor egress.
+
+Remaining Tor-adjacent device items: Orbot-priority variant, fail-closed
+kill/relaunch under Nobody, airplane-mode refusal.
