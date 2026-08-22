@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../widgets/anchored_menu.dart';
 import '../widgets/common.dart';
 import '../widgets/toast.dart';
+import 'about_screen.dart';
 import 'ai_provider_screen.dart';
 import 'bookmarks_screen.dart';
 import 'clear_data_screen.dart';
@@ -313,6 +314,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             value: _state.approvalModeLabel,
                             onTap: () => _pickApprovalMode(rowContext),
                           ),
+                        ),
+                        const ComingSoonRow(
+                          label: 'Remote worker',
+                          detail: 'Runs tasks on a server for long, heavy or '
+                              'background work. The app is ready; the production '
+                              'server is being built.',
+                          icon: Icons.cloud_outlined,
+                        ),
+                        const ComingSoonRow(
+                          label: 'Credits & payments',
+                          detail: 'Purchases, refunds and a billing ledger will '
+                              'arrive once remote execution is reliable.',
+                          icon: Icons.account_balance_wallet_outlined,
+                        ),
+                        const ComingSoonRow(
+                          label: 'Figma & Adobe Express',
+                          detail: 'Additional design-platform integrations are '
+                              'planned after Canva.',
+                          icon: Icons.design_services_outlined,
                         ),
                       ]),
                     ),
@@ -861,65 +881,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _about() {
-    showDialog<void>(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: AppColors.overlay,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppColors.isWarm ? 24 : 16),
-        ),
-        title: Text(
-          'Mr Nobody',
-          style: AppTheme.sans(
-            size: AppColors.isWarm ? 17 : 16,
-            color: AppColors.overlayInk,
-            w: FontWeight.w700,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            'A small, private, agentic browser.\n\n'
-            'No ads. No tracking by Mr Nobody. No automatic browsing history.\n'
-            'Tell Mr Nobody what you want from the web.\n\n'
-            'Open source inside\n'
-            'Nobody mode routes traffic through the Tor network using '
-            'tor and tor-android (The Tor Project / Guardian Project) and '
-            'jtorctl, used under their BSD-3-Clause licenses. '
-            '"Tor" and the onion logo are trademarks of The Tor Project, Inc. '
-            'Mr Nobody is an independent product, not affiliated with or '
-            'endorsed by The Tor Project. Tor is run by volunteers — '
-            'donate.torproject.org.',
-            style: AppTheme.sans(
-              size: 12.5,
-              color: AppColors.overlayMuted,
-              height: 1.5,
-            ),
-          ),
-        ),
-        actions: [
-          if (AppColors.isWarm)
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.overlayInk,
-                foregroundColor: AppColors.overlay,
-              ),
-              onPressed: () => Navigator.pop(c),
-              child: const Text('OK'),
-            )
-          else
-            TextButton(
-              onPressed: () => Navigator.pop(c),
-              child: Text(
-                'OK',
-                style: AppTheme.sans(
-                  size: 13,
-                  color: AppColors.accent,
-                  w: FontWeight.w600,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AboutScreen(onOpenUrl: widget.onOpenUrl),
+    ));
   }
 }

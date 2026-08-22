@@ -132,6 +132,27 @@ class _DesignPlatformScreenState extends State<DesignPlatformScreen>
                   value: 'PER-USER OAUTH + PKCE',
                   valueOn: configured,
                 ),
+                const SettingRow(
+                  label: 'Status',
+                  value: 'SUSPENDED',
+                ),
+              ]),
+            ),
+          ),
+          const SectionLabel('More design platforms'),
+          AppCard(
+            child: Column(
+              children: withDividers([
+                const ComingSoonRow(
+                  label: 'Figma',
+                  detail: 'Planned after Canva integration is live.',
+                  icon: Icons.design_services_outlined,
+                ),
+                const ComingSoonRow(
+                  label: 'Adobe Express',
+                  detail: 'Planned after Canva integration is live.',
+                  icon: Icons.palette_outlined,
+                ),
               ]),
             ),
           ),

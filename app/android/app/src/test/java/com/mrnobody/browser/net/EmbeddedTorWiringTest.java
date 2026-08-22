@@ -69,12 +69,17 @@ public class EmbeddedTorWiringTest {
         String settings = new String(java.nio.file.Files.readAllBytes(
                 java.nio.file.Paths.get("../../lib/screens/settings_screen.dart")),
                 java.nio.charset.StandardCharsets.UTF_8);
+        String about = new String(java.nio.file.Files.readAllBytes(
+                java.nio.file.Paths.get("../../lib/screens/about_screen.dart")),
+                java.nio.charset.StandardCharsets.UTF_8);
         assertTrue("the mode picker names Tor plainly",
                 settings.contains("built-in Tor / Orbot / proxy"));
+        assertTrue("the settings About row opens the About page",
+                settings.contains("AboutScreen(onOpenUrl: widget.onOpenUrl)"));
         assertTrue("About carries the BSD attribution",
-                settings.contains("BSD-3-Clause"));
+                about.contains("BSD-style licenses"));
         assertTrue("About disclaims Tor Project affiliation",
-                settings.contains("not affiliated with or"));
+                about.contains("not affiliated") && about.contains("endorsed by The Tor Project"));
     }
 
     @Test
