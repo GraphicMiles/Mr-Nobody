@@ -293,6 +293,14 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             // rebuilt, so its url/title/loading state need restating.
             main.post(this::reportCurrentState);
         }
+
+        // Diagnostic build (see the ⓘ overlay): a platform-view timeline in
+        // the error log is the only way to tell, on a tester's device, which
+        // step the black frame follows — a fresh page failing, or an adoption
+        // of a retained page, or neither.
+        com.mrnobody.debug.ErrorLog.record("webview tab " + tabId
+                + (fresh ? ": page created" : ": adopted retained page")
+                + (isPrivate ? " (private)" : ""));
     }
 
     /** Restate the adopted page's identity to a freshly attached Dart engine. */
@@ -542,6 +550,47 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             Map<String, Object> data = new HashMap<>();
             data.put("progress", newProgress);
             send("onProgress", data);
+        }
+
+        /**
+         * The renderer died — the classic symptom is exactly the defect under
+         * investigation: the page shows, then goes black and stops responding.
+         * The dead WebView can never come back, so record what happened (the
+         * diagnostic build surfaces it in the ⓘ panel), drop the page so the
+         * next platform view for this tab builds a fresh WebView, and return
+         * true. Returning false would additionally kill the whole app, which
+         * would hide the cause entirely.
+         */
+        @Override
+        public boolean onRenderProcessGone(WebView view,
+                android.webkit.RenderProcessGoneDetail detail) {
+            com.mrnobody.debug.ErrorLog.record("webview tab " + tabId
+                    + ": renderer gone"
+                    + (detail != null && detail.didCrash()
+                        ? " (renderer crashed)" : " (renderer killed by system)"));
+            destroyed = true;
+            pendingDownloads.clear();
+            try {
+                container.setRefreshing(false);
+            } catch (Throwable ignored) {
+            }
+            try {
+                container.removeAllViews();
+            } catch (Throwable ignored) {
+            }
+            if (tabId >= 0) {
+                // Destroys the dead WebView and drops the tab's channel so no
+                // late command can reach it. The next platform view created
+                // for this tab starts a fresh page at the tab's last URL.
+                TabWebViews.release(tabId);
+            } else {
+                channel.setMethodCallHandler(null);
+                try {
+                    webView.destroy();
+                } catch (Throwable ignored) {
+                }
+            }
+            return true;
         }
 
         @Override
@@ -1094,6 +1143,8 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      */
     @Override
     public void dispose() {
+        com.mrnobody.debug.ErrorLog.record("webview tab " + tabId
+                + ": platform view disposed (page retained)");
         container.setRefreshing(false);
         if (tabId < 0) {
             // No tab identity to retain against: this view owned its page.
