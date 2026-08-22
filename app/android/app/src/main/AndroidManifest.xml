@@ -13,8 +13,12 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    <!-- Cleartext is an explicit non-feature: shared/bare HTTP inputs are
-         upgraded before navigation, and credential-bearing endpoints require HTTPS. -->
+    <!-- Cleartext is governed by res/xml/network_security_config.xml. That
+         config permits cleartext so the visible browser can load an http://
+         site a user explicitly chooses, but every top-level http navigation is
+         gated behind a "Load anyway / Cancel" warning in MrNobodyWebView. The
+         agent's autonomous tools, AI providers and the download engine still
+         require HTTPS via their own policy, so this does not relax those paths. -->
     <application
         android:name=".MrNobodyApp"
         android:allowBackup="false"
@@ -23,7 +27,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="false">
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <activity
             android:name=".MainActivity"

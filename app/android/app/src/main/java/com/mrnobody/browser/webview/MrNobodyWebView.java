@@ -1,6 +1,7 @@
 package com.mrnobody.browser.webview;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.content.ActivityNotFoundException;
@@ -89,6 +90,16 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final boolean isPrivate;
     private final int tabId;
+
+    /**
+     * Hosts that were explicitly allowed to load over plain HTTP this session,
+     * so one "Load anyway" does not re-prompt on every navigation within the
+     * same site. Cleartext is only reachable through the warning dialog; there
+     * is no path that silently renders an http:// page.
+     */
+    private final java.util.Set<String> approvedCleartextHosts =
+            new java.util.HashSet<>();
+    private volatile boolean cleartextDialogShowing;
 
     /**
      * The current view instance per tab, so the stable tab-keyed channel can
@@ -180,15 +191,18 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         final String mimeType;
         final String referrer;
         final String fileName;
+        final boolean cleartext;
 
         PendingDownload(String url, String userAgent, String contentDisposition,
-                        String mimeType, String referrer, String fileName) {
+                        String mimeType, String referrer, String fileName,
+                        boolean cleartext) {
             this.url = url;
             this.userAgent = userAgent;
             this.contentDisposition = contentDisposition;
             this.mimeType = mimeType;
             this.referrer = referrer;
             this.fileName = fileName;
+            this.cleartext = cleartext;
         }
     }
 
@@ -445,6 +459,23 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                     return true;
                 }
             }
+
+            // A top-level navigation to a plain http:// page is not silently
+            // rendered. Cleartext is permitted at the platform level (the user
+            // explicitly asked to load http sites), but the user must confirm
+            // each site once per session. This is the only way an http page is
+            // reached — the filter/ad block above still runs first, so an http
+            // navigation to a known ad destination is refused before we ask.
+            if (request.isForMainFrame() && isHttpScheme(url)) {
+                String host = com.mrnobody.agent.util.Hosts.firstIn(url);
+                if (host != null && !host.isEmpty()
+                        && approvedCleartextHosts.contains(host)) {
+                    return false; // already accepted this site
+                }
+                if (cleartextDialogShowing) return true; // never stack dialogs
+                promptCleartext(url);
+                return true; // hold the navigation until the user decides
+            }
             return false;
         }
 
@@ -588,16 +619,20 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      */
     private void onDownloadRequested(String url, String userAgent, String contentDisposition,
                                      String mimeType, long contentLength) {
-        if (url != null && url.startsWith("http://")) {
-            sendDownloadError("Cleartext HTTP downloads are not supported; use HTTPS");
+        if (url == null) {
+            sendDownloadError("This page did not expose a downloadable file link");
             return;
         }
-        if (url != null && url.startsWith("https://")) {
+        // Both http and https reach the risk gate. A plain http:// download is
+        // flagged by DownloadRisk as insecure and gated behind a
+        // "Load anyway / Cancel" approval, so nothing is fetched over the wire
+        // without the user explicitly choosing to continue.
+        if (url.startsWith("http://") || url.startsWith("https://")) {
             offerNetworkDownload(url, userAgent, contentDisposition, mimeType,
                     webView.getUrl());
             return;
         }
-        if (url != null && url.startsWith("blob:")) {
+        if (url.startsWith("blob:")) {
             recoverBlobDownload(userAgent, contentDisposition, mimeType, webView.getUrl());
             return;
         }
@@ -636,8 +671,11 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         // real response headers.
         String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
         DownloadRisk.Assessment risk = DownloadRisk.assess(name, mimeType, url);
-        if (!risk.requiresConfirmation) {
-            startNetworkDownload(url, userAgent, contentDisposition, mimeType, referrer, false);
+        String cleartext = DownloadRisk.cleartextReason(url);
+        boolean needsApproval = risk.requiresConfirmation || cleartext != null;
+        if (!needsApproval) {
+            startNetworkDownload(url, userAgent, contentDisposition, mimeType, referrer,
+                    false, false);
             return;
         }
 
@@ -647,7 +685,8 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
         String requestId = UUID.randomUUID().toString();
         pendingDownloads.put(requestId, new PendingDownload(
-                url, userAgent, contentDisposition, mimeType, referrer, name));
+                url, userAgent, contentDisposition, mimeType, referrer, name,
+                cleartext != null));
 
         Map<String, Object> data = new HashMap<>();
         data.put("id", requestId);
@@ -655,18 +694,28 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         data.put("mime", mimeType == null ? "" : mimeType);
         String host = Uri.parse(url).getHost();
         data.put("host", host == null ? "" : host);
-        data.put("warning", risk.reason);
+        // A cleartext download and a risky file are one confirmation, so the
+        // user sees both reasons together and decides once.
+        StringBuilder warning = new StringBuilder();
+        if (risk.requiresConfirmation) warning.append(risk.reason);
+        if (cleartext != null) {
+            if (warning.length() > 0) warning.append("\n\n");
+            warning.append(cleartext);
+        }
+        data.put("warning", warning.toString());
         send("onDownloadApproval", data);
     }
 
     private void startNetworkDownload(String url, String userAgent,
                                       String contentDisposition, String mimeType,
-                                      String referrer, boolean riskyApproved) {
+                                      String referrer, boolean riskyApproved,
+                                      boolean allowInsecureReferer) {
         Map<String, Object> data = new HashMap<>();
         String name = DownloadNaming.fileName(url, contentDisposition, mimeType);
         try {
             DownloadRecord record = DownloadEngine.get(context)
-                    .enqueue(url, name, mimeType, userAgent, referrer, riskyApproved);
+                    .enqueue(url, name, mimeType, userAgent, referrer, riskyApproved,
+                            allowInsecureReferer, null);
             data.put("name", record.fileName);
             data.put("id", record.id);
             data.put("folder", record.destLabel);
@@ -739,7 +788,8 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 }
                 if (allow) {
                     startNetworkDownload(pending.url, pending.userAgent,
-                            pending.contentDisposition, pending.mimeType, pending.referrer, true);
+                            pending.contentDisposition, pending.mimeType, pending.referrer,
+                            true, pending.cleartext);
                 }
                 result.success(true);
                 return;
@@ -941,6 +991,68 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         Map<String, Object> data = new HashMap<>();
         data.put("message", message);
         send("onNotice", data);
+    }
+
+    // ------------------------------------------------------ cleartext http gate
+
+    private static boolean isHttpScheme(String url) {
+        if (url == null) return false;
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
+        return lower.startsWith("http://") && !lower.startsWith("https://");
+    }
+
+    /**
+     * Ask the foreground user whether to load a plain http:// page. The
+     * navigation is held (shouldOverrideUrlLoading already returned true);
+     * only an explicit "Load anyway" proceeds, and it remembers the host for
+     * this tab so the rest of the site loads without further prompts.
+     */
+    private void promptCleartext(String url) {
+        cleartextDialogShowing = true;
+        final android.app.Activity activity = activityOf(context);
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            cleartextDialogShowing = false;
+            return;
+        }
+        final String host = com.mrnobody.agent.util.Hosts.firstIn(url);
+        main.post(() -> {
+            if (!cleartextDialogShowing) return;
+            AlertDialog dialog = new AlertDialog.Builder(activity)
+                    .setTitle("Insecure connection")
+                    .setMessage("The site " + (host == null || host.isEmpty() ? url : host)
+                            + " uses a plain, unencrypted HTTP connection. "
+                            + "Anything it sends or you type can be seen by others "
+                            + "on the network.\n\n"
+                            + "It is being loaded only because you chose to continue.")
+                    .setPositiveButton("Load anyway", (d, w) -> cleartextAllowed(url))
+                    .setNegativeButton("Cancel", (d, w) -> cleartextDenied())
+                    .setOnCancelListener(d -> cleartextDenied())
+                    .setCancelable(true)
+                    .create();
+            dialog.setOnDismissListener(d -> cleartextDenied());
+            dialog.show();
+        });
+    }
+
+    private void cleartextAllowed(String url) {
+        cleartextDialogShowing = false;
+        String host = com.mrnobody.agent.util.Hosts.firstIn(url);
+        if (host != null && !host.isEmpty()) approvedCleartextHosts.add(host);
+        webView.loadUrl(url);
+    }
+
+    private void cleartextDenied() {
+        cleartextDialogShowing = false;
+    }
+
+    /** Resolve the activity hosting this view, unwrapping any ContextWrapper. */
+    private static android.app.Activity activityOf(Context context) {
+        Context c = context;
+        while (c instanceof android.content.ContextWrapper) {
+            if (c instanceof android.app.Activity) return (android.app.Activity) c;
+            c = ((android.content.ContextWrapper) c).getBaseContext();
+        }
+        return null;
     }
 
     private Map<String, Object> counters(@Nullable FilterEngine.Category category) {

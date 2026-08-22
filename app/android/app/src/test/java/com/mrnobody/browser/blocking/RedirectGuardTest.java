@@ -26,6 +26,22 @@ public class RedirectGuardTest {
     }
 
     @Test
+    public void blocksCrossSiteAdNetworkAndShortenerRedirects() {
+        assertTrue(RedirectGuard.shouldBlock(
+                "https://stream.example/play", "https://clickadu.com/welcome", true));
+        assertTrue(RedirectGuard.shouldBlock(
+                "https://stream.example/play", "https://www.juicyads.com/campaign", true));
+        assertTrue(RedirectGuard.shouldBlock(
+                "https://stream.example/play", "https://popcash.net/ph", true));
+        assertTrue(RedirectGuard.shouldBlock(
+                "https://stream.example/play", "https://adf.ly/Nq2", true));
+        assertTrue(RedirectGuard.shouldBlock(
+                "https://stream.example/play", "https://ouo.io/x123", true));
+        assertTrue(RedirectGuard.shouldBlock(
+                "https://stream.example/play", "https://ads.trafficjunky.com/x", true));
+    }
+
+    @Test
     public void ordinaryLinksAreNotBlocked() {
         assertFalse(RedirectGuard.shouldBlock(
                 "https://news.example", "https://wikipedia.org", true));

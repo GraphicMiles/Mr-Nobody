@@ -23,7 +23,7 @@ import java.util.List;
 public final class DownloadStore extends SQLiteOpenHelper {
 
     private static final String DB = "downloads.db";
-    private static final int VERSION = 3;
+    private static final int VERSION = 4;
     private static final String TABLE = "downloads";
 
     private static volatile DownloadStore instance;
@@ -62,6 +62,7 @@ public final class DownloadStore extends SQLiteOpenHelper {
                 + "etag TEXT,"
                 + "resumable INTEGER NOT NULL DEFAULT 0,"
                 + "risky_approved INTEGER NOT NULL DEFAULT 0,"
+                + "allow_insecure_referer INTEGER NOT NULL DEFAULT 0,"
                 + "created_at INTEGER NOT NULL,"
                 + "updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX idx_downloads_status ON " + TABLE + "(status)");
@@ -80,6 +81,10 @@ public final class DownloadStore extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN request_key TEXT");
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_downloads_request_key ON "
                     + TABLE + "(request_key)");
+        }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE " + TABLE
+                    + " ADD COLUMN allow_insecure_referer INTEGER NOT NULL DEFAULT 0");
         }
     }
 
@@ -183,6 +188,7 @@ public final class DownloadStore extends SQLiteOpenHelper {
         v.put("etag", r.etag);
         v.put("resumable", r.resumable ? 1 : 0);
         v.put("risky_approved", r.riskyApproved ? 1 : 0);
+        v.put("allow_insecure_referer", r.allowInsecureReferer ? 1 : 0);
         v.put("created_at", r.createdAt);
         v.put("updated_at", r.updatedAt);
         return v;
@@ -207,6 +213,10 @@ public final class DownloadStore extends SQLiteOpenHelper {
         r.etag = c.getString(c.getColumnIndexOrThrow("etag"));
         r.resumable = c.getInt(c.getColumnIndexOrThrow("resumable")) == 1;
         r.riskyApproved = c.getInt(c.getColumnIndexOrThrow("risky_approved")) == 1;
+        int allowRefererColumn = c.getColumnIndex("allow_insecure_referer");
+        if (allowRefererColumn >= 0) {
+            r.allowInsecureReferer = c.getInt(allowRefererColumn) == 1;
+        }
         r.createdAt = c.getLong(c.getColumnIndexOrThrow("created_at"));
         r.updatedAt = c.getLong(c.getColumnIndexOrThrow("updated_at"));
         return r;

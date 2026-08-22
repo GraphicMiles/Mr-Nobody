@@ -85,24 +85,21 @@ void main() {
     expect(find.byKey(const ValueKey('address-delete')), findsNothing);
   });
 
-  testWidgets('one tap deletes one character and long press offers clear all',
+  testWidgets('one tap clears the whole address field without a clear-all popup',
       (tester) async {
     await pumpBrowser(tester);
     await tester.tap(find.byType(TextField));
-    await tester.enterText(find.byType(TextField), 'example');
+    await tester.enterText(find.byType(TextField), 'https://example.com');
 
     await tester.tap(find.byKey(const ValueKey('address-delete')));
     await tester.pump();
     TextField field = tester.widget(find.byType(TextField));
-    expect(field.controller!.text, 'exampl');
-
-    await tester.longPress(find.byKey(const ValueKey('address-delete')));
-    await tester.pumpAndSettle();
-    expect(find.text('Clear all'), findsOneWidget);
-    await tester.tap(find.text('Clear all'));
-    await tester.pumpAndSettle();
-    field = tester.widget(find.byType(TextField));
     expect(field.controller!.text, isEmpty);
+
+    // Clearing is immediate; there is no long-press "Clear all" menu anymore.
+    await tester.longPress(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(find.text('Clear all'), findsNothing);
   });
 
   testWidgets('refresh becomes a spinner until loading finishes', (tester) async {

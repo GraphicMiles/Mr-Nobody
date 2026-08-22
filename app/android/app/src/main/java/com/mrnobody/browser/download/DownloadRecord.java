@@ -95,6 +95,8 @@ public final class DownloadRecord {
 
     /** User/policy explicitly approved executable or otherwise risky content. */
     public boolean riskyApproved;
+    /** Whether the user approved sending the page Referer over cleartext. */
+    public boolean allowInsecureReferer;
 
     public long createdAt;
     public long updatedAt;
@@ -120,6 +122,15 @@ public final class DownloadRecord {
                                         @Nullable String mime, @Nullable String userAgent,
                                         @Nullable String referrer, @Nullable String destLabel,
                                         boolean riskyApproved, @Nullable String requestKey) {
+        return create(url, fileName, mime, userAgent, referrer, destLabel,
+                riskyApproved, false, requestKey);
+    }
+
+    public static DownloadRecord create(@NonNull String url, @NonNull String fileName,
+                                        @Nullable String mime, @Nullable String userAgent,
+                                        @Nullable String referrer, @Nullable String destLabel,
+                                        boolean riskyApproved, boolean allowInsecureReferer,
+                                        @Nullable String requestKey) {
         DownloadRecord r = new DownloadRecord();
         r.url = url;
         r.fileName = fileName;
@@ -129,6 +140,7 @@ public final class DownloadRecord {
         r.requestKey = requestKey;
         r.destLabel = destLabel;
         r.riskyApproved = riskyApproved;
+        r.allowInsecureReferer = allowInsecureReferer;
         r.status = Status.QUEUED;
         r.createdAt = System.currentTimeMillis();
         r.updatedAt = r.createdAt;
@@ -159,6 +171,7 @@ public final class DownloadRecord {
         m.put("error", error);
         m.put("resumable", resumable);
         m.put("riskApproved", riskyApproved);
+        m.put("allowInsecureReferer", allowInsecureReferer);
         m.put("canResume", status.isResumable());
         m.put("localUri", destUri);
         m.put("folder", destLabel);

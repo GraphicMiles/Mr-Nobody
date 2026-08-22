@@ -45,7 +45,6 @@ class BrowserScreen extends StatefulWidget {
 class _BrowserScreenState extends State<BrowserScreen> {
   final _address = TextEditingController();
   final _addressFocus = FocusNode();
-  final _deleteKey = GlobalKey();
 
   BrowserTab? get _tab => widget.tabs.active;
 
@@ -238,57 +237,9 @@ class _BrowserScreenState extends State<BrowserScreen> {
     await tab.goForward();
   }
 
-  void _deleteAddressCharacter() {
-    final value = _address.value;
-    final text = value.text;
-    if (text.isEmpty) return;
-    int start = value.selection.start;
-    int end = value.selection.end;
-    if (start < 0 || end < 0) start = end = text.length;
-    if (start > end) {
-      final swap = start;
-      start = end;
-      end = swap;
-    }
-    if (start == end) {
-      if (start == 0) return;
-      start--;
-      // Keep a UTF-16 surrogate pair together so one tap never leaves half an emoji.
-      if (start > 0 && _isLowSurrogate(text.codeUnitAt(start))
-          && _isHighSurrogate(text.codeUnitAt(start - 1))) {
-        start--;
-      }
-    }
-    _address.value = TextEditingValue(
-      text: text.replaceRange(start, end, ''),
-      selection: TextSelection.collapsed(offset: start),
-    );
-  }
-
-  static bool _isHighSurrogate(int value) => value >= 0xD800 && value <= 0xDBFF;
-  static bool _isLowSurrogate(int value) => value >= 0xDC00 && value <= 0xDFFF;
-
-  Future<void> _showClearAllTooltip() async {
-    final button = _deleteKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (button == null || overlay == null) return;
-    final topLeft = button.localToGlobal(Offset.zero, ancestor: overlay);
-    final selected = await showMenu<String>(
-      context: context,
-      color: AppColors.surface2,
-      position: RelativeRect.fromRect(topLeft & button.size, Offset.zero & overlay.size),
-      items: [
-        PopupMenuItem<String>(
-          value: 'clear',
-          child: Text('Clear all', style: AppTheme.sans(size: 12.5)),
-        ),
-      ],
-    );
-    if (!mounted) return;
-    if (selected == 'clear') {
-      _address.clear();
-      _addressFocus.requestFocus();
-    }
+  void _clearAddress() {
+    _address.clear();
+    _addressFocus.requestFocus();
   }
 
   @override
@@ -430,11 +381,9 @@ class _BrowserScreenState extends State<BrowserScreen> {
           ),
           if (_addressFocus.hasFocus)
             GestureDetector(
-              onTap: _deleteAddressCharacter,
-              onLongPress: _showClearAllTooltip,
+              onTap: _clearAddress,
               behavior: HitTestBehavior.opaque,
               child: Padding(
-                key: _deleteKey,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Icon(Icons.close, key: const ValueKey('address-delete'),
                     size: 15, color: AppColors.textFaint),

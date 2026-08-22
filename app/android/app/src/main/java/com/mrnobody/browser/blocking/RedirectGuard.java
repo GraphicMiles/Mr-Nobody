@@ -10,11 +10,22 @@ import java.util.Set;
 public final class RedirectGuard {
 
     private static final Set<String> UNWANTED_DESTINATIONS = new HashSet<>(Arrays.asList(
+            // Gambling destinations — the classic forced-redirect target.
             "bet9ja.com", "bet9ja.net", "betnaija.com",
             "stake.com", "stake.bet",
             "1xbet.com", "1xbet.ng", "22bet.com", "melbet.com",
             "sportybet.com", "betway.com", "parimatch.com",
-            "betking.com", "betbonanza.com", "bangbet.com"
+            "betking.com", "betbonanza.com", "bangbet.com",
+            // Pop-up / pop-under ad networks often used by streaming sites when
+            // a button or link is tapped. Blocking the redirect is safer than
+            // letting the page open an unknown advertising surface.
+            "clickadu.com", "juicyads.com", "hilltopads.net", "trafficjunky.com",
+            "popcash.net", "ad-maven.com", "yoads.net", "onclickpredirect.com",
+            "adtrustmedia.com", "plugrush.com",
+            // Ad-heavy link shorteners / redirect portals. Not legitimate
+            // content destinations; they exist to insert an advertisement in
+            // front of whatever the user actually asked for.
+            "adf.ly", "ouo.io", "shorte.st", "bc.vc", "tlnk.io", "adshort.co"
     ));
 
     private RedirectGuard() {

@@ -42,7 +42,7 @@ void main() {
     expect(find.byType(AnimatedBrandLogo), findsOneWidget);
     final hero = tester.getRect(find.byKey(kHomeLogoHeroKey));
     final search = tester.getRect(find.byKey(kHomeSearchPillKey));
-    expect(hero.height, 190);
+    expect(hero.height, 266);
     expect(search.top, greaterThanOrEqualTo(hero.bottom));
   });
 }

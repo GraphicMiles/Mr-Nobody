@@ -239,12 +239,37 @@ public final class DeterministicEngine implements AgentEngine {
             return;
         }
 
+        // Tier 0 fast path: a simple arithmetic question is a device-local
+        // computation, exact and free — no AI round-trip, no network.
+        String calcAnswer = CalculatorSkill.answer(asked);
+        if (calcAnswer != null) {
+            enterActivity(task, Task.STEP_ANSWER, "Answering from a local calculation",
+                    "skill.calculator", "Simple arithmetic is computed on the device.");
+            task.setError("");
+            task.setResult(calcAnswer);
+            task.setStatus(Task.Status.COMPLETED);
+            recordAnswer(task);
+            return;
+        }
+
+        PhaseTimings runTimings = new PhaseTimings();
+
+        // Tier 0 fast path: an instruction that names one direct action (a file
+        // to download, a terminal command) does not need an LLM to decide what
+        // to do — the deterministic router already knows. Without this, enabling
+        // a remote provider turned every direct action into an LLM round-trip.
+        if (provider.isRemote() && tryDirectAction(context, task, asked, cancellation)) {
+            return;
+        }
+
+        runTimings.begin("classify");
         IntentClassifier.Decision classified = IntentClassifier.classify(provider, asked);
+        runTimings.end();
         if (stopIfAsked(context, task, provider)) return;
 
         if (provider.isRemote()) {
             runAutonomous(context, task, provider, cancellation, asked, classified.intent,
-                    pointed);
+                    pointed, runTimings);
             return;
         }
 
@@ -283,7 +308,26 @@ public final class DeterministicEngine implements AgentEngine {
         setRunScope(ToolScope.research(
                 runTools().containsKey("download") && ToolRouter.isDownloadIntent(asked),
                 runTools().keySet()));
-        executeResearch(context, task, plan, cancellation, asked, classified.intent, pointed);
+        executeResearch(context, task, plan, cancellation, asked, classified.intent, pointed,
+                runTimings);
+    }
+
+    /**
+     * Tier 0 fast path for a remote run: if the deterministic router already
+     * knows the instruction is a single direct action — a file to download, a
+     * terminal command — execute it locally without an LLM round-trip turning
+     * a direct action into a planning problem. Returns true when the task was
+     * handled and the caller must stop. The routed action still flows through
+     * the guarded pipeline, so the safety model is identical to the local path.
+     */
+    private boolean tryDirectAction(Context context, Task task, String asked,
+                                    Cancellation cancellation) {
+        Plan direct = new DeterministicPlanner().plan(asked, runTools().keySet());
+        if (!isRoutedAction(direct)) return false;
+        task.setPlanJson(direct.snapshot());
+        setRunScope(ToolScope.routed(direct.steps().get(0).tool));
+        executeRouted(context, task, direct.steps().get(0), cancellation);
+        return true;
     }
 
     private void runDesign(Context context, Task task, Cancellation cancellation,
@@ -381,8 +425,10 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private void executeResearch(Context context, Task task, Plan plan,
                                  Cancellation cancellation, String asked,
-                                 TaskIntent intent, TaskArtifact pointed) {
+                                 TaskIntent intent, TaskArtifact pointed,
+                                 PhaseTimings timings) {
         Research r = new Research();
+        r.timings = timings;
         r.asked = asked;
         r.intent = intent;
         r.skill = SearchSkills.route(asked);
@@ -413,7 +459,9 @@ public final class DeterministicEngine implements AgentEngine {
                     continue;
                 }
                 enterStep(task, step);
+                r.timings.begin("tool");
                 ToolResult result = callScoped(context, step, cancellation);
+                r.timings.end();
                 if (parkIfNeeded(task, result)) return;
                 if ("search".equals(step.tool)) {
                     // Search is the anchor: an answer with no sources is a
@@ -531,8 +579,10 @@ public final class DeterministicEngine implements AgentEngine {
      */
     private void runAutonomous(Context context, Task task, AiProvider provider,
                                Cancellation cancellation, String asked,
-                               TaskIntent intent, TaskArtifact pointed) {
+                               TaskIntent intent, TaskArtifact pointed,
+                               PhaseTimings timings) {
         Research r = new Research();
+        r.timings = timings;
         r.asked = asked;
         r.intent = intent;
         r.namedUrl = pointed != null ? pointed.url : findUrl(asked);
@@ -581,7 +631,9 @@ public final class DeterministicEngine implements AgentEngine {
             if (r.budget != null && r.budget.expired()) break;
             enterActivity(task, "Deciding the next action", "reason",
                     "Choose one bounded action from the evidence observed so far.");
+            r.timings.begin("plan");
             Plan.Step step = planner.nextStep(asked, transcript, currentRunScope());
+            r.timings.end();
             if (step == null) {
                 if (taken == 0 && planner.lastError() != null) {
                     enterActivity(task, "Using the local fallback plan", "plan.fallback",
@@ -597,7 +649,7 @@ public final class DeterministicEngine implements AgentEngine {
                                 runTools().containsKey("download") && ToolRouter.isDownloadIntent(asked),
                                 runTools().keySet()));
                         executeResearch(context, task, fallback, cancellation,
-                                asked, intent, pointed);
+                                asked, intent, pointed, timings);
                     }
                     return;
                 }
@@ -605,7 +657,9 @@ public final class DeterministicEngine implements AgentEngine {
             }
 
             enterStep(task, step);
+            r.timings.begin("tool");
             ToolResult result = callScoped(context, step, cancellation);
+            r.timings.end();
             if (stopped(task, cancellation)) return;
             if (parkIfNeeded(task, result)) return;
             applyAutonomousResult(context, r, step, result, nonce, transcript, cancellation);
@@ -1159,7 +1213,9 @@ public final class DeterministicEngine implements AgentEngine {
                 } else {
                     // Kept for the verify step's corrective re-ask.
                     r.lastPrompt = prompt;
+                    r.timings.begin("synthesis");
                     r.answer = askProvider(r.provider, prompt, cancellation, task.id(), r);
+                    r.timings.end();
                     if (r.providerError != null) {
                         String failedProvider = r.providerError;
                         r.answer = ExtractiveAnswer.compose(
@@ -1223,6 +1279,7 @@ public final class DeterministicEngine implements AgentEngine {
         task.setStatus(Task.Status.VERIFYING);
         enterActivity(task, Task.STEP_VERIFY, "Verifying the answer", "verify",
                 "Check citations, source hosts and figures before completion.");
+        r.timings.begin("verify");
         if (r.provider.isRemote() && !r.answerWasExtractiveFallback) {
             AnswerVerifier.Report report = AnswerVerifier.check(r.answer, r.readUrls);
             FigureCheck.Report figures = FigureCheck.check(r.answer, r.sources.toString());
@@ -1290,6 +1347,7 @@ public final class DeterministicEngine implements AgentEngine {
                         + " figure(s) not found in the sources read");
             }
         }
+        r.timings.end();
 
         // When the pages were read. A live figure with no read time is stale
         // the instant it is shown and gives no way to tell: the Bitcoin answer
@@ -1330,7 +1388,22 @@ public final class DeterministicEngine implements AgentEngine {
 
         task.setResult(truncate(r.answer, 6000));
         task.setStatus(Task.Status.COMPLETED);
+        logPhaseTimings(task, r.timings);
         recordAnswer(task);
+    }
+
+    /**
+     * Record the run's phase breakdown for latency profiling. Durations only —
+     * no content — so it is safe to log without redaction, and a failure here
+     * must never affect the task outcome.
+     */
+    private static void logPhaseTimings(Task task, PhaseTimings timings) {
+        try {
+            com.mrnobody.debug.ErrorLog.record("task " + task.id()
+                    + " phases: " + timings.describe());
+        } catch (Throwable ignored) {
+            // Profiling is diagnostic; the task result is authoritative.
+        }
     }
 
     private static void recordAnswer(Task task) {
@@ -1387,6 +1460,8 @@ public final class DeterministicEngine implements AgentEngine {
         String providerError;
         /** Remote synthesis failed and the deterministic extractor supplied the answer. */
         boolean answerWasExtractiveFallback;
+        /** Per-phase wall-clock durations for this run, for latency profiling. */
+        PhaseTimings timings = new PhaseTimings();
     }
 
     /** Local time, so "read at" means something to the person reading it. */

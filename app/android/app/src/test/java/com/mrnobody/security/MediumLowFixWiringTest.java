@@ -65,11 +65,22 @@ public class MediumLowFixWiringTest {
     @Test
     public void cleartextPolicyAndCredentialEndpointsAreExplicit() throws Exception {
         String manifest = read("src/main/AndroidManifest.xml");
-        assertTrue(manifest.contains("android:usesCleartextTraffic=\"false\""));
+        // Cleartext is governed by an explicit network security config that
+        // permits it, never an automatic http deep-link intent-filter.
+        assertTrue(manifest.contains("android:networkSecurityConfig=\"@xml/network_security_config\""));
         assertFalse(manifest.contains("<data android:scheme=\"http\" />"));
+        String config = read("src/main/res/xml/network_security_config.xml");
+        assertTrue(config.contains("cleartextTrafficPermitted=\"true\""));
+        // The visible browser gates every top-level http navigation behind a
+        // confirm dialog; the agent is never handed a raw tool bypass.
+        String webView = java("browser/webview/MrNobodyWebView.java");
+        assertTrue(webView.contains("promptCleartext(url)"));
+        assertTrue(webView.contains("isHttpScheme(url)"));
+        assertTrue(webView.contains("Load anyway"));
         String router = read("../../lib/router/intent_router.dart");
         assertTrue(router.contains("startsWith('http://')"));
         assertTrue(router.contains("return 'https://"));
+        // Agent endpoints, providers and the download engine still require HTTPS.
         String provider = java("agent/ai/OpenAiCompatibleProvider.java");
         String remote = java("remote/RemoteClient.java");
         assertTrue(provider.contains("EndpointPolicy.secureBaseReason(baseUrl)"));

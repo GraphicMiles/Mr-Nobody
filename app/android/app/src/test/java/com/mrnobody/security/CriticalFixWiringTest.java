@@ -66,7 +66,10 @@ public class CriticalFixWiringTest {
         assertTrue(http.contains("NetworkTargetPolicy.requirePublic(current"));
         assertTrue(http.contains("setInstanceFollowRedirects(false)"));
         String downloads = java("browser/download/DownloadEngine.java");
-        assertTrue(downloads.contains("NetworkTargetPolicy.requirePublic(current"));
+        // Downloads may fetch a user-chosen http(s) site, so per-hop target
+        // revalidation uses the scheme-agnostic public-host check (which still
+        // refuses local/private/LAN targets) rather than requirePublic.
+        assertTrue(downloads.contains("NetworkTargetPolicy.publicHostReason(current"));
         assertTrue(downloads.contains("headerForUrl(current)"));
     }
 

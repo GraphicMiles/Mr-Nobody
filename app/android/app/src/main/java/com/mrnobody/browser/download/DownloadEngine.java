@@ -161,13 +161,28 @@ public final class DownloadEngine {
     public DownloadRecord enqueue(@NonNull String url, @NonNull String fileName,
                                   @Nullable String mime, @Nullable String userAgent,
                                   @Nullable String referrer, boolean riskyApproved) {
-        return enqueue(url, fileName, mime, userAgent, referrer, riskyApproved, null);
+        return enqueue(url, fileName, mime, userAgent, referrer, riskyApproved,
+                false, null);
     }
 
     /** Enqueue once for a durable harness idempotency key. */
     public DownloadRecord enqueue(@NonNull String url, @NonNull String fileName,
                                   @Nullable String mime, @Nullable String userAgent,
                                   @Nullable String referrer, boolean riskyApproved,
+                                  @Nullable String requestKey) {
+        return enqueue(url, fileName, mime, userAgent, referrer, riskyApproved,
+                false, requestKey);
+    }
+
+    /**
+     * Full enqueue. {@code allowInsecureReferer} is set only when the user
+     * explicitly approved a cleartext download that carries a page Referer; by
+     * default a referrer is never sent over plain HTTP (see {@link #connect}).
+     */
+    public DownloadRecord enqueue(@NonNull String url, @NonNull String fileName,
+                                  @Nullable String mime, @Nullable String userAgent,
+                                  @Nullable String referrer, boolean riskyApproved,
+                                  boolean allowInsecureReferer,
                                   @Nullable String requestKey) {
         String key = requestKey == null ? null : requestKey.trim();
         if (key != null && !key.isEmpty()) {
@@ -177,7 +192,7 @@ public final class DownloadEngine {
         DownloadDestination destination = new DownloadDestination(context);
         DownloadRecord record = DownloadRecord.create(
                 url, fileName, mime, userAgent, referrer, destination.label(),
-                riskyApproved, key);
+                riskyApproved, allowInsecureReferer, key);
         long inserted = store.insert(record);
         if (inserted < 0 && key != null && !key.isEmpty()) {
             DownloadRecord existing = store.findByRequestKey(key);
@@ -619,18 +634,17 @@ public final class DownloadEngine {
         /** Follow redirects manually so every hop is checked and credentials are re-scoped. */
         private Connected connect(long from) throws IOException {
             String current = record.url;
-            if (current.regionMatches(true, 0, "http://", 0, 7)) {
-                throw new IOException("Cleartext HTTP downloads are not supported; use HTTPS");
-            }
             boolean sendReferrer = true;
-            // A public-looking start may never pivot into localhost/LAN. A user
-            // who explicitly starts on a local URL keeps that visible-browser
-            // capability, while autonomous tools reject such starts earlier.
-            boolean publicStart = NetworkTargetPolicy.publicReason(current, false) == null;
+            // Both schemes reach here. A public http(s) target may be fetched —
+            // the user chose it in the visible browser — but the host must still
+            // be public: a user-initiated start must never pivot into
+            // localhost/LAN, and a privacy route is still enforced. Credential
+            // grants are never attached to cleartext (see AccountGrant).
             for (int redirects = 0; redirects <= 5; redirects++) {
-                if (publicStart) {
-                    NetworkTargetPolicy.requirePublic(current,
-                            NetworkGate.canConnect() && NetworkGate.resolvesTargetsLocally());
+                String reason = NetworkTargetPolicy.publicHostReason(current,
+                        NetworkGate.canConnect() && NetworkGate.resolvesTargetsLocally());
+                if (reason != null) {
+                    throw new IOException("Refused download URL: " + reason);
                 }
                 HttpURLConnection conn = NetworkGate.openHttp(current);
                 this.connection = conn;
@@ -640,7 +654,11 @@ public final class DownloadEngine {
                 if (record.userAgent != null && !record.userAgent.isEmpty()) {
                     conn.setRequestProperty("User-Agent", record.userAgent);
                 }
-                if (sendReferrer && current.regionMatches(true, 0, "https://", 0, 8)
+                // A Referer is only ever sent over HTTPS, or over cleartext when
+                // the user explicitly approved that download. This keeps the
+                // default path from leaking the source page over plain HTTP.
+                boolean secureHop = current.regionMatches(true, 0, "https://", 0, 8);
+                if (sendReferrer && (secureHop || record.allowInsecureReferer)
                         && record.referrer != null && !record.referrer.isEmpty()) {
                     conn.setRequestProperty("Referer", record.referrer);
                 }

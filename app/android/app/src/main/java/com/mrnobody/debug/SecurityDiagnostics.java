@@ -210,18 +210,18 @@ public final class SecurityDiagnostics {
                             && !requested.contains(Manifest.permission.RECORD_AUDIO)
                             && !requested.contains(Manifest.permission.ACCESS_FINE_LOCATION)
                             && !requested.contains(Manifest.permission.ACCESS_COARSE_LOCATION);
-                    ApplicationInfo app = manager.getApplicationInfo(
-                            context.getPackageName(), 0);
-                    boolean noCleartext = (app.flags
-                            & ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC) == 0;
-                    boolean pass = noSensors && noCleartext;
+                    // Cleartext is permitted so the user can load a chosen http
+                    // site, but every top-level http navigation is gated behind
+                    // an explicit warning (MrNobodyWebView); the agent tools,
+                    // AI providers and downloads still require HTTPS.
+                    boolean pass = noSensors;
                     return pass
                             ? Diagnostics.Result.pass("security.android.surface",
                                     "Android privacy surface",
-                                    "no sensor permissions requested; cleartext traffic disabled")
+                                    "no sensor permissions requested; cleartext permitted but gated per-site")
                             : Diagnostics.Result.fail("security.android.surface",
                                     "Android privacy surface",
-                                    "installed manifest requests a sensor or permits cleartext");
+                                    "installed manifest requests a sensor permission");
                 }));
         return out;
     }
