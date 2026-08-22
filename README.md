@@ -12,12 +12,14 @@ Mr Nobody is open source under the MIT License.
 
 - Uses the Android System WebView already installed on the device.
 - Blocks known advertising and tracking requests locally.
+- Blocks cross-site redirects into known gambling, pop-up/ad-network and ad-heavy link-shortener destinations.
 - Strips common tracking parameters from links.
 - Disables browsing history by default.
 - Disables third-party cookies and mixed content.
 - Supports normal and private tabs.
 - Can route traffic through a configured proxy, Orbot, or the bundled Tor service.
 - Fails closed when a privacy route that was promised is unavailable.
+- Loads a plain `http://` page only after an explicit "Load anyway / Cancel" warning; the site host is remembered for the session. A download from a `http://` file also shows an insecure-connection warning before anything is fetched, and only sends the source page's Referer header over cleartext when the user approves that download. The agent's autonomous tools and AI providers still require HTTPS, so cleartext is never used outside the user's explicit browsing or download choice.
 
 ### Agent tasks
 
@@ -34,7 +36,11 @@ The agent can:
 
 The local agent is deterministic and does not contain an on-device language model. It searches, extracts, ranks, and verifies information with normal code. Do not describe it as a local LLM.
 
+A Tier-0 fast path runs before any AI request, for both local and remote runs: a device-clock question, a simple arithmetic question ("what is 25% of 800"), and an instruction that names a single direct action (a file to download, a terminal command) are answered locally by the deterministic router — no AI provider call, and no page content leaves the device. A remote AI request is only made once the instruction has cleared that fast path — i.e. it needs classification, planning, or answer synthesis.
+
 Users may optionally configure Gemini, Groq, or an OpenAI-compatible remote AI provider. When a remote provider is enabled, task context sent to that provider leaves the device. Tool execution still passes through Mr Nobody's local policy and execution ledger.
+
+Each run records its phase breakdown (classify, plan, tool, synthesis, verify) as durations only into the debug log, for latency profiling; no task content is measured.
 
 ### Downloads
 

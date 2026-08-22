@@ -96,6 +96,22 @@
 ||an.yandex.ru^
 ||ymatuhin.ru/ads/
 ||adblock-tester.com/banners/pr_advertising_ads_banner
+||popcash.net^
+||clickadu.com^
+||juicyads.com^
+||hilltopads.net^
+||trafficjunky.com^
+||ad-maven.com^
+||yoads.net^
+||onclickpredirect.com^
+||adtrustmedia.com^
+||plugrush.com^
+||adf.ly^
+||ouo.io^
+||shorte.st^
+||bc.vc^
+||tlnk.io^
+||adshort.co^
 
 [TRACKERS]
 ||google-analytics.com^

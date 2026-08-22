@@ -40,7 +40,7 @@ public final class FilterEngine {
      * decide what gets blocked.
      */
     private static final String BUNDLED_DIGEST =
-            "7e119400943ddbdb047fb88384bd7ca06af8242793224689f459c69068d161af";
+            "3af3c541717fe0ce9aa29987e3135a66c224e0266d85d1d69c68655d697714d4";
 
     /** Generous ceiling for the bundled list; guards a corrupt/hostile asset. */
     private static final int MAX_LIST_BYTES = 4 * 1024 * 1024;

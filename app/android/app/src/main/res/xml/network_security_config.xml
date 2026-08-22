@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Cleartext policy for Mr Nobody.
+
+    Cleartext is permitted at the platform level so the visible browser can
+    load an http:// site the user explicitly chooses. It is NOT a blanket
+    allowance: every top-level http navigation is gated behind a
+    "Load anyway / Cancel" warning in MrNobodyWebView, and the agent's
+    autonomous tools, AI providers and the download engine all require HTTPS
+    through their own policy (NetworkTargetPolicy / EndpointPolicy /
+    DownloadEngine). This config is the single source of truth for cleartext;
+    the manifest's usesCleartextTraffic attribute is deliberately not relied on.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

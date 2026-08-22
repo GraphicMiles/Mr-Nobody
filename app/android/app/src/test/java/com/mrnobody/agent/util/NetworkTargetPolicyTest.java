@@ -67,4 +67,21 @@ public class NetworkTargetPolicyTest {
     public void urlCredentialsAreRefused() {
         assertNotNull(NetworkTargetPolicy.publicReason("https://user:pass@example.com/", false));
     }
+
+    @Test
+    public void publicHostReasonAllowsUserChosenPublicHttpButBlocksLocal() {
+        // A user-chosen public http:// site is allowed for the visible-browser
+        // download engine (which does not force HTTPS), but local/private/LAN
+        // hosts and obscured numerics are still refused.
+        assertNull(NetworkTargetPolicy.publicHostReason("http://example.com/file.mp4", false));
+        assertNull(NetworkTargetPolicy.publicHostReason("https://8.8.8.8/dns", false));
+        for (String url : new String[]{
+                "http://127.0.0.1/", "http://10.0.0.1/", "http://169.254.169.254/",
+                "http://192.168.1.1/", "http://[::1]/", "http://localhost:8080/",
+                "http://router.local/", "http://2130706433/", "http://0x7f000001/"}) {
+            assertNotNull(url, NetworkTargetPolicy.publicHostReason(url, false));
+        }
+        assertNotNull(NetworkTargetPolicy.publicHostReason("http://user:pass@example.com/", false));
+        assertNotNull(NetworkTargetPolicy.publicHostReason("ftp://example.com/", false));
+    }
 }

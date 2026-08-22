@@ -37,6 +37,38 @@ public final class NetworkTargetPolicy {
         if (scheme == null || !scheme.equalsIgnoreCase("https")) {
             return "URL must use HTTPS";
         }
+        return hostAndTargetReason(uri, resolveDns, resolver);
+    }
+
+    /**
+     * The same host/target checks as {@link #publicReason} but without the
+     * "must use HTTPS" requirement. Used by the user-facing download engine,
+     * which may fetch a public http:// site the user chose, while still
+     * refusing local-network, private, loopback, and obscured-numeric targets.
+     * Agent tools keep calling {@link #requirePublic} and therefore stay HTTPS.
+     */
+    public static String publicHostReason(String raw, boolean resolveDns) {
+        return publicHostReason(raw, resolveDns, InetAddress::getAllByName);
+    }
+
+    static String publicHostReason(String raw, boolean resolveDns, Resolver resolver) {
+        final URI uri;
+        try {
+            uri = new URI(raw == null ? "" : raw.trim());
+        } catch (Exception e) {
+            return "URL is invalid";
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null || (!scheme.equalsIgnoreCase("http")
+                && !scheme.equalsIgnoreCase("https"))) {
+            return "URL must use HTTP(S)";
+        }
+        return hostAndTargetReason(uri, resolveDns, resolver);
+    }
+
+    /** Host-level checks shared by both entry points, minus the scheme rule. */
+    private static String hostAndTargetReason(URI uri, boolean resolveDns,
+                                              Resolver resolver) {
         if (uri.getRawUserInfo() != null) return "URL credentials are not allowed";
         String host = uri.getHost();
         if (host == null || host.trim().isEmpty()) return "URL needs a valid host";

@@ -39,4 +39,16 @@ public class DownloadRiskTest {
         assertTrue(DownloadRisk.assess("APP.APK?token=1", "application/octet-stream")
                 .requiresConfirmation);
     }
+
+    @Test
+    public void cleartextReasonWarnsOnlyOnPlainHttp() {
+        assertTrue(DownloadRisk.cleartextReason("http://example.com/file.mp4")
+                .contains("unencrypted"));
+        assertTrue(DownloadRisk.cleartextReason("HTTP://example.com/file.mp4")
+                .contains("unencrypted"));
+        // https and non-download URLs are not flagged as insecure transport.
+        assertTrue(DownloadRisk.cleartextReason("https://example.com/file.mp4") == null);
+        assertTrue(DownloadRisk.cleartextReason("blob:https://example.com/x") == null);
+        assertTrue(DownloadRisk.cleartextReason(null) == null);
+    }
 }

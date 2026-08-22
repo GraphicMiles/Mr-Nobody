@@ -66,6 +66,20 @@ public final class DownloadRisk {
         return new Assessment(false, "");
     }
 
+    /**
+     * A warning for a download whose transport is insecure (plain http://).
+     * Distinct from file-type risk: even a benign file is exposed on the wire,
+     * so the user should choose whether to continue. Returns null for https.
+     */
+    public static String cleartextReason(String url) {
+        if (url == null) return null;
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("http://")) return null;
+        return "This file is on a plain, unencrypted HTTP connection. "
+                + "Any data it carries can be read or altered by others on the "
+                + "network. It is being sought only because you chose to continue.";
+    }
+
     private static String extension(String name) {
         if (name == null) return "";
         String clean = name.toLowerCase(Locale.ROOT);

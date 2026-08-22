@@ -212,6 +212,9 @@ class HomeScreenState extends State<HomeScreen> {
 /// The two decorative page boxes were removed: the real app mark is now the
 /// only hero element, with ten transform-only motion studies played through a
 /// shuffle bag while Home is active.
+///
+/// Size is tuned so the logo is 40% larger and the address bar (and everything
+/// below it) starts about 40% lower than the previous treatment.
 class _HomeHero extends StatelessWidget {
   final bool active;
 
@@ -221,10 +224,10 @@ class _HomeHero extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       key: kHomeLogoHeroKey,
-      height: 190,
+      height: 266,
       child: Center(
         child: AnimatedBrandLogo(
-          size: 88,
+          size: 123,
           color: AppColors.accent,
           active: active,
         ),
