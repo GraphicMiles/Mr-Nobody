@@ -47,8 +47,10 @@ curl -s localhost:8080/update.json
    ```bash
    render deploy            # or: open render.com → New → Blueprint → this repo
    ```
-   The blueprint (`render.yaml`) starts a Python 3.12 web service running
-   `python3 server/app.py` with a `/health` health check.
+   The blueprint (`render.yaml` at the repo root) starts a Python 3.12 web
+   service running `python3 server/app.py` with a `/health` health check.
+   No terminal needed: the same works from the Render dashboard
+   (New → Blueprint → pick the repo), since the blueprint is at the root.
 2. Note the public URL, e.g. `https://mrnobody-updates.onrender.com`.
 3. Point the app at it — there is exactly one place to change:
    `UpdateChecker.UPDATE_URL` in
