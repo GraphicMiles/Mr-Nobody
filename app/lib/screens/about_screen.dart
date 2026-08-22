@@ -30,10 +30,12 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PanelShell(
-      title: 'About',
-      onBack: () => Navigator.of(context).pop(),
-      children: [
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      body: PanelShell(
+        title: 'About',
+        onBack: () => Navigator.of(context).pop(),
+        children: [
         // ------------------------------------------------------------ brand
         const _Brand(icon: Icons.visibility_outlined, name: 'Mr Nobody'),
         const SizedBox(height: 14),
@@ -225,7 +227,8 @@ class AboutScreen extends StatelessWidget {
             ],
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 }
