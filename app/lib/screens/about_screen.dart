@@ -19,14 +19,13 @@ class AboutScreen extends StatelessWidget {
   static const String githubUrl = 'https://github.com/GraphicMiles/Mr-Nobody';
   static const String _repo = 'github.com/GraphicMiles/Mr-Nobody';
 
-  void _openGithub(BuildContext context) {
+  void _openGithub() {
     final opener = onOpenUrl;
     if (opener != null) {
       opener(githubUrl);
-    } else {
-      // No browser callback in this context (e.g. a widget test). Report it
-      // without pretending we navigated.
     }
+    // else: no browser callback in this context (e.g. a widget test). Do
+    // nothing rather than pretend we navigated.
   }
 
   @override
@@ -152,11 +151,12 @@ class AboutScreen extends StatelessWidget {
           child: Column(
             children: withDividers([
               const _InfoRow(
-                  icon: Icons.code,
-                  label: 'Open source',
-                  detail: 'Released under the MIT License. You can read, modify and '
-                      'redistribute the source.'),
-              _InfoRow(
+                icon: Icons.code,
+                label: 'Open source',
+                detail: 'Released under the MIT License. You can read, modify and '
+                    'redistribute the source.',
+              ),
+              const _InfoRow(
                 icon: Icons.rocket_launch_outlined,
                 label: 'Version',
                 detail: 'Development build — see the app’s commit history for exact '
