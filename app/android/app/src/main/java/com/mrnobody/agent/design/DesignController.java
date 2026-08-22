@@ -50,6 +50,10 @@ public final class DesignController {
         String text = instruction == null ? "" : instruction.trim();
         String lower = text.toLowerCase(Locale.ROOT);
 
+        if (contains(lower, "status", "progress", "is it done", "is it ready")) {
+            return new Outcome(null, "Design status: " + session.status.name().toLowerCase()
+                    + (session.exportRef.isEmpty() ? "" : "\n\n" + session.exportRef), session);
+        }
         if (isReject(lower)) {
             session.creativeGate = ReviewGate.REJECTED;
             session.status = DesignSession.Status.DRAFTING;
@@ -58,6 +62,11 @@ public final class DesignController {
                     "Draft rejected. Tell me what to change and I’ll make a new revision.", session);
         }
         if (isApprove(lower)) {
+            if (session.artifactRef.isEmpty() && !session.candidateRef.isEmpty()) {
+                return new Outcome(null,
+                        "Choose a generated candidate first; creative approval applies to the created design.",
+                        session);
+            }
             if (session.previewRef.isEmpty() && session.artifactRef.isEmpty()) {
                 return new Outcome(null, "There is no draft to approve yet.", session);
             }
@@ -185,7 +194,7 @@ public final class DesignController {
     }
 
     private static boolean isApprove(String text) {
-        return contains(text, "approve", "looks good", "use this", "this is good", "finalize draft");
+        return contains(text, "approve", "looks good", "this is good", "finalize draft");
     }
     private static boolean isReject(String text) {
         return contains(text, "reject", "start over", "discard draft", "don't use", "do not use");

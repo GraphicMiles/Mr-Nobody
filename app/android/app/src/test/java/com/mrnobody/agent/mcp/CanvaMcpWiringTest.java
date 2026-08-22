@@ -42,6 +42,8 @@ public class CanvaMcpWiringTest {
         String gradle = new String(Files.readAllBytes(Paths.get("build.gradle")),
                 StandardCharsets.UTF_8);
         assertTrue(gradle.contains("MRNOBODY_CANVA_MCP_CLIENT_ID"));
+        assertTrue("custom BuildConfig fields require the AGP feature",
+                gradle.contains("buildConfig = true"));
         assertFalse(gradle.toLowerCase().contains("canva_client_secret"));
     }
 }
