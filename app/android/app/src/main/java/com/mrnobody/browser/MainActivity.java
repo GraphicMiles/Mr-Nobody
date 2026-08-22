@@ -1103,6 +1103,12 @@ public class MainActivity extends FlutterActivity {
                             @Override public void onError(long id, String error) {
                                 runOnUiThread(() -> events.success(streamEvent(id, "error", error)));
                             }
+                            @Override public void onDownloadProgress(long id, long bytes,
+                                                                      long total, String name,
+                                                                      String status) {
+                                runOnUiThread(() -> events.success(downloadProgressEvent(
+                                        id, bytes, total, name, status)));
+                            }
                         };
                         streamListeners.put(taskId, listener);
                         TaskStreamHub.instance().subscribe(taskId, listener);
@@ -1148,6 +1154,16 @@ public class MainActivity extends FlutterActivity {
         m.put("taskId", taskId);
         m.put("type", type);
         m.put("text", text);
+        return m;
+    }
+
+    private static Map<String, Object> downloadProgressEvent(long taskId, long bytes,
+                                                               long total, String name,
+                                                               String status) {
+        Map<String, Object> m = streamEvent(taskId, "downloadProgress", name);
+        m.put("bytes", bytes);
+        m.put("total", total);
+        m.put("status", status);
         return m;
     }
 

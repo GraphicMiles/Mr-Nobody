@@ -93,6 +93,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
   /// A live stream is in flight (tokens may still arrive).
   bool _streaming = false;
 
+  Map<String, dynamic>? _downloadState;
+
   @override
   void initState() {
     super.initState();
@@ -154,6 +156,17 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
         break;
       case 'done':
         _streaming = false;
+        break;
+      case 'downloadProgress':
+        setState(() {
+          _downloadState = {
+            'name': map['text'] as String? ?? 'download',
+            'bytes': (map['bytes'] as num?)?.toInt() ?? 0,
+            'total': (map['total'] as num?)?.toInt() ?? -1,
+            'status': map['status'] as String? ?? 'RUNNING',
+          };
+        });
+        _autoScroll();
         break;
       case 'error':
         _streaming = false;
@@ -781,6 +794,10 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Working: loader on top, trace filling beneath it.
+                        if (_downloadState != null) ...[
+                          _downloadProgressView(_downloadState!),
+                          const SizedBox(height: 8),
+                        ],
                         if (_isWorking) ...[
                           AgentWorkingLine(
                               label: _activeLabel(timeline), since: _startedAt),
@@ -880,6 +897,38 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  String _bar(int filled) => '${List.filled(filled, '█').join()}${List.filled(20 - filled, '░').join()}';
+
+  /// Expanded while bytes are moving; completed/failed downloads collapse to
+  /// one compact status row so the answer remains the focus of the chat.
+  Widget _downloadProgressView(Map<String, dynamic> data) {
+    final name = data['name'] as String? ?? 'download';
+    final bytes = (data['bytes'] as num?)?.toInt() ?? 0;
+    final total = (data['total'] as num?)?.toInt() ?? -1;
+    final status = data['status'] as String? ?? 'RUNNING';
+    final active = status == 'RUNNING' || status == 'QUEUED';
+    final pct = total > 0 ? (bytes / total).clamp(0.0, 1.0) : null;
+    final label = total > 0
+        ? '${(bytes / 1048576).toStringAsFixed(1)} / ${(total / 1048576).toStringAsFixed(1)} MB'
+        : '${(bytes / 1048576).toStringAsFixed(1)} MB';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.line)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(active ? Icons.download_outlined : (status == 'COMPLETED' ? Icons.check_circle_outline : Icons.error_outline), size: 14, color: active ? AppColors.accent : AppColors.textMuted),
+          const SizedBox(width: 7),
+          Expanded(child: Text(active ? 'Downloading $name' : '${status.toLowerCase()} · $name', maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTheme.sans(size: 11.5, color: AppColors.textDim, w: FontWeight.w600))),
+          Text(active && pct != null ? '${(pct * 100).round()}%' : label, style: AppTheme.mono(size: 10, color: AppColors.textMuted)),
+        ]),
+        if (active) ...[
+          const SizedBox(height: 6),
+          Text(pct == null ? '[${_bar(0)}]  calculating' : '[${_bar((pct * 20).round())}]  $label', style: AppTheme.mono(size: 9.5, color: AppColors.textMuted)),
+        ],
+      ]),
     );
   }
 
