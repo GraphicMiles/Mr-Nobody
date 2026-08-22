@@ -77,7 +77,7 @@ void main() {
     expect(
         IntentRouter.toUrl('titan mail',
             searchEngine: 'https://www.google.com/search?q='),
-        'https://www.google.com/search?q=titan+mail');
+        'https://www.google.com/search?q=titan%20mail');
     expect(
         IntentRouter.toUrl('titan', searchEngine: 'https://www.bing.com/search?q='),
         'https://www.bing.com/search?q=titan');
