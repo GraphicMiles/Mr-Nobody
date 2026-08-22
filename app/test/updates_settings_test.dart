@@ -93,6 +93,14 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    // The App section sits below the initial fold and ListView builds
+    // children lazily — scroll the row into view before asserting on it.
+    await tester.scrollUntilVisible(
+      find.text('Updates'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
+
     expect(find.text('Updates'), findsOneWidget);
     expect(find.text('v1.1.0'), findsOneWidget,
         reason: 'a newer published version must show in the row');
@@ -152,6 +160,13 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    // Below the initial fold; scroll it into view first.
+    await tester.scrollUntilVisible(
+      find.text('Updates'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
+
     expect(find.text('Updates'), findsOneWidget);
     expect(find.text('Up to date'), findsOneWidget);
     expect(find.text('v1.0.0'), findsNothing,
@@ -179,6 +194,13 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
     await tester.pump();
     await tester.pump();
+
+    // Below the initial fold; scroll it into view first.
+    await tester.scrollUntilVisible(
+      find.text('Updates'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
 
     expect(find.text('—'), findsOneWidget,
         reason: 'no check has completed, so no version is claimed');
