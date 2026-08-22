@@ -480,7 +480,15 @@ public final class DeterministicEngine implements AgentEngine {
                     r.results = r.skill.filter(r.results);
                     r.latestVideo = LatestVideoSkill.find(asked, r.results);
                     task.setArtifacts(TaskArtifact.encode(TaskArtifact.fromSearch(r.results)));
-                    if (r.results.isEmpty()) {
+                    if (r.results.isEmpty() && r.namedUrl == null) {
+                        // A web search with no results is normally fatal: there
+                        // is nothing to read. But when the user named a specific
+                        // URL, that page is the source of truth regardless of
+                        // what a search happens to return — the search is only a
+                        // supplement. Skipping the named page because some search
+                        // engine came back empty was the bug that made "download
+                        // …/film.mkv.html" fail before the landing page was ever
+                        // read and its real file link resolved.
                         fail(task, ToolResult.fail(r.skill.isGeneric()
                                 ? "The search returned nothing to read, so there is nothing to answer from."
                                 : r.skill.emptyMessage()));

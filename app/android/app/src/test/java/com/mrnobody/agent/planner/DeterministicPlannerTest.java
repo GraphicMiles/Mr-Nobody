@@ -57,11 +57,32 @@ public class DeterministicPlannerTest {
 
     @Test
     public void aDownloadInstructionPlansASingleAction() {
-        Plan plan = planner.plan("download the report.pdf from example.com", TOOLS);
+        // A real file URL is a direct action: fetch that one file.
+        Plan plan = planner.plan(
+                "download https://example.test/report.pdf", TOOLS);
 
         assertEquals(1, plan.size());
         assertToolStep(plan.steps().get(0), Task.STEP_ACT, "download");
         assertNotNull("the action step must carry its arguments", plan.steps().get(0).request);
+        assertEquals("https://example.test/report.pdf",
+                plan.steps().get(0).request.param("url"));
+    }
+
+    @Test
+    public void aLandingPageUrlPlansResolveNotADirectFetch() {
+        // "…/Silo.S03E01.(THENKIRI.COM).mkv.html" is a page that *contains* ".mkv"
+        // but returns HTML. It must not be fetched as a file; the plan has to
+        // read it and resolve the real file link. (Regression: the agent saved
+        // the HTML page as the download.)
+        Plan plan = planner.plan(
+                "download https://downloadwella.com/x/Silo.S03E01.(THENKIRI.COM).mkv.html",
+                TOOLS);
+
+        assertFalse("a landing page must not be a single direct download",
+                plan.size() == 1 && Task.STEP_ACT.equals(plan.steps().get(0).label));
+        assertTrue("a landing page download plans a resolve step",
+                plan.steps().stream().anyMatch(
+                        s -> Task.STEP_RESOLVE_DOWNLOAD.equals(s.label)));
     }
 
     @Test

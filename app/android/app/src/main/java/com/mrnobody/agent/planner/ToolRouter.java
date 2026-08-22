@@ -47,15 +47,6 @@ public final class ToolRouter {
             "download", "save", "grab", "fetch the file", "get the file"
     };
 
-    /** Things a user is plausibly asking to download rather than read. */
-    private static final String[] FILE_HINTS = {
-            ".mkv", ".mp4", ".avi", ".mov", ".webm", ".mp3", ".m4a", ".flac",
-            ".zip", ".rar", ".7z", ".tar", ".gz", ".iso", ".apk", ".pdf",
-            ".epub", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".csv",
-            ".txt", ".json", ".xml", ".jpg", ".jpeg", ".png", ".gif", ".webp",
-            ".bmp", ".svg", ".heic"
-    };
-
     private ToolRouter() {
     }
 
@@ -93,12 +84,24 @@ public final class ToolRouter {
     private static Route routeTerminal(String text, String lower, Collection<String> available) {
         if (!has(available, "terminal")) return null;
         for (String needle : TERMINAL_VERBS) {
-            if (lower.contains(needle)) {
+            // Whole-word match, never a substring: "download the report.pdf"
+            // must not route to the terminal merely because "repo" sits inside
+            // "report". The shell verbs are matched on token boundaries.
+            if (containsWholeWord(lower, needle)) {
                 return new Route("terminal", ToolRequest.of("terminal", "cmd", text),
                         "the instruction asks for a shell/toolchain command");
             }
         }
         return null;
+    }
+
+    /** True when {@code haystack} contains {@code needle} as a whole word. */
+    private static boolean containsWholeWord(String haystack, String needle) {
+        if (needle == null || needle.trim().isEmpty()) return false;
+        String n = needle.trim();
+        // A phrase ("push to", "git clone") still needs its own spaces.
+        return haystack.matches(".*(^|\\s)" + java.util.regex.Pattern.quote(n)
+                + "(\\s|$).*");
     }
 
     /** Tokens that name shell/toolchain work rather than a web question. */
@@ -128,11 +131,16 @@ public final class ToolRouter {
         String url = firstUrl(text);
         if (url == null) return null;
 
-        // "download the report from example.com" names a site, not a file. The
-        // cascade has to read the page and find the link, so routing straight
-        // to the downloader would fetch the HTML and call it a file.
-        if (!looksLikeAFile(url) && !mentionsAny(lower, FILE_HINTS)) return null;
-
+        // A URL is only a *direct* file download when it is genuinely a file
+        // endpoint. A landing page carries a file name in its path ("…/film.mkv.html")
+        // but returns HTML, so it must be read and its real link resolved before
+        // anything is fetched. Deciding on the whole instruction text here was
+        // the bug: "download …mkv.html" contains ".mkv", so it was fetched as a
+        // file and the agent saved the page. DownloadLinkResolver.isDownloadable
+        // is the authoritative classifier (it rejects .html/.php page URLs).
+        if (!com.mrnobody.agent.util.DownloadLinkResolver.isDownloadable(url)) {
+            return null;
+        }
         return new Route("download", ToolRequest.of("download", "url", url),
                 "the instruction names a file to download");
     }
@@ -166,19 +174,6 @@ public final class ToolRouter {
         int end = s.length();
         while (end > 0 && ".,;:!?)]}".indexOf(s.charAt(end - 1)) >= 0) end--;
         return s.substring(0, end);
-    }
-
-    /** True when the URL's path ends in something that is plainly a file. */
-    private static boolean looksLikeAFile(String url) {
-        String lower = url.toLowerCase(Locale.ROOT);
-        int q = lower.indexOf('?');
-        if (q >= 0) lower = lower.substring(0, q);
-        int h = lower.indexOf('#');
-        if (h >= 0) lower = lower.substring(0, h);
-        for (String ext : FILE_HINTS) {
-            if (lower.endsWith(ext)) return true;
-        }
-        return false;
     }
 
     private static boolean mentionsAny(String lower, String[] needles) {

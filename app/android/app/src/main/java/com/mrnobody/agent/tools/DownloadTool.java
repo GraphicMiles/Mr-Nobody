@@ -116,7 +116,26 @@ public final class DownloadTool implements Tool {
             if (!NetworkGate.canConnect()) {
                 return ToolResult.needsApproval("network", NetworkGate.blockedReason());
             }
-            NetworkTargetPolicy.requirePublic(url, NetworkGate.resolvesTargetsLocally());
+            // A public http(s) target is reachable; only non-public (private /
+            // local / LAN) and non-http(s) hosts are refused. This is what lets
+            // a user-chosen http:// file download instead of being refused for
+            // being cleartext — see the cleartext consent just below.
+            String targetProblem = NetworkTargetPolicy.publicHostReason(
+                    url, NetworkGate.resolvesTargetsLocally());
+            if (targetProblem != null) {
+                return ToolResult.fail("download: url refused: " + targetProblem);
+            }
+
+            // A plain http:// download is insecure transport. It is not silently
+            // fetched: the task parks WAITING and the chat shows a warning with
+            // Continue / Reject. Only an explicit user decision proceeds, and it
+            // is remembered for the session (the existing "allow downloads this
+            // session" override), so consent is not re-asked on every step.
+            String cleartext = DownloadRisk.cleartextReason(url);
+            if (cleartext != null && !downloadApprovedForSession()) {
+                return ToolResult.needsApproval("download", cleartext + "\n" + url);
+            }
+
             String name = DownloadNaming.fileName(url, null, null);
             DownloadRisk.Assessment initialRisk = DownloadRisk.assess(name, null, url);
             String referer = request.param("referer");
@@ -124,13 +143,32 @@ public final class DownloadTool implements Tool {
             String requestKey = execution == null ? null : execution.idempotencyKey();
             DownloadRecord record = engine.enqueue(url, name, null, BROWSER_UA,
                     referer == null || referer.isEmpty() ? null : referer,
-                    initialRisk.requiresConfirmation, requestKey);
+                    initialRisk.requiresConfirmation, cleartext != null, requestKey);
             DownloadRecord done = engine.awaitTerminal(record.id, WAIT_MS,
                     () -> cancellation != null && cancellation.isCancelled());
             if (done == null) done = record;
             return result(context, url, done);
         } catch (Exception e) {
             return ToolResult.fail("download failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * True once the user has allowed downloads for this app session. A cleartext
+     * download parks the task for a Continue/Reject; choosing Continue sets the
+     * session override (see {@code resolveApproval} in MainActivity), so the
+     * re-run proceeds over http without re-prompting. Defaults to false when the
+     * override store is unavailable.
+     */
+    private static boolean downloadApprovedForSession() {
+        try {
+            com.mrnobody.agent.policy.ApprovalPolicy.MapOverrides overrides =
+                    com.mrnobody.browser.MrNobodyApp.approvalOverrides();
+            return overrides != null
+                    && overrides.forTool("download")
+                            == com.mrnobody.agent.policy.ApprovalPolicy.Rule.ALWAYS_ALLOW;
+        } catch (Throwable t) {
+            return false;
         }
     }
 
