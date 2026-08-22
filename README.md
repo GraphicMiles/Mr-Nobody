@@ -100,8 +100,8 @@ Current automated coverage:
 - Strict Flutter analysis
 - Android Gradle unit tests
 - Filter integrity checks
-- Signed ABI-specific APK builds
-- APK signature and 45 MiB size gates
+- Signed universal APK build
+- APK signature verification and 80 MiB size gate
 
 Important runtime paths still require physical-device verification. A successful unit test or emulator run does not prove Android Keystore behavior, OEM battery restrictions, System WebView capabilities, Tor routing, Storage Access Framework providers, or process-death behavior on every phone.
 
@@ -291,14 +291,17 @@ export MRNOBODY_KEY_PASSWORD='...'
 
 cd app
 flutter pub get
-flutter build apk --release --split-per-abi
+flutter build apk --release
 ```
 
-Outputs are written under:
+One universal APK is written to:
 
 ```text
-app/build/app/outputs/flutter-apk/
+app/build/app/outputs/flutter-apk/app-release.apk
 ```
+
+It contains all three native ABIs (arm64-v8a, armeabi-v7a, x86_64), so a
+single artifact installs on any device.
 
 CI uses a public test-only signing key so test APKs can upgrade in place. That key must never sign a production release.
 

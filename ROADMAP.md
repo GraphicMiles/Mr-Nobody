@@ -17,9 +17,9 @@ The main branch is green in GitHub Actions.
 | Repository privacy audit | Clean |
 | Filter digest check | Passed |
 | Android Gradle unit tests | Passed |
-| Signed ABI APK build | Passed |
+| Signed universal APK build | Passed |
 | APK signature verification | Passed |
-| 45 MiB per-ABI size gate | Passed |
+| 80 MiB universal size gate | Passed |
 | Hosted Android emulator workflow | Manual dispatch; last complete API 31/34 run passed |
 | Broad physical-device matrix | Incomplete |
 
@@ -249,7 +249,7 @@ Build a service with:
 - Measure startup time without adding startup network activity (the update metadata check is the one approved small exception).
 - Measure two-lane task CPU, memory, battery, and data use.
 - Measure headless WebView lifecycle and cleanup.
-- Keep APKs below the current per-ABI size limit.
+- Keep the universal APK below the current 80 MiB size limit.
 - Avoid retaining page bodies or image previews longer than the task needs them.
 
 ### Polish acceptance criteria
