@@ -61,6 +61,16 @@ That allows the app to provide:
 - Recovery after process death.
 - Consistent behavior for browser-initiated and agent-initiated downloads.
 
+### Updates
+
+- On launch (and when the last check is more than six hours old) the app quietly checks a small release-metadata endpoint, through the normal `NetworkGate` egress.
+- The endpoint serves metadata only: latest version, release notes, download URL, optional/required flag, sha256 and signature. It never serves code and the app never auto-downloads or executes anything from it.
+- When a newer release is published, Settings → App → Updates shows the version, short release notes, whether the update is optional or required, and the integrity data.
+- "Remind me later" suppresses that release; a newer one reappears.
+- The last successful check is cached, so an offline launch shows the last known state and an unreachable server never blocks browsing.
+- Updating is a user choice: the app hands the signed release to the user, and installation goes through Android's package installer, which verifies the signature itself.
+- The endpoint is the zero-dependency service in `server/` (Render blueprint included); `tools/publish_update.py` rewrites `website/update.json` when cutting a release.
+
 ### Interface polish
 
 - Classic dark and Warm cream themes repaint the complete shell immediately.
@@ -98,6 +108,10 @@ Important runtime paths still require physical-device verification. A successful
 See [ROADMAP.md](ROADMAP.md) for current priorities and acceptance work. Historical implementation notes are kept in `SESSION-LOG.txt`.
 
 ## What is not finished
+
+### Update distribution
+
+The update-check flow is implemented end-to-end in the app (quiet startup check, caching, offline fallback, Settings badge, dismissal, metadata-only contract). What remains is distribution: the `server/` service still needs deploying to Render and `UpdateChecker.UPDATE_URL` pointed at the live host; the signed APK is not yet publicly hosted, so a real release (with computed sha256 and signing metadata) will be cut with `tools/publish_update.py` once hosting is decided.
 
 ### Remote worker server
 

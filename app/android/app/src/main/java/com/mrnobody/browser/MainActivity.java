@@ -28,6 +28,7 @@ import com.mrnobody.agent.mcp.CanvaMcpDesignAdapter;
 import com.mrnobody.browser.net.EngineInfo;
 import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
+import com.mrnobody.browser.update.UpdateChecker;
 import com.mrnobody.debug.Diagnostics;
 import com.mrnobody.debug.ErrorLog;
 import com.mrnobody.debug.SecurityDiagnostics;
@@ -37,6 +38,8 @@ import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.DocumentsContract;
 import android.webkit.CookieManager;
 import android.webkit.WebStorage;
@@ -599,6 +602,33 @@ public class MainActivity extends FlutterActivity {
                             m.put("blocking", MrNobodyApp.settings().isBlockingEnabled());
                             m.put("paramStripping", MrNobodyApp.settings().isParamStrippingEnabled());
                             result.success(m);
+                            return;
+                        }
+                        case "updateStatus": {
+                            // Cache only — offline-safe and instant. The
+                            // quiet network check is a separate call.
+                            result.success(
+                                    UpdateChecker.cachedStatus(MainActivity.this));
+                            return;
+                        }
+                        case "updateCheck": {
+                            // One quiet round-trip on the shared executor.
+                            // Failure falls back to the last cached check;
+                            // the UI is never blocked on the server.
+                            executor.execute(() -> {
+                                boolean ok = UpdateChecker.checkNow(MainActivity.this);
+                                Map<String, Object> m =
+                                        UpdateChecker.statusAfterCheck(MainActivity.this, ok);
+                                new Handler(Looper.getMainLooper())
+                                        .post(() -> result.success(m));
+                            });
+                            return;
+                        }
+                        case "updateDismiss": {
+                            String version = call.argument("version");
+                            UpdateChecker.dismiss(MainActivity.this, version);
+                            result.success(
+                                    UpdateChecker.cachedStatus(MainActivity.this));
                             return;
                         }
                         case "taskEvents": {

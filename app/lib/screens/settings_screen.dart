@@ -201,6 +201,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 controller: widget.scrollController,
                 padding: const EdgeInsets.only(bottom: 120),
                 children: [
+                  // A required release keeps nudging from here — persistently,
+                  // but never by blocking the app (there is no Play Store to
+                  // force an install; the choice stays the user's).
+                  _requiredUpdateBanner(),
                   const SectionLabel('Browsing'),
                   AppCard(
                     child: Column(
@@ -333,6 +337,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           detail: 'Additional design-platform integrations are '
                               'planned after Canva.',
                           icon: Icons.design_services_outlined,
+                        ),
+                      ]),
+                    ),
+                  ),
+                  const SectionLabel('App'),
+                  AppCard(
+                    child: Column(
+                      children: withDividers([
+                        Builder(
+                          builder: (rowContext) => SettingRow(
+                            label: 'Updates',
+                            value: _updatesValue,
+                            valueOn: _state.updates.showBadge,
+                            trailing: _state.updates.showBadge
+                                ? _UpdateBadge(required: _state.updates.required)
+                                : null,
+                            onTap: _openUpdates,
+                          ),
                         ),
                       ]),
                     ),
@@ -885,4 +907,316 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => AboutScreen(onOpenUrl: widget.onOpenUrl),
     ));
   }
+
+  // ------------------------------------------------------- update notifications
+
+  String get _updatesValue {
+    final u = _state.updates;
+    if (u.showBadge) return 'v${u.latestVersion}';
+    if (u.hasChecked) return 'Up to date';
+    return '—';
+  }
+
+  /// The persistent nudge for a required release. Returns nothing for an
+  /// optional or dismissed update — those live quietly in the row.
+  Widget? _requiredUpdateBanner() {
+    final u = _state.updates;
+    if (!(u.updateAvailable && !u.dismissed && u.required)) return null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.warning.withOpacity(0.12),
+            border: Border.all(color: AppColors.warning.withOpacity(0.55)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.campaign_outlined,
+                  size: 18, color: AppColors.warning),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Required update v${u.latestVersion} available',
+                  style: AppTheme.sans(
+                      size: 12.5, color: AppColors.warningInk, w: FontWeight.w600),
+                ),
+              ),
+              TextButton(
+                onPressed: _openUpdates,
+                child: Text('View',
+                    style: AppTheme.sans(
+                        size: 12.5,
+                        color: AppColors.warningInk,
+                        w: FontWeight.w700)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openUpdates() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.overlay,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _UpdateSheet(onOpenUrl: widget.onOpenUrl),
+    );
+  }
+}
+
+/// The dot next to the Updates row: accent for an optional release,
+/// warning colour when the release is required.
+class _UpdateBadge extends StatelessWidget {
+  final bool required;
+  const _UpdateBadge({super.key, required this.required});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 8,
+      height: 8,
+      margin: const EdgeInsets.only(right: 10),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: required ? AppColors.warning : AppColors.accent,
+      ),
+    );
+  }
+}
+
+/// How long ago an epoch-millis timestamp was, in the calm register the rest
+/// of the settings screen uses.
+String _relativeTime(int epochMillis) {
+  if (epochMillis <= 0) return 'never';
+  final age =
+      DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(epochMillis));
+  if (age.inSeconds < 60) return 'just now';
+  if (age.inMinutes < 60) return '${age.inMinutes} min ago';
+  if (age.inHours < 24) return '${age.inHours} h ago';
+  return '${age.inDays} d ago';
+}
+
+/// The update detail sheet: what changed, whether it is optional or required,
+/// the integrity data, and the two choices the user actually has.
+///
+/// Reads live from [AppState] so a "check again" or a dismissal repaints it
+/// without the caller re-pushing anything.
+class _UpdateSheet extends StatefulWidget {
+  final void Function(String url)? onOpenUrl;
+  const _UpdateSheet({super.key, this.onOpenUrl});
+
+  @override
+  State<_UpdateSheet> createState() => _UpdateSheetState();
+}
+
+class _UpdateSheetState extends State<_UpdateSheet> {
+  bool _busy = false;
+
+  Future<void> _checkNow() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await AppState.instance.checkUpdatesNow();
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _dismiss() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await AppState.instance.dismissUpdate();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    Navigator.of(context).pop();
+  }
+
+  void _update() {
+    final u = AppState.instance.updates;
+    if (u.downloadUrl.isEmpty) {
+      AppToast.show(context, 'No download link in the release metadata yet.');
+      return;
+    }
+    // Hands the signed release to the user through the app's own browser:
+    // the download and the install are the system's job, with its own
+    // signature verification. Nothing is fetched or run behind their back.
+    widget.onOpenUrl?.call(u.downloadUrl);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AppState.instance,
+      builder: (context, _) {
+        final u = AppState.instance.updates;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Updates',
+                style: AppTheme.sans(
+                    size: 17,
+                    color: AppColors.overlayInk,
+                    w: FontWeight.w700),
+              ),
+              const SizedBox(height: 14),
+              if (u.showBadge) ...[
+                Row(
+                  children: [
+                    Text('v${u.latestVersion}',
+                        style: AppTheme.mono(
+                            size: 16,
+                            color: AppColors.overlayInk,
+                            w: FontWeight.w700)),
+                    const SizedBox(width: 10),
+                    _chip(
+                      u.required ? 'Required' : 'Optional',
+                      u.required ? AppColors.warning : AppColors.accent,
+                    ),
+                  ],
+                ),
+                if (u.installedVersion.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Installed: v${u.installedVersion}',
+                      style: AppTheme.mono(
+                          size: 11, color: AppColors.overlayMuted),
+                    ),
+                  ),
+                if (u.releaseNotes.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    u.releaseNotes,
+                    style: AppTheme.sans(
+                        size: 13.5,
+                        color: AppColors.overlayMuted,
+                        w: FontWeight.w400,
+                        height: 1.5),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                _metaLine(context, u),
+                if (u.sha256.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'sha256  ${u.sha256.substring(0, 16)}…',
+                      style: AppTheme.mono(
+                          size: 10.5, color: AppColors.overlayFaint),
+                    ),
+                  ),
+                const SizedBox(height: 18),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.overlayInk,
+                    foregroundColor: AppColors.overlay,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                  onPressed: _busy ? null : _update,
+                  child: const Text('Update'),
+                ),
+                TextButton(
+                  onPressed: _busy ? null : _dismiss,
+                  child: Text(
+                    'Remind me later',
+                    style: AppTheme.sans(
+                        size: 13,
+                        color: AppColors.overlayMuted,
+                        w: FontWeight.w600),
+                  ),
+                ),
+              ] else if (u.hasChecked) ...[
+                Row(
+                  children: [
+                    Text(
+                      u.installedVersion.isEmpty
+                          ? 'Up to date'
+                          : 'v${u.installedVersion} — up to date',
+                      style: AppTheme.sans(
+                          size: 14,
+                          color: AppColors.overlayInk,
+                          w: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.check_circle,
+                        size: 16, color: AppColors.success),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _metaLine(context, u),
+                const SizedBox(height: 18),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.overlayInk,
+                    foregroundColor: AppColors.overlay,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                  onPressed: _busy ? null : _checkNow,
+                  child: Text(_busy ? 'Checking…' : 'Check again'),
+                ),
+              ] else ...[
+                Text(
+                  u.networkFailed
+                      ? 'The update server could not be reached, so nothing has been checked yet. Normal browsing is unaffected.'
+                      : 'No update check has completed yet.',
+                  style: AppTheme.sans(
+                      size: 13.5,
+                      color: AppColors.overlayMuted,
+                      w: FontWeight.w400,
+                      height: 1.5),
+                ),
+                const SizedBox(height: 18),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.overlayInk,
+                    foregroundColor: AppColors.overlay,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                  onPressed: _busy ? null : _checkNow,
+                  child: Text(_busy ? 'Checking…' : 'Check for updates'),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _metaLine(BuildContext context, UpdateStatus u) {
+    final bits = <String>[];
+    if (u.publishedAt.isNotEmpty) bits.add('published ${u.publishedAt}');
+    bits.add('checked ${_relativeTime(u.lastCheckedAt)}');
+    if (u.networkFailed && u.hasChecked) bits.add('server unreachable');
+    return Text(
+      bits.join('  ·  '),
+      style: AppTheme.mono(size: 10.5, color: AppColors.overlayFaint),
+    );
+  }
+}
+
+Widget _chip(String label, Color color) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      border: Border.all(color: color),
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      label.toUpperCase(),
+      style: AppTheme.mono(size: 9.5, color: color, w: FontWeight.w700),
+    ),
+  );
 }

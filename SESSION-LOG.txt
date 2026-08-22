@@ -667,3 +667,90 @@ and non-repetition, reduced-motion behavior, hidden-destination ticker pause,
 the lower 190px hero, and same-frame bottom-nav repaint without changing tabs.
 The complete Flutter suite now passes 174 tests with intentional updated Home
 and corrected Warm cream screen goldens.
+
+---
+
+## 2026-08-22 — Batch: server-backed update notifications (metadata-only)
+
+**Scope (owner-approved):** the update-notification system from the brief —
+quiet startup check, Settings badge, cached/offline behavior, dismissal,
+metadata-only contract. Landing page and `website/update.json` schema had
+already landed; the app side and the service were not started.
+
+### What shipped
+
+1. **Update service (`server/`)** — zero-dependency Python stdlib service,
+   deployable to Render via the included blueprint (`render.yaml`).
+   Serves the landing page, `/update.json` (the app's endpoint,
+   `Cache-Control: no-cache`), `/health`, and the other `website/` statics.
+   Path traversal rejected; every mutating method refused; 1 MiB body cap.
+   `website/update.json` is the single source of truth for both the
+   landing page's metadata card and the app.
+2. **Release helper (`tools/publish_update.py`)** — validates the version,
+   computes the APK sha256, stamps publishedAt, rewrites
+   `website/update.json`. Refuses non-https URLs and malformed versions.
+   Signing metadata stays a documented placeholder until apksigner digests
+   are settled.
+3. **Java core (`browser/update/`)** — `UpdateInfo` (paranoid payload
+   parsing: semver, https-only download URL, well-formed checksums — a
+   placeholder sha256 is rejected, not displayed), `UpdateStatus` (pure
+   status computation, no Android imports), `UpdateChecker` (NetworkGate
+   round-trip with 5 s/6 s timeouts, 64 KB cap, last-successful-check
+   caching, per-version dismissal). Three new MethodChannel methods:
+   `updateStatus` (instant, offline-safe), `updateCheck` (one quiet
+   round-trip on the existing single-thread executor; failure returns the
+   cache flagged `networkFailed`), `updateDismiss`.
+4. **Flutter** — `UpdateStatus` model in `AppState`; the quiet kickoff
+   check runs once per session from `load()` and is never on the critical
+   path; a stale (>6 h) check is repeated when the app resumes.
+   Settings gained an "App" section: an Updates row with a badge (accent
+   dot for optional, warning dot + persistent banner for required — nudge
+   only, the app never blocks), and a detail sheet with version,
+   optional/required chip, release notes, publish/check times, truncated
+   sha256, "Update" (hands the download URL to the app's browser; the
+   install stays Android's signed job) and "Remind me later".
+5. **Docs** — README "Updates" section + "Update distribution" under
+   what-is-not-finished; ROADMAP built-list, Priority 3 "Updates
+   distribution" work, and the startup-request exception noted.
+
+### Why it is built this way
+
+The brief's security constraint is the shape of the system: the server is
+metadata, not code. There is no auto-download, no silent install, and
+nothing that could execute remote bytes. The check goes through
+`NetworkGate`, so in Nobody mode it rides the same privacy route as
+everything else and fails closed with the route. "Required" is a
+persistent nudge, not a gate: a plain signed APK outside the Play Store
+cannot be force-installed, and locking users out would break the product.
+
+### How it is proven
+
+- JVM: 18 new tests — `UpdateInfoTest` (parsing, https enforcement,
+  placeholder-sha rejection, numeric version ordering incl. 1.10.0 > 1.9.9)
+  and `UpdateStatusTest` (badge, dismissal for-that-version-only,
+  offline fallback, malformed cache). Ran green locally against the same
+  junit/json versions as the gradle build.
+- Server: run locally and probed — health, update.json (body + no-cache),
+  landing page, HEAD (headers, no body), traversal (raw + encoded), POST/
+  PUT/DELETE refusal, 404. `tools/publish_update.py` verified: sha256
+  matches `sha256sum`, bad version and http URL refused, `--required`
+  honored.
+- Flutter: `app/test/updates_settings_test.dart` pins the channel contract
+  (badge appears only for a newer non-dismissed version; dismiss calls the
+  core with exactly that version and clears the badge; up-to-date and
+  never-checked states). Runs in CI with the rest of the Flutter suite.
+
+### What the owner should retest / do next
+
+- Deploy `server/` to Render, then set `UpdateChecker.UPDATE_URL` to the
+  live host (one line, clearly marked in the file).
+- Decide APK hosting; cut the first real release with
+  `tools/publish_update.py` (real sha256, then fill `signature` with the
+  apksigner cert digest).
+- Device pass: badge on a real launch, "remind me later" survives a
+  restart, airplane-mode launch shows the cached state, Nobody-mode check
+  rides Tor.
+- The landing page's "Download APK" button points at
+  `downloads/mr-nobody-latest.apk`, which does not exist yet — it will
+  work the moment an APK is dropped in `website/downloads/` (the service
+  serves any static file under `website/`).

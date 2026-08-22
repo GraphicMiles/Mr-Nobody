@@ -30,6 +30,73 @@ class AiProviderOption {
   String get shortName => name.split(' ').first;
 }
 
+/// The latest release the update endpoint knows about, and what that means
+/// for this device.
+///
+/// A mirror of the map the Java core (`UpdateChecker`) returns — the core is
+/// the owner of the facts, and nothing in the UI invents a version.
+class UpdateStatus {
+  final String installedVersion;
+  final String latestVersion;
+  final bool updateAvailable;
+  final bool required;
+  final String releaseNotes;
+  final String downloadUrl;
+  final String sha256;
+  final String signature;
+  final String publishedAt;
+
+  /// Epoch millis of the last successful check; 0 = never checked.
+  final int lastCheckedAt;
+
+  /// Where the data came from: none | cache | network.
+  final String source;
+  final bool dismissed;
+  final bool networkFailed;
+
+  const UpdateStatus({
+    this.installedVersion = '',
+    this.latestVersion = '',
+    this.updateAvailable = false,
+    this.required = false,
+    this.releaseNotes = '',
+    this.downloadUrl = '',
+    this.sha256 = '',
+    this.signature = '',
+    this.publishedAt = '',
+    this.lastCheckedAt = 0,
+    this.source = 'none',
+    this.dismissed = false,
+    this.networkFailed = false,
+  });
+
+  static const UpdateStatus empty = UpdateStatus();
+
+  factory UpdateStatus.fromMap(Map<dynamic, dynamic> m) {
+    return UpdateStatus(
+      installedVersion: m['installedVersion'] as String? ?? '',
+      latestVersion: m['latestVersion'] as String? ?? '',
+      updateAvailable: m['updateAvailable'] == true,
+      required: m['required'] == true,
+      releaseNotes: m['releaseNotes'] as String? ?? '',
+      downloadUrl: m['downloadUrl'] as String? ?? '',
+      sha256: m['sha256'] as String? ?? '',
+      signature: m['signature'] as String? ?? '',
+      publishedAt: m['publishedAt'] as String? ?? '',
+      lastCheckedAt: (m['lastCheckedAt'] as num?)?.toInt() ?? 0,
+      source: m['source'] as String? ?? 'none',
+      dismissed: m['dismissed'] == true,
+      networkFailed: m['networkFailed'] == true,
+    );
+  }
+
+  bool get hasChecked => source != 'none';
+
+  /// Whether the Settings badge should show right now: a newer version is
+  /// on offer and the user has not chosen "remind me later" for it.
+  bool get showBadge => updateAvailable && !dismissed;
+}
+
 /// User-facing settings, mirrored from the Java core (`Settings.java`) so every
 /// screen reads one source of truth and writes straight through to disk.
 ///
@@ -56,6 +123,11 @@ class AppState extends ChangeNotifier {
   String resourcePolicy = 'OFF';
   String themeId = 'classic';
   bool loaded = false;
+
+  /// What the update endpoint last said, plus the local comparison.
+  /// Filled by the quiet startup check; cached by the core, so an offline
+  /// launch still shows the last known state.
+  UpdateStatus updates = UpdateStatus.empty;
 
   static const profiles = ['BALANCED', 'STRICT', 'MAXIMUM'];
   static const privacyModes = ['NORMAL', 'PRIVATE', 'NOBODY'];
@@ -127,6 +199,10 @@ class AppState extends ChangeNotifier {
     } finally {
       loaded = true;
       notifyListeners();
+      // One quiet update check per session — never on the critical path.
+      // The badge appears when the check answers; browsing proceeds
+      // whatever the server says.
+      maybeKickoffUpdateCheck();
     }
   }
 
@@ -255,6 +331,67 @@ class AppState extends ChangeNotifier {
       ErrorLog.instance.add('could not revalidate route: $e');
       return null;
     }
+  }
+
+  // ------------------------------------------------- update notifications
+
+  static const Duration updateCheckStaleAfter = Duration(hours: 6);
+  bool _updateKickoffDone = false;
+  bool _updateChecking = false;
+
+  /// The quiet launch check, once per session. Never blocks, never throws:
+  /// if the core is unreachable the last cached value simply stands.
+  void maybeKickoffUpdateCheck() {
+    if (_updateKickoffDone) return;
+    _updateKickoffDone = true;
+    unawaited(checkUpdatesNow());
+  }
+
+  /// A single round-trip against the update endpoint. The core falls back
+  /// to its cache when the server does not answer (the map is then flagged
+  /// networkFailed); a guard-null means the core itself is unreachable, in
+  /// which case whatever we already know stands.
+  Future<bool> checkUpdatesNow() async {
+    if (_updateChecking) return false;
+    _updateChecking = true;
+    try {
+      final m = await NativeBridge.guard(
+        NativeBridge.updateCheck,
+        null,
+        'update check unavailable',
+      );
+      if (m == null) return false;
+      updates = UpdateStatus.fromMap(m);
+      notifyListeners();
+      return true;
+    } finally {
+      _updateChecking = false;
+    }
+  }
+
+  /// "Remind me later": suppress the current release. A newer published
+  /// version reappears — the dismissal is for this version, not updates.
+  Future<void> dismissUpdate() async {
+    if (!updates.showBadge) return;
+    final m = await NativeBridge.guard(
+      () => NativeBridge.updateDismiss(updates.latestVersion),
+      null,
+      'dismiss update unavailable',
+    );
+    if (m == null) return;
+    updates = UpdateStatus.fromMap(m);
+    notifyListeners();
+  }
+
+  /// Called when the app returns to the foreground. "Open Mr Nobody" also
+  /// means come back to it, so a check that is hours old is repeated quietly.
+  void checkUpdatesIfStale() {
+    final ts = updates.lastCheckedAt;
+    if (ts <= 0) return;
+    final age =
+        DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(ts));
+    if (age < updateCheckStaleAfter) return;
+    unawaited(checkUpdatesNow());
   }
 
   Future<void> _set(String key, Object value, VoidCallback apply) async {

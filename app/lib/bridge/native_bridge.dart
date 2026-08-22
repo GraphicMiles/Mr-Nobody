@@ -417,6 +417,30 @@ class NativeBridge {
         await _ch.invokeMethod('networkStatus') as Map);
   }
 
+  /// The cached update status — no network, so instant and offline-safe.
+  /// Fields: installedVersion, latestVersion, updateAvailable, required,
+  /// releaseNotes, downloadUrl, sha256, signature, publishedAt,
+  /// lastCheckedAt, source (none|cache|network), dismissed, networkFailed.
+  static Future<Map<String, dynamic>> updateStatus() async {
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('updateStatus') as Map);
+  }
+
+  /// One quiet check against the update endpoint. On failure (offline,
+  /// server down, malformed payload) the last cached check is returned,
+  /// flagged with networkFailed=true — browsing is never blocked on it.
+  static Future<Map<String, dynamic>> updateCheck() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('updateCheck') as Map);
+  }
+
+  /// "Remind me later" for [version]: suppresses the badge for exactly that
+  /// release. A newer published version reappears.
+  static Future<Map<String, dynamic>> updateDismiss(String version) async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('updateDismiss', {
+      'version': version,
+    }) as Map);
+  }
+
   /// Locally stored bookmarks.
   static Future<List<Map<String, dynamic>>> bookmarks() async {
     final r = await _ch.invokeMethod('bookmarks');

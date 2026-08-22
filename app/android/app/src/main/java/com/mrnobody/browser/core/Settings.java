@@ -43,6 +43,15 @@ public final class Settings {
     /** Ordered, explicitly consented remote-provider fallback ids. */
     public static final String KEY_AI_FALLBACK_PROVIDERS = "ai_fallback_providers";
     public static final String KEY_AI_FALLBACK_CONSENT = "ai_fallback_consent";
+    // Update notifications (V3): the app checks a release-metadata endpoint
+    // on launch. Only metadata is cached — version, notes, URL, checksum —
+    // never executable code. See browser/update/UpdateChecker.java.
+    /** Last successful check, as the raw JSON the server returned. */
+    public static final String KEY_UPDATE_LAST_CHECK = "update_last_check";
+    /** Epoch millis of the last successful check. 0 = never checked. */
+    public static final String KEY_UPDATE_LAST_CHECK_TS = "update_last_check_ts";
+    /** Version the user chose "remind me later" for. Reappears when a newer one is published. */
+    public static final String KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -352,6 +361,40 @@ public final class Settings {
                 .putString(KEY_AI_FALLBACK_PROVIDERS,
                         orderedIds == null ? "" : orderedIds.trim())
                 .putBoolean(KEY_AI_FALLBACK_CONSENT, consent)
+                .apply();
+    }
+
+    // --------------------------------------------------- update notifications
+
+    /**
+     * The last successful update check, verbatim. Kept as raw JSON so the
+     * check itself never has to rewrite fields it does not own, and so an
+     * offline launch can show exactly what was last known.
+     */
+    public String getLastUpdateCheck() {
+        return prefs.getString(KEY_UPDATE_LAST_CHECK, "");
+    }
+
+    public void setLastUpdateCheck(String json) {
+        prefs.edit().putString(KEY_UPDATE_LAST_CHECK, json == null ? "" : json).apply();
+    }
+
+    public long getLastUpdateCheckTs() {
+        return prefs.getLong(KEY_UPDATE_LAST_CHECK_TS, 0L);
+    }
+
+    public void setLastUpdateCheckTs(long ts) {
+        prefs.edit().putLong(KEY_UPDATE_LAST_CHECK_TS, ts).apply();
+    }
+
+    /** Which release the user dismissed with "remind me later". */
+    public String getDismissedUpdateVersion() {
+        return prefs.getString(KEY_UPDATE_DISMISSED_VERSION, "");
+    }
+
+    public void setDismissedUpdateVersion(String version) {
+        prefs.edit()
+                .putString(KEY_UPDATE_DISMISSED_VERSION, version == null ? "" : version)
                 .apply();
     }
 }
