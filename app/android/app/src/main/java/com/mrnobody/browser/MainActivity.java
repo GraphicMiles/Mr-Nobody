@@ -23,6 +23,8 @@ import com.mrnobody.agent.tasks.TaskEventDetail;
 import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.agent.tasks.TaskStreamHub;
 import com.mrnobody.agent.util.EndpointPolicy;
+import com.mrnobody.agent.mcp.CanvaMcpConfig;
+import com.mrnobody.agent.mcp.CanvaMcpDesignAdapter;
 import com.mrnobody.browser.net.EngineInfo;
 import com.mrnobody.browser.net.PrivacyController;
 import com.mrnobody.browser.net.PrivacyMode;
@@ -359,6 +361,7 @@ public class MainActivity extends FlutterActivity {
                             MrNobodyApp.taskEvents().clearAll();
                             MrNobodyApp.executionLedger().clearAll();
                             MrNobodyApp.asyncJobs().clearAll();
+                            MrNobodyApp.designSessions().clearAll();
                             result.success(true);
                             return;
                         }
@@ -701,6 +704,96 @@ public class MainActivity extends FlutterActivity {
                             result.success(null);
                             return;
                         }
+                        case "canvaMcpStatus": {
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("configured", CanvaMcpConfig.isBuildConfigured());
+                            m.put("connected", MrNobodyApp.canvaOAuth() != null
+                                    && MrNobodyApp.canvaOAuth().isConnected());
+                            m.put("endpoint", CanvaMcpConfig.ENDPOINT);
+                            m.put("redirectUri", CanvaMcpConfig.redirectUri());
+                            m.put("clientId", CanvaMcpConfig.clientId());
+                            m.put("error", MrNobodyApp.canvaOAuth() == null ? ""
+                                    : MrNobodyApp.canvaOAuth().lastError());
+                            result.success(m);
+                            return;
+                        }
+                        case "connectCanvaMcp": {
+                            try {
+                                String auth = MrNobodyApp.canvaOAuth().beginAuthorization();
+                                Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse(auth));
+                                startActivity(browser);
+                                result.success(true);
+                            } catch (Exception e) {
+                                result.error("canva_oauth",
+                                        e.getMessage() == null ? "Could not start Canva sign-in"
+                                                : e.getMessage(), null);
+                            }
+                            return;
+                        }
+                        case "disconnectCanvaMcp": {
+                            if (MrNobodyApp.canvaOAuth() != null) MrNobodyApp.canvaOAuth().disconnect();
+                            if (MrNobodyApp.designAdapter() instanceof CanvaMcpDesignAdapter) {
+                                ((CanvaMcpDesignAdapter) MrNobodyApp.designAdapter()).resetSession();
+                            }
+                            result.success(true);
+                            return;
+                        }
+                        case "canvaMcpCapabilitys": {
+                            executor.execute(() -> {
+                                List<Map<String, Object>> rows = new ArrayList<>();
+                                String error = "";
+                                try {
+                                    CanvaMcpDesignAdapter adapter =
+                                            (CanvaMcpDesignAdapter) MrNobodyApp.designAdapter();
+                                    for (com.mrnobody.agent.mcp.McpCapability tool
+                                            : adapter.discoveredTools(com.mrnobody.agent.core.Cancellation.NONE)) {
+                                        Map<String, Object> row = new HashMap<>();
+                                        row.put("name", tool.name);
+                                        row.put("description", tool.description);
+                                        rows.add(row);
+                                    }
+                                } catch (Exception e) {
+                                    error = e.getMessage() == null
+                                            ? e.getClass().getSimpleName() : e.getMessage();
+                                }
+                                final String finalError = error;
+                                runOnUiThread(() -> {
+                                    Map<String, Object> out = new HashMap<>();
+                                    out.put("tools", rows); out.put("error", finalError);
+                                    result.success(out);
+                                });
+                            });
+                            return;
+                        }
+                        case "providerFallback": {
+                            Map<String, Object> m = new HashMap<>();
+                            String raw = MrNobodyApp.settings().aiFallbackProviders();
+                            List<String> ids = new ArrayList<>();
+                            if (raw != null && !raw.trim().isEmpty()) {
+                                for (String id : raw.split(",")) {
+                                    if (!id.trim().isEmpty()) ids.add(id.trim());
+                                }
+                            }
+                            m.put("providers", ids);
+                            m.put("consent", MrNobodyApp.settings().hasAiFallbackConsent());
+                            result.success(m);
+                            return;
+                        }
+                        case "setProviderFallback": {
+                            List<String> requested = call.argument("providers");
+                            Boolean consent = call.argument("consent");
+                            java.util.LinkedHashSet<String> safe = new java.util.LinkedHashSet<>();
+                            if (requested != null) {
+                                for (String id : requested) {
+                                    if (id != null && !"local".equals(id)
+                                            && MrNobodyApp.PROVIDER_IDS.contains(id)) safe.add(id);
+                                }
+                            }
+                            MrNobodyApp.settings().setAiFallbackProviders(
+                                    String.join(",", safe), Boolean.TRUE.equals(consent));
+                            result.success(true);
+                            return;
+                        }
                         case "providerConfig": {
                             String id = call.argument("id");
                             if (id == null) id = "local";
@@ -811,6 +904,13 @@ public class MainActivity extends FlutterActivity {
                             Task pending = MrNobodyApp.tasks().get(id);
                             if (pending == null) {
                                 result.success(false);
+                                return;
+                            }
+                            // External cancellation may perform network I/O and
+                            // must confirm the remote outcome before this task
+                            // is labelled CANCELLED.
+                            if (pending.status() == Task.Status.WAITING_EXTERNAL) {
+                                cancelExternalTask(pending, result);
                                 return;
                             }
                             // The request is persisted either way: a worker may
@@ -925,6 +1025,7 @@ public class MainActivity extends FlutterActivity {
                                 MrNobodyApp.taskEvents().clearAll();
                                 MrNobodyApp.executionLedger().clearAll();
                                 MrNobodyApp.asyncJobs().clearAll();
+                                MrNobodyApp.designSessions().clearAll();
                                 runOnUiThread(() -> result.success(null));
                             });
                             return;
@@ -988,7 +1089,8 @@ public class MainActivity extends FlutterActivity {
         if (!initialIntentCaptured) {
             initialIntentCaptured = true;
             String initial = viewUri(getIntent());
-            if (pendingDeepLink == null && initial != null) pendingDeepLink = initial;
+            if (initial != null && !consumeCanvaCallback(initial)
+                    && pendingDeepLink == null) pendingDeepLink = initial;
         }
         deeplinkChannel.setMethodCallHandler((call, result) -> {
             if (!"getInitialLink".equals(call.method)) {
@@ -1237,6 +1339,8 @@ public class MainActivity extends FlutterActivity {
         m.put("error", t.error() == null ? "" : t.error());
         m.put("worker", t.worker() == null ? "local" : t.worker());
         m.put("runId", t.runId());
+        m.put("providerSnapshot", t.providerSnapshot());
+        m.put("executionPlatform", t.executionPlatform());
         m.put("createdAt", t.createdAt());
         m.put("updatedAt", t.updatedAt());
         m.put("artifacts", t.artifacts() == null ? "" : t.artifacts());
@@ -1246,6 +1350,36 @@ public class MainActivity extends FlutterActivity {
             m.put("pendingTool", "");
         }
         return m;
+    }
+
+    /** Cancel every external job off-main and publish only a known outcome. */
+    private void cancelExternalTask(Task task, MethodChannel.Result result) {
+        executor.execute(() -> {
+            boolean known = true;
+            for (com.mrnobody.agent.jobs.AsyncJob job
+                    : MrNobodyApp.asyncJobs().jobsForTask(task.id())) {
+                com.mrnobody.agent.jobs.AsyncJobAdapter adapter =
+                        MrNobodyApp.asyncJobAdapters().get(job.adapterId);
+                com.mrnobody.agent.jobs.AsyncJob cancelled =
+                        MrNobodyApp.asyncJobCoordinator().cancel(
+                                getApplicationContext(), adapter, job,
+                                com.mrnobody.agent.core.Cancellation.NONE);
+                if (cancelled == null
+                        || cancelled.status == com.mrnobody.agent.jobs.AsyncJob.Status.UNKNOWN) {
+                    known = false;
+                }
+            }
+            final boolean cancelledKnown = known;
+            if (cancelledKnown) {
+                task.setStatus(Task.Status.CANCELLED);
+                task.setError("");
+            } else {
+                task.setStatus(Task.Status.WAITING_EXTERNAL);
+                task.setError("External cancellation outcome is unknown; it was not reported as cancelled.");
+            }
+            MrNobodyApp.tasks().update(task);
+            runOnUiThread(() -> result.success(cancelledKnown));
+        });
     }
 
     /** Stop every durable one-shot and repeating task before deleting its row. */
@@ -1325,6 +1459,7 @@ public class MainActivity extends FlutterActivity {
                         MrNobodyApp.taskEvents().clearAll();
                         MrNobodyApp.executionLedger().clearAll();
                         MrNobodyApp.asyncJobs().clearAll();
+                        MrNobodyApp.designSessions().clearAll();
                         cleared.put("taskstate", true);
                         break;
                     case "workspace":
@@ -1416,10 +1551,27 @@ public class MainActivity extends FlutterActivity {
         return data == null ? null : data.toString();
     }
 
+    /** Consume the OAuth code natively; it must never enter task/chat routing. */
+    private boolean consumeCanvaCallback(String uri) {
+        try {
+            if (MrNobodyApp.canvaOAuth() == null
+                    || !MrNobodyApp.canvaOAuth().isCallback(uri)) return false;
+            executor.execute(() -> {
+                MrNobodyApp.canvaOAuth().handleRedirect(uri);
+                if (MrNobodyApp.designAdapter() instanceof CanvaMcpDesignAdapter) {
+                    ((CanvaMcpDesignAdapter) MrNobodyApp.designAdapter()).resetSession();
+                }
+            });
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     /** Forward a deep link, or queue it until Dart proves its handler is ready. */
     private void dispatchDeepLink(Intent intent) {
         String uri = viewUri(intent);
-        if (uri == null) return;
+        if (uri == null || consumeCanvaCallback(uri)) return;
         if (deeplinkChannel != null && deepLinkReady) {
             deeplinkChannel.invokeMethod("link", uri);
         } else {

@@ -161,7 +161,7 @@ public class ReadLoopWiringTest {
         String src = engine();
         int method = src.indexOf("private void resolveDownload");
         int direct = src.indexOf("boolean directHonoursHost", method);
-        int harvest = src.indexOf("!directHonoursHost && tools.containsKey(\"browser\")", method);
+        int harvest = src.indexOf("!directHonoursHost && runTools().containsKey(\"browser\")", method);
         assertTrue(method > 0 && direct > method && harvest > direct);
     }
 

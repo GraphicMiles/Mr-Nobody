@@ -40,6 +40,9 @@ public final class Settings {
     public static final String KEY_APPROVAL_MODE = "approval_mode";
     public static final String KEY_REMOTE_SERVER = "remote_server";
     public static final String KEY_RESOURCE_POLICY = "resource_policy";
+    /** Ordered, explicitly consented remote-provider fallback ids. */
+    public static final String KEY_AI_FALLBACK_PROVIDERS = "ai_fallback_providers";
+    public static final String KEY_AI_FALLBACK_CONSENT = "ai_fallback_consent";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -333,5 +336,22 @@ public final class Settings {
 
     public void setActiveAiProvider(String id) {
         prefs.edit().putString("active_ai_provider", id).apply();
+    }
+
+    public String aiFallbackProviders() {
+        return prefs.getString(KEY_AI_FALLBACK_PROVIDERS, "");
+    }
+
+    /** Remote fallback is inert until this explicit consent bit is true. */
+    public boolean hasAiFallbackConsent() {
+        return prefs.getBoolean(KEY_AI_FALLBACK_CONSENT, false);
+    }
+
+    public void setAiFallbackProviders(String orderedIds, boolean consent) {
+        prefs.edit()
+                .putString(KEY_AI_FALLBACK_PROVIDERS,
+                        orderedIds == null ? "" : orderedIds.trim())
+                .putBoolean(KEY_AI_FALLBACK_CONSENT, consent)
+                .apply();
     }
 }

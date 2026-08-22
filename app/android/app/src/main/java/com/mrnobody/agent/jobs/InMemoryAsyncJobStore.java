@@ -43,6 +43,13 @@ public final class InMemoryAsyncJobStore implements AsyncJobStore {
     }
 
     @Override
+    public synchronized List<AsyncJob> jobsForTask(long taskId) {
+        List<AsyncJob> out = new ArrayList<>();
+        for (AsyncJob job : byId.values()) if (job.taskId == taskId) out.add(job);
+        return out;
+    }
+
+    @Override
     public synchronized void clearTask(long taskId) {
         List<String> remove = new ArrayList<>();
         for (AsyncJob job : byId.values()) if (job.taskId == taskId) remove.add(job.localJobId);

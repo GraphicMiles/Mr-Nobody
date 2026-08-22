@@ -8,18 +8,30 @@ import com.mrnobody.agent.ai.GeminiProvider;
 import com.mrnobody.agent.ai.GroqProvider;
 import com.mrnobody.agent.ai.LocalProvider;
 import com.mrnobody.agent.ai.OpenAiCompatibleProvider;
+import com.mrnobody.agent.ai.FallbackAiProvider;
+import com.mrnobody.agent.ai.ProviderSnapshot;
 import com.mrnobody.agent.browser.AccountStore;
 import com.mrnobody.agent.browser.HeadlessSessions;
 import com.mrnobody.agent.core.AgentEngine;
+import com.mrnobody.agent.core.AgentRunContext;
+import com.mrnobody.agent.core.Task;
+import com.mrnobody.agent.design.DesignPlatformAdapter;
+import com.mrnobody.agent.design.DesignSessionStore;
+import com.mrnobody.agent.design.UnavailableDesignAdapter;
 import com.mrnobody.agent.dispatcher.LocalWorker;
 import com.mrnobody.agent.dispatcher.RemoteWorker;
 import com.mrnobody.agent.dispatcher.TaskDispatcher;
 import com.mrnobody.agent.execution.ExecutionLedger;
 import com.mrnobody.agent.execution.SqliteExecutionLedger;
+import com.mrnobody.agent.jobs.AsyncJobAdapterRegistry;
 import com.mrnobody.agent.jobs.AsyncJobCoordinator;
 import com.mrnobody.agent.jobs.AsyncJobStore;
 import com.mrnobody.agent.jobs.SqliteAsyncJobStore;
+import com.mrnobody.agent.jobs.WorkManagerAsyncJobScheduler;
+import com.mrnobody.agent.mcp.CanvaMcpDesignAdapter;
+import com.mrnobody.agent.mcp.CanvaOAuthManager;
 import com.mrnobody.agent.planner.DeterministicEngine;
+import com.mrnobody.agent.skills.SkillRegistry;
 import com.mrnobody.agent.tasks.TaskReconciler;
 import com.mrnobody.agent.tasks.TaskStore;
 import com.mrnobody.agent.tasks.TaskEventStore;
@@ -30,6 +42,7 @@ import com.mrnobody.agent.tasks.TaskScheduler;
 import com.mrnobody.agent.tasks.WorkManagerTaskScheduler;
 import com.mrnobody.agent.policy.PolicyGate;
 import com.mrnobody.agent.tools.BrowserTool;
+import com.mrnobody.agent.tools.DesignTool;
 import com.mrnobody.agent.tools.DownloadTool;
 import com.mrnobody.agent.tools.TerminalTool;
 import com.mrnobody.browser.blocking.FilterEngine;
@@ -74,7 +87,12 @@ public final class MrNobodyApp extends Application {
     private static TaskEventStore taskEvents;
     private static ExecutionLedger executionLedger;
     private static AsyncJobStore asyncJobs;
+    private static AsyncJobAdapterRegistry asyncJobAdapters;
     private static AsyncJobCoordinator asyncJobCoordinator;
+    private static DesignSessionStore designSessions;
+    private static volatile DesignPlatformAdapter designAdapter =
+            new UnavailableDesignAdapter("Canva MCP is not configured.");
+    private static CanvaOAuthManager canvaOAuth;
     private static ApprovalPolicy.MapOverrides approvalOverrides;
     private static TaskDispatcher taskDispatcher;
     private static TaskScheduler taskScheduler;
@@ -134,6 +152,8 @@ public final class MrNobodyApp extends Application {
             com.mrnobody.debug.ErrorLog.record("download reconcile failed: " + t);
         }
         activeAiProviderId = settings.activeAiProvider();
+        canvaOAuth = new CanvaOAuthManager(this);
+        designAdapter = new CanvaMcpDesignAdapter(this, canvaOAuth);
 
         // Restore the privacy mode before anything can open a socket. If the
         // saved mode was NOBODY and its route is gone, PrivacyController
@@ -156,6 +176,8 @@ public final class MrNobodyApp extends Application {
         // answers a plain fetch with a challenge page.
         engine.registerTool(new com.mrnobody.agent.tools.SearchTool(HeadlessSessions::current));
         engine.registerTool(new DownloadTool());
+        engine.registerTool(new DesignTool(MrNobodyApp::designAdapter,
+                MrNobodyApp::designSessions));
         // Long-term retrieval is not registered until its opt-in storage policy
         // is wired end to end. Task history remains visible/erasable in Memory,
         // but a planner cannot invoke a capability outside its actual scope.
@@ -168,7 +190,10 @@ public final class MrNobodyApp extends Application {
         taskEvents = new TaskEventStore(this);
         executionLedger = new SqliteExecutionLedger(this);
         asyncJobs = new SqliteAsyncJobStore(this);
-        asyncJobCoordinator = new AsyncJobCoordinator(asyncJobs, executionLedger);
+        asyncJobAdapters = new AsyncJobAdapterRegistry();
+        asyncJobCoordinator = new AsyncJobCoordinator(asyncJobs, executionLedger,
+                new WorkManagerAsyncJobScheduler());
+        designSessions = new DesignSessionStore(this);
 
         // Attach the pipeline seams: user-facing audit, durable execution
         // authority, approval policy, and confirmation UI.
@@ -205,6 +230,10 @@ public final class MrNobodyApp extends Application {
                 // safe to replay and closes that scheduling gap.
                 for (com.mrnobody.agent.core.Task queued : store.queued()) {
                     taskScheduler.schedule(MrNobodyApp.this, queued.id());
+                }
+                WorkManagerAsyncJobScheduler jobScheduler = new WorkManagerAsyncJobScheduler();
+                for (com.mrnobody.agent.jobs.AsyncJob job : asyncJobs.pending()) {
+                    jobScheduler.schedule(MrNobodyApp.this, job);
                 }
             } catch (Exception e) {
                 ErrorLog.record("Task reconciliation failed: " + e);
@@ -268,7 +297,15 @@ public final class MrNobodyApp extends Application {
     public static TaskEventStore taskEvents() { return taskEvents; }
     public static ExecutionLedger executionLedger() { return executionLedger; }
     public static AsyncJobStore asyncJobs() { return asyncJobs; }
+    public static AsyncJobAdapterRegistry asyncJobAdapters() { return asyncJobAdapters; }
     public static AsyncJobCoordinator asyncJobCoordinator() { return asyncJobCoordinator; }
+    public static DesignSessionStore designSessions() { return designSessions; }
+    public static DesignPlatformAdapter designAdapter() { return designAdapter; }
+    public static CanvaOAuthManager canvaOAuth() { return canvaOAuth; }
+    public static void setDesignAdapter(DesignPlatformAdapter adapter) {
+        designAdapter = adapter == null
+                ? new UnavailableDesignAdapter("Design platform is unavailable.") : adapter;
+    }
     public static ApprovalPolicy.MapOverrides approvalOverrides() { return approvalOverrides; }
 
     /** Change how often the agent stops to ask, and remember it. */
@@ -282,6 +319,88 @@ public final class MrNobodyApp extends Application {
     public static TaskScheduler scheduler() { return taskScheduler; }
 
     // ------------------------------------------------------------ AI providers
+
+    /**
+     * Freeze provider/model/base and the explicitly consented fallback order
+     * before a run's first call. A retry reloads these values from the task row,
+     * never from settings changed halfway through the run.
+     */
+    public static AgentRunContext createRunContext(Task task) {
+        ProviderSnapshot primary;
+        List<ProviderSnapshot> fallbacks = new ArrayList<>();
+        if (task.providerSnapshot().isEmpty()) {
+            String id = activeAiProviderId;
+            primary = snapshot(id);
+            task.setProviderSnapshot(primary.encode());
+            if (settings.hasAiFallbackConsent()) {
+                java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+                seen.add(primary.id);
+                for (String candidate : settings.aiFallbackProviders().split(",")) {
+                    String fallbackId = candidate == null ? "" : candidate.trim();
+                    if (fallbackId.isEmpty() || "local".equals(fallbackId)
+                            || !PROVIDER_IDS.contains(fallbackId) || !seen.add(fallbackId)) continue;
+                    fallbacks.add(snapshot(fallbackId));
+                }
+            }
+            task.setFallbackProviderSnapshots(encodeSnapshots(fallbacks));
+        } else {
+            primary = ProviderSnapshot.decode(task.providerSnapshot());
+            fallbacks.addAll(decodeSnapshots(task.fallbackProviderSnapshots()));
+        }
+        if (task.executionPlatform().isEmpty()) {
+            boolean continuingDesign = false;
+            try { continuingDesign = designSessions != null
+                    && designSessions.findByTask(task.id()) != null; }
+            catch (Throwable ignored) { }
+            task.setExecutionPlatform(continuingDesign ? "canva-mcp"
+                    : SkillRegistry.standard().route(task.activeInstruction()).executionPlatform);
+        }
+
+        AiProvider provider = providerFrom(primary);
+        if (!primary.isLocal() && !fallbacks.isEmpty()) {
+            List<AiProvider> chain = new ArrayList<>();
+            chain.add(provider);
+            for (ProviderSnapshot fallback : fallbacks) chain.add(providerFrom(fallback));
+            provider = new FallbackAiProvider(chain);
+        }
+        return new AgentRunContext(task.id(), task.runId(), primary, fallbacks,
+                provider, task.executionPlatform());
+    }
+
+    private static ProviderSnapshot snapshot(String id) {
+        String safe = id == null || !PROVIDER_IDS.contains(id) ? "local" : id;
+        String key = storageKey(safe);
+        return new ProviderSnapshot(safe,
+                "local".equals(safe) ? "" : settings.apiBase(key),
+                "local".equals(safe) ? "" : settings.apiModel(key));
+    }
+
+    private static AiProvider providerFrom(ProviderSnapshot snapshot) {
+        if (snapshot == null || snapshot.isLocal()) return new LocalProvider();
+        String key = settings.apiKey(storageKey(snapshot.id));
+        return buildProvider(snapshot.id, snapshot.baseUrl, snapshot.modelId, key);
+    }
+
+    private static String encodeSnapshots(List<ProviderSnapshot> snapshots) {
+        StringBuilder out = new StringBuilder();
+        if (snapshots != null) {
+            for (ProviderSnapshot snapshot : snapshots) {
+                if (snapshot == null) continue;
+                if (out.length() > 0) out.append('\n');
+                out.append(snapshot.encode());
+            }
+        }
+        return out.toString();
+    }
+
+    private static List<ProviderSnapshot> decodeSnapshots(String encoded) {
+        List<ProviderSnapshot> out = new ArrayList<>();
+        if (encoded == null || encoded.isEmpty()) return out;
+        for (String line : encoded.split("\\n")) {
+            if (!line.trim().isEmpty()) out.add(ProviderSnapshot.decode(line));
+        }
+        return out;
+    }
 
     /** Build the provider for an id, reading the current key/base/model from settings. */
     public static AiProvider buildProvider(String id) {

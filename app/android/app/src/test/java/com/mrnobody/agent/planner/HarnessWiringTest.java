@@ -29,18 +29,18 @@ public class HarnessWiringTest {
     public void everyRunPathSetsItsScopeBeforeItsFirstToolCall() throws IOException {
         String src = engine();
         assertTrue("routed actions scope to their one tool",
-                src.contains("runScope = ToolScope.routed(plan.steps().get(0).tool);"));
+                src.contains("setRunScope(ToolScope.routed(plan.steps().get(0).tool));"));
         int deterministic = src.indexOf("executeResearch(context, task, plan,");
-        int scopeBefore = src.lastIndexOf("runScope = ToolScope.research(", deterministic);
+        int scopeBefore = src.lastIndexOf("setRunScope(ToolScope.research(", deterministic);
         assertTrue("research scope is set before the cascade runs",
                 scopeBefore > 0 && scopeBefore < deterministic);
         assertTrue("a fresh run clears any previous scope",
-                src.contains("runScope = null;"));
+                src.contains("setRunScope(java.util.Collections.emptySet());"));
     }
 
     @Test
     public void theAutonomousPlannerIsOnlyShownTheScope() throws IOException {
-        assertTrue(engine().contains("planner.nextStep(asked, transcript, runScope)"));
+        assertTrue(engine().contains("planner.nextStep(asked, transcript, currentRunScope())"));
     }
 
     @Test

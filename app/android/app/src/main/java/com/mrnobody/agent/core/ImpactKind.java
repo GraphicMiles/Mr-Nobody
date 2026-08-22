@@ -13,17 +13,23 @@ public enum ImpactKind {
     DRAFT,
     SEND,
     PUBLISH,
+    FINALIZE,
     DELETE,
     PAY;
 
-    /** True when even TRUSTING must still ask. */
+    /** True when even TRUSTING or a tool-wide session grant must still ask. */
     public boolean alwaysConfirm() {
-        return this == DELETE || this == PAY;
+        return this == DELETE || this == PAY || this == FINALIZE;
     }
 
     public static ImpactKind of(String tool, String action, String text) {
         String a = action == null ? "" : action.toLowerCase();
+        String namedTool = tool == null ? "" : tool.toLowerCase();
         String blob = ((text == null ? "" : text) + " " + a).toLowerCase();
+        if ("design".equals(namedTool)
+                && ("export".equals(a) || "commit".equals(a) || "publish".equals(a))) {
+            return FINALIZE;
+        }
         if (containsAny(blob, "delete", "remove post", "unsend", "deactivate")) {
             return DELETE;
         }

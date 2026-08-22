@@ -89,10 +89,12 @@ public final class ApprovalPolicy implements ToolPipeline.Approval {
         ImpactKind impact = ImpactKind.of(call.tool(), call.action(),
                 call.params() == null ? "" : String.valueOf(call.params()));
         if (impact.alwaysConfirm()) {
-            return ApprovalDecision.confirm(ApprovalDecision.Source.TIER,
-                    impact == ImpactKind.DELETE
-                            ? "deletes content"
-                            : "spends money or checks out");
+            String reason = impact == ImpactKind.DELETE
+                    ? "deletes content"
+                    : impact == ImpactKind.FINALIZE
+                            ? "finalizes or exports a reviewed design"
+                            : "spends money or checks out";
+            return ApprovalDecision.confirm(ApprovalDecision.Source.TIER, reason);
         }
 
         Rule rule = overrides.forTool(call.tool());

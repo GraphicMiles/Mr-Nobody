@@ -61,6 +61,30 @@ public class AsyncJobCoordinatorTest {
     }
 
     @Test
+    public void nonTerminalSubmissionSchedulesDurableBackgroundPolling() {
+        InMemoryAsyncJobStore jobs = new InMemoryAsyncJobStore();
+        RecordingScheduler scheduler = new RecordingScheduler();
+        AsyncJobCoordinator coordinator = new AsyncJobCoordinator(
+                jobs, new InMemoryExecutionLedger(), scheduler);
+        AsyncJob submitted = coordinator.submit(NO_CONTEXT, new FakeAdapter(),
+                Collections.emptyMap(), identity("run-scheduled"), 0L, Cancellation.NONE);
+        assertEquals(submitted.localJobId, scheduler.scheduled);
+    }
+
+    @Test
+    public void cancellationWithoutItsAdapterRemainsUnknown() {
+        InMemoryAsyncJobStore jobs = new InMemoryAsyncJobStore();
+        AsyncJobCoordinator coordinator = new AsyncJobCoordinator(
+                jobs, new InMemoryExecutionLedger(), new RecordingScheduler());
+        FakeAdapter adapter = new FakeAdapter();
+        ExecutionIdentity identity = identity("run-cancel");
+        AsyncJob submitted = coordinator.submit(NO_CONTEXT, adapter,
+                Collections.emptyMap(), identity, 0L, Cancellation.NONE);
+        AsyncJob cancelled = coordinator.cancel(NO_CONTEXT, null, submitted, Cancellation.NONE);
+        assertEquals(AsyncJob.Status.UNKNOWN, cancelled.status);
+    }
+
+    @Test
     public void pollUpdatesTheSameJobInsteadOfSubmittingAgain() {
         InMemoryAsyncJobStore jobs = new InMemoryAsyncJobStore();
         AsyncJobCoordinator coordinator = new AsyncJobCoordinator(
@@ -82,6 +106,14 @@ public class AsyncJobCoordinatorTest {
     private static ExecutionIdentity identity(String run) {
         return ExecutionIdentity.of(9L, run, "design.create", 0,
                 "design", "create", Collections.singletonMap("kind", "poster"));
+    }
+
+    private static final class RecordingScheduler implements AsyncJobScheduler {
+        String scheduled = "";
+        @Override public void schedule(Context context, AsyncJob job) {
+            scheduled = job.localJobId;
+        }
+        @Override public void cancel(Context context, String id) { }
     }
 
     private static final class FakeAdapter implements AsyncJobAdapter {
