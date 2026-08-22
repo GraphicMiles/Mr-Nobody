@@ -359,6 +359,7 @@ public class MainActivity extends FlutterActivity {
                             MrNobodyApp.taskEvents().clearAll();
                             MrNobodyApp.executionLedger().clearAll();
                             MrNobodyApp.asyncJobs().clearAll();
+                            MrNobodyApp.designSessions().clearAll();
                             result.success(true);
                             return;
                         }
@@ -954,6 +955,7 @@ public class MainActivity extends FlutterActivity {
                                 MrNobodyApp.taskEvents().clearAll();
                                 MrNobodyApp.executionLedger().clearAll();
                                 MrNobodyApp.asyncJobs().clearAll();
+                                MrNobodyApp.designSessions().clearAll();
                                 runOnUiThread(() -> result.success(null));
                             });
                             return;
@@ -1356,6 +1358,7 @@ public class MainActivity extends FlutterActivity {
                         MrNobodyApp.taskEvents().clearAll();
                         MrNobodyApp.executionLedger().clearAll();
                         MrNobodyApp.asyncJobs().clearAll();
+                        MrNobodyApp.designSessions().clearAll();
                         cleared.put("taskstate", true);
                         break;
                     case "workspace":
