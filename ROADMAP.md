@@ -1,328 +1,323 @@
-# Mr Nobody — Roadmap
+# Mr Nobody Roadmap
 
-This is the single source of truth for delivery status. Implementation guidance lives in `README.md`; per-batch history lives in `SESSION-LOG.txt`. No additional standing documents.
+This file records current priorities and release acceptance. General project information belongs in `README.md`; implementation history belongs in `SESSION-LOG.txt`.
 
-Status baseline: 2026-08-22. The resilience/design-MCP architecture is merged to `main`; 1,028 JVM tests and 167 Flutter widget/golden tests pass, and the full signed-APK CI workflow is green. Live Canva/OAuth device evidence remains pending. The Android emulator workflow remains manual-dispatch only (its last full run passed API 31 and API 34).
+**Status date:** 2026-08-22
 
-Status vocabulary:
+## Current state
 
-- **Verified in CI** — compiled or exercised by an automated gate.
-- **Built, device-unverified** — implemented and tested off-device; still needs Android hardware evidence.
-- **Partial** — useful code exists, but the user path or another required component is absent.
-- **Not started** — no product implementation exists.
+The main branch is green in GitHub Actions.
 
-## Executive status
-
-Three delivery batches now sit on top of the hardening baseline:
-
-1. **Read-loop economics** — the local agent stopped over-working: evidence-sufficiency early exit, escalation only on validated failure (8 s cap), a device-clock skill, single-retry policy, 90 s/120 s wall-clock budgets, and cheap-success candidate ranking. Device-verified effect: a fact question that previously ran 69+ seconds over six pages now answers in ~11 seconds with citations.
-2. **Bundled Tor + agent harness** — Nobody mode no longer requires Orbot: TorService (tor-android 0.4.7.14) starts on demand, applies the mode itself at the first circuit (readiness is Tor's own status word, never just an open port), fails closed otherwise, and yields to a running Orbot. The agent gained per-task tool scope, blocking answer verification with an extractive fallback, an intent-vs-outcome check, and a one-tap on-device test suite.
-3. **Tier 0 execution safety** — every execution cycle has a durable run ID; logical operations receive deterministic idempotency keys; a separate SQLite ledger replays committed calls and fails closed on ambiguous effects; task submission is atomically deduplicated; downloads and remote-task submission propagate stable keys; and a generic persisted async submit/poll/reconcile contract is ready for adapters. No design adapter is included.
-
-First device runs of the suite surfaced and fixed: two app-killing packaging faults (an undeclared AAR dependency; missing JNI keep rules under R8), premature Tor readiness, CSS leaking into answers via `textContent` extraction, and image downloads blind to query-declared formats and lazy-loaded galleries. Each fix carries a regression or wiring test; the full history is in `SESSION-LOG.txt`.
-
-The acceptance boundary is unchanged: automated success does not prove System WebView, Keystore, Storage Access Framework, notifications, WorkManager, Tor routes, or process-death behavior on a phone. The device protocol below remains the sign-off path, now largely automated by the in-app Device suite (Dev mode → Benchmarks); the remaining manual checks are the "needs your eyes" list there.
-
-Remote workers and credits remain unstarted by design. The next toolchain step is the Flutter/AGP upgrade, which unlocks tor-android 0.4.9.x (needs compileSdk 37).
-
-## Current automated evidence
-
-| Evidence | Result |
+| Check | Current result |
 |---|---|
-| GitHub Actions run | **Passed on merged `main`** — signed ABI APK workflow green |
-| Strict Flutter analysis | **Passed locally** |
-| Flutter widget/golden suite | **167 tests passed locally, including updated classic/warm S6 goldens** |
-| Java/JVM suite | **1,028 tests passed locally** at the current feature head |
-| Android Gradle unit suite | **Passed** |
-| Privacy-auditor suite | **14 tests passed** |
-| Repository privacy audit | **Clean** |
-| Filter-list validation/digest | **Passed** — `7e119400943d…` |
-| APK signatures | **Verified with APK Signature Scheme v2** |
-| armeabi-v7a APK | **14.62 MiB** |
-| arm64-v8a APK | **17.06 MiB** |
-| x86_64 APK | **18.19 MiB** |
-| APK product limit | **Passed** — 45 MiB per ABI |
-| Documentation surface | **Passed** — `README.md` and `ROADMAP.md` (plus the plain-text `SESSION-LOG.txt` ledger) |
-| Hosted Android emulator matrix | **Manual-dispatch only** — last full run green on API 31 and API 34 |
-| Physical-device matrix | **Not yet completed** |
+| Flutter analysis | Passed |
+| Flutter widget and screen-golden tests | 167 passed |
+| Java/JVM tests | 1,028 passed |
+| Privacy-auditor tests | 14 passed |
+| Repository privacy audit | Clean |
+| Filter digest check | Passed |
+| Android Gradle unit tests | Passed |
+| Signed ABI APK build | Passed |
+| APK signature verification | Passed |
+| 45 MiB per-ABI size gate | Passed |
+| Hosted Android emulator workflow | Manual dispatch; last complete API 31/34 run passed |
+| Broad physical-device matrix | Incomplete |
 
-CI uses a stable, public test-only signing key so successive patched APKs can upgrade in place during device testing. Production signing requires protected external key material, never uses that public key, and never falls back to Android's debug key.
+Automated success does not prove behavior on every Android device. System WebView versions, OEM battery policies, Android Keystore, Storage Access Framework providers, notification settings, Tor routes, and process death still require device evidence.
 
-## Completed hardening work
+## What is already built
 
-| Finding | Resolution | Commit |
-|---|---|---|
-| Task ID vanished on pooled tool threads | Added explicit `TaskScope` capture/propagation/cleanup and regression tests | `ae0777a` |
-| Shared mutable agent state across concurrent local tasks | Initially serialized at `ae0777a`; now moved into per-run contexts with task-owned browser anchors and two bounded lanes | `ae0777a`, feature branch |
-| Provider keys and granted cookies stored as plaintext | Added Android Keystore-backed AES-GCM preferences, in-place migration, credential-removal UI, crypto tests, and privacy-audit guards | `2c20281` |
-| Vulnerable unused Kotlin build plugin | Removed Kotlin plugin/options and added a CI dependency-policy gate | `7d7fcba` |
-| Task timestamps replaced by read time | Restored durable `created_at`/`updated_at` values after cursor hydration | `5181464` |
-| Clear-data missed isolated/live WebView owners | Agent pages are released and normal tabs survive; the pushed follow-up makes private Dart/native/platform-view release an awaited precondition of profile deletion | `7266e99`, `8300aee`, `cd48557`; device retest pending |
-| Fake `spill://` output locator | Replaced with a bounded, explicit, non-retrievable preview | `4eb6e08` |
-| Approval “always” grant was in-memory and race-prone | Made overrides concurrent and labelled them accurately as process-session grants | `b8763d9` |
-| Remote HTTP errors lost response bodies/config was stale | Added error-stream handling, disconnect guarantees, cancellation precheck, tests, and dispatch-time endpoint lookup | `6f1a55c` |
-| Async `BuildContext` risks were ignored by permissive analysis | Fixed lifecycle guards and made `flutter analyze` strict | `00789cc`, `0afd06a` |
-| Release build used debug signing | Added fail-closed external signing; CI uses a clearly public test key for upgradeable test builds and verifies signatures | `0be9f69` |
-| Fat APK missed the 45 MiB target | Build ABI-specific APKs and enforce 45 MiB on each installable artifact | `579d376` |
+### Browser and privacy
 
-## Current system status
+- Flutter application shell and native Android browser core
+- Android System WebView rendering
+- Retained tabs and private tabs
+- Local ad/tracker filtering
+- Top-level redirect and popup protection
+- Tracking-parameter stripping
+- History disabled by default
+- Third-party cookies and mixed content disabled
+- Bookmarks and per-site settings
+- Clear-data controls
+- Normal, Private, and Nobody modes
+- Proxy and Orbot support
+- Bundled Tor with Orbot priority and fail-closed behavior
+- Device capability reporting for WebView-dependent privacy features
 
-### Browser and UI
+### Agent
 
-| Capability | State | Acceptance boundary |
-|---|---|---|
-| Flutter shell, navigation and committed screen goldens | **Verified in CI** | Visual/gesture checks on real screen sizes |
-| API 31/34 hosted emulator smoke suite | **Manual-dispatch only** — last full run green | Launch, settings write/relaunch, local WorkManager task, pipeline expansion, background/restore and evidence capture |
-| Visible native System WebView | **Built, device-unverified** | Navigation, renderer lifecycle, crashes and low-memory recovery |
-| Retained tabs and previews | **Built, device-unverified** | Six-tab stress, close/reopen, private-tab no-thumbnail rule |
-| Unified URL/search/task input | **Verified off-device** | Real keyboard, paste and deep-link behavior |
-| Bookmarks and per-site controls | **Built, device-unverified** | Persistence and effective WebView behavior |
-| Camera/microphone/location/file chooser | **Built, device-unverified** | Runtime grant, denial, revocation and process restart |
+- Deterministic local search/read/answer path
+- Optional Gemini, Groq, and OpenAI-compatible providers
+- Pinned provider/model configuration per run
+- Explicitly consented remote-provider fallback
+- Deterministic local answer fallback
+- Top-level skill routing plus search-specific skills
+- Source evidence, citations, and figure checks
+- Follow-up conversations in the same task
+- Recurring checks and change detection
+- Typed tool schemas and output validation
+- Prompt-injection fencing
+- Scoped tool access
+- Approval modes and always-confirm effects
+- Repeat, work, time, token, and spend budgets
+- Two isolated local execution lanes
 
-### Privacy and credentials
+### Reliability
 
-| Capability | State | Acceptance boundary |
-|---|---|---|
-| History and suggestions off by default | **Verified off-device** | Fresh-install observation |
-| Subresource, top-level ad/tracker, betting-redirect and popup blocking | **Built, device-unverified** | Controlled fixture, live request capture, ordinary-link compatibility and counter accuracy |
-| Tracking-parameter removal | **Verified off-device** | Representative live URLs and site compatibility |
-| Third-party cookie/mixed-content/file-access hardening | **Built, device-unverified** | WebView inspection on minimum/current devices |
-| Provider-key encryption | **Verified cryptographically off-device** | Android Keystore creation, migration and invalidation |
-| Granted account-session encryption | **Verified cryptographically off-device** | Login continuity, revoke and clear-data on device |
-| Private profile isolation | **Built, device-unverified** | Depends on installed System WebView multi-profile support |
-| Clear browsing data | **Built, device-unverified** | Default + private + retained-tab stores must all disappear |
-| Fingerprint-defense script | **Built, device-unverified** | Effective state and site breakage |
-| Proxy/Orbot/Nobody route | **Built, device-unverified** | Real egress, fail-closed and DNS observations |
+- Durable task rows and run IDs
+- Atomic short-window task-submission deduplication
+- WorkManager scheduling and startup reconciliation
+- Heartbeats and stale-worker recovery
+- Append-only user-facing task events
+- Separate replayable execution ledger
+- Idempotency identities for consequential effects
+- Persistent async-job storage and polling
+- Cancellable background jobs
+- App-owned resumable downloads
+- Foreground notifications for active tasks and downloads
 
-Privacy is not anonymity. A remote AI provider receives the task context sent to it. A future remote worker will see the URLs and page content it executes.
+### Security
 
-### Agent, tools and background work
+- Android Keystore-backed provider credentials
+- Encrypted granted account sessions
+- Encrypted OAuth credential foundation
+- Network egress through `NetworkGate`
+- Public-network target validation for autonomous tools
+- Fail-closed release signing
+- Backup disabled
+- Static privacy audit enforced in CI
 
-| Capability | State | Acceptance boundary |
-|---|---|---|
-| Deterministic local no-model research | **Built, device-unverified** | End-to-end search, rendered extraction, evidence and answer |
-| Adaptive semantic task pipeline and conditional response blocks | **Built, device-unverified** | Flutter analysis/widget/golden CI, then research/download/browser/failure-recovery checks on a phone |
-| Specialised search-skill router (YouTube, fresh info/news, public Facebook, materials/explicit Google, academic, docs, fact-checking, finance, weather, government) | **Built, device-unverified** | Live provider/result quality, host constraints, login walls, recency and official-source checks |
-| Task-scoped headless browser resolution | **Verified off-device** | Real WebView executor behavior on Android |
-| Cross-task state isolation and two local lanes | **Verified structurally/off-device** | Concurrent HTTP/provider/WebView runs and approval contention on a phone |
-| Durable run/effect identity and execution replay | **Verified off-device** | Kill after a committed read/download and confirm replay without duplicate effect on a phone |
-| Task-submission dedup and queued-work reconciliation | **Verified off-device** | Double tap plus process death between insert and WorkManager enqueue on a phone |
-| Generic async jobs + WorkManager polling | **Verified off-device** | Remote adapter reconnect, cancellation, process death, next-hour/next-day completion on a phone/server |
-| Pinned provider/platform and consented fallback | **Verified off-device** | Live provider chain, mid-run Settings changes, privacy disclosure and local extractive fallback |
-| Top-level design skill, sessions, three review gates and quotas | **Verified off-device with fake adapter** | Multi-turn draft/reject/revise/approve/export flow on a phone |
-| Official Canva Streamable HTTP MCP + per-user OAuth | **Built, live-disabled without approved CIMD** | Canva-approved client metadata/redirect, physical-device OAuth, tool discovery, create/edit/export and process death |
-| Remote-provider autonomous planner | **Verified off-device** | Live provider/model matrix, timeout, cancellation, and process-death unknown-outcome behavior |
-| Tool schemas, approval and guards | **Verified off-device** | Foreground/background approval lifecycle |
-| Honest oversized-output previews | **Verified off-device** | Large-page behavior in a live task |
-| App-owned downloads | **Built, device-unverified** | SAF, MediaStore, HTTP range, process death and notifications |
-| WorkManager task recovery | **Built, device-unverified** | Backgrounding, force-stop/process death and retry |
-| Recurring schedules and change detection | **Built, device-unverified** | Android timing/coalescing and no-change notification suppression |
-| Memory tool | **Verified off-device** | On-device persistence/forget flow |
-| Terminal | **Partial** | Lightweight allowlisted runtime, not a general Android shell |
-| Restricted tools | **Intentionally off** | `RestrictedTools.ACTIVE=false` |
+## Current focus
 
-### Remote execution and commercial layer
+MCP and online design-platform work is suspended. The next development work should focus only on the core agent, the remote worker, and general application polish.
 
-| Capability | State | Note |
-|---|---|---|
-| Android installation identity | **Partial** | Pure signing model tested; Keystore behavior needs hardware |
-| Signed request envelope | **Verified off-device** | Freshness, integrity and signature tests |
-| Remote transport client | **Partial** | Hardened and tested, but no deployed service here |
-| Remote task selection | **Not a production path** | New tasks remain local by default and no user-facing selector is shipped |
-| Remote server | **Not started in this repository** | No verifier, queue, isolated worker or result service |
-| Credits/payments | **Not started** | No ledger, purchase, refund or lost-key policy |
+## Priority 1 — Agent quality and reliability
 
-Remote and credits remain out of the local-device acceptance phase.
+### Answer quality
 
-## Next phase — Feature-by-feature device adversarial testing
+- Improve intent classification without adding broad, unsafe keyword matches.
+- Improve source selection for factual, current, official, and technical questions.
+- Make unsupported or partially supported conclusions more obvious.
+- Keep citations tied only to successfully read evidence.
+- Improve extractive fallback wording when remote AI providers fail.
+- Test provider fallback across authentication, quota, timeout, malformed output, and cancellation failures.
 
-### Testing rules
+### Planning
 
-1. Test one feature group at a time.
-2. Report the first reproducible defect before moving to the next group.
-3. Patch the smallest root cause, add an automated regression test where possible, run CI, then repeat the same device scenario.
-4. Record device model, Android version, System WebView provider/version, ABI and tested commit.
-5. Never paste real API keys, cookies, passwords, authorization headers or private URLs into chat. Replace them with `<redacted>`.
-6. A feature is not marked verified merely because it worked once; include a failure/denial/restart case where relevant.
+- Reduce unnecessary planning calls for simple requests.
+- Expand deterministic skills only where behavior can be audited and tested.
+- Keep model-selected tools restricted to the run's scope.
+- Improve outcome checks for actions, downloads, named sites, and recurring work.
+- Preserve run-pinned provider and platform choices after process death.
 
-### Bug report template
+### Background execution
 
-```text
-Feature:
-Build commit:
-Device / Android version:
-System WebView version:
-Network mode:
-Preconditions:
-Exact steps:
-Expected:
-Actual:
-Reproducibility: always / intermittent / once
-Error shown:
-Relevant debug-log lines (secrets redacted):
-Screenshot or screen recording:
-```
+- Device-test two concurrent local lanes under slow HTTP, WebView extraction, downloads, and approval prompts.
+- Confirm no cross-task browser, cookie, anchor, provider, guard, or budget state leaks.
+- Test process death after each ledger state: prepared, running, waiting, succeeded, failed, and unknown.
+- Improve user-facing recovery messages for ambiguous external outcomes.
 
-### Test order
+### Agent acceptance criteria
 
-#### 1. Install, launch and persistence
+- [ ] Local research completes reliably on API 31 and a current Android device.
+- [ ] Remote-provider failure falls back without replaying tool effects.
+- [ ] Back-to-back and concurrent tasks do not share state.
+- [ ] A killed run resumes by replaying committed results.
+- [ ] Named-site and download requests state unmet outcomes honestly.
+- [ ] Recurring tasks survive process death and do not notify on unchanged results.
+- [ ] Approval allow, deny, background, timeout, and restart behavior match the UI wording.
 
-- Install the APK matching the device ABI.
-- Confirm first launch and relaunch.
-- Change harmless settings, kill/reopen, and confirm persistence.
-- Upgrade over an older build if available.
-- Confirm application version and engine information are visible and accurate.
+## Priority 2 — Remote worker and server persistence
 
-#### 2. Credential storage and removal
+The Android client protocol exists, but the production remote server does not.
 
-- Save a disposable provider key, restart, and confirm only “key present” is exposed.
-- Remove the key and confirm the active provider returns to Local.
-- If testing migration, use a disposable legacy key and confirm it still works after upgrade.
-- Grant a disposable test-site session, restart, revoke it, and confirm access disappears.
-- Do not inspect or share real credential values; use a test account.
+### Server foundation
 
-#### 3. Visible browser and tabs
+Build a service with:
 
-- Navigate through three distinct URLs, then use Back and Forward; after every history step, confirm the visible page and address field show the same URL.
-- Reload and open external/deep links.
-- Open six tabs, switch repeatedly, background/reopen, then close each.
-- Confirm normal tab pages retain state within the retention limit.
-- Confirm private tabs never produce thumbnails.
+- HTTPS task submission API
+- Device public-key registration
+- ECDSA request verification
+- Timestamp and nonce replay protection
+- Stable request idempotency keys
+- Persistent task, run, step, effect, and job tables
+- Transactional queue/outbox behavior
+- Isolated worker processes
+- Per-task cancellation and timeouts
+- Durable result and event storage
+- Reconnectable SSE or equivalent event streaming
+- Explicit retention and deletion controls
 
-#### 4. Clear browsing data and private isolation
+### Execution behavior
 
-- Create normal and private cookies/storage on a test site.
-- Clear cookies/site data/cache.
-- Reopen normal and private pages and confirm every selected bucket is gone.
-- Where multi-profile is supported, prove normal and private sessions cannot see each other.
-- Repeat when multi-profile is reported unavailable; wording must downgrade honestly.
+- Reuse the same run/effect identity model as the Android client.
+- Return a prior task/result for duplicate submissions.
+- Never restart a completed consequential step during provider fallback.
+- Persist async external job IDs before waiting.
+- Represent ambiguous outcomes explicitly.
+- Keep provider credentials and external-platform credentials out of prompts and logs.
+- Enforce per-user work, spend, storage, and rate budgets.
 
-#### 5. Blocking and URL privacy
+### Android integration
 
-- Use the checked-in controlled fixture and setup in `README.md`; do not use a dead or mutable third-party test page as evidence of failure.
-- Confirm ordinary same-site links work and an ordinary `target=_blank` link stays in the current tab.
-- Confirm listed ad/tracker subresources and top-level destinations are blocked before leaving and counters match; the controlled fixture includes a reachable Google Analytics script URL.
-- From a fresh non-betting source each time, trigger Bet9ja/betnaija and Stake controls repeatedly; all attempts must leave the source page visible and show a non-error notice.
-- Confirm the scripted popup creates no popup/pop-under surface.
-- Disable blocking and confirm the host/redirect policy changes; re-enable it. Popup-surface suppression remains a browser safety policy.
-- Test tracking-parameter removal with ordinary and signed URLs to catch breakage.
+- Add a clear per-task Local/Remote selector; Local remains the default.
+- Show what data a remote worker can see before submission.
+- Reconnect to running remote work after app restart.
+- Let users leave and return hours or days later.
+- Support cancellation without falsely reporting an unknown remote outcome as cancelled.
+- Show remote status and final results in the existing task chat.
 
-#### 6. Local no-model agent
+### Operations and privacy
 
-- Run an ordinary research request; confirm its live pipeline is event-driven and its completed trace reads “Thought for …”.
-- Run a direct download and confirm it does not inherit search/read/verification rows that never occurred.
-- Force a direct-page read to fail and rendered-browser extraction to succeed; confirm the activity becomes `recovered` and the failed tool remains subordinate detail.
-- Confirm source controls, numbered citations and evidence cards include only cited or directly linked pages successfully used by the answer, not every attempted read.
-- Request the latest video from a named YouTube channel; confirm the query is channel/site-restricted and no `ytcfg`, `EXPERIMENT_FLAGS`, JavaScript or configuration dump reaches the answer.
-- Search YouTube generally and confirm only watch/short results are presented.
-- Search Facebook and confirm only public indexed results appear, with no claim of private/login access.
-- Find a PDF learning material using explicit Google search; confirm the Google provider path, direct-document results and safety/licensing limitation.
-- Ask for current/latest information and confirm the current-year query bias, read timestamps and source verification.
-- Ask an unrelated standalone follow-up (for example, sky research followed by “who created bitcoin”); confirm the new search contains no prior-topic terms and the previous answer keeps its own “Thought for …” trace and citations.
-- Send “thanks” and confirm it replies locally without search or page reads.
-- Tap a generated follow-up and confirm it continues the same task with the displayed text.
-- Run a named-site request.
-- Use “open the second one” and confirm it uses the existing artifact and starts a new execution-cycle trace.
-- Start two tasks quickly; confirm one queues and neither inherits the other's site/session/anchor.
-- Use a large page and confirm the answer reports a non-retrievable preview rather than a fake locator.
+- Define where task data is stored and for how long.
+- Avoid task-content logging in infrastructure telemetry.
+- Separate operational metrics from user content.
+- Encrypt server-side credentials and sensitive task state.
+- Add abuse prevention and queue fairness.
+- Document lost-device and lost-key behavior.
+- Complete a security and privacy review before public deployment.
 
-#### 7. Approval and action safety
+### Remote-worker acceptance criteria
 
-- Trigger an action requiring confirmation.
-- Deny it and prove no action occurred.
-- Allow once and complete it.
-- Select “allow for this app session,” repeat, then restart the app and confirm prompting returns.
-- Trigger approval while the app is backgrounded; the task must park rather than run.
+- [ ] Duplicate signed submissions create one remote task.
+- [ ] A server restart does not lose queued or running work.
+- [ ] A worker crash resumes from the first uncommitted step.
+- [ ] Result streaming reconnects without losing terminal state.
+- [ ] Cancellation has a known, persisted outcome.
+- [ ] User deletion removes task content according to the published retention policy.
+- [ ] Local tasks never silently move to the server.
+- [ ] Server-side provider fallback does not duplicate external effects.
 
-#### 8. Downloads
+## Priority 3 — General application polish
 
-- Download to public Downloads and a selected SAF folder.
-- Pause, resume and cancel.
-- Resume against a server that supports ranges and one that does not.
-- Kill the process mid-download and verify the row becomes recoverable.
-- Exercise notification actions and file opening.
-- Uninstall only with disposable files and verify app-owned behavior.
+### Navigation and screens
 
-#### 9. Background tasks and schedules
+- Review all screens on small phones, large phones, font scaling, and landscape.
+- Remove clipped content and unnecessary nested scrolling.
+- Keep pushed routes visually consistent with shell-hosted screens.
+- Improve empty states and first-run explanations.
+- Make task, download, and privacy status wording shorter and clearer.
 
-- Background during a running task and confirm the low-importance “Working on your task” foreground notification appears while search/read activity continues without reopening the app.
-- Kill the process and observe recovery/reconciliation.
-- Cancel queued and running tasks.
-- Run a recurring monitor and verify unchanged results do not notify repeatedly.
-- Verify task creation/update timestamps remain stable after reopening.
+### Accessibility
 
-#### 10. Remote AI providers
+- Add semantic labels to custom controls.
+- Verify keyboard and switch navigation where Android supports it.
+- Test large text and display scaling.
+- Check contrast in Classic dark and Warm cream themes.
+- Ensure status is never communicated by color alone.
 
-- Test Gemini, Groq and one OpenAI-compatible endpoint with disposable keys.
-- Fetch the model list, select a valid model, stream an answer, cancel and force a timeout.
-- Confirm task context disclosure is visible.
-- Confirm removing a key falls back to Local and the provider cannot run.
+### Browser polish
 
-#### 11. Privacy routes
+- Test six or more retained tabs under memory pressure.
+- Improve renderer-crash recovery.
+- Review back/forward/address synchronization.
+- Test file chooser, camera, microphone, and location grant/deny/revoke flows.
+- Verify private tabs never create previews.
+- Improve controlled-fixture reporting for blocked redirects and popups.
 
-- Configure an HTTP proxy and observe egress.
-- Run Nobody mode with Orbot active.
-- Stop Orbot before and during a request; traffic must fail closed.
-- Observe DNS behavior rather than inferring it from SOCKS configuration.
-- Confirm the UI reports the effective mode, not merely the requested mode.
+### Task and download polish
 
-#### 12. Permissions and edge cases
+- Make queued, running, waiting-for-approval, waiting-on-external-work, failed, cancelled, and completed states visually distinct.
+- Improve long-answer reading and source navigation.
+- Test follow-up suggestions with screen readers.
+- Improve notification grouping and stale-notification cleanup.
+- Clarify download destination, resume support, and failure causes.
 
-- Allow and deny camera, microphone, location, notifications and file selection.
-- Revoke permissions in Android Settings and retry.
-- Test offline startup, captive portal, slow network, rotation and low-memory backgrounding.
-- Enter malformed URLs, very long instructions, unsupported files and interrupted provider responses.
+### Performance
 
-## Device-phase exit criteria
+- Measure startup time without adding startup network activity.
+- Measure two-lane task CPU, memory, battery, and data use.
+- Measure headless WebView lifecycle and cleanup.
+- Keep APKs below the current per-ABI size limit.
+- Avoid retaining page bodies or image previews longer than the task needs them.
 
-- [ ] API 31 physical device matrix completed.
-- [ ] Current Android physical device matrix completed.
-- [ ] Task-scoped browser execution works end to end.
-- [ ] Back-to-back tasks show no state/session/anchor leakage.
-- [ ] Provider keys and granted sessions survive encrypted migration and can be removed.
-- [ ] Clear data removes normal/private/retained browsing state.
-- [ ] Local research, follow-up and download paths complete on-device.
-- [ ] Approval deny/allow/session-reset behavior matches wording.
-- [ ] Downloads survive supported lifecycle cases without corruption.
-- [ ] WorkManager recovery, cancellation and recurring schedules behave correctly.
-- [ ] Proxy/Orbot fail-closed and DNS behavior are observed.
-- [ ] Every found defect has a regression test or a recorded device test where automation is impossible.
-- [ ] CI remains green after every patch.
+### Polish acceptance criteria
 
-## Later phases
+- [ ] No overflow or debug text styling on any pushed screen.
+- [ ] Classic dark and Warm cream goldens are intentional and stable.
+- [ ] Large text remains usable on major screens.
+- [ ] Browser, agent, and download notifications clear correctly.
+- [ ] Task chat explains every waiting or failed state without exposing raw internals.
+- [ ] No new analytics, advertising SDK, or startup request is introduced.
 
-### Canva MCP acceptance
+## Required physical-device testing
 
-- Obtain Canva approval for the hosted HTTPS CIMD client document and exact redirect URI.
-- Run MCP Inspector and compare dynamic tool schemas/results with the Android client.
-- Device-test OAuth authorize/refresh/revoke, Tor/proxy behavior, process death, rate limits, and expired signed URLs.
-- Complete create → candidate review → selection → transactional edit → creative approval → final export without persisting Canva-signed URLs.
-- Confirm an ambiguous non-idempotent Canva effect stops for reconciliation rather than repeating.
+Record device model, Android version, System WebView version, ABI, network mode, and commit for every run.
 
-### Remote execution end to end
+### Installation and storage
 
-- Deploy server-side signature verification and replay protection.
-- Add queue/worker isolation, cancellation, timeouts and reconnectable event streaming.
-- Implement the server-side `DesignPlatformAdapter`/`AsyncJobAdapter` using the same run, idempotency, review and quota contracts as Android.
-- Let hour/day-long jobs finish server-side and reconnect the device through the existing durable job ID rather than resubmitting.
-- Add an explicit per-task local/remote selector; local remains default.
-- Define retention and observability without task-content logging.
-- Complete device-to-server adversarial testing.
+- Fresh install and relaunch
+- Upgrade over an older test build
+- Settings persistence
+- Provider credential save/restart/remove
+- Clear-data behavior
+- Storage Access Framework folder grant and revocation
 
-### Credits and paid operation
+### Browser
 
-- Append-only credit ledger with derived balance
-- Idempotent purchases/debits and deterministic refunds
-- Measured cost/capacity model
-- Lost-device/lost-key policy stated before purchase
-- Payment reconciliation and abuse controls
-- Security/privacy review of the complete service
+- Back, forward, reload, address synchronization
+- Multiple retained tabs
+- Private-tab behavior
+- Camera, microphone, location, and file chooser
+- Controlled ad/tracker/redirect/popup fixture
+- Tracking-parameter stripping compatibility
 
-Do not sell credits before remote execution is reliable and the lost-key policy is explicit.
+### Agent
+
+- Local research and citations
+- Named-site task
+- Direct and discovered download
+- Follow-up and pointer references
+- Two tasks started together
+- Approval while foregrounded and backgrounded
+- Cancellation during search, WebView extraction, provider output, and download
+- Process death at multiple ledger states
+- Recurring task with changed and unchanged results
+
+### Privacy routes
+
+- Nobody mode with bundled Tor
+- Orbot priority
+- Fail-closed behavior before and during a request
+- Airplane mode and captive portal
+- Proxy configuration
+- DNS and observed egress checks
+
+## Deferred work
+
+The following work is deliberately not part of the next development cycle:
+
+- Canva MCP external acceptance
+- Figma integration
+- Adobe Express integration
+- Other online design platforms
+- Broader design editing
+- Credits and payments
+
+The repository contains design/MCP foundations, but that work resumes only after an explicit future decision.
+
+## Later commercial work
+
+Do not implement paid credits before the remote worker is reliable.
+
+A future commercial layer requires:
+
+- Append-only credit ledger
+- Derived balance rather than mutable balance fields
+- Idempotent purchase and debit operations
+- Deterministic refunds
+- Provider cost reconciliation
+- Fraud and abuse controls
+- Lost-device and lost-key policy
+- Account recovery design
+- Clear retention and deletion terms
+- Independent security review
 
 ## Roadmap maintenance
 
 - Change a status only when evidence changes it.
-- Include commit, CI run or device evidence for “verified” claims.
-- Keep developer guidance in `README.md` and delivery status here.
-- Do not add separate status, milestone, architecture or specification documents.
+- Keep current priorities here, not in one-off planning files.
+- Keep implementation history in `SESSION-LOG.txt`.
+- Keep the repository Markdown surface limited to `README.md` and `ROADMAP.md`.
+- Never call emulator or off-device tests physical-device validation.
+- Record regressions and their verification before marking work complete.

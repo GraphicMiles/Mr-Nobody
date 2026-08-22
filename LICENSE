@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Mr Nobody contributors
+Copyright (c) 2026 GraphicMiles and Mr Nobody contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third-party components and data:
-
-- The app renders web content using Android System WebView, which is provided by
-  the Android operating system and is not redistributed inside this application.
-- Bundled filter lists are self-authored/curated; see filters/bundled/ for the
-  source and licensing of each entry. No third-party list (e.g. EasyList,
-  EasyPrivacy) is redistributed without verified licensing.
