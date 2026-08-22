@@ -17,10 +17,14 @@ jobs:
       # affect the tracked-file check.
       - name: Documentation surface
         run: |
-          expected=$(printf 'README.md\nROADMAP.md')
+          # website/ is the shipped landing page (served by the update
+          # server), and server/README.md documents that service — both are
+          # product surface, not free-form docs. Everything else stays
+          # consolidated in README.md and ROADMAP.md.
+          expected=$(printf 'README.md\nROADMAP.md\nserver/README.md\nwebsite/desktop.html\nwebsite/index.html\nwebsite/mobile.html')
           actual=$(git ls-files '*.md' '*.mdx' '*.html' '*.htm' '*.rst' '*.adoc' '*.asciidoc' | sort)
           if [ "$actual" != "$expected" ]; then
-            echo "Expected exactly README.md and ROADMAP.md; found:" >&2
+            echo "Expected exactly the allowlisted documentation surface; found:" >&2
             printf '%s\n' "$actual" >&2
             exit 1
           fi
