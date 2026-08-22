@@ -47,6 +47,7 @@ class BrowserTab extends ChangeNotifier {
   /// What the page looks like, for the tab grid. Memory only: never written to
   /// disk, and never captured at all for a private tab.
   Uint8List? thumbnail;
+  Uint8List? icon;
 
   Timer? _captureAfterLoad;
 
@@ -78,6 +79,10 @@ class BrowserTab extends ChangeNotifier {
         title = t;
         notifyListeners();
       }
+      ..onIconChanged = (bytes) {
+        icon = bytes;
+        notifyListeners();
+      }
       ..onLoadingChanged = (l) {
         if (l == isLoading) return;
         isLoading = l;
@@ -88,7 +93,15 @@ class BrowserTab extends ChangeNotifier {
           // Let the page settle before photographing it — a capture taken the
           // instant loading ends is usually a half-painted page.
           _captureAfterLoad?.cancel();
-          _captureAfterLoad = Timer(const Duration(milliseconds: 700), captureThumbnail);
+          // Android can report finished before the compositor has painted the
+          // retained WebView. Retry a few times so the grid never gets stuck
+          // with a white/empty card after a fast tab switch.
+          _captureAfterLoad = Timer(const Duration(milliseconds: 450), () async {
+            await captureThumbnail();
+            if (thumbnail == null) {
+              _captureAfterLoad = Timer(const Duration(milliseconds: 900), captureThumbnail);
+            }
+          });
         }
       }
       ..onError = (e) {
@@ -203,6 +216,7 @@ class BrowserTab extends ChangeNotifier {
   void dispose() {
     _captureAfterLoad?.cancel();
     thumbnail = null;
+    icon = null;
     chromeVisible.dispose();
     notice.dispose();
     downloadApproval.dispose();

@@ -63,6 +63,9 @@ abstract class BrowserEngine {
   /// Called with the page title once known.
   ValueChanged<String>? onTitleChanged;
 
+  /// Called with the page favicon supplied by WebView, encoded as PNG bytes.
+  ValueChanged<Uint8List>? onIconChanged;
+
   /// Called when the main frame fails to load.
   ValueChanged<String>? onError;
 

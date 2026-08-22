@@ -601,6 +601,20 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
 
         @Override
+        public void onReceivedIcon(WebView view, Bitmap icon) {
+            if (icon == null) return;
+            try {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                icon.compress(Bitmap.CompressFormat.PNG, 100, out);
+                Map<String, Object> data = new HashMap<>();
+                data.put("icon", out.toByteArray());
+                send("onIcon", data);
+            } catch (Throwable ignored) {
+                // A favicon is optional UI; never affect page rendering.
+            }
+        }
+
+        @Override
         public void onPermissionRequest(android.webkit.PermissionRequest request) {
             // Camera/microphone capture is not a shipped capability. Deny it
             // explicitly instead of declaring dangerous Android permissions
@@ -939,6 +953,10 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             Canvas canvas = new Canvas(bitmap);
             canvas.scale(scale, scale);
             webView.draw(canvas);
+            // A detached retained WebView may briefly draw only its background
+            // while Chromium resumes the renderer. Reject an all-background
+            // frame so Dart can keep the previous useful preview and retry.
+            if (isUniformBackground(bitmap)) return null;
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.JPEG, 55, out);
             bitmap.recycle();
@@ -947,6 +965,18 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             // A capture is a nicety; never let it take the page down.
             return null;
         }
+    }
+
+    private static boolean isUniformBackground(Bitmap bitmap) {
+        if (bitmap == null || bitmap.getWidth() < 2 || bitmap.getHeight() < 2) return true;
+        int first = bitmap.getPixel(0, 0);
+        int[][] points = {{bitmap.getWidth() / 2, bitmap.getHeight() / 2},
+                {bitmap.getWidth() - 1, bitmap.getHeight() - 1},
+                {bitmap.getWidth() / 3, bitmap.getHeight() / 3}};
+        for (int[] point : points) {
+            if (bitmap.getPixel(point[0], point[1]) != first) return false;
+        }
+        return true;
     }
 
     @Nullable
