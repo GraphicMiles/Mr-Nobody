@@ -3,6 +3,8 @@ package com.mrnobody.agent.planner;
 import android.content.Context;
 
 import com.mrnobody.agent.ai.AiProvider;
+import com.mrnobody.agent.design.DesignController;
+import com.mrnobody.agent.design.DesignSession;
 import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.core.AgentRunContext;
 import com.mrnobody.agent.core.Cancellation;
@@ -17,6 +19,8 @@ import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.policy.ApprovalPolicy;
 import com.mrnobody.agent.policy.PerRunGuard;
 import com.mrnobody.agent.policy.TaskBudget;
+import com.mrnobody.agent.skills.SkillMatch;
+import com.mrnobody.agent.skills.SkillRegistry;
 import com.mrnobody.agent.tools.BrowserTool;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
@@ -212,6 +216,15 @@ public final class DeterministicEngine implements AgentEngine {
             return;
         }
 
+        SkillMatch topSkill = SkillRegistry.standard().route(asked);
+        DesignSession existingDesign = null;
+        try { existingDesign = MrNobodyApp.designSessions().findByTask(task.id()); }
+        catch (Throwable ignored) { }
+        if (topSkill.isDesign() || existingDesign != null) {
+            runDesign(context, task, cancellation, asked);
+            return;
+        }
+
         // Skill-before-search, rule 3: a time/date/day question is answered
         // from the device clock, with zero network. Before this, "whats the
         // time" ran a five-page 53-second research task.
@@ -271,6 +284,51 @@ public final class DeterministicEngine implements AgentEngine {
                 runTools().containsKey("download") && ToolRouter.isDownloadIntent(asked),
                 runTools().keySet()));
         executeResearch(context, task, plan, cancellation, asked, classified.intent, pointed);
+    }
+
+    private void runDesign(Context context, Task task, Cancellation cancellation,
+                           String instruction) {
+        if (!runTools().containsKey("design")) {
+            fail(task, ToolResult.fail("The design skill is not available in this build."));
+            return;
+        }
+        try {
+            if (!MrNobodyApp.designAdapter().isConfigured()) {
+                fail(task, ToolResult.fail(
+                        "Canva MCP is not connected. Open Settings → Design platform."));
+                return;
+            }
+        } catch (Throwable t) {
+            fail(task, ToolResult.fail("Design platform is unavailable."));
+            return;
+        }
+        task.setExecutionPlatform("canva-mcp");
+        AgentRunContext run = AgentRunContext.current();
+        if (run != null) run.setExecutionPlatform("canva-mcp");
+        setRunScope(java.util.Collections.singleton("design"));
+        enterActivity(task, "Designing in Canva", "skill.design",
+                "Use only the scoped design capability and keep review gates separate.");
+        DesignController controller;
+        try { controller = new DesignController(MrNobodyApp.designSessions()); }
+        catch (Throwable t) {
+            fail(task, ToolResult.fail("Design session storage is unavailable."));
+            return;
+        }
+        DesignController.Outcome outcome = controller.run(context, task, instruction,
+                cancellation, (request, cancel) ->
+                        callScoped(context, "design", request, cancel));
+        if (outcome.needsApproval()) {
+            parkIfNeeded(task, outcome.toolResult);
+            return;
+        }
+        if (outcome.failed()) {
+            fail(task, outcome.toolResult);
+            return;
+        }
+        task.setError("");
+        task.setResult(outcome.answer);
+        task.setStatus(Task.Status.COMPLETED);
+        recordAnswer(task);
     }
 
     /** A routed action is the whole task: one tool call whose result is the answer. */

@@ -15,6 +15,9 @@ import com.mrnobody.agent.browser.HeadlessSessions;
 import com.mrnobody.agent.core.AgentEngine;
 import com.mrnobody.agent.core.AgentRunContext;
 import com.mrnobody.agent.core.Task;
+import com.mrnobody.agent.design.DesignPlatformAdapter;
+import com.mrnobody.agent.design.DesignSessionStore;
+import com.mrnobody.agent.design.UnavailableDesignAdapter;
 import com.mrnobody.agent.dispatcher.LocalWorker;
 import com.mrnobody.agent.dispatcher.RemoteWorker;
 import com.mrnobody.agent.dispatcher.TaskDispatcher;
@@ -24,6 +27,7 @@ import com.mrnobody.agent.jobs.AsyncJobCoordinator;
 import com.mrnobody.agent.jobs.AsyncJobStore;
 import com.mrnobody.agent.jobs.SqliteAsyncJobStore;
 import com.mrnobody.agent.planner.DeterministicEngine;
+import com.mrnobody.agent.skills.SkillRegistry;
 import com.mrnobody.agent.tasks.TaskReconciler;
 import com.mrnobody.agent.tasks.TaskStore;
 import com.mrnobody.agent.tasks.TaskEventStore;
@@ -34,6 +38,7 @@ import com.mrnobody.agent.tasks.TaskScheduler;
 import com.mrnobody.agent.tasks.WorkManagerTaskScheduler;
 import com.mrnobody.agent.policy.PolicyGate;
 import com.mrnobody.agent.tools.BrowserTool;
+import com.mrnobody.agent.tools.DesignTool;
 import com.mrnobody.agent.tools.DownloadTool;
 import com.mrnobody.agent.tools.TerminalTool;
 import com.mrnobody.browser.blocking.FilterEngine;
@@ -79,6 +84,9 @@ public final class MrNobodyApp extends Application {
     private static ExecutionLedger executionLedger;
     private static AsyncJobStore asyncJobs;
     private static AsyncJobCoordinator asyncJobCoordinator;
+    private static DesignSessionStore designSessions;
+    private static volatile DesignPlatformAdapter designAdapter =
+            new UnavailableDesignAdapter("Canva MCP is not configured.");
     private static ApprovalPolicy.MapOverrides approvalOverrides;
     private static TaskDispatcher taskDispatcher;
     private static TaskScheduler taskScheduler;
@@ -160,6 +168,8 @@ public final class MrNobodyApp extends Application {
         // answers a plain fetch with a challenge page.
         engine.registerTool(new com.mrnobody.agent.tools.SearchTool(HeadlessSessions::current));
         engine.registerTool(new DownloadTool());
+        engine.registerTool(new DesignTool(MrNobodyApp::designAdapter,
+                MrNobodyApp::designSessions));
         // Long-term retrieval is not registered until its opt-in storage policy
         // is wired end to end. Task history remains visible/erasable in Memory,
         // but a planner cannot invoke a capability outside its actual scope.
@@ -173,6 +183,7 @@ public final class MrNobodyApp extends Application {
         executionLedger = new SqliteExecutionLedger(this);
         asyncJobs = new SqliteAsyncJobStore(this);
         asyncJobCoordinator = new AsyncJobCoordinator(asyncJobs, executionLedger);
+        designSessions = new DesignSessionStore(this);
 
         // Attach the pipeline seams: user-facing audit, durable execution
         // authority, approval policy, and confirmation UI.
@@ -273,6 +284,12 @@ public final class MrNobodyApp extends Application {
     public static ExecutionLedger executionLedger() { return executionLedger; }
     public static AsyncJobStore asyncJobs() { return asyncJobs; }
     public static AsyncJobCoordinator asyncJobCoordinator() { return asyncJobCoordinator; }
+    public static DesignSessionStore designSessions() { return designSessions; }
+    public static DesignPlatformAdapter designAdapter() { return designAdapter; }
+    public static void setDesignAdapter(DesignPlatformAdapter adapter) {
+        designAdapter = adapter == null
+                ? new UnavailableDesignAdapter("Design platform is unavailable.") : adapter;
+    }
     public static ApprovalPolicy.MapOverrides approvalOverrides() { return approvalOverrides; }
 
     /** Change how often the agent stops to ask, and remember it. */
@@ -314,7 +331,10 @@ public final class MrNobodyApp extends Application {
             primary = ProviderSnapshot.decode(task.providerSnapshot());
             fallbacks.addAll(decodeSnapshots(task.fallbackProviderSnapshots()));
         }
-        if (task.executionPlatform().isEmpty()) task.setExecutionPlatform("local-device");
+        if (task.executionPlatform().isEmpty()) {
+            task.setExecutionPlatform(SkillRegistry.standard()
+                    .route(task.activeInstruction()).executionPlatform);
+        }
 
         AiProvider provider = providerFrom(primary);
         if (!primary.isLocal() && !fallbacks.isEmpty()) {

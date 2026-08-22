@@ -17,6 +17,13 @@ public class ImpactKindTest {
     }
 
     @Test
+    public void designExportIsAnIndependentFinalizationGate() {
+        ImpactKind kind = ImpactKind.of("design", "export", "format=pdf");
+        assertEquals(ImpactKind.FINALIZE, kind);
+        assertTrue(kind.alwaysConfirm());
+    }
+
+    @Test
     public void submitIsSend() {
         assertEquals(ImpactKind.SEND, ImpactKind.of("browser", "submit", ""));
         assertEquals(ImpactKind.DRAFT, ImpactKind.of("browser", "type", "hello"));
