@@ -97,11 +97,14 @@ MCP and online design-platform work is suspended. The next development work shou
 
 ### Answer quality
 
-- Improve intent classification without adding broad, unsafe keyword matches.
+The local path is a **light-duty, rule-driven** extractor, not a general-purpose reasoner. Its job is to make light, well-scoped tasks reliable and honest; genuinely ambiguous, compound or creative instructions belong to the remote model / remote worker. Intent classification is form-first (question shape, not a cue-word list) so it is less brittle, but it is still bounded — don't keep expanding local heuristics to chase general intelligence.
+
+- Improve intent classification without adding broad, unsafe keyword matches (form-first; fewer brittle lists).
 - Improve source selection for factual, current, official, and technical questions.
 - Make unsupported or partially supported conclusions more obvious.
 - Keep citations tied only to successfully read evidence.
 - Improve extractive fallback wording when remote AI providers fail.
+- **Route ambiguous/compound/creative input to the remote model; keep only light, deterministic tasks on the local path.**
 - Test provider fallback across authentication, quota, timeout, malformed output, and cancellation failures.
 
 ### Planning

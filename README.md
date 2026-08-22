@@ -208,9 +208,11 @@ These are different concepts.
 ### Local agent
 
 - Runs on the Android device.
-- Uses deterministic planning and extraction.
+- Uses deterministic planning and extraction. It classifies a question's shape (a figure, an identity, a definition, an explanation, a comparison) and ranks answer sentences against that shape, so it is not a raw keyword dump — but it is still a light-duty, rule-driven path with no language model.
+- Best suited to **light, well-scoped tasks**: device clock/date, simple arithmetic, a direct download, a fact lookup with sources. It is not a general-purpose reasoner.
 - Makes no AI-provider request.
 - May still use the network for search, reading, downloads, or a user-requested website.
+- **Ambiguous, compound, or creative instructions are the job of the remote model / remote worker, not the local path.** When no provider is configured, the local path handles what it can and says so plainly rather than fabricating a reasoned answer.
 
 ### Remote AI provider
 
