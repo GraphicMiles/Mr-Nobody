@@ -612,3 +612,26 @@ repository privacy audit clean; strict Flutter analysis clean; all 167 Flutter
 widget/golden tests pass locally with the four intentional classic/warm S6
 golden updates. PR #1 and the merged-main signed-APK workflow are green. Live
 Canva/device evidence remains pending until an approved CIMD/redirect exists.
+
+---
+
+## 2026-08-22 — Repository cleanup and plain-language documentation
+
+Both remaining topic branches were already fully contained in main. The local
+`feat/resilient-design-mcp` branch and the remote
+`feat/resilient-design-mcp` / `fix/critical-high-review-findings` branches were
+deleted, leaving `main` as the only local and remote branch.
+
+README was rewritten around a plain description of the product: an Android
+privacy browser with a bounded task agent. The new guide separates local
+agent, remote AI provider, and remote worker behavior; explains privacy modes,
+downloads, task recovery, architecture, safety rules, setup, release signing,
+device testing, and the boundaries of unfinished server/commercial work.
+
+ROADMAP was rewritten around the next active priorities: core agent quality,
+the persistent remote worker/server, and general app polish. MCP and external
+design-platform acceptance are explicitly deferred.
+
+LICENSE is now the canonical MIT License with copyright attributed to
+GraphicMiles and Mr Nobody contributors. Third-party licensing and trademark
+notes remain in README rather than being appended to the MIT grant.
