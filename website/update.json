@@ -1,9 +1,9 @@
 {
   "latestVersion": "1.0.0",
   "releaseNotes": "Faster tab switching, reliable page previews, website icons, selected search engines and live download progress.",
-  "downloadUrl": "https://example.com/releases/mr-nobody-1.0.0.apk",
+  "downloadUrl": "https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.0/mr-nobody-1.0.0.apk",
   "required": false,
-  "sha256": "REPLACE_WITH_RELEASE_SHA256",
-  "signature": "REPLACE_WITH_ANDROID_SIGNING_METADATA",
-  "publishedAt": "2026-08-22T00:00:00Z"
+  "sha256": "547372b5dc0204d8d48b92d0c735ca3d9ae1e6097799d98b3c3f0fd76e6e18ce",
+  "signature": "1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5",
+  "publishedAt": "2026-08-22T23:01:47Z"
 }
