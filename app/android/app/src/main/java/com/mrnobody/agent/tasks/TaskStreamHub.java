@@ -27,6 +27,10 @@ public final class TaskStreamHub {
         void onDone(long taskId, String fullText);
 
         void onError(long taskId, String error);
+
+        /** Byte-level download progress for a task-owned download. */
+        default void onDownloadProgress(long taskId, long bytes, long total,
+                                        String name, String status) { }
     }
 
     private static final TaskStreamHub INSTANCE = new TaskStreamHub();
@@ -69,5 +73,14 @@ public final class TaskStreamHub {
         List<Listener> list = listeners.get(taskId);
         if (list == null) return;
         for (Listener listener : list) listener.onError(taskId, error);
+    }
+
+    public void emitDownloadProgress(long taskId, long bytes, long total,
+                                     String name, String status) {
+        List<Listener> list = listeners.get(taskId);
+        if (list == null) return;
+        for (Listener listener : list) {
+            listener.onDownloadProgress(taskId, bytes, total, name, status);
+        }
     }
 }

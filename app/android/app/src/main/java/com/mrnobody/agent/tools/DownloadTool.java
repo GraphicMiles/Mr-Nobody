@@ -18,6 +18,7 @@ import com.mrnobody.browser.download.DownloadEngine;
 import com.mrnobody.browser.download.DownloadNaming;
 import com.mrnobody.browser.download.DownloadRecord;
 import com.mrnobody.browser.download.DownloadRisk;
+import com.mrnobody.agent.tasks.TaskStreamHub;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -141,13 +142,26 @@ public final class DownloadTool implements Tool {
             String referer = request.param("referer");
             DownloadEngine engine = DownloadEngine.get(context);
             String requestKey = execution == null ? null : execution.idempotencyKey();
+            final long taskId = execution == null ? -1L : execution.taskId();
+            final DownloadEngine.Listener progressListener = taskId <= 0 ? null :
+                    live -> {
+                        if (requestKey != null && requestKey.equals(live.requestKey)) {
+                            TaskStreamHub.instance().emitDownloadProgress(taskId, live.bytes,
+                                    live.total, live.fileName, live.status.name());
+                        }
+                    };
+            if (progressListener != null) engine.addListener(progressListener);
             DownloadRecord record = engine.enqueue(url, name, null, BROWSER_UA,
                     referer == null || referer.isEmpty() ? null : referer,
                     initialRisk.requiresConfirmation, cleartext != null, requestKey);
-            DownloadRecord done = engine.awaitTerminal(record.id, WAIT_MS,
-                    () -> cancellation != null && cancellation.isCancelled());
-            if (done == null) done = record;
-            return result(context, url, done);
+            try {
+                DownloadRecord done = engine.awaitTerminal(record.id, WAIT_MS,
+                        () -> cancellation != null && cancellation.isCancelled());
+                if (done == null) done = record;
+                return result(context, url, done);
+            } finally {
+                if (progressListener != null) engine.removeListener(progressListener);
+            }
         } catch (Exception e) {
             return ToolResult.fail("download failed: " + e.getMessage());
         }
