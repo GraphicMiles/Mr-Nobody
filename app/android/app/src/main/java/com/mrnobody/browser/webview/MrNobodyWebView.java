@@ -542,15 +542,6 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             data.put("code", error.getErrorCode());
             send("onError", data);
         }
-    };
-
-    private final WebChromeClient chromeClient = new WebChromeClient() {
-        @Override
-        public void onProgressChanged(WebView view, int newProgress) {
-            Map<String, Object> data = new HashMap<>();
-            data.put("progress", newProgress);
-            send("onProgress", data);
-        }
 
         /**
          * The renderer died — the classic symptom is exactly the defect under
@@ -558,8 +549,8 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
          * The dead WebView can never come back, so record what happened (the
          * diagnostic build surfaces it in the ⓘ panel), drop the page so the
          * next platform view for this tab builds a fresh WebView, and return
-         * true. Returning false would additionally kill the whole app, which
-         * would hide the cause entirely.
+         * true. Returning false (the inherited default) would additionally
+         * kill the whole app, which would hide the cause entirely.
          */
         @Override
         public boolean onRenderProcessGone(WebView view,
@@ -591,6 +582,15 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 }
             }
             return true;
+        }
+    };
+
+    private final WebChromeClient chromeClient = new WebChromeClient() {
+        @Override
+        public void onProgressChanged(WebView view, int newProgress) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("progress", newProgress);
+            send("onProgress", data);
         }
 
         @Override

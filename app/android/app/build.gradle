@@ -43,11 +43,14 @@ android {
 
     defaultConfig {
         applicationId = "com.mrnobody.browser"
-        // Android 10+ (API 29) for a broad distribution build. The app uses
-        // the System WebView and feature-detects per-profile isolation, proxy
-        // override, and script injection at runtime, so it degrades to what
-        // the installed WebView supports rather than requiring a fixed OS.
-        minSdk = 29
+        // Android 12+ (API 31). The distribution audience is on modern
+        // devices; raising the floor from 29 trims legacy compatibility
+        // surface while the release build is being stabilised. The app uses
+        // the System WebView and feature-detects per-profile isolation,
+        // proxy override, and script injection at runtime, so it degrades to
+        // what the installed WebView supports rather than requiring a fixed
+        // OS.
+        minSdk = 31
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
