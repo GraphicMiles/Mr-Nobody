@@ -917,11 +917,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '—';
   }
 
-  /// The persistent nudge for a required release. Returns nothing for an
-  /// optional or dismissed update — those live quietly in the row.
-  Widget? _requiredUpdateBanner() {
+  /// The persistent nudge for a required release. Returns a zero-height
+  /// widget (not null) for an optional or dismissed update, so the row
+  /// above stays the first child; those live quietly in the Updates row.
+  Widget _requiredUpdateBanner() {
     final u = _state.updates;
-    if (!(u.updateAvailable && !u.dismissed && u.required)) return null;
+    if (!(u.updateAvailable && !u.dismissed && u.required)) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Material(
@@ -935,7 +938,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.campaign_outlined,
+              const Icon(Icons.campaign_outlined,
                   size: 18, color: AppColors.warning),
               const SizedBox(width: 10),
               Expanded(
@@ -977,7 +980,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 /// warning colour when the release is required.
 class _UpdateBadge extends StatelessWidget {
   final bool required;
-  const _UpdateBadge({super.key, required this.required});
+  const _UpdateBadge({required this.required});
 
   @override
   Widget build(BuildContext context) {
@@ -1012,7 +1015,7 @@ String _relativeTime(int epochMillis) {
 /// without the caller re-pushing anything.
 class _UpdateSheet extends StatefulWidget {
   final void Function(String url)? onOpenUrl;
-  const _UpdateSheet({super.key, this.onOpenUrl});
+  const _UpdateSheet({this.onOpenUrl});
 
   @override
   State<_UpdateSheet> createState() => _UpdateSheetState();
@@ -1150,7 +1153,7 @@ class _UpdateSheetState extends State<_UpdateSheet> {
                           w: FontWeight.w600),
                     ),
                     const SizedBox(width: 8),
-                    Icon(Icons.check_circle,
+                    const Icon(Icons.check_circle,
                         size: 16, color: AppColors.success),
                   ],
                 ),

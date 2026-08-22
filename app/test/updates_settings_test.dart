@@ -21,14 +21,14 @@ void main() {
     required bool available,
     required bool dismissed,
     bool networkFailed = false,
-    bool required = false,
-    int checkedAt = 1_753_200_000_000,
+    bool requiredFlag = false,
+    int checkedAt = 1753200000000,
   }) =>
       <String, Object>{
         'installedVersion': '1.0.0',
         'latestVersion': latest,
         'updateAvailable': available,
-        'required': required && available,
+        'required': requiredFlag && available,
         'releaseNotes': 'Faster tabs and reliable previews.',
         'downloadUrl': 'https://cdn.example.com/mr-nobody-$latest.apk',
         'sha256': 'b1c6939aa1650b3fd69711713c522336f9fc10a84ac8fffc8f7e0957743f5d7c',

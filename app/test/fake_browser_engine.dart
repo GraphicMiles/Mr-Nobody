@@ -32,6 +32,8 @@ class FakeBrowserEngine implements BrowserEngine {
   @override
   ValueChanged<String>? onTitleChanged;
   @override
+  ValueChanged<Uint8List>? onIconChanged;
+  @override
   ValueChanged<String>? onError;
   @override
   ValueChanged<int>? onScroll;
