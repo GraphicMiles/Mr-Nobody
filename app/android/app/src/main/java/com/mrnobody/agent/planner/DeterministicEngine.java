@@ -798,6 +798,10 @@ public final class DeterministicEngine implements AgentEngine {
         String text = result.isSuccess()
                 ? (result.result() == null ? "" : result.result())
                 : "failed: " + result.error();
+        // Page content (and its JSON/metadata) is cleaned before the model sees
+        // it, so a step's transcript never quotes tags, entities, markdown links
+        // or schema field names as if they were page prose.
+        text = com.mrnobody.agent.util.Sanitize.prose(text);
         text = text.replaceAll("\\s+", " ").trim();
         if (text.length() > 2000) text = text.substring(0, 2000) + "…";
 
@@ -1499,6 +1503,11 @@ public final class DeterministicEngine implements AgentEngine {
         // The oversized-output annotation is planner metadata, not page text;
         // stripping it here keeps it out of every extraction and citation.
         String clean = com.mrnobody.agent.core.OutputPreview.stripAnnotation(text);
+        // Transport noise — HTML tags, undecoded entities, markdown links,
+        // JSON metadata and nav chrome — must not be quoted as evidence. This
+        // runs over every source, so both the deterministic extractive answer
+        // and the remote grounded prompt read the same clean prose.
+        clean = com.mrnobody.agent.util.Sanitize.prose(clean);
         sources.append("\n[").append(number).append("] ").append(title)
                 .append("\n").append(url).append("\n")
                 .append(truncate(clean, PER_SOURCE_CHARS)).append("\n");
