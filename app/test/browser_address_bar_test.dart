@@ -117,6 +117,10 @@ void main() {
 
     engine.onLoadingChanged?.call(false);
     await tester.pump(const Duration(milliseconds: 800));
+    // The thumbnail capture retries 900 ms after its first (null) capture, so
+    // let that retry fire before the test ends or the tab is left with a
+    // pending timer.
+    await tester.pump(const Duration(milliseconds: 900));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('refresh-idle')), findsOneWidget);
   });
