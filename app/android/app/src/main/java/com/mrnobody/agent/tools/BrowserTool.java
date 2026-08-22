@@ -12,6 +12,7 @@ import com.mrnobody.agent.core.Tool;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 import com.mrnobody.agent.core.ToolSpec;
+import com.mrnobody.agent.core.TaskScope;
 import com.mrnobody.agent.execution.ExecutionIdentity;
 import com.mrnobody.agent.util.NetworkTargetPolicy;
 import com.mrnobody.browser.net.NetworkGate;
@@ -54,12 +55,23 @@ public final class BrowserTool implements Tool {
             java.util.Set.of("open", "fetch", "extract", "title", "links",
                     "forms", "scroll", "wait");
 
-    /** The last URL this tool navigated to, for anchoring the current task. */
-    private volatile String lastKnownUrl = "";
+    /** Last navigation is task-owned; concurrent lanes must never share it. */
+    private final java.util.concurrent.ConcurrentHashMap<Long, String> lastKnownUrls =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
-    /** Start a task with no navigation inherited from the previous run. */
+    /** Start a task with no navigation inherited from its previous run. */
     public void resetForTask() {
-        lastKnownUrl = "";
+        lastKnownUrls.remove(TaskScope.currentTask());
+    }
+
+    private String lastKnownUrl() {
+        return lastKnownUrls.getOrDefault(TaskScope.currentTask(), "");
+    }
+
+    private void rememberUrl(String value) {
+        long taskId = TaskScope.currentTask();
+        if (value == null || value.isEmpty()) lastKnownUrls.remove(taskId);
+        else lastKnownUrls.put(taskId, value);
     }
 
     private static final ToolSpec SPEC = ToolSpec.named("browser")
@@ -144,7 +156,7 @@ public final class BrowserTool implements Tool {
      * close the gap and is a wider change than this.
      */
     private String currentUrl() {
-        return lastKnownUrl;
+        return lastKnownUrl();
     }
 
     @Override
@@ -201,7 +213,7 @@ public final class BrowserTool implements Tool {
                 String url = request.param("url");
                 if (url == null || url.isEmpty()) return ToolResult.fail("browser.open needs 'url'");
                 engine.open(url);
-                lastKnownUrl = url;
+                rememberUrl(url);
                 return value("open", "url", url, "status", "opened");
             case "fetch": {
                 // Load + extract in one blocking call (the agent's extraction path).
@@ -211,7 +223,7 @@ public final class BrowserTool implements Tool {
                 }
                 long timeout = parseLong(request.param("timeout"), 20_000);
                 String text = engine.loadAndExtract(fetchUrl, timeout);
-                lastKnownUrl = fetchUrl;
+                rememberUrl(fetchUrl);
                 String image = previewImage(engine, fetchUrl);
                 if (image.isEmpty()) {
                     return value("fetch", "url", fetchUrl, "text", text);
@@ -234,7 +246,7 @@ public final class BrowserTool implements Tool {
                 return value("reload", "status", "reloaded");
             case "extract": {
                 String extracted = engine.extractText();
-                String preview = previewImage(engine, lastKnownUrl);
+                String preview = previewImage(engine, lastKnownUrl());
                 if (preview.isEmpty()) return value("extract", "text", extracted);
                 java.util.Map<String, Object> extractedVal = new java.util.LinkedHashMap<>();
                 extractedVal.put("action", "extract");
@@ -258,7 +270,7 @@ public final class BrowserTool implements Tool {
                 boolean withImages = "true".equalsIgnoreCase(request.param("images", "false"));
                 String json = engine.loadAndEvaluate(linkUrl,
                         withImages ? LINKS_AND_IMAGES_SCRIPT : LINKS_SCRIPT, linkTimeout);
-                lastKnownUrl = linkUrl;
+                rememberUrl(linkUrl);
                 java.util.Map<String, Object> v = new java.util.LinkedHashMap<>();
                 v.put("action", "links");
                 v.put("url", linkUrl);
@@ -275,7 +287,7 @@ public final class BrowserTool implements Tool {
                 if (formUrl != null && !formUrl.isEmpty()) {
                     json = engine.loadAndEvaluate(formUrl, FORMS_SCRIPT,
                             parseLong(request.param("timeout"), 20_000));
-                    lastKnownUrl = formUrl;
+                    rememberUrl(formUrl);
                 } else {
                     json = engine.evaluate(FORMS_SCRIPT, 5_000);
                 }
@@ -361,7 +373,7 @@ public final class BrowserTool implements Tool {
             }
             case "review": {
                 String page = request.param("url");
-                if (page == null || page.isEmpty()) page = lastKnownUrl;
+                if (page == null || page.isEmpty()) page = lastKnownUrl();
                 String msg = "Look at this page before I continue.";
                 if (page != null && !page.isEmpty()) msg = msg + "\n" + page;
                 return ToolResult.needsApproval("review", msg);
@@ -378,7 +390,7 @@ public final class BrowserTool implements Tool {
                     String requestKey = execution == null ? null : execution.idempotencyKey();
                     com.mrnobody.browser.download.DownloadRecord record =
                             com.mrnobody.browser.download.DownloadEngine.get(context)
-                                    .enqueue(saveUrl, name, null, null, lastKnownUrl,
+                                    .enqueue(saveUrl, name, null, null, lastKnownUrl(),
                                             false, requestKey);
                     return value("save", "url", saveUrl,
                             "id", String.valueOf(record.id),
@@ -413,7 +425,7 @@ public final class BrowserTool implements Tool {
                     return value("upload", "selector", sel, "status", "uploaded");
                 }
                 String page = request.param("url");
-                if (page == null || page.isEmpty()) page = lastKnownUrl;
+                if (page == null || page.isEmpty()) page = lastKnownUrl();
                 String msg = "File upload needs a visible tab. "
                         + "Open the page and pick the file yourself — "
                         + "a background browser cannot fill a file input.";

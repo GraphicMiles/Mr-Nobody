@@ -15,8 +15,14 @@ public class TaskRunIdentityTest {
         task.bumpRetry();
         assertEquals(first, task.runId());
 
+        task.setProviderSnapshot("provider");
+        task.setFallbackProviderSnapshots("fallback");
+        task.setExecutionPlatform("canva-mcp");
         task.startNewRun();
         assertFalse(first.equals(task.runId()));
+        assertEquals("", task.providerSnapshot());
+        assertEquals("", task.fallbackProviderSnapshots());
+        assertEquals("", task.executionPlatform());
     }
 
     @Test

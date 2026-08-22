@@ -284,6 +284,26 @@ public class ToolPipelineTest {
                 elapsed < 3_000);
     }
 
+    @Test
+    public void uniformPolicyRetriesATransientReadExactlyOnce() {
+        AtomicInteger attempts = new AtomicInteger();
+        FakeTool tool = new FakeTool(readSpec()) {
+            @Override public ToolResult execute(Context context, ToolRequest request) {
+                runs.incrementAndGet();
+                return attempts.getAndIncrement() == 0
+                        ? ToolResult.fail(com.mrnobody.agent.resilience.FailureClassifier
+                                .fromHttp(503, "HTTP 503", 1L))
+                        : ToolResult.okText("recovered");
+            }
+        };
+        ToolPipeline pipeline = new ToolPipeline(new ToolPipeline.TierApproval());
+
+        ToolResult result = pipeline.run(NO_CONTEXT, tool, goodRequest());
+
+        assertTrue(result.isSuccess());
+        assertEquals(2, tool.runs.get());
+    }
+
     // --------------------------------------------------------------- output
 
     @Test

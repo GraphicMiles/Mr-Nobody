@@ -4,6 +4,7 @@ import android.content.Context;
 
 import com.mrnobody.agent.browser.HeadlessSessions;
 import com.mrnobody.agent.core.AgentEngine;
+import com.mrnobody.agent.core.AgentRunContext;
 import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.execution.ExecutionLedger;
@@ -12,72 +13,94 @@ import com.mrnobody.agent.tasks.EventLogRecorder;
 import com.mrnobody.agent.tasks.TaskEventStore;
 import com.mrnobody.browser.MrNobodyApp;
 
-/**
- * Runs a task on-device. Delegates to the AgentEngine (deterministic in V1,
- * LLM-backed in V2). Marking it RUNNING and persisting the result here keeps the
- * worker resumable — state lives in the TaskStore, never in this object.
- */
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+
+/** Runs a bounded number of isolated on-device task cycles. */
 public final class LocalWorker implements Worker {
+
+    public static final int DEFAULT_LANES = 2;
 
     private final AgentEngine engine;
     private final ExecutionLedger ledger;
-
-    /**
-     * The current engine owns mutable planner, guard and tool state. Run one
-     * local task at a time until those objects become per-run values. This is
-     * deliberate back-pressure, not accidental WorkManager concurrency.
-     */
-    private final Object executionLock = new Object();
+    private final Semaphore lanes;
 
     public LocalWorker(AgentEngine engine) {
-        this(engine, ExecutionLedger.NONE);
+        this(engine, ExecutionLedger.NONE, DEFAULT_LANES);
     }
 
     public LocalWorker(AgentEngine engine, ExecutionLedger ledger) {
-        this.engine = engine;
-        this.ledger = ledger == null ? ExecutionLedger.NONE : ledger;
+        this(engine, ledger, DEFAULT_LANES);
     }
 
-    @Override
-    public String id() {
-        return "local";
+    public LocalWorker(AgentEngine engine, ExecutionLedger ledger, int laneCount) {
+        this.engine = engine;
+        this.ledger = ledger == null ? ExecutionLedger.NONE : ledger;
+        this.lanes = new Semaphore(Math.max(1, laneCount), true);
     }
+
+    @Override public String id() { return "local"; }
 
     @Override
     public void execute(Context context, Task task, Cancellation cancellation) {
         task.setWorker("local");
+        if (!acquire(task, cancellation)) return;
 
-        synchronized (executionLock) {
-            task.setStatus(Task.Status.RUNNING);
-            // Commit the run id and RUNNING transition before the first effect.
-            // A process death can now reload this exact cycle and replay its ledger.
-            try { MrNobodyApp.tasks().update(task); } catch (Throwable ignored) { }
-
-            // TaskScope is propagated by ToolPipeline onto its executor. The
-            // worker still owns the outer binding and always clears it, so a
-            // reused WorkManager thread cannot inherit the next task's id.
+        boolean stats = false;
+        boolean session = false;
+        try {
+            AgentRunContext run = MrNobodyApp.createRunContext(task);
+            AgentRunContext.bind(run);
             EventLogRecorder.bind(task.id());
             RunScope.bind(task.id(), task.runId(), ledger);
+
+            task.setStatus(Task.Status.RUNNING);
+            // Commit run/provider/platform identity before the first effect.
+            try { MrNobodyApp.tasks().update(task); } catch (Throwable ignored) { }
+
             HeadlessSessions.acquire(context, task.id());
+            session = true;
             com.mrnobody.agent.tasks.CompletionStats.beginRun();
-            try {
-                // A run boundary is part of the event model. It prevents a
-                // follow-up or recurring wake from inheriting the previous
-                // run's pipeline in the chat renderer.
-                append(task, TaskEventStore.TASK_STARTED, "local");
-                engine.run(context, task, cancellation);
-            } finally {
-                String terminal = task.status() == Task.Status.FAILED
-                        ? TaskEventStore.TASK_FAILED : TaskEventStore.TASK_FINISHED;
-                append(task, terminal, task.status().name());
+            stats = true;
+            append(task, TaskEventStore.TASK_STARTED, "local");
+            engine.run(context, task, cancellation);
+        } catch (Throwable t) {
+            task.setError("Local worker failed: "
+                    + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()));
+            task.setStatus(Task.Status.FAILED);
+        } finally {
+            String terminal = task.status() == Task.Status.FAILED
+                    ? TaskEventStore.TASK_FAILED : TaskEventStore.TASK_FINISHED;
+            append(task, terminal, task.status().name());
+            if (stats) {
                 com.mrnobody.agent.tasks.CompletionStats.endRun(
                         task.status() == Task.Status.COMPLETED);
-                RunScope.clear();
-                EventLogRecorder.clear();
-                HeadlessSessions.release(task.id());
             }
+            RunScope.clear();
+            AgentRunContext.clear();
+            EventLogRecorder.clear();
+            if (session) HeadlessSessions.release(task.id());
+            lanes.release();
         }
     }
+
+    private boolean acquire(Task task, Cancellation cancellation) {
+        try {
+            while (!lanes.tryAcquire(250L, TimeUnit.MILLISECONDS)) {
+                if (cancellation != null && cancellation.isCancelled()) {
+                    task.setStatus(Task.Status.CANCELLED);
+                    return false;
+                }
+            }
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            task.setStatus(Task.Status.CANCELLED);
+            return false;
+        }
+    }
+
+    int availableLanes() { return lanes.availablePermits(); }
 
     private static void append(Task task, String type, String detail) {
         try {

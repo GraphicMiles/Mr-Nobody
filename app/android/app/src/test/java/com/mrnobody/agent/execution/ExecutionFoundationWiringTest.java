@@ -27,7 +27,7 @@ public class ExecutionFoundationWiringTest {
     @Test
     public void taskSchemaMigratesRunAndSubmissionIdentity() throws Exception {
         String store = source("com/mrnobody/agent/tasks/TaskStore.java");
-        assertTrue(store.contains("private static final int VERSION = 8"));
+        assertTrue(store.contains("private static final int VERSION = 9"));
         assertTrue(store.contains("C_RUN_ID"));
         assertTrue(store.contains("C_SUBMISSION_KEY"));
         assertTrue(store.contains("findLiveFingerprint"));

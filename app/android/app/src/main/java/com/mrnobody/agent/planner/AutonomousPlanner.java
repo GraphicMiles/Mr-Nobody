@@ -37,6 +37,7 @@ public final class AutonomousPlanner {
     private final AiProvider provider;
     private final String nonce;
     private final Consumer<TokenUsage> usageSink;
+    private volatile String lastError;
 
     public AutonomousPlanner(AiProvider provider, String nonce) {
         this(provider, nonce, null);
@@ -60,10 +61,15 @@ public final class AutonomousPlanner {
      */
     public Plan.Step nextStep(String instruction, List<String> transcript,
                               Collection<String> availableTools) {
+        lastError = null;
         String prompt = buildPrompt(instruction, transcript, availableTools);
         String response = ask(prompt);
         if (response == null) return null;
         return StepCodec.parseOneStep(response, availableTools);
+    }
+
+    public String lastError() {
+        return lastError;
     }
 
     private String buildPrompt(String instruction, List<String> transcript,
@@ -130,8 +136,12 @@ public final class AutonomousPlanner {
             }
             return ToolResult.okText(out[0]);
         });
-        return result != null && result.isSuccess()
-                ? String.valueOf(result.value().get("text")) : null;
+        if (result != null && result.isSuccess()) {
+            lastError = null;
+            return String.valueOf(result.value().get("text"));
+        }
+        lastError = result == null ? "AI planning failed" : result.error();
+        return null;
     }
 
     private String systemPrompt() {

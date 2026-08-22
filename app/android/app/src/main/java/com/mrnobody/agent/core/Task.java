@@ -25,6 +25,12 @@ public final class Task {
     private String worker; // "local" | "remote" | "user" — which worker runs it
     /** Durable identity of this execution cycle; follow-ups/recurrences get a new one. */
     private String runId;
+    /** Non-secret provider configuration frozen for this run. */
+    private String providerSnapshot = "";
+    /** Explicitly consented fallback provider snapshots, encoded one per line. */
+    private String fallbackProviderSnapshots = "";
+    /** Execution platform selected before the run's first external effect. */
+    private String executionPlatform = "";
     /** Latest follow-up in this thread, or empty. Does not replace instruction. */
     private String followUp = "";
     /** JSON shortlist the next turn can address by index. */
@@ -109,10 +115,34 @@ public final class Task {
     public String worker() { return worker; }
     public void setWorker(String w) { this.worker = w; }
     public String runId() { return runId == null ? "" : runId; }
+    public String providerSnapshot() {
+        return providerSnapshot == null ? "" : providerSnapshot;
+    }
+    public void setProviderSnapshot(String value) {
+        providerSnapshot = value == null ? "" : value;
+        updatedAt = System.currentTimeMillis();
+    }
+    public String fallbackProviderSnapshots() {
+        return fallbackProviderSnapshots == null ? "" : fallbackProviderSnapshots;
+    }
+    public void setFallbackProviderSnapshots(String value) {
+        fallbackProviderSnapshots = value == null ? "" : value;
+        updatedAt = System.currentTimeMillis();
+    }
+    public String executionPlatform() {
+        return executionPlatform == null ? "" : executionPlatform;
+    }
+    public void setExecutionPlatform(String value) {
+        executionPlatform = value == null ? "" : value.trim();
+        updatedAt = System.currentTimeMillis();
+    }
 
     /** Start a genuinely new cycle; retries deliberately keep the current id. */
     public void startNewRun() {
         this.runId = newRunId();
+        this.providerSnapshot = "";
+        this.fallbackProviderSnapshots = "";
+        this.executionPlatform = "";
         this.updatedAt = System.currentTimeMillis();
     }
 
