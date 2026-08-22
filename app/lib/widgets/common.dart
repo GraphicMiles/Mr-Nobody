@@ -494,6 +494,82 @@ class EmptyNote extends StatelessWidget {
   }
 }
 
+/// A settings row for a feature that is intentionally not built yet.
+///
+/// Reads as a real entry so the product is honest about its scope, but is
+/// visually muted and non-interactive: no chevron, no tap handler, just the
+/// label, a short "Coming soon" marker, and (optionally) a one-line hint about
+/// when it will arrive. Nothing here pretends to be usable.
+class ComingSoonRow extends StatelessWidget {
+  final String label;
+  final String? detail;
+  final IconData? icon;
+
+  const ComingSoonRow({
+    super.key,
+    required this.label,
+    this.detail,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: AppColors.textFaint),
+            const SizedBox(width: 9),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppTheme.sans(
+                    size: 13,
+                    color: AppColors.textFaint,
+                  ),
+                ),
+                if (detail != null && detail!.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    detail!,
+                    style: AppTheme.sans(
+                      size: 11,
+                      color: AppColors.textMuted,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.surface2,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: AppColors.lineStrong),
+            ),
+            child: Text(
+              'Coming soon',
+              style: AppTheme.sans(
+                size: 9.5,
+                color: AppColors.textFaint,
+                w: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Joins rows with hairline dividers, the way every card in the wireframe does.
 List<Widget> withDividers(List<Widget> rows) {
   final out = <Widget>[];
