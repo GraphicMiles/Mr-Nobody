@@ -119,7 +119,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _revalidateRoute();
+    if (state != AppLifecycleState.resumed) return;
+    _revalidateRoute();
+    // Coming back after hours counts as "opening" the app: repeat the
+    // update check quietly if the last one is stale.
+    AppState.instance.checkUpdatesIfStale();
   }
 
   Future<void> _revalidateRoute() async {

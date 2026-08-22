@@ -89,6 +89,15 @@ Automated success does not prove behavior on every Android device. System WebVie
 - Backup disabled
 - Static privacy audit enforced in CI
 
+### Updates
+
+- Quiet startup check against the release-metadata endpoint, through `NetworkGate`
+- Last successful check cached; offline launches show the last known state
+- Settings → App → Updates: version, release notes, optional/required, checksum/signature
+- "Remind me later" per release; a newer published version reappears
+- `server/` zero-dependency update service (landing page + `/update.json`) and `tools/publish_update.py`
+- Metadata-only contract: no auto-download, no code executed from the server, install via the signed package installer
+
 ## Current focus
 
 MCP and online design-platform work is suspended. The next development work should focus only on the core agent, the remote worker, and general application polish.
@@ -228,9 +237,16 @@ Build a service with:
 - Improve notification grouping and stale-notification cleanup.
 - Clarify download destination, resume support, and failure causes.
 
+### Updates distribution
+
+- Deploy the `server/` service to Render and point `UpdateChecker.UPDATE_URL` at the live host.
+- Decide where the signed APK is hosted, then cut the first real release with `tools/publish_update.py` (real sha256, then apksigner cert digest for `signature`).
+- Regenerate the S6 settings goldens (classic + warm) for the new App section — intentional UI change.
+- Device evidence: badge appears on a real launch, dismissal survives a restart, offline fallback shows the cached state.
+
 ### Performance
 
-- Measure startup time without adding startup network activity.
+- Measure startup time without adding startup network activity (the update metadata check is the one approved small exception).
 - Measure two-lane task CPU, memory, battery, and data use.
 - Measure headless WebView lifecycle and cleanup.
 - Keep APKs below the current per-ABI size limit.
@@ -243,7 +259,7 @@ Build a service with:
 - [ ] Large text remains usable on major screens.
 - [ ] Browser, agent, and download notifications clear correctly.
 - [ ] Task chat explains every waiting or failed state without exposing raw internals.
-- [ ] No new analytics, advertising SDK, or startup request is introduced.
+- [ ] No new analytics, advertising SDK, or startup request is introduced (the quiet update metadata check is the approved exception).
 
 ## Required physical-device testing
 
