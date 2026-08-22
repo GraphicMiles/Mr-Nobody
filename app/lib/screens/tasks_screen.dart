@@ -167,14 +167,14 @@ class _TasksScreenState extends State<TasksScreen> {
               const Expanded(
                 child: SectionLabel('All tasks'),
               ),
-              _HeaderIcon(
+              _headerIcon(
                 icon: Icons.memory_outlined,
                 tooltip: 'Memory',
                 onTap: _openMemory,
               ),
               const SizedBox(width: 8),
               if (_tasks.isNotEmpty)
-                _HeaderIcon(
+                _headerIcon(
                   icon: Icons.delete_sweep_outlined,
                   tooltip: 'Delete all tasks',
                   onTap: _deleteAll,
@@ -217,7 +217,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   /// A small, tappable header button (Memory, Delete all).
-  Widget _HeaderIcon({
+  Widget _headerIcon({
     required IconData icon,
     required String tooltip,
     required VoidCallback onTap,
