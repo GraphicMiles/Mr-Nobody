@@ -1,0 +1,9 @@
+{
+  "latestVersion": "1.0.0",
+  "releaseNotes": "Faster tab switching, reliable page previews, website icons, selected search engines and live download progress.",
+  "downloadUrl": "https://example.com/releases/mr-nobody-1.0.0.apk",
+  "required": false,
+  "sha256": "REPLACE_WITH_RELEASE_SHA256",
+  "signature": "REPLACE_WITH_ANDROID_SIGNING_METADATA",
+  "publishedAt": "2026-08-22T00:00:00Z"
+}

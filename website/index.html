@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Mr Nobody — a quiet, private browser with an agent that gets things done." />
+  <title>Mr Nobody — The browser that gets it done</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root { --ink:#171817; --muted:#767873; --paper:#f4f3ef; --paper2:#ebeae4; --lime:#d9f35b; --line:#d8d8d1; --max:1240px; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:var(--paper); font-family:'DM Sans',Arial,sans-serif; }
+    body:before { content:''; position:fixed; inset:0; pointer-events:none; opacity:.22; z-index:10; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E"); }
+    a { color:inherit; text-decoration:none; }
+    .wrap { width:min(calc(100% - 48px),var(--max)); margin:auto; }
+    nav { height:82px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:11px; font-family:'Space Grotesk'; font-weight:700; letter-spacing:-.04em; font-size:20px; }
+    .mark { width:30px; height:30px; border-radius:50%; background:var(--ink); color:var(--lime); display:grid; place-items:center; font-family:'DM Mono'; font-size:12px; }
+    .navlinks { display:flex; align-items:center; gap:30px; color:#646660; font-size:13px; }
+    .navlinks a:hover { color:var(--ink); }
+    .navcta,.button { display:inline-flex; align-items:center; gap:9px; background:var(--ink); color:var(--paper); border:0; border-radius:999px; padding:13px 18px; font-size:13px; font-weight:600; cursor:pointer; transition:transform .2s,background .2s; }
+    .navcta:hover,.button:hover { transform:translateY(-2px); background:#343632; }
+    .button.light { background:var(--lime); color:var(--ink); }
+    .button.outline { background:transparent; border:1px solid #bfc0b8; color:var(--ink); }
+    .hero { min-height:650px; display:grid; grid-template-columns:1.04fr .96fr; gap:55px; align-items:center; padding:74px 0 88px; }
+    .eyebrow { color:#777a72; text-transform:uppercase; letter-spacing:.18em; font:11px 'DM Mono'; margin-bottom:25px; }
+    h1,h2,h3 { font-family:'Space Grotesk',Arial,sans-serif; letter-spacing:-.07em; margin:0; }
+    h1 { font-size:clamp(54px,7.5vw,105px); line-height:.91; max-width:690px; }
+    h1 em { font-style:normal; color:#97998f; }
+    .hero p { color:var(--muted); font-size:17px; line-height:1.55; max-width:490px; margin:28px 0 31px; }
+    .actions { display:flex; gap:11px; flex-wrap:wrap; }
+    .hero-art { position:relative; min-height:430px; display:grid; place-items:center; }
+    .orb { width:min(390px,80vw); height:min(390px,80vw); border-radius:50%; background:var(--ink); box-shadow:28px 32px 0 var(--lime); position:relative; overflow:hidden; }
+    .orb:before { content:''; position:absolute; width:230px; height:230px; border:1px solid #50534b; border-radius:50%; inset:78px; }
+    .orb:after { content:''; position:absolute; height:1px; background:#61645c; left:40px; right:40px; top:50%; box-shadow:0 -56px 0 #343731,0 56px 0 #343731; transform:rotate(-28deg); }
+    .orb-core { position:absolute; inset:0; display:grid; place-items:center; z-index:2; color:var(--lime); font:42px 'DM Mono'; letter-spacing:-.13em; }
+    .float { position:absolute; z-index:3; background:var(--paper); border:1px solid #cfd0c8; box-shadow:0 15px 30px #1b1c1917; border-radius:13px; padding:13px 15px; font-size:12px; }
+    .float.one { top:26px; left:5px; }.float.two { right:0; bottom:40px; }.float strong { display:block; font-family:'Space Grotesk'; font-size:14px; margin-bottom:5px; }.float span { color:var(--muted); }
+    .status { display:flex; align-items:center; gap:7px; color:#646760; font:11px 'DM Mono'; margin-top:45px; }.dot { width:7px; height:7px; background:#83aa46; border-radius:50%; }
+    .strip { background:var(--ink); color:var(--paper); padding:17px 0; font:11px 'DM Mono'; text-transform:uppercase; letter-spacing:.12em; overflow:hidden; white-space:nowrap; }.strip span { margin-right:44px; color:#9a9c91; }.strip b { color:var(--lime); font-weight:400; }
+    section { padding:125px 0; border-bottom:1px solid var(--line); }.sectionhead { display:flex; justify-content:space-between; align-items:end; gap:30px; margin-bottom:50px; }.sectionhead h2 { font-size:clamp(38px,5vw,68px); line-height:.94; max-width:630px; }.sectionhead p { color:var(--muted); max-width:315px; line-height:1.55; font-size:14px; }
+    .features { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }.feature { background:var(--paper2); min-height:270px; padding:24px; border-radius:14px; display:flex; flex-direction:column; justify-content:space-between; }.feature.dark { background:#242622; color:var(--paper); }.feature.lime { background:var(--lime); }.iconbox { width:42px; height:42px; border:1px solid currentColor; border-radius:50%; display:grid; place-items:center; }.feature h3 { font-size:27px; line-height:1; max-width:220px; }.feature p { color:var(--muted); font-size:13px; line-height:1.5; max-width:260px; margin:0; }.dark p { color:#a8aa9e; }
+    .update { display:grid; grid-template-columns:.84fr 1.16fr; gap:70px; align-items:start; }.update h2 { font-size:clamp(42px,5vw,72px); line-height:.94; }.update-intro { color:var(--muted); line-height:1.55; max-width:370px; margin:24px 0; }.release { border-top:1px solid var(--ink); padding:21px 0; display:grid; grid-template-columns:110px 1fr auto; gap:18px; align-items:start; }.release time { font:11px 'DM Mono'; color:var(--muted); }.release h3 { font-size:20px; letter-spacing:-.04em; }.release p { color:var(--muted); font-size:13px; line-height:1.5; margin:7px 0 0; }.tag { background:var(--lime); border-radius:99px; padding:5px 9px; font:10px 'DM Mono'; }
+    .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); }.step { background:var(--paper); padding:25px; min-height:190px; }.stepnum { font:11px 'DM Mono'; color:var(--muted); }.step h3 { font-size:25px; margin:38px 0 10px; }.step p { color:var(--muted); line-height:1.5; font-size:13px; margin:0; }
+    .cta { background:var(--lime); border-radius:18px; padding:65px; display:flex; align-items:end; justify-content:space-between; gap:35px; }.cta h2 { font-size:clamp(42px,5vw,72px); line-height:.9; max-width:620px; }.cta p { max-width:315px; line-height:1.5; font-size:14px; }
+    footer { padding:30px 0 45px; display:flex; justify-content:space-between; color:var(--muted); font:11px 'DM Mono'; }.footlinks { display:flex; gap:22px; }
+    @media(max-width:800px){ .wrap{width:min(calc(100% - 32px),var(--max));} nav{height:70px}.navlinks{display:none}.hero,.update{grid-template-columns:1fr; gap:20px; padding:65px 0}.hero-art{min-height:370px}.features,.steps{grid-template-columns:1fr}.sectionhead{display:block}.sectionhead p{margin-top:20px}.release{grid-template-columns:75px 1fr}.release .tag{display:none}.cta{padding:36px 25px; display:block}.cta .button{margin-top:25px}section{padding:82px 0}footer{display:block}.footlinks{margin-top:18px} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="#top"><span class="mark">?</span> mr nobody</a>
+      <div class="navlinks"><a href="#why">Why Mr Nobody</a><a href="#updates">Updates</a><a href="#how">How it works</a></div>
+      <a class="navcta" href="#updates">Get the latest <i data-lucide="arrow-up-right" width="15"></i></a>
+    </nav>
+  </div>
+  <main id="top">
+    <div class="wrap hero">
+      <div><div class="eyebrow">A private browser with an agent inside</div><h1>Make the web work <em>for you.</em></h1><p>Mr Nobody is a quiet, capable browser that searches, reads, compares and gets things done — without turning your activity into a product.</p><div class="actions"><a class="button" href="#updates">Update Mr Nobody <i data-lucide="download" width="16"></i></a><a class="button outline" href="#why">See what it does <i data-lucide="arrow-down" width="16"></i></a></div><div class="status"><span class="dot"></span> Latest stable release · v1.0.0</div></div>
+      <div class="hero-art"><div class="float one"><strong>Quiet by default</strong><span>No ads. No noise. No tracking.</span></div><div class="orb"><div class="orb-core">mr<br>nobody</div></div><div class="float two"><strong><i data-lucide="check" width="13"></i> Update ready</strong><span>v1.0.0 · signed APK</span></div></div>
+    </div>
+    <div class="strip"><div class="wrap"><b>private by design</b> <span>·</span> agent-powered <span>·</span> updates you can verify <span>·</span> built for the real web <span>·</span> private by design <span>·</span></div></div>
+    <section id="why"><div class="wrap"><div class="sectionhead"><h2>A browser that does more by knowing less.</h2><p>Useful automation without the usual trade: your pages, settings and tasks stay yours.</p></div><div class="features"><article class="feature"><div class="iconbox"><i data-lucide="search"></i></div><div><h3>Search. Read. Understand.</h3><p>Ask a question or give it a page. Mr Nobody follows sources, extracts what matters and shows its work.</p></div></article><article class="feature dark"><div class="iconbox"><i data-lucide="shield-check"></i></div><div><h3>Privacy is the starting point.</h3><p>Ad and tracker blocking, clear controls and an agent that never quietly acts outside its lane.</p></div></article><article class="feature lime"><div class="iconbox"><i data-lucide="zap"></i></div><div><h3>Less tapping. More done.</h3><p>Research, compare, organise and download authorised files through one calm interface.</p></div></article></div></div></section>
+    <section id="updates"><div class="wrap update"><div><div class="eyebrow">Release notes</div><h2>Keep Mr Nobody current.</h2><p class="update-intro">The app checks quietly when it opens. When a signed release is ready, you’ll see exactly what changed before you choose to update.</p><a class="button" href="downloads/mr-nobody-latest.apk">Download latest APK <i data-lucide="download" width="16"></i></a></div><div><div class="release"><time>22 AUG 2026</time><div><h3>Mr Nobody 1.0.0</h3><p>Faster tab switching, reliable page previews, website icons, selected search engines and live download progress.</p></div><span class="tag">LATEST</span></div><div class="release"><time>COMING SOON</time><div><h3>Updates you can trust</h3><p>Every update is served with release metadata and integrity information. Android verifies the signed package before installing it.</p></div><span class="tag">NEXT</span></div><div class="release"><time>OFFLINE READY</time><div><h3>No update? Keep browsing.</h3><p>If the server is unavailable, the last successful check is kept locally and normal browsing continues without interruption.</p></div><span class="tag">BUILT IN</span></div></div></div></section>
+    <section id="how"><div class="wrap"><div class="sectionhead"><h2>Nothing mysterious about an update.</h2><p>Small metadata check. Clear choice. Normal Android installation.</p></div><div class="steps"><div class="step"><span class="stepnum">01 / CHECK</span><h3>Open the app.</h3><p>Mr Nobody quietly checks the latest version and caches the successful result for offline use.</p></div><div class="step"><span class="stepnum">02 / CHOOSE</span><h3>See what changed.</h3><p>Settings shows the version, short release notes and whether the update is optional or required.</p></div><div class="step"><span class="stepnum">03 / VERIFY</span><h3>Install safely.</h3><p>The APK goes through Android’s signed-update flow. Mr Nobody does not inject or execute downloaded code.</p></div></div></div></section>
+    <section><div class="wrap"><div class="cta"><div><div class="eyebrow">Stay out of the loop</div><h2>Be nobody. Browse freely.</h2></div><div><p>Download the latest release, or keep this page bookmarked for future release notes.</p><a class="button" href="downloads/mr-nobody-latest.apk">Get Mr Nobody <i data-lucide="arrow-up-right" width="16"></i></a></div></div></div></section>
+  </main>
+  <div class="wrap"><footer><span>© 2026 Mr Nobody</span><div class="footlinks"><a href="#updates">Updates</a><a href="mailto:hello@mrnobody.app">Contact</a><a href="#top">Back to top ↑</a></div></footer></div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
