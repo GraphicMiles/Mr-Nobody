@@ -221,8 +221,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     switch (path) {
       case 'open':
         final url = q['url'] ?? '';
-        if (url.isNotEmpty) _openBrowser(IntentRouter.toUrl(
-            url, searchEngine: AppState.instance.searchEngine));
+        if (url.isNotEmpty) {
+          _openBrowser(
+              IntentRouter.toUrl(url, searchEngine: AppState.instance.searchEngine));
+        }
         break;
       case 'search':
         final query = q['q'] ?? '';
