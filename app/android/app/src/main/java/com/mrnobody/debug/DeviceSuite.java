@@ -4,7 +4,9 @@ import android.content.Context;
 
 import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
+import com.mrnobody.agent.planner.CalculatorSkill;
 import com.mrnobody.agent.planner.ClockSkill;
+import com.mrnobody.agent.planner.ExtractiveAnswer;
 import com.mrnobody.agent.planner.IntentRouter;
 import com.mrnobody.agent.planner.IntentType;
 import com.mrnobody.agent.planner.OutcomeCheck;
@@ -91,8 +93,10 @@ public final class DeviceSuite {
         add(out, "suite.scope", "Tool scope (research vs routed)");
         add(out, "suite.outcome", "Outcome checks (download, named site)");
         add(out, "suite.junk", "Boilerplate gate");
+        add(out, "suite.prompts_local", "Agent prompt battery (no model / no network)");
         add(out, "suite.agent_speed", "Live agent: question speed (network)");
         add(out, "suite.image_download", "Live agent: png icon download (network)");
+        add(out, "suite.prompts_live", "Agent prompt battery (live research, network)");
         add(out, "suite.tor_bundled", "Built-in Tor packaged");
         add(out, "suite.tor_nobody", "Nobody mode reaches Tor (network, up to ~3 min)");
         add(out, "suite.tor_exit", "Traffic exits via Tor (check.torproject.org)");
@@ -118,8 +122,10 @@ public final class DeviceSuite {
                 case "suite.scope": return scope(id, name);
                 case "suite.outcome": return outcome(id, name);
                 case "suite.junk": return junk(id, name);
+                case "suite.prompts_local": return promptsLocal(id, name);
                 case "suite.agent_speed": return agentSpeed(context, id, name);
                 case "suite.image_download": return imageDownload(context, id, name);
+                case "suite.prompts_live": return promptsLive(context, id, name);
                 case "suite.tor_bundled": return torBundled(id, name);
                 case "suite.tor_nobody": return torNobody(context, id, name);
                 case "suite.tor_exit": return torExit(id, name);
@@ -230,6 +236,133 @@ public final class DeviceSuite {
         return result(id, name, pass, pass
                 ? "cookie/JS walls rejected; real prose accepted"
                 : "a boilerplate gate misjudged a sentence");
+    }
+
+    // -------------------------------------------------- agent prompt battery
+
+    /**
+     * The instant, no-model / no-network half of the agent prompt battery. Runs
+     * the same pure-Java path the engine uses — clock, calculator, intent,
+     * routing, skills, answer composition — so a broken rule or a regression in
+     * the extractive answer is caught on the device in under a second. This is
+     * the "everything it can do without leaving the device" set.
+     */
+    private static Map<String, Object> promptsLocal(String id, String name) {
+        List<String> fails = new ArrayList<>();
+        int total = 0;
+
+        // Clock: date/time, timezone, and the negatives that must fall through.
+        total++;
+        if (!passCase("time", ClockSkill.answer("whats the time"), "no network")) fails.add("clock.time");
+        total++;
+        if (!passCase("zone", ClockSkill.answer("what time is it in london"), "Europe/London")) fails.add("clock.zone");
+        total++;
+        if (ClockSkill.answer("how old is messi") != null) { fails.add("clock.negative"); }
+        total++;
+
+        // Calculator: exact arithmetic, precedence, and prose that is NOT math.
+        total++;
+        if (!passCase("calc.percent", CalculatorSkill.answer("what is 25% of 800"), "200")) fails.add("calc.percent");
+        total++;
+        if (!passCase("calc.paren", CalculatorSkill.answer("(2 + 3) * 4"), "20")) fails.add("calc.paren");
+        total++;
+        if (CalculatorSkill.answer("what is the population of Nigeria") != null) { fails.add("calc.negative"); }
+        total++;
+
+        // Answer quality (regression): a price question must LEAD with a figure
+        // and must NOT lead with the "secured with SHA-256" sentence.
+        total++;
+        String btcSources = "\n[1] CoinDesk\nhttps://coindesk.com/btc\n"
+                + "Bitcoin is secured with the SHA-256 algorithm, which belongs to the SHA-2 "
+                + "family of hashing algorithms. Bitcoin traded at 64000 dollars on Tuesday "
+                + "as demand stayed steady.\n"
+                + "[2] Investopedia\nhttps://investopedia.com/btc\n"
+                + "The price of bitcoin reached an all-time high of 68000 dollars.\n";
+        String btc = ExtractiveAnswer.compose("what is the bitcoin price", btcSources, true, null);
+        if (!btc.contains("64000") && !btc.contains("68000")) fails.add("quality.figure");
+        if (btc.contains("\n\nBitcoin is secured with the SHA-256") && !btc.contains("\n\n**Key facts**")) {
+            fails.add("quality.lead");
+        }
+
+        // Intent routing: slash commands, question→task, bare word→search.
+        total++;
+        if (IntentRouter.route("/agent why is the sky blue") != IntentType.TASK) fails.add("routing.slash");
+        total++;
+        if (IntentRouter.route("what is the capital of ghana") != IntentType.TASK) fails.add("routing.question");
+        total++;
+        if (IntentRouter.route("arsenal") != IntentType.SEARCH) fails.add("routing.search");
+
+        // Skill routing: the YouTube skills and the generic research route.
+        total++;
+        if (!"youtube.latest".equals(SearchSkills.route("latest video on youtube from mkbhd").id)) {
+            fails.add("skill.youtube");
+        }
+        total++;
+        if (!SearchSkills.route("what is the tallest building").isGeneric()) fails.add("skill.generic");
+
+        // Tool routing: a real file downloads directly, a landing page resolves.
+        total++;
+        java.util.Set<String> allTools = new java.util.LinkedHashSet<>(Arrays.asList(
+                "search", "http", "browser", "download", "terminal"));
+        com.mrnobody.agent.planner.ToolRouter.Route direct =
+                com.mrnobody.agent.planner.ToolRouter.route("download https://example.test/report.pdf", allTools);
+        if (direct == null || !"download".equals(direct.tool)) fails.add("tool.direct");
+        total++;
+        com.mrnobody.agent.planner.ToolRouter.Route landing =
+                com.mrnobody.agent.planner.ToolRouter.route(
+                        "download https://downloadwella.com/x/Silo.S03E01.(THENKIRI.COM).mkv.html", allTools);
+        if (landing != null) fails.add("tool.landing.resolve");
+
+        boolean pass = fails.isEmpty();
+        return result(id, name, pass, pass
+                ? "all " + total + " local prompt checks passed (clock, calculator, answer quality, routing, skills, tools)"
+                : (total - fails.size()) + "/" + total + " passed — " + String.join(", ", fails));
+    }
+
+    /** True when an answer is non-null and (optionally) contains a marker. */
+    private static boolean passCase(String label, String answer, String mustContain) {
+        return answer != null && (mustContain == null || answer.contains(mustContain));
+    }
+
+    /**
+     * The live, network half of the battery. Runs real research prompts through
+     * the real engine (as the foreground worker does), one at a time, within the
+     * suite's wall ceiling, and reports per-prompt. Pass = it completed quickly
+     * and cited a source; a prompt that hangs or answers without citations is a
+     * fail. This is the "everything it can do over the network" set.
+     */
+    private static Map<String, Object> promptsLive(Context context, String id, String name) {
+        if (context == null || MrNobodyApp.agent() == null) {
+            return result(id, name, false, "needs the running app (no engine here)");
+        }
+        String[] prompts = {
+                "what is the latest inflation rate in Nigeria",
+                "who is the president of Nigeria",
+                "why is the sky blue",
+        };
+        int passed = 0;
+        List<String> lines = new ArrayList<>();
+        for (String prompt : prompts) {
+            long started = System.currentTimeMillis();
+            Task task = runAsWorker(context, prompt);
+            long elapsed = System.currentTimeMillis() - started;
+            String answer = task.result() == null ? "" : task.result();
+            boolean completed = task.status() == Task.Status.COMPLETED;
+            boolean cited = answer.contains("[1]");
+            boolean ok = completed && cited && elapsed <= AGENT_CHECK_MS;
+            if (ok) passed++;
+            String story = "“" + prompt + "” → "
+                    + (completed ? "completed" : "status " + task.status())
+                    + (cited ? ", cited" : ", NO citations")
+                    + " in " + (elapsed / 1000) + "s"
+                    + (elapsed > AGENT_CHECK_MS ? " (over " + AGENT_CHECK_MS / 1000 + "s)" : "")
+                    + (ok ? "" : " ✗");
+            lines.add(story);
+        }
+        boolean pass = passed == prompts.length;
+        return result(id, name, pass, pass
+                ? "all " + prompts.length + " live research prompts completed with citations\n" + String.join("\n", lines)
+                : "passed " + passed + "/" + prompts.length + "\n" + String.join("\n", lines));
     }
 
     // ------------------------------------------------- live agent (network)

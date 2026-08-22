@@ -26,12 +26,17 @@ public class DeviceSuiteTest {
 
     private static final Set<String> PURE = new HashSet<>(java.util.Arrays.asList(
             "suite.clock", "suite.routing", "suite.skills",
-            "suite.scope", "suite.outcome", "suite.junk"));
+            "suite.scope", "suite.outcome", "suite.junk",
+            "suite.prompts_local"));
 
     @Test
     public void theCatalogueIsOrderedUniqueAndRestoresLast() {
         List<Map<String, Object>> checks = DeviceSuite.describe();
-        assertTrue(checks.size() >= 10);
+        assertTrue(checks.size() >= 12);
+        // The live agent battery must come after the instant local battery.
+        int local = indexOf(checks, "suite.prompts_local");
+        int live = indexOf(checks, "suite.prompts_live");
+        assertTrue("local battery before live battery", local >= 0 && live >= 0 && local < live);
         Set<String> ids = new HashSet<>();
         for (Map<String, Object> c : checks) {
             String id = String.valueOf(c.get("id"));
