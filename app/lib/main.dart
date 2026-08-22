@@ -199,7 +199,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _handleDeepLink(String uri) {
     if (uri.startsWith('http://') || uri.startsWith('https://')) {
-      _openBrowser(IntentRouter.toUrl(uri));
+      _openBrowser(
+          IntentRouter.toUrl(uri, searchEngine: AppState.instance.searchEngine));
       return;
     }
     if (!uri.startsWith('mrnobody://')) return;
@@ -220,7 +221,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     switch (path) {
       case 'open':
         final url = q['url'] ?? '';
-        if (url.isNotEmpty) _openBrowser(IntentRouter.toUrl(url));
+        if (url.isNotEmpty) _openBrowser(IntentRouter.toUrl(
+            url, searchEngine: AppState.instance.searchEngine));
         break;
       case 'search':
         final query = q['q'] ?? '';
@@ -349,7 +351,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _runTask(payload.trim());
       return;
     }
-    _openBrowser(IntentRouter.toUrl(payload));
+    _openBrowser(
+        IntentRouter.toUrl(payload, searchEngine: AppState.instance.searchEngine));
   }
 
   Future<void> _runTask(String instruction) async {

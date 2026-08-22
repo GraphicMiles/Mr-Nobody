@@ -4,6 +4,7 @@ import '../browser/browser_tab.dart';
 import '../browser/tab_manager.dart';
 import '../router/intent_router.dart';
 import '../bridge/native_bridge.dart';
+import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../widgets/debug_fab.dart';
@@ -224,7 +225,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
     // From the address bar even an instruction-shaped line is browsed, not
     // dispatched to the agent: the agent is driven from Home, so the address
     // bar never surprises the user with a background task.
-    tab.load(IntentRouter.toUrl(input));
+    tab.load(IntentRouter.toUrl(
+        input, searchEngine: AppState.instance.searchEngine));
   }
 
   Future<void> _goBack(BrowserTab tab) async {

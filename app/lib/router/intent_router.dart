@@ -101,8 +101,9 @@ class IntentRouter {
   }
 
   /// Normalize input into a full URL: bare domains get https://, else it's a
-  /// search query for the configured engine (DuckDuckGo default).
-  static String toUrl(String input) {
+  /// search query for [searchEngine] — the user's configured engine, with
+  /// DuckDuckGo only as the fallback when none is supplied.
+  static String toUrl(String input, {String? searchEngine}) {
     final s = input.trim();
     if (s.toLowerCase().startsWith('http://')) {
       return 'https://${s.substring('http://'.length)}';
@@ -110,7 +111,22 @@ class IntentRouter {
     if (_scheme.hasMatch(s)) return s;
     if (_ip.hasMatch(s) || _localhost.hasMatch(s)) return 'https://$s';
     if (_looksLikeDomain(s)) return 'https://$s';
-    return 'https://duckduckgo.com/?q=${Uri.encodeComponent(s)}';
+    return _searchUrl(searchEngine, s);
+  }
+
+  /// Build a search URL from the configured engine. The app's engine values
+  /// are URL prefixes ending in `?q=` (AppState.searchEngines, mirrored by
+  /// Settings.SEARCH_* in the core); `{q}` templates and bare hosts get
+  /// handled too so a future engine shape cannot silently mis-route.
+  static String _searchUrl(String? engine, String query) {
+    final e = (engine == null || engine.trim().isEmpty)
+        ? 'https://duckduckgo.com/?q='
+        : engine.trim();
+    final q = Uri.encodeComponent(query);
+    if (e.contains('{q}')) return e.replaceFirst('{q}', q);
+    if (e.endsWith('=')) return '$e$q';
+    if (e.endsWith('?')) return '$eq=$q';
+    return '${e.contains('?') ? '$e&q=' : '$e?q='}$q';
   }
 
   static bool _looksLikeDomain(String s) {
