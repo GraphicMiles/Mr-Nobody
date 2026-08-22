@@ -24,10 +24,11 @@ public final class TaskStore extends SQLiteOpenHelper {
      * {@code prev_result} for recurring-task change detection; v5 adds
      * {@code pending_tool} so a WAITING task knows what to resume; v6 adds
      * {@code follow_up} so a reply stays on this task; v7 adds artifacts and
-     * the plan snapshot; v8 adds durable run identity and submission dedup.
+     * the plan snapshot; v8 adds durable run identity and submission dedup;
+     * v9 pins provider/fallback/platform configuration per run.
      * Every bump needs a real onUpgrade.
      */
-    private static final int VERSION = 8;
+    private static final int VERSION = 9;
 
     private static final String T = "tasks";
     private static final String C_ID = "_id";
@@ -55,6 +56,9 @@ public final class TaskStore extends SQLiteOpenHelper {
     private static final String C_RUN_ID = "run_id";
     private static final String C_SUBMISSION_KEY = "submission_key";
     private static final String C_SUBMISSION_FINGERPRINT = "submission_fingerprint";
+    private static final String C_PROVIDER_SNAPSHOT = "provider_snapshot";
+    private static final String C_FALLBACK_PROVIDER_SNAPSHOTS = "fallback_provider_snapshots";
+    private static final String C_EXECUTION_PLATFORM = "execution_platform";
 
     /** Double taps are duplicates; an explicit later repeat is not. */
     public static final long DEFAULT_DEDUP_WINDOW_MS = 5_000L;
@@ -87,7 +91,10 @@ public final class TaskStore extends SQLiteOpenHelper {
                 + C_PLAN + " TEXT, "
                 + C_RUN_ID + " TEXT NOT NULL, "
                 + C_SUBMISSION_KEY + " TEXT, "
-                + C_SUBMISSION_FINGERPRINT + " TEXT)");
+                + C_SUBMISSION_FINGERPRINT + " TEXT, "
+                + C_PROVIDER_SNAPSHOT + " TEXT, "
+                + C_FALLBACK_PROVIDER_SNAPSHOTS + " TEXT, "
+                + C_EXECUTION_PLATFORM + " TEXT)");
         db.execSQL("CREATE UNIQUE INDEX idx_tasks_submission_key ON " + T
                 + "(" + C_SUBMISSION_KEY + ")");
         db.execSQL("CREATE INDEX idx_tasks_submission_fingerprint ON " + T
@@ -135,6 +142,12 @@ public final class TaskStore extends SQLiteOpenHelper {
                     + "(" + C_SUBMISSION_KEY + ")");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_tasks_submission_fingerprint ON " + T
                     + "(" + C_SUBMISSION_FINGERPRINT + "," + C_CREATED + ")");
+        }
+        if (oldVersion < 9) {
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_PROVIDER_SNAPSHOT + " TEXT");
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN "
+                    + C_FALLBACK_PROVIDER_SNAPSHOTS + " TEXT");
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN " + C_EXECUTION_PLATFORM + " TEXT");
         }
     }
 
@@ -257,6 +270,9 @@ public final class TaskStore extends SQLiteOpenHelper {
         v.put(C_RETRY, task.retryCount());
         v.put(C_WORKER, task.worker());
         v.put(C_RUN_ID, task.runId());
+        v.put(C_PROVIDER_SNAPSHOT, task.providerSnapshot());
+        v.put(C_FALLBACK_PROVIDER_SNAPSHOTS, task.fallbackProviderSnapshots());
+        v.put(C_EXECUTION_PLATFORM, task.executionPlatform());
         v.put(C_FOLLOW_UP, task.followUp());
         v.put(C_ARTIFACTS, task.artifacts());
         v.put(C_PLAN, task.planJson());
@@ -556,6 +572,18 @@ public final class TaskStore extends SQLiteOpenHelper {
         try {
             int i = c.getColumnIndex(C_PLAN);
             if (i >= 0) t.setPlanJson(c.getString(i));
+        } catch (Exception ignored) { }
+        try {
+            int i = c.getColumnIndex(C_PROVIDER_SNAPSHOT);
+            if (i >= 0) t.setProviderSnapshot(c.getString(i));
+        } catch (Exception ignored) { }
+        try {
+            int i = c.getColumnIndex(C_FALLBACK_PROVIDER_SNAPSHOTS);
+            if (i >= 0) t.setFallbackProviderSnapshots(c.getString(i));
+        } catch (Exception ignored) { }
+        try {
+            int i = c.getColumnIndex(C_EXECUTION_PLATFORM);
+            if (i >= 0) t.setExecutionPlatform(c.getString(i));
         } catch (Exception ignored) { }
         // The restoration setters above update the in-memory timestamp. Put
         // the durable value back after every field has been loaded.

@@ -3,7 +3,10 @@ package com.mrnobody.agent.planner;
 import android.content.Context;
 
 import com.mrnobody.agent.ai.AiProvider;
+import com.mrnobody.agent.design.DesignController;
+import com.mrnobody.agent.design.DesignSession;
 import com.mrnobody.agent.core.AgentEngine;
+import com.mrnobody.agent.core.AgentRunContext;
 import com.mrnobody.agent.core.Cancellation;
 import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.core.Tool;
@@ -14,9 +17,10 @@ import com.mrnobody.agent.execution.LedgeredCall;
 import com.mrnobody.agent.execution.RunScope;
 import com.mrnobody.agent.policy.ApprovalMode;
 import com.mrnobody.agent.policy.ApprovalPolicy;
-import com.mrnobody.agent.policy.BudgetGuard;
-import com.mrnobody.agent.policy.RepeatCallGuard;
+import com.mrnobody.agent.policy.PerRunGuard;
 import com.mrnobody.agent.policy.TaskBudget;
+import com.mrnobody.agent.skills.SkillMatch;
+import com.mrnobody.agent.skills.SkillRegistry;
 import com.mrnobody.agent.tools.BrowserTool;
 import com.mrnobody.agent.tools.HttpTool;
 import com.mrnobody.agent.tools.SearchTool;
@@ -96,7 +100,7 @@ public final class DeterministicEngine implements AgentEngine {
     private static final Pattern URL_IN_TEXT =
             Pattern.compile("(https?://[^\\s\"'<>]+)");
 
-    private final Map<String, Tool> tools = new LinkedHashMap<>();
+    private final Map<String, Tool> tools = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * Every tool call goes through this — see {@link ToolPipeline}.
@@ -108,24 +112,13 @@ public final class DeterministicEngine implements AgentEngine {
     private final ApprovalPolicy policy =
             new ApprovalPolicy(ApprovalMode.CAUTIOUS, ApprovalPolicy.Overrides.NONE);
 
-    private final RepeatCallGuard repeatGuard = new RepeatCallGuard();
-
-    /**
-     * A ceiling on work performed, not just on work repeated. The repeat guard
-     * says nothing about a task making forty different calls, which a plan
-     * that can extend itself is entirely capable of.
-     */
-    private final BudgetGuard budgetGuard = new BudgetGuard();
-
+    /** Repeat/work counters resolve from AgentRunContext, never process globals. */
+    private final PerRunGuard perRunGuard = new PerRunGuard();
     private final ToolPipeline pipeline =
-            new ToolPipeline(policy).addGuard(repeatGuard).addGuard(budgetGuard);
-
-    /**
-     * The tools this run may touch (see {@link ToolScope}), or null outside a
-     * run. Volatile because the platform channel reads tools concurrently;
-     * the engine itself runs one task at a time.
-     */
-    private volatile java.util.Set<String> runScope;
+            new ToolPipeline(policy).addGuard(perRunGuard);
+    /** Pure JVM/direct callers have no LocalWorker binding; still isolate by thread. */
+    private final ThreadLocal<java.util.Set<String>> directRunScope = new ThreadLocal<>();
+    private final ThreadLocal<Map<String, Tool>> directRunTools = new ThreadLocal<>();
 
     /**
      * How many source candidates the read phase will try. Larger than
@@ -169,16 +162,12 @@ public final class DeterministicEngine implements AgentEngine {
     public void run(Context context, Task task, Cancellation cancellation) {
         task.setStatus(Task.Status.RUNNING);
 
-        // Scope from any previous run must not leak into this one (or into
-        // the host's own unscoped calls between tasks).
-        runScope = null;
-
-        // Budgets are per task, not per process: a fresh instruction starts
-        // with a full allowance, and a previous task's spending is not
-        // inherited by the next one.
-        repeatGuard.reset();
-        budgetGuard.reset();
-        Tool browser = tools.get("browser");
+        // Scope and guard counters belong to AgentRunContext. Pure direct
+        // callers get thread-local equivalents for the same isolation.
+        if (AgentRunContext.current() == null) perRunGuard.resetDirect();
+        setRunTools(new LinkedHashMap<>(tools));
+        setRunScope(java.util.Collections.emptySet());
+        Tool browser = runTools().get("browser");
         if (browser instanceof BrowserTool) {
             ((BrowserTool) browser).resetForTask();
         }
@@ -209,7 +198,9 @@ public final class DeterministicEngine implements AgentEngine {
                     + pointed.title + " " + pointed.url;
         }
 
-        AiProvider provider = MrNobodyApp.activeProvider();
+        AgentRunContext boundRun = AgentRunContext.current();
+        AiProvider provider = boundRun != null && boundRun.provider != null
+                ? boundRun.provider : MrNobodyApp.activeProvider();
         enterActivity(task, "Understanding the request", "classify",
                 "Determine the task type before choosing any tools.");
 
@@ -222,6 +213,15 @@ public final class DeterministicEngine implements AgentEngine {
             task.setResult(followUp.directReply);
             task.setStatus(Task.Status.COMPLETED);
             recordAnswer(task);
+            return;
+        }
+
+        SkillMatch topSkill = SkillRegistry.standard().route(asked);
+        DesignSession existingDesign = null;
+        try { existingDesign = MrNobodyApp.designSessions().findByTask(task.id()); }
+        catch (Throwable ignored) { }
+        if (topSkill.isDesign() || existingDesign != null) {
+            runDesign(context, task, cancellation, asked);
             return;
         }
 
@@ -255,7 +255,7 @@ public final class DeterministicEngine implements AgentEngine {
         if (pointed != null && TaskArtifact.isPointerFollowUp(task.followUp())) {
             // Search already happened. Opening "the second one" is a read of
             // that URL, not a new query that throws the shortlist away.
-            boolean wantsDownload = tools.containsKey("download")
+            boolean wantsDownload = runTools().containsKey("download")
                     && ToolRouter.isDownloadIntent(asked);
             java.util.List<Plan.Step> steps = new java.util.ArrayList<>();
             steps.add(Plan.Step.internal(Task.STEP_READ));
@@ -264,7 +264,7 @@ public final class DeterministicEngine implements AgentEngine {
             steps.add(Plan.Step.internal(Task.STEP_VERIFY));
             plan = new Plan(steps);
         } else {
-            plan = planner.plan(asked, tools.keySet());
+            plan = planner.plan(asked, runTools().keySet());
         }
         task.setPlanJson(plan.snapshot());
         if (plan.size() == 0 || plan.isAbandoned()) {
@@ -274,16 +274,70 @@ public final class DeterministicEngine implements AgentEngine {
 
         if (isRoutedAction(plan)) {
             // A routed action IS the task: exactly one tool exists for it.
-            runScope = ToolScope.routed(plan.steps().get(0).tool);
+            setRunScope(ToolScope.routed(plan.steps().get(0).tool));
             executeRouted(context, task, plan.steps().get(0), cancellation);
             return;
         }
         // A research task gets reading tools; download joins only when the
         // instruction asks for one. The terminal is never in research scope.
-        runScope = ToolScope.research(
-                tools.containsKey("download") && ToolRouter.isDownloadIntent(asked),
-                tools.keySet());
+        setRunScope(ToolScope.research(
+                runTools().containsKey("download") && ToolRouter.isDownloadIntent(asked),
+                runTools().keySet()));
         executeResearch(context, task, plan, cancellation, asked, classified.intent, pointed);
+    }
+
+    private void runDesign(Context context, Task task, Cancellation cancellation,
+                           String instruction) {
+        if (!runTools().containsKey("design")) {
+            fail(task, ToolResult.fail("The design skill is not available in this build."));
+            return;
+        }
+        try {
+            if (!MrNobodyApp.designAdapter().isConfigured()) {
+                fail(task, ToolResult.fail(
+                        "Canva MCP is not connected. Open Settings → Design platform."));
+                return;
+            }
+        } catch (Throwable t) {
+            fail(task, ToolResult.fail("Design platform is unavailable."));
+            return;
+        }
+        task.setExecutionPlatform("canva-mcp");
+        AgentRunContext run = AgentRunContext.current();
+        if (run != null) run.setExecutionPlatform("canva-mcp");
+        setRunScope(java.util.Collections.singleton("design"));
+        enterActivity(task, "Designing in Canva", "skill.design",
+                "Use only the scoped design capability and keep review gates separate.");
+        DesignController controller;
+        try { controller = new DesignController(MrNobodyApp.designSessions()); }
+        catch (Throwable t) {
+            fail(task, ToolResult.fail("Design session storage is unavailable."));
+            return;
+        }
+        DesignController.Outcome outcome = controller.run(context, task, instruction,
+                cancellation, (request, cancel) ->
+                        callScoped(context, "design", request, cancel));
+        if (outcome.needsApproval()) {
+            parkIfNeeded(task, outcome.toolResult);
+            return;
+        }
+        if (outcome.failed()) {
+            fail(task, outcome.toolResult);
+            return;
+        }
+        if (outcome.session != null && !outcome.session.previewRef.isEmpty()) {
+            task.setArtifacts(TaskArtifact.encode(java.util.Collections.singletonList(
+                    new TaskArtifact(1, "Canva design draft", "",
+                            "design-preview", outcome.session.previewRef))));
+        }
+        task.setError("");
+        task.setResult(outcome.answer);
+        if (outcome.session != null && !outcome.session.pendingJobId.isEmpty()) {
+            task.setStatus(Task.Status.WAITING_EXTERNAL);
+        } else {
+            task.setStatus(Task.Status.COMPLETED);
+        }
+        recordAnswer(task);
     }
 
     /** A routed action is the whole task: one tool call whose result is the answer. */
@@ -342,7 +396,7 @@ public final class DeterministicEngine implements AgentEngine {
         // Rule 5: a wall-clock ceiling, checked between steps. On expiry the
         // remaining reads are skipped and the answer is composed from the
         // evidence in hand — never a spinner death.
-        r.budget = tools.containsKey("download") && ToolRouter.isDownloadIntent(asked)
+        r.budget = runTools().containsKey("download") && ToolRouter.isDownloadIntent(asked)
                 ? TaskBudget.download() : TaskBudget.research();
 
         while (!plan.isFinished()) {
@@ -485,13 +539,13 @@ public final class DeterministicEngine implements AgentEngine {
         if (pointed != null) r.titles.put(pointed.url, pointed.title);
         r.recurrence = resolveRecurrence(task, asked, intent);
         r.provider = provider;
-        r.budget = tools.containsKey("download") && ToolRouter.isDownloadIntent(asked)
+        r.budget = runTools().containsKey("download") && ToolRouter.isDownloadIntent(asked)
                 ? TaskBudget.download() : TaskBudget.research();
         // The model plans only over the tools this task's shape justifies;
         // the same scope also filters what the planner advertises to it.
-        runScope = ToolScope.research(
-                tools.containsKey("download") && ToolRouter.isDownloadIntent(asked),
-                tools.keySet());
+        setRunScope(ToolScope.research(
+                runTools().containsKey("download") && ToolRouter.isDownloadIntent(asked),
+                runTools().keySet()));
         r.cap = new com.mrnobody.agent.ai.SpendCap(MAX_RUN_USD,
                 com.mrnobody.agent.ai.ModelPricing.forModel(provider.modelId()));
 
@@ -527,8 +581,28 @@ public final class DeterministicEngine implements AgentEngine {
             if (r.budget != null && r.budget.expired()) break;
             enterActivity(task, "Deciding the next action", "reason",
                     "Choose one bounded action from the evidence observed so far.");
-            Plan.Step step = planner.nextStep(asked, transcript, runScope);
-            if (step == null) break; // the model is done gathering
+            Plan.Step step = planner.nextStep(asked, transcript, currentRunScope());
+            if (step == null) {
+                if (taken == 0 && planner.lastError() != null) {
+                    enterActivity(task, "Using the local fallback plan", "plan.fallback",
+                            "Remote planning failed; continue deterministically without replaying effects.");
+                    Plan fallback = new DeterministicPlanner().plan(asked,
+                            new java.util.LinkedHashSet<>(runTools().keySet()));
+                    task.setPlanJson(fallback.snapshot());
+                    if (isRoutedAction(fallback)) {
+                        setRunScope(ToolScope.routed(fallback.steps().get(0).tool));
+                        executeRouted(context, task, fallback.steps().get(0), cancellation);
+                    } else {
+                        setRunScope(ToolScope.research(
+                                runTools().containsKey("download") && ToolRouter.isDownloadIntent(asked),
+                                runTools().keySet()));
+                        executeResearch(context, task, fallback, cancellation,
+                                asked, intent, pointed);
+                    }
+                    return;
+                }
+                break; // the model is done gathering
+            }
 
             enterStep(task, step);
             ToolResult result = callScoped(context, step, cancellation);
@@ -910,7 +984,7 @@ public final class DeterministicEngine implements AgentEngine {
      * caller skips the source rather than failing).
      */
     private ToolResult readViaBrowser(Context context, Plan.Step step, Cancellation cancellation) {
-        if (!tools.containsKey("browser")) return null;
+        if (!runTools().containsKey("browser")) return null;
         String url = step.request == null ? "" : step.request.param("url", "");
         if (url.isEmpty()) return null;
         // Rule 2's cap: an escalated read gets eight seconds, not twenty.
@@ -975,7 +1049,7 @@ public final class DeterministicEngine implements AgentEngine {
 
         // The pages themselves: ask the browser for their links (and, for an
         // image task, their img/srcset sources too).
-        if (!directHonoursHost && tools.containsKey("browser")) {
+        if (!directHonoursHost && runTools().containsKey("browser")) {
             java.util.List<String> pages = new java.util.ArrayList<>();
             if (r.namedUrl != null) pages.add(r.namedUrl);
             for (String u : r.readUrls) {
@@ -1047,7 +1121,11 @@ public final class DeterministicEngine implements AgentEngine {
         }
         if (stopped(task, cancellation)) return;
 
-        r.provider = MrNobodyApp.activeProvider();
+        AgentRunContext run = AgentRunContext.current();
+        if (r.provider == null) {
+            r.provider = run != null && run.provider != null
+                    ? run.provider : MrNobodyApp.activeProvider();
+        }
         if (r.provider.isRemote()) {
             // Page text is fenced before it reaches the model. Until this
             // existed a page could write "ignore your instructions" and arrive
@@ -1083,9 +1161,17 @@ public final class DeterministicEngine implements AgentEngine {
                     r.lastPrompt = prompt;
                     r.answer = askProvider(r.provider, prompt, cancellation, task.id(), r);
                     if (r.providerError != null) {
-                        // No answer to verify or schedule — leave r.answer null
-                        // and let verifyStep fail the task cleanly.
-                        return;
+                        String failedProvider = r.providerError;
+                        r.answer = ExtractiveAnswer.compose(
+                                r.asked != null ? r.asked : task.conversation(),
+                                r.sources.toString(), r.pagesRead, r.results)
+                                + "\n\nThe configured remote AI providers failed, so this answer "
+                                + "was completed by the local deterministic path without "
+                                + "replaying any tool action.";
+                        r.answerWasExtractiveFallback = true;
+                        r.providerError = null;
+                        com.mrnobody.debug.ErrorLog.record("task " + task.id()
+                                + ": remote provider fallback to local: " + failedProvider);
                     }
                 }
             }
@@ -1137,7 +1223,7 @@ public final class DeterministicEngine implements AgentEngine {
         task.setStatus(Task.Status.VERIFYING);
         enterActivity(task, Task.STEP_VERIFY, "Verifying the answer", "verify",
                 "Check citations, source hosts and figures before completion.");
-        if (r.provider.isRemote()) {
+        if (r.provider.isRemote() && !r.answerWasExtractiveFallback) {
             AnswerVerifier.Report report = AnswerVerifier.check(r.answer, r.readUrls);
             FigureCheck.Report figures = FigureCheck.check(r.answer, r.sources.toString());
 
@@ -1299,6 +1385,8 @@ public final class DeterministicEngine implements AgentEngine {
 
         /** The provider's error, when the answer could not be produced at all. */
         String providerError;
+        /** Remote synthesis failed and the deterministic extractor supplied the answer. */
+        boolean answerWasExtractiveFallback;
     }
 
     /** Local time, so "read at" means something to the person reading it. */
@@ -1436,6 +1524,33 @@ public final class DeterministicEngine implements AgentEngine {
      * The public {@link #callTool} stays unscoped on purpose — it serves
      * host features (the address-bar search), not task steps.
      */
+    private void setRunTools(Map<String, Tool> snapshot) {
+        AgentRunContext run = AgentRunContext.current();
+        if (run != null) run.setTools(snapshot);
+        else directRunTools.set(java.util.Collections.unmodifiableMap(snapshot));
+    }
+
+    private Map<String, Tool> runTools() {
+        AgentRunContext run = AgentRunContext.current();
+        if (run != null && !run.tools().isEmpty()) return run.tools();
+        Map<String, Tool> direct = directRunTools.get();
+        return direct == null ? tools : direct;
+    }
+
+    private void setRunScope(java.util.Set<String> scope) {
+        AgentRunContext run = AgentRunContext.current();
+        if (run != null) run.setToolScope(scope);
+        else directRunScope.set(scope == null
+                ? java.util.Collections.emptySet() : scope);
+    }
+
+    private java.util.Set<String> currentRunScope() {
+        AgentRunContext run = AgentRunContext.current();
+        if (run != null) return run.toolScope();
+        java.util.Set<String> direct = directRunScope.get();
+        return direct == null ? java.util.Collections.emptySet() : direct;
+    }
+
     ToolResult callScoped(Context context, Plan.Step step, Cancellation cancellation) {
         if (step == null || !step.isToolStep()) return ToolResult.fail("no tool step");
         try (RunScope.StepBinding ignored = RunScope.enterLogicalStep(step.logicalId)) {
@@ -1445,8 +1560,8 @@ public final class DeterministicEngine implements AgentEngine {
 
     ToolResult callScoped(Context context, String name, ToolRequest request,
                           Cancellation cancellation) {
-        java.util.Set<String> scope = runScope;
-        if (scope != null && !scope.contains(name)) {
+        java.util.Set<String> scope = currentRunScope();
+        if (scope != null && !scope.isEmpty() && !scope.contains(name)) {
             com.mrnobody.debug.ErrorLog.record(
                     "tool scope refused " + name + " (scope " + scope + ")");
             return ToolResult.fail(ToolScope.deniedMessage(name));
@@ -1456,7 +1571,7 @@ public final class DeterministicEngine implements AgentEngine {
 
     public ToolResult callTool(Context context, String name, ToolRequest request,
                                Cancellation cancellation) {
-        Tool tool = tools.get(name);
+        Tool tool = runTools().get(name);
         if (tool == null) return ToolResult.fail("no tool named " + name);
         return pipeline.run(context, tool, request, cancellation);
     }

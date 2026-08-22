@@ -22,10 +22,17 @@ public final class AsyncJobCoordinator {
 
     private final AsyncJobStore jobs;
     private final ExecutionLedger ledger;
+    private final AsyncJobScheduler scheduler;
 
     public AsyncJobCoordinator(AsyncJobStore jobs, ExecutionLedger ledger) {
+        this(jobs, ledger, AsyncJobScheduler.NONE);
+    }
+
+    public AsyncJobCoordinator(AsyncJobStore jobs, ExecutionLedger ledger,
+                               AsyncJobScheduler scheduler) {
         this.jobs = jobs == null ? AsyncJobStore.NONE : jobs;
         this.ledger = ledger == null ? ExecutionLedger.NONE : ledger;
+        this.scheduler = scheduler == null ? AsyncJobScheduler.NONE : scheduler;
     }
 
     public AsyncJob submit(Context context, AsyncJobAdapter adapter,
@@ -63,13 +70,16 @@ public final class AsyncJobCoordinator {
                     request == null ? Collections.emptyMap() : request,
                     execution.idempotencyKey(), safe(cancellation));
             if (snapshot == null) throw new IllegalStateException("adapter returned no job state");
-            return apply(submitting, snapshot, execution);
+            AsyncJob updated = apply(submitting, snapshot, execution);
+            if (updated != null && !updated.status.isTerminal()) scheduler.schedule(context, updated);
+            return updated;
         } catch (Exception e) {
             AsyncJob unknown = submitting.with(AsyncJob.Status.UNKNOWN,
                     null, null, message(e), 0L, reservedCostMicros, 0L);
             jobs.update(unknown);
             ledger.markUnknown(execution,
                     "Async submission outcome unknown: " + message(e));
+            scheduler.schedule(context, unknown);
             return unknown;
         }
     }
@@ -91,6 +101,35 @@ public final class AsyncJobCoordinator {
         } catch (Exception e) {
             AsyncJob unknown = job.with(AsyncJob.Status.UNKNOWN,
                     null, null, message(e), job.nextPollAt,
+                    job.reservedCostMicros, job.actualCostMicros);
+            jobs.update(unknown);
+            return unknown;
+        }
+    }
+
+    public AsyncJob cancel(Context context, AsyncJobAdapter adapter, AsyncJob job,
+                           Cancellation cancellation) {
+        if (job == null || job.status.isTerminal()) return job;
+        try {
+            if (adapter == null) {
+                AsyncJob unknown = job.with(AsyncJob.Status.UNKNOWN, null, null,
+                        "Cancellation could not reach the external adapter", job.nextPollAt,
+                        job.reservedCostMicros, job.actualCostMicros);
+                jobs.update(unknown);
+                return unknown;
+            }
+            AsyncJobAdapter.Snapshot snapshot =
+                    adapter.cancel(context, job.externalJobId, safe(cancellation));
+            AsyncJob cancelled = snapshot == null
+                    ? job.with(AsyncJob.Status.CANCELLED, null, null,
+                            "Cancelled", 0L, job.reservedCostMicros, job.actualCostMicros)
+                    : apply(job, snapshot, null);
+            jobs.update(cancelled);
+            scheduler.cancel(context, job.localJobId);
+            return cancelled;
+        } catch (Exception e) {
+            AsyncJob unknown = job.with(AsyncJob.Status.UNKNOWN, null, null,
+                    "Cancellation outcome unknown: " + message(e), job.nextPollAt,
                     job.reservedCostMicros, job.actualCostMicros);
             jobs.update(unknown);
             return unknown;

@@ -64,6 +64,9 @@
                 <data android:scheme="mrnobody" android:host="tasks" />
                 <data android:scheme="mrnobody" android:host="settings" />
                 <data android:scheme="mrnobody" android:host="privacy" />
+                <!-- OAuth callback carries only code/state and is consumed by
+                     the native MCP client before Dart deep-link routing. -->
+                <data android:scheme="mrnobody" android:host="oauth" />
                 <data android:scheme="mrnobody" android:host="downloads" />
                 <data android:scheme="mrnobody" android:host="clear" />
             </intent-filter>

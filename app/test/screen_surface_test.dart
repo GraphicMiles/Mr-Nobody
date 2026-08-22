@@ -7,6 +7,7 @@ import 'package:mrnobody/browser/tab_manager.dart';
 import 'package:mrnobody/screens/ai_provider_screen.dart';
 import 'package:mrnobody/screens/clear_data_screen.dart';
 import 'package:mrnobody/screens/downloads_screen.dart';
+import 'package:mrnobody/screens/design_platform_screen.dart';
 import 'package:mrnobody/screens/home_screen.dart';
 import 'package:mrnobody/screens/privacy_screen.dart';
 import 'package:mrnobody/screens/restricted_tools_screen.dart';
@@ -38,9 +39,11 @@ void main() {
   setUpAll(() {
     TestWidgetsFlutterBinding.ensureInitialized();
     _mockCore();
-    BrowserTab.engineFactory =
-        ({required int tabId, required String url, required bool isPrivate}) =>
-            FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
+    BrowserTab.engineFactory = (
+            {required int tabId,
+            required String url,
+            required bool isPrivate}) =>
+        FakeBrowserEngine(initialUrl: url, isPrivate: isPrivate);
   });
 
   tearDownAll(() {
@@ -85,7 +88,8 @@ void main() {
   /// shows through to whatever is behind it.
   void expectOwnSurface(WidgetTester tester, String screen) {
     expect(
-      find.descendant(of: find.byType(MaterialApp), matching: find.byType(Material)),
+      find.descendant(
+          of: find.byType(MaterialApp), matching: find.byType(Material)),
       findsWidgets,
       reason: '$screen has no Material of its own when pushed as a route.',
     );
@@ -94,18 +98,23 @@ void main() {
   final screens = <String, Widget Function()>{
     'Settings': () => const SettingsScreen(),
     'Home': () => HomeScreen(
-        isActive: true, onSubmit: (_) {}, onOpenTask: (_) {}, onShortcut: (_) {}),
+        isActive: true,
+        onSubmit: (_) {},
+        onOpenTask: (_) {},
+        onShortcut: (_) {}),
     'Tasks': () => TasksScreen(isActive: true, onOpenTask: (_) {}),
     'Tabs': () => TabsScreen(tabs: TabManager()..newTab(), onOpenTab: () {}),
     'Downloads': () => const DownloadsScreen(),
     'Privacy': () => const PrivacyScreen(),
     'Clear data': () => const ClearDataScreen(),
     'AI provider': () => const AiProviderScreen(initialProvider: 'local'),
+    'Design platform': () => const DesignPlatformScreen(),
     'Restricted tools': () => const RestrictedToolsScreen(),
   };
 
   screens.forEach((name, build) {
-    testWidgets('$name survives being pushed without a Scaffold', (tester) async {
+    testWidgets('$name survives being pushed without a Scaffold',
+        (tester) async {
       await pumpBare(tester, build());
       expectNoDebugTextStyle(tester, name);
       expectOwnSurface(tester, name);
@@ -114,7 +123,8 @@ void main() {
 }
 
 void _mockCore() {
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
     const MethodChannel('mrnobody/core'),
     (call) async {
       switch (call.method) {
@@ -177,6 +187,17 @@ void _mockCore() {
           };
         case 'providerConfig':
           return {'provider': 'local', 'model': '', 'hasKey': false};
+        case 'providerFallback':
+          return {'providers': <String>[], 'consent': false};
+        case 'canvaMcpStatus':
+          return {
+            'configured': false,
+            'connected': false,
+            'endpoint': 'https://mcp.canva.com/mcp',
+            'redirectUri': 'mrnobody://oauth/canva',
+            'clientId': '',
+            'error': '',
+          };
         case 'debugLog':
           return <String>[];
         default:

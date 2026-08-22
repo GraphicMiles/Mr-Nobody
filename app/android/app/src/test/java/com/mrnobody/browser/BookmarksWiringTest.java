@@ -52,7 +52,8 @@ public class BookmarksWiringTest {
         assertTrue(settings.contains("label: 'Bookmarks'"));
         assertTrue("the row shows a live count like Downloads does",
                 settings.contains("_bookmarkCount"));
-        assertTrue(settings.contains("BookmarksScreen(onOpenUrl: widget.onOpenUrl)"));
+        assertTrue(settings.contains("BookmarksScreen(")
+                && settings.contains("onOpenUrl: widget.onOpenUrl"));
 
         String main = read("../../lib/main.dart");
         int wired = main.split("onOpenUrl: _openUrlFromTask", -1).length - 1;

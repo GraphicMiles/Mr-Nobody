@@ -567,3 +567,47 @@ adapter or credential is present.
 Verification: full JVM suite 987 green; privacy-auditor suite 13 green;
 repository privacy audit clean. Flutter tooling was unavailable locally, so
 strict Dart analysis/widget tests remain for CI.
+
+---
+
+## 2026-08-22 — Provider resilience, two lanes, design sessions, and official Canva MCP
+
+The post-Tier-0 stack now pins AI provider/model/base and execution platform
+per run. Explicitly consented remote fallback providers are frozen with that
+run; if every remote provider fails, evidence already gathered is completed by
+the deterministic local extractor without replaying a tool effect. Failures
+share one typed taxonomy and bounded retry policy. Mutable scope, tool
+snapshots, repeat/work guards, browser anchors and provider choice moved into
+AgentRunContext, allowing two fair local execution lanes.
+
+A top-level SkillRegistry now routes clock, design and research before the
+search-specific router. Design work uses a durable parent session across
+bounded turns, with independent safety, creative-review and finalization
+gates. Candidate selection, revision state, export state and idempotency-aware
+per-session quotas are persisted. A fake platform adapter proves the full
+draft → reject/revise → approve → export state machine without a network.
+
+The production design adapter uses Canva's official remote MCP endpoint over
+Streamable HTTP. It discovers tools dynamically, grants only the scoped Canva
+operations, supports generation/candidate selection, conservative exact-text
+editing transactions, commit, and export. Canva does not document effect
+idempotency, so ambiguous mutations stop rather than retry. Candidate
+thumbnails are immediately captured as bounded local previews; signed export
+URLs are consumed by the app-owned downloader and scrubbed after completion.
+
+Canva authentication is per-user OAuth 2.1 authorization code + PKCE. Access,
+refresh and pending-state values use Keystore-backed EncryptedPreferences and
+never enter model prompts or MCP arguments. The OAuth callback is consumed by
+the native core before ordinary deep-link routing. Live connection is
+fail-closed until a build supplies a Canva-approved HTTPS CIMD client URL and
+allowlisted redirect URI.
+
+Generic external jobs now have a WorkManager poll lane, adapter registry,
+startup rescheduling, cancellation, and a WAITING_EXTERNAL task state. This is
+the transport-neutral seam a future persistent remote worker/server will use
+for hour/day-long work.
+
+Verification: full JVM suite 1,028 green; privacy-auditor suite 14 green;
+repository privacy audit clean; strict Flutter analysis clean; all 167 Flutter
+widget/golden tests pass locally with the four intentional classic/warm S6
+golden updates. Full branch CI and live Canva/device evidence remain pending.

@@ -5,6 +5,9 @@ import android.content.Context;
 import com.mrnobody.agent.execution.ExecutionIdentity;
 import com.mrnobody.agent.execution.ExecutionLedger;
 import com.mrnobody.agent.execution.RunScope;
+import com.mrnobody.agent.resilience.FailureClassifier;
+import com.mrnobody.agent.resilience.OperationFailure;
+import com.mrnobody.agent.resilience.RetryPolicy;
 import com.mrnobody.debug.ErrorLog;
 
 import java.util.ArrayList;
@@ -191,10 +194,20 @@ public final class ToolPipeline {
             if (execution.isDurable() && ledger != ExecutionLedger.NONE) {
                 ledger.markRunning(execution);
             }
-            ToolExecution attempted = execute(context, tool, request, spec,
-                    cancellation, execution);
-            result = attempted.result;
-            commit(execution, result, attempted.ambiguous);
+            ToolExecution attempted = null;
+            for (int attempt = 0; attempt < RetryPolicy.MAX_ATTEMPTS; attempt++) {
+                attempted = execute(context, tool, request, spec, cancellation, execution);
+                result = attempted.result;
+                OperationFailure failure = result == null ? null : result.failure();
+                if (failure == null && result != null && result.isError()) {
+                    failure = FailureClassifier.fromMessage(result.error());
+                }
+                if (!RetryPolicy.shouldRetry(failure, attempt, tier,
+                        tool.supportsIdempotency(request))) break;
+                if (!waitForRetry(RetryPolicy.delayMs(failure, attempt), cancellation)) break;
+            }
+            result = attempted == null ? ToolResult.fail("tool did not run") : attempted.result;
+            commit(execution, result, attempted != null && attempted.ambiguous);
         } catch (Throwable t) {
             // A tool that throws is a failed call, not a dead agent. Once a
             // consequential call entered RUNNING, a throw is an unknown
@@ -276,11 +289,13 @@ public final class ToolPipeline {
         // on a reused executor thread, which previously made task-scoped
         // browser suppliers resolve to null.
         long taskId = TaskScope.currentTask();
+        AgentRunContext run = AgentRunContext.current();
         Future<ToolResult> future = EXECUTOR.submit(
                 () -> TaskScope.callAs(taskId,
-                        () -> tool.execute(context, request,
-                                cancellation == null ? Cancellation.NONE : cancellation,
-                                execution)));
+                        () -> AgentRunContext.callAs(run,
+                                () -> tool.execute(context, request,
+                                        cancellation == null ? Cancellation.NONE : cancellation,
+                                        execution))));
         long deadline = System.currentTimeMillis() + spec.timeoutMs();
         try {
             while (true) {
@@ -312,6 +327,21 @@ public final class ToolPipeline {
             return new ToolExecution(ToolResult.fail(
                     spec.name() + " failed: " + describe(cause)), true);
         }
+    }
+
+    private static boolean waitForRetry(long delayMs, Cancellation cancellation) {
+        long deadline = System.currentTimeMillis() + Math.max(0L, delayMs);
+        while (System.currentTimeMillis() < deadline) {
+            if (cancellation != null && cancellation.isCancelled()) return false;
+            try {
+                Thread.sleep(Math.min(100L, Math.max(1L,
+                        deadline - System.currentTimeMillis())));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return true;
     }
 
     private static final class ToolExecution {
