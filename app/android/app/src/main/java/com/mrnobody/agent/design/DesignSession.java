@@ -18,6 +18,8 @@ public final class DesignSession {
     public String artifactRef = "";
     public String revision = "";
     public String candidateRef = "";
+    public String candidateOptions = "";
+    public String generationJobId = "";
     public String previewRef = "";
     public String exportRef = "";
     public String pendingJobId = "";

@@ -23,9 +23,13 @@ import com.mrnobody.agent.dispatcher.RemoteWorker;
 import com.mrnobody.agent.dispatcher.TaskDispatcher;
 import com.mrnobody.agent.execution.ExecutionLedger;
 import com.mrnobody.agent.execution.SqliteExecutionLedger;
+import com.mrnobody.agent.jobs.AsyncJobAdapterRegistry;
 import com.mrnobody.agent.jobs.AsyncJobCoordinator;
 import com.mrnobody.agent.jobs.AsyncJobStore;
 import com.mrnobody.agent.jobs.SqliteAsyncJobStore;
+import com.mrnobody.agent.jobs.WorkManagerAsyncJobScheduler;
+import com.mrnobody.agent.mcp.CanvaMcpDesignAdapter;
+import com.mrnobody.agent.mcp.CanvaOAuthManager;
 import com.mrnobody.agent.planner.DeterministicEngine;
 import com.mrnobody.agent.skills.SkillRegistry;
 import com.mrnobody.agent.tasks.TaskReconciler;
@@ -83,10 +87,12 @@ public final class MrNobodyApp extends Application {
     private static TaskEventStore taskEvents;
     private static ExecutionLedger executionLedger;
     private static AsyncJobStore asyncJobs;
+    private static AsyncJobAdapterRegistry asyncJobAdapters;
     private static AsyncJobCoordinator asyncJobCoordinator;
     private static DesignSessionStore designSessions;
     private static volatile DesignPlatformAdapter designAdapter =
             new UnavailableDesignAdapter("Canva MCP is not configured.");
+    private static CanvaOAuthManager canvaOAuth;
     private static ApprovalPolicy.MapOverrides approvalOverrides;
     private static TaskDispatcher taskDispatcher;
     private static TaskScheduler taskScheduler;
@@ -146,6 +152,8 @@ public final class MrNobodyApp extends Application {
             com.mrnobody.debug.ErrorLog.record("download reconcile failed: " + t);
         }
         activeAiProviderId = settings.activeAiProvider();
+        canvaOAuth = new CanvaOAuthManager(this);
+        designAdapter = new CanvaMcpDesignAdapter(this, canvaOAuth);
 
         // Restore the privacy mode before anything can open a socket. If the
         // saved mode was NOBODY and its route is gone, PrivacyController
@@ -182,7 +190,9 @@ public final class MrNobodyApp extends Application {
         taskEvents = new TaskEventStore(this);
         executionLedger = new SqliteExecutionLedger(this);
         asyncJobs = new SqliteAsyncJobStore(this);
-        asyncJobCoordinator = new AsyncJobCoordinator(asyncJobs, executionLedger);
+        asyncJobAdapters = new AsyncJobAdapterRegistry();
+        asyncJobCoordinator = new AsyncJobCoordinator(asyncJobs, executionLedger,
+                new WorkManagerAsyncJobScheduler());
         designSessions = new DesignSessionStore(this);
 
         // Attach the pipeline seams: user-facing audit, durable execution
@@ -220,6 +230,10 @@ public final class MrNobodyApp extends Application {
                 // safe to replay and closes that scheduling gap.
                 for (com.mrnobody.agent.core.Task queued : store.queued()) {
                     taskScheduler.schedule(MrNobodyApp.this, queued.id());
+                }
+                WorkManagerAsyncJobScheduler jobScheduler = new WorkManagerAsyncJobScheduler();
+                for (com.mrnobody.agent.jobs.AsyncJob job : asyncJobs.pending()) {
+                    jobScheduler.schedule(MrNobodyApp.this, job);
                 }
             } catch (Exception e) {
                 ErrorLog.record("Task reconciliation failed: " + e);
@@ -283,9 +297,11 @@ public final class MrNobodyApp extends Application {
     public static TaskEventStore taskEvents() { return taskEvents; }
     public static ExecutionLedger executionLedger() { return executionLedger; }
     public static AsyncJobStore asyncJobs() { return asyncJobs; }
+    public static AsyncJobAdapterRegistry asyncJobAdapters() { return asyncJobAdapters; }
     public static AsyncJobCoordinator asyncJobCoordinator() { return asyncJobCoordinator; }
     public static DesignSessionStore designSessions() { return designSessions; }
     public static DesignPlatformAdapter designAdapter() { return designAdapter; }
+    public static CanvaOAuthManager canvaOAuth() { return canvaOAuth; }
     public static void setDesignAdapter(DesignPlatformAdapter adapter) {
         designAdapter = adapter == null
                 ? new UnavailableDesignAdapter("Design platform is unavailable.") : adapter;
@@ -332,8 +348,12 @@ public final class MrNobodyApp extends Application {
             fallbacks.addAll(decodeSnapshots(task.fallbackProviderSnapshots()));
         }
         if (task.executionPlatform().isEmpty()) {
-            task.setExecutionPlatform(SkillRegistry.standard()
-                    .route(task.activeInstruction()).executionPlatform);
+            boolean continuingDesign = false;
+            try { continuingDesign = designSessions != null
+                    && designSessions.findByTask(task.id()) != null; }
+            catch (Throwable ignored) { }
+            task.setExecutionPlatform(continuingDesign ? "canva-mcp"
+                    : SkillRegistry.standard().route(task.activeInstruction()).executionPlatform);
         }
 
         AiProvider provider = providerFrom(primary);

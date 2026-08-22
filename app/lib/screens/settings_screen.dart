@@ -9,6 +9,7 @@ import 'ai_provider_screen.dart';
 import 'bookmarks_screen.dart';
 import 'clear_data_screen.dart';
 import 'downloads_screen.dart';
+import 'design_platform_screen.dart';
 import 'privacy_screen.dart';
 import 'restricted_tools_screen.dart';
 
@@ -286,6 +287,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onTap: () => _pickProvider(rowContext),
                           ),
                         ),
+                        SettingRow(
+                          label: 'Design platform',
+                          value: 'CANVA MCP',
+                          onTap: _openDesignPlatform,
+                        ),
                         Builder(
                           builder: (rowContext) => SettingRow(
                             label: 'Terminal',
@@ -346,7 +352,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           value: _bookmarkCount?.toString(),
                           onTap: () async {
                             await Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) => BookmarksScreen(onOpenUrl: widget.onOpenUrl)));
+                                builder: (_) => BookmarksScreen(
+                                    onOpenUrl: widget.onOpenUrl)));
                             _loadBookmarkCount();
                           },
                         ),
@@ -483,6 +490,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _state.setTerminal(picked);
     if (!mounted) return;
     AppToast.show(context, 'Terminal ${picked ? 'enabled' : 'disabled'}');
+  }
+
+  Future<void> _openDesignPlatform() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const DesignPlatformScreen()),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _pickProvider(BuildContext rowContext) async {
@@ -627,11 +641,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               autofocus: true,
               style: AppTheme.mono(
                 size: 13,
-                color: AppColors.isWarm
-                    ? AppColors.overlayInk
-                    : AppColors.textDim,
+                color:
+                    AppColors.isWarm ? AppColors.overlayInk : AppColors.textDim,
               ),
-              cursorColor: AppColors.isWarm ? AppColors.overlayInk : AppColors.accent,
+              cursorColor:
+                  AppColors.isWarm ? AppColors.overlayInk : AppColors.accent,
               decoration: InputDecoration(
                 filled: AppColors.isWarm,
                 fillColor: AppColors.overlaySelected,
@@ -673,11 +687,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               keyboardType: TextInputType.number,
               style: AppTheme.mono(
                 size: 13,
-                color: AppColors.isWarm
-                    ? AppColors.overlayInk
-                    : AppColors.textDim,
+                color:
+                    AppColors.isWarm ? AppColors.overlayInk : AppColors.textDim,
               ),
-              cursorColor: AppColors.isWarm ? AppColors.overlayInk : AppColors.accent,
+              cursorColor:
+                  AppColors.isWarm ? AppColors.overlayInk : AppColors.accent,
               decoration: InputDecoration(
                 filled: AppColors.isWarm,
                 fillColor: AppColors.overlaySelected,

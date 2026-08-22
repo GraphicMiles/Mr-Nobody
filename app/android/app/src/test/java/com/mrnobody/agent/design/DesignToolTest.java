@@ -54,7 +54,7 @@ public class DesignToolTest {
     @Test
     public void exportIsAlwaysExecTierAndIdempotent() {
         DesignTool tool = new DesignTool(
-                () -> new UnavailableDesignAdapter("x"), () -> null);
+                FakeDesignAdapter::new, () -> null);
         assertEquals(com.mrnobody.agent.core.Tier.EXEC,
                 tool.tierFor(request(1L, "export")));
         assertTrue(tool.supportsIdempotency(request(1L, "export")));

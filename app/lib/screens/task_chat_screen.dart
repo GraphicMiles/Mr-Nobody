@@ -48,7 +48,13 @@ class TaskChatScreen extends StatefulWidget {
 }
 
 class _TaskChatScreenState extends State<TaskChatScreen> {
-  static const _live = {'QUEUED', 'RUNNING', 'VERIFYING', 'WAITING'};
+  static const _live = {
+    'QUEUED',
+    'RUNNING',
+    'VERIFYING',
+    'WAITING',
+    'WAITING_EXTERNAL'
+  };
 
   /// The task answer stream, pushed from the worker via TaskStreamHub. See
   /// the Java side; this is how a remote provider's tokens reach the chat as
@@ -92,7 +98,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     super.initState();
     if (widget.taskId != null) {
       _refresh();
-      _poll = Timer.periodic(const Duration(milliseconds: 600), (_) => _refresh());
+      _poll =
+          Timer.periodic(const Duration(milliseconds: 600), (_) => _refresh());
       _listenStream();
     }
   }
@@ -215,9 +222,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     ];
     final lastAnswer = answerIndexes.isEmpty ? -1 : answerIndexes.last;
     var segmentStart = 0;
-    var turnInstruction = widget.instruction ??
-        _task['instruction'] as String? ??
-        widget.title;
+    var turnInstruction =
+        widget.instruction ?? _task['instruction'] as String? ?? widget.title;
 
     for (var i = 0; i < _events.length; i++) {
       final event = _events[i];
@@ -242,13 +248,14 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
       var artifactsRaw = '';
       for (var j = i + 1; j < _events.length; j++) {
         final followingType = _events[j]['type'] as String? ?? '';
-        if (followingType == 'user.followup' || followingType == 'task.started') {
+        if (followingType == 'user.followup' ||
+            followingType == 'task.started') {
           segmentEnd = j;
           break;
         }
         if (followingType == 'turn.presentation') {
-          artifactsRaw = _presentationArtifacts(
-              _events[j]['detail'] as String? ?? '');
+          artifactsRaw =
+              _presentationArtifacts(_events[j]['detail'] as String? ?? '');
         }
       }
 
@@ -401,9 +408,9 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     return AnswerDocument.parse(text);
   }
 
-  /// Optional evidence cards are selected only from pages this run actually
-  /// read. Search candidates are not evidence merely because they appeared in
-  /// a result list.
+  /// Research cards require a successful page read. A design preview is a
+  /// separate typed artifact produced by the scoped design adapter, not a
+  /// search candidate, and may render without a web source.
   List<EvidenceCardData> _cardsFor(List<AgentSource> sources) => _cardsFrom(
         sources: sources,
         artifactsRaw: (_task['artifacts'] as String?) ?? '',
@@ -417,11 +424,12 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
     required String instruction,
     required String answer,
   }) {
-    if (sources.isEmpty || artifactsRaw.isEmpty) return const [];
+    if (artifactsRaw.isEmpty) return const [];
+    final all = EvidenceCardData.fromArtifacts(artifactsRaw);
     final read = sources.map((s) => _normalUrl(s.url)).toSet();
-    final artifacts = EvidenceCardData.fromArtifacts(artifactsRaw)
-        .where((a) => read.contains(_normalUrl(a.url)))
-        .toList();
+    final artifacts = sources.isEmpty
+        ? all.where((a) => a.note == 'design-preview').toList()
+        : all.where((a) => read.contains(_normalUrl(a.url))).toList();
     return EvidenceCardData.pick(
       instruction: instruction,
       answer: answer,
@@ -577,7 +585,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
       var url = match.group(0) ?? '';
       url = url.replaceFirst(RegExp(r'[.,);:]+$'), '');
       if (url.isEmpty || !seenUrls.add(url)) continue;
-      final host = Uri.tryParse(url)?.host.replaceFirst(RegExp(r'^www\.'), '') ?? '';
+      final host =
+          Uri.tryParse(url)?.host.replaceFirst(RegExp(r'^www\.'), '') ?? '';
       if (host.isEmpty) continue;
       linked.add(AgentSource(title: host, domain: host, url: url));
     }
@@ -588,9 +597,22 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
 
   /// Follow-ups that mean "re-run what you were just doing", not a new question.
   static final _recheckPhrases = {
-    'again', 'check again', 'check now', 'recheck', 're-check', 're check',
-    'update', 'refresh', 'any change', 'any update', 'what now', 'run again',
-    'once more', 'once again', 'any news', 'what about now',
+    'again',
+    'check again',
+    'check now',
+    'recheck',
+    're-check',
+    're check',
+    'update',
+    'refresh',
+    'any change',
+    'any update',
+    'what now',
+    'run again',
+    'once more',
+    'once again',
+    'any news',
+    'what about now',
   };
 
   bool _isRecheck(String text) {
@@ -629,7 +651,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
           _revealed = 0;
         });
         _poll?.cancel();
-        _poll = Timer.periodic(const Duration(milliseconds: 600), (_) => _refresh());
+        _poll = Timer.periodic(
+            const Duration(milliseconds: 600), (_) => _refresh());
         _refresh();
         return;
       }
@@ -649,8 +672,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
       return;
     }
     Navigator.of(context).pushReplacement(MaterialPageRoute(
-      builder: (_) => TaskChatScreen(
-          taskId: id, title: text, instruction: text),
+      builder: (_) =>
+          TaskChatScreen(taskId: id, title: text, instruction: text),
     ));
   }
 
@@ -663,7 +686,11 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
       'could not resolve approval',
     );
     if (!mounted) return;
-    AppToast.show(context, ok ? (allow ? 'Allowed — running…' : 'Declined') : 'Could not update that');
+    AppToast.show(
+        context,
+        ok
+            ? (allow ? 'Allowed — running…' : 'Declined')
+            : 'Could not update that');
     if (allow) {
       setState(() {
         _revealedFrom = '';
@@ -745,10 +772,10 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                 controller: _scroll,
                 padding: const EdgeInsets.only(top: 4, bottom: 18),
                 children: [
-                  UserTurn(text: instruction, stamp: _stamp(_task['createdAt'])),
+                  UserTurn(
+                      text: instruction, stamp: _stamp(_task['createdAt'])),
                   const SizedBox(height: AgentMetrics.turnGap),
                   ..._priorTurns(),
-
                   AgentTurn(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -773,7 +800,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                                   color: AppColors.textMuted,
                                   w: FontWeight.w600)),
                         ],
-                        if (_tokens.isNotEmpty || _document.blocks.isNotEmpty) ...[
+                        if (_tokens.isNotEmpty ||
+                            _document.blocks.isNotEmpty) ...[
                           const SizedBox(height: 7),
                           AnswerView(
                             document: _document.isEmpty
@@ -786,7 +814,9 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                             visible: _revealed,
                             caret: streaming,
                             onSourceTap: (s) {
-                              if (s.url.isNotEmpty) AppToast.show(context, s.url);
+                              if (s.url.isNotEmpty) {
+                                AppToast.show(context, s.url);
+                              }
                             },
                             onCardTap: (c) {
                               if (c.url.isEmpty) return;
@@ -814,9 +844,10 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                             url: _pendingUrl,
                             onAllow: () => _resolve(true),
                             onDeny: () => _resolve(false),
-                            onOpen: widget.onOpenUrl == null && _pendingUrl == null
-                                ? null
-                                : _openPending,
+                            onOpen:
+                                widget.onOpenUrl == null && _pendingUrl == null
+                                    ? null
+                                    : _openPending,
                           ),
                         ],
                         // The tail appears only once the answer has settled,
@@ -868,8 +899,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: AppColors.line),
               ),
-              child: Icon(Icons.chevron_left,
-                  size: 17, color: AppColors.textDim),
+              child:
+                  Icon(Icons.chevron_left, size: 17, color: AppColors.textDim),
             ),
           ),
           const SizedBox(width: 10),
@@ -914,7 +945,8 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                       decoration: InputDecoration(
                         isDense: true,
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
                         hintText: 'Reply to this task…',
                         hintStyle: AppTheme.sans(
                             size: 12.5, color: AppColors.textMuted),
@@ -930,15 +962,13 @@ class _TaskChatScreenState extends State<TaskChatScreen> {
                       margin: const EdgeInsets.symmetric(vertical: 7),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color:
-                            _isLive ? AppColors.surface3 : AppColors.accent,
+                        color: _isLive ? AppColors.surface3 : AppColors.accent,
                       ),
                       child: Icon(
                         _isLive ? Icons.stop : Icons.arrow_upward,
                         size: 15,
-                        color: _isLive
-                            ? AppColors.textDim
-                            : AppColors.accentInk,
+                        color:
+                            _isLive ? AppColors.textDim : AppColors.accentInk,
                       ),
                     ),
                   ),

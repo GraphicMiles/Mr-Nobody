@@ -408,6 +408,17 @@ void _mockCore() {
               'at': 1755515101710,
             },
           ];
+        case 'providerFallback':
+          return {'providers': <String>[], 'consent': false};
+        case 'canvaMcpStatus':
+          return {
+            'configured': false,
+            'connected': false,
+            'endpoint': 'https://mcp.canva.com/mcp',
+            'redirectUri': 'mrnobody://oauth/canva',
+            'clientId': '',
+            'error': '',
+          };
         case 'providerConfig':
           return {
             'id': call.arguments['id'],

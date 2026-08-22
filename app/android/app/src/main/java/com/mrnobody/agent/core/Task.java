@@ -10,7 +10,7 @@ import java.util.UUID;
 public final class Task {
 
     public enum Status {
-        QUEUED, RUNNING, WAITING, VERIFYING, COMPLETED, FAILED, CANCELLED
+        QUEUED, RUNNING, WAITING, WAITING_EXTERNAL, VERIFYING, COMPLETED, FAILED, CANCELLED
     }
 
     private final long id;

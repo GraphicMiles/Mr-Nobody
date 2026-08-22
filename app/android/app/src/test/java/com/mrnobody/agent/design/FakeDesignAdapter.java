@@ -25,6 +25,7 @@ public final class FakeDesignAdapter implements DesignPlatformAdapter {
         return new LinkedHashSet<>(Arrays.asList("generate", "select", "edit", "export"));
     }
     @Override public boolean isConfigured() { return true; }
+    @Override public boolean supportsIdempotency(String action) { return true; }
 
     @Override
     public ToolResult invoke(Context context, ToolRequest request,

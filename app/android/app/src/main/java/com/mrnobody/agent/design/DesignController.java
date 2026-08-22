@@ -7,6 +7,8 @@ import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.core.ToolRequest;
 import com.mrnobody.agent.core.ToolResult;
 
+import org.json.JSONArray;
+
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -81,6 +83,8 @@ public final class DesignController {
             return invoke(session, "export", text, format(lower), invoker, cancellation);
         }
         if (isSelect(lower, session)) {
+            chooseCandidate(session, lower);
+            sessions.update(session);
             return invoke(session, "select", text, "", invoker, cancellation);
         }
         if (!session.artifactRef.isEmpty() && isEdit(lower)) {
@@ -100,6 +104,7 @@ public final class DesignController {
         params.put("sessionId", String.valueOf(session.id));
         params.put("instruction", instruction);
         if (!session.candidateRef.isEmpty()) params.put("candidateRef", session.candidateRef);
+        if (!session.generationJobId.isEmpty()) params.put("generationJobId", session.generationJobId);
         if (!session.artifactRef.isEmpty()) params.put("artifactRef", session.artifactRef);
         if (!session.revision.isEmpty()) params.put("expectedRevision", session.revision);
         if (!format.isEmpty()) params.put("format", format);
@@ -124,13 +129,20 @@ public final class DesignController {
         Map<String, Object> value = result.value();
         session.safetyGate = ReviewGate.APPROVED;
         session.candidateRef = text(value.get("candidateRef"), session.candidateRef);
+        Object candidates = value.get("candidates");
+        if (candidates instanceof java.util.Collection) {
+            session.candidateOptions = new JSONArray((java.util.Collection<?>) candidates).toString();
+        }
+        session.generationJobId = text(value.get("generationJobId"), session.generationJobId);
         session.artifactRef = text(value.get("artifactRef"), session.artifactRef);
         session.revision = text(value.get("revision"), session.revision);
         session.previewRef = text(value.get("previewRef"), session.previewRef);
         session.exportRef = text(value.get("exportRef"), session.exportRef);
         session.pendingJobId = text(value.get("jobId"), "");
-        if (!session.pendingJobId.isEmpty()) {
-            session.status = DesignSession.Status.DRAFTING;
+        boolean pending = Boolean.TRUE.equals(value.get("pending"));
+        if (pending || !session.pendingJobId.isEmpty()) {
+            session.status = "export".equals(action)
+                    ? DesignSession.Status.FINALIZING : DesignSession.Status.DRAFTING;
             return;
         }
         if ("export".equals(action)) {
@@ -143,9 +155,12 @@ public final class DesignController {
     }
 
     private static String answer(DesignSession session, String action) {
-        if (!session.pendingJobId.isEmpty()) {
+        if (!session.pendingJobId.isEmpty()
+                || session.status == DesignSession.Status.FINALIZING) {
             return "The design job was submitted and will continue in the background. "
-                    + "You can leave this screen and return when it finishes.";
+                    + "You can leave this screen and return later; export progress is also "
+                    + "visible in Downloads."
+                    + (session.exportRef.isEmpty() ? "" : "\n\n" + session.exportRef);
         }
         if ("export".equals(action)) {
             return "Finalization approved and the export is ready.\n\n" + session.exportRef;
@@ -154,6 +169,19 @@ public final class DesignController {
         return "A design draft is ready for creative review. Reply with changes, "
                 + "reject it, or say “approve this draft”."
                 + (ref.isEmpty() ? "" : "\n\nPreview: " + ref);
+    }
+
+    private static void chooseCandidate(DesignSession session, String instruction) {
+        if (session.candidateOptions == null || session.candidateOptions.isEmpty()) return;
+        int index = instruction.contains("third") ? 2 : instruction.contains("second") ? 1 : 0;
+        try {
+            JSONArray options = new JSONArray(session.candidateOptions);
+            if (options.length() == 0) return;
+            org.json.JSONObject chosen = options.optJSONObject(Math.min(index, options.length() - 1));
+            if (chosen == null) return;
+            session.candidateRef = chosen.optString("candidateRef", session.candidateRef);
+            session.previewRef = chosen.optString("previewRef", session.previewRef);
+        } catch (Exception ignored) { }
     }
 
     private static boolean isApprove(String text) {

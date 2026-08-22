@@ -201,6 +201,18 @@ class PrivacyAuditTest(unittest.TestCase):
         self.assertIn("EncryptedPreferences", out)
         self.assertIn("granted account cookies", out)
 
+    def test_detects_plaintext_canva_oauth_store(self):
+        tree = make_tree(self.tmp, "android")
+        oauth = tree / "src" / "main" / "java" / "com" / "example" / "CanvaOAuthManager.java"
+        oauth.write_text(
+            'class CanvaOAuthManager { android.content.SharedPreferences prefs; '
+            'void save(String token) { prefs.edit().putString("oauth", token).apply(); } }')
+
+        code, out = run_audit(self.tmp)
+        self.assertEqual(code, 1, out)
+        self.assertIn("EncryptedPreferences", out)
+        self.assertIn("Canva MCP OAuth tokens", out)
+
     # ---------------------------------------------------------------- hygiene
 
     def test_build_output_is_not_scanned(self):

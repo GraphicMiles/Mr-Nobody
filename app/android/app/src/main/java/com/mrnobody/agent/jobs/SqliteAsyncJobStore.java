@@ -94,6 +94,16 @@ public final class SqliteAsyncJobStore extends SQLiteOpenHelper implements Async
     }
 
     @Override
+    public List<AsyncJob> jobsForTask(long taskId) {
+        List<AsyncJob> out = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().query(T, null, "task_id=?",
+                new String[]{String.valueOf(taskId)}, null, null, "created_at ASC")) {
+            while (c.moveToNext()) out.add(read(c));
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    @Override
     public void clearTask(long taskId) {
         try {
             getWritableDatabase().delete(T, "task_id=?", new String[]{String.valueOf(taskId)});
