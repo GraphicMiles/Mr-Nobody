@@ -2,7 +2,7 @@
 
 This is the single source of truth for delivery status. Implementation guidance lives in `README.md`; per-batch history lives in `SESSION-LOG.txt`. No additional standing documents.
 
-Status baseline: 2026-08-22. The Tier 0 execution-safety foundation is implemented locally with 987 JVM tests passing; the pushed GitHub CI result is pending. The Android emulator workflow remains manual-dispatch only (its last full run passed API 31 and API 34).
+Status baseline: 2026-08-22. The resilience/design-MCP feature branch has 1,028 JVM tests passing locally; branch CI and live Canva/OAuth device evidence are pending. The Android emulator workflow remains manual-dispatch only (its last full run passed API 31 and API 34).
 
 Status vocabulary:
 
@@ -29,12 +29,12 @@ Remote workers and credits remain unstarted by design. The next toolchain step i
 
 | Evidence | Result |
 |---|---|
-| GitHub Actions run | **Pending** for the Tier 0 commit; prior head passed |
-| Strict Flutter analysis | **Passed** |
-| Flutter widget and golden suite | **Passed** |
-| Java/JVM suite | **987 tests passed locally** at the current head |
+| GitHub Actions run | **Prior main passed; feature-branch run pending push** |
+| Strict Flutter analysis | **Passed locally** |
+| Flutter widget/golden suite | **167 tests passed locally, including updated classic/warm S6 goldens** |
+| Java/JVM suite | **1,028 tests passed locally** at the current feature head |
 | Android Gradle unit suite | **Passed** |
-| Privacy-auditor suite | **13 tests passed** |
+| Privacy-auditor suite | **14 tests passed** |
 | Repository privacy audit | **Clean** |
 | Filter-list validation/digest | **Passed** — `7e119400943d…` |
 | APK signatures | **Verified with APK Signature Scheme v2** |
@@ -53,7 +53,7 @@ CI uses a stable, public test-only signing key so successive patched APKs can up
 | Finding | Resolution | Commit |
 |---|---|---|
 | Task ID vanished on pooled tool threads | Added explicit `TaskScope` capture/propagation/cleanup and regression tests | `ae0777a` |
-| Shared mutable agent state across concurrent local tasks | Local execution is deliberately serialized; planner state is local and browser anchors reset per task | `ae0777a` |
+| Shared mutable agent state across concurrent local tasks | Initially serialized at `ae0777a`; now moved into per-run contexts with task-owned browser anchors and two bounded lanes | `ae0777a`, feature branch |
 | Provider keys and granted cookies stored as plaintext | Added Android Keystore-backed AES-GCM preferences, in-place migration, credential-removal UI, crypto tests, and privacy-audit guards | `2c20281` |
 | Vulnerable unused Kotlin build plugin | Removed Kotlin plugin/options and added a CI dependency-policy gate | `7d7fcba` |
 | Task timestamps replaced by read time | Restored durable `created_at`/`updated_at` values after cursor hydration | `5181464` |
@@ -104,10 +104,13 @@ Privacy is not anonymity. A remote AI provider receives the task context sent to
 | Adaptive semantic task pipeline and conditional response blocks | **Built, device-unverified** | Flutter analysis/widget/golden CI, then research/download/browser/failure-recovery checks on a phone |
 | Specialised search-skill router (YouTube, fresh info/news, public Facebook, materials/explicit Google, academic, docs, fact-checking, finance, weather, government) | **Built, device-unverified** | Live provider/result quality, host constraints, login walls, recency and official-source checks |
 | Task-scoped headless browser resolution | **Verified off-device** | Real WebView executor behavior on Android |
-| Cross-task state isolation | **Verified structurally/off-device** | Back-to-back and queued task tests on a phone |
+| Cross-task state isolation and two local lanes | **Verified structurally/off-device** | Concurrent HTTP/provider/WebView runs and approval contention on a phone |
 | Durable run/effect identity and execution replay | **Verified off-device** | Kill after a committed read/download and confirm replay without duplicate effect on a phone |
 | Task-submission dedup and queued-work reconciliation | **Verified off-device** | Double tap plus process death between insert and WorkManager enqueue on a phone |
-| Generic async-job coordinator/store | **Verified off-device, no production adapter** | Exercise submit/poll/reconcile with the first real adapter after its own security review |
+| Generic async jobs + WorkManager polling | **Verified off-device** | Remote adapter reconnect, cancellation, process death, next-hour/next-day completion on a phone/server |
+| Pinned provider/platform and consented fallback | **Verified off-device** | Live provider chain, mid-run Settings changes, privacy disclosure and local extractive fallback |
+| Top-level design skill, sessions, three review gates and quotas | **Verified off-device with fake adapter** | Multi-turn draft/reject/revise/approve/export flow on a phone |
+| Official Canva Streamable HTTP MCP + per-user OAuth | **Built, live-disabled without approved CIMD** | Canva-approved client metadata/redirect, physical-device OAuth, tool discovery, create/edit/export and process death |
 | Remote-provider autonomous planner | **Verified off-device** | Live provider/model matrix, timeout, cancellation, and process-death unknown-outcome behavior |
 | Tool schemas, approval and guards | **Verified off-device** | Foreground/background approval lifecycle |
 | Honest oversized-output previews | **Verified off-device** | Large-page behavior in a live task |
@@ -288,18 +291,20 @@ Screenshot or screen recording:
 
 ## Later phases
 
-### Resilience before design adapters
+### Canva MCP acceptance
 
-- Add typed retry classification on top of the execution ledger.
-- Add explicitly consented AI-provider fallback without replaying committed effects.
-- Move mutable planner/guard state into per-run objects before replacing the serialized local lane with a bounded pool.
-- Add a top-level skill registry, separate safety/creative/finalization gates, platform-neutral design sessions, and a fake adapter.
-- Implement Canva only after the fake adapter passes duplicate-submit, ambiguous-timeout, process-death, quota, and review-loop tests.
+- Obtain Canva approval for the hosted HTTPS CIMD client document and exact redirect URI.
+- Run MCP Inspector and compare dynamic tool schemas/results with the Android client.
+- Device-test OAuth authorize/refresh/revoke, Tor/proxy behavior, process death, rate limits, and expired signed URLs.
+- Complete create → candidate review → selection → transactional edit → creative approval → final export without persisting Canva-signed URLs.
+- Confirm an ambiguous non-idempotent Canva effect stops for reconciliation rather than repeating.
 
 ### Remote execution end to end
 
 - Deploy server-side signature verification and replay protection.
 - Add queue/worker isolation, cancellation, timeouts and reconnectable event streaming.
+- Implement the server-side `DesignPlatformAdapter`/`AsyncJobAdapter` using the same run, idempotency, review and quota contracts as Android.
+- Let hour/day-long jobs finish server-side and reconnect the device through the existing durable job ID rather than resubmitting.
 - Add an explicit per-task local/remote selector; local remains default.
 - Define retention and observability without task-content logging.
 - Complete device-to-server adversarial testing.

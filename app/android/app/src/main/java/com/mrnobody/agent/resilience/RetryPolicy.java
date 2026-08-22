@@ -19,7 +19,10 @@ public final class RetryPolicy {
                 || failure.kind == FailureKind.CONFIGURATION
                 || failure.kind == FailureKind.SAFETY
                 || failure.kind == FailureKind.VALIDATION) return false;
-        // Reads can always be repeated. Effects require the same propagated key.
+        // Reads can always be repeated. A documented 429 means the effect was
+        // not accepted, so one bounded retry is safe; every other effect needs
+        // a propagated provider idempotency key.
+        if (failure.kind == FailureKind.RATE_LIMIT && !failure.ambiguous) return true;
         return tier == Tier.READ || idempotent;
     }
 

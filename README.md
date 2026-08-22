@@ -19,8 +19,8 @@ Status baseline: 2026-08-22 (Tier 0 execution-safety foundations complete).
 - Tor: bundled `info.guardianproject:tor-android:0.4.7.14` (the newest release consumable at compileSdk 34), started on demand for Nobody mode; Orbot, when running, always takes priority
 - Security review: all 18 confirmed critical/high/medium/low findings remediated with regression coverage
 - Android 16 acceptance: provider-key encryption, history isolation, HTTPS enforcement, cookie scope, SSRF blocking, cancellation, downloads, and Nobody/Tor routing verified
-- Java/JVM suite: 987 tests passing at the current head
-- Python privacy-auditor suite: 13 tests passing
+- Java/JVM suite: 1,028 tests passing at the current head
+- Python privacy-auditor suite: 14 tests passing
 - CI: strict analysis, privacy gates, JVM/Flutter/Gradle tests, signed ABI APK build, signature verification, and size gate passing
 
 The remediation phase is complete. The next delivery phase is **agent optimisation and evolution**: smarter and cheaper work selection, stronger evidence use, and clearer, more sanitised responses without weakening the established privacy and security boundaries.
@@ -40,8 +40,11 @@ Broader OEM/device verification remains tracked in `ROADMAP.md`; the running def
 - Durable per-cycle run IDs, atomic short-window task-submission dedup, and startup replay of queued scheduling-outbox rows
 - A separate SQLite execution ledger with logical-step/effect identities, deterministic idempotency keys, replayable results, external references, and reserved/actual cost fields
 - Consequential calls fail closed on an ambiguous prior outcome; downloads and remote task submission propagate stable idempotency keys and can reconcile their durable external IDs
-- A generic persisted async-job contract and coordinator for submit → poll/reconcile → retrieve lifecycles; no design-platform adapter is registered yet
-- Explicit task-scope propagation onto tool executor threads; local agent runs are deliberately serialized so mutable planner/tool state cannot cross tasks
+- A generic persisted async-job contract, WorkManager polling lane, adapter registry, cancellation, and coordinator for submit → poll/reconcile → retrieve lifecycles
+- Run-pinned provider/model/platform snapshots, typed failures, uniform bounded retries, and explicitly consented remote-provider fallback with deterministic local fallback
+- Per-run planner scope, guard budgets, tool snapshots and browser anchors; local execution uses two fair lanes without sharing mutable run state
+- A top-level skill registry plus durable design sessions with separate safety, creative-review, and finalization gates and idempotency-aware per-session quotas
+- An official Canva remote MCP client over Streamable HTTP, dynamic tool discovery, encrypted per-user OAuth 2.1/PKCE credentials, transactional text editing, immediate signed-URL export capture, and conservative published-rate preflight limits
 - Keystore-backed AES-GCM storage for provider API keys and user-granted account sessions, including plaintext migration and key removal
 - A local deterministic research path that searches, reads sources, produces an extractive answer, records evidence, and verifies citations/figures
 - Optional remote AI providers: Gemini, Groq, and an OpenAI-compatible endpoint
@@ -62,7 +65,8 @@ Broader OEM/device verification remains tracked in `ROADMAP.md`; the running def
 
 - The reviewed Android 16 acceptance path is complete; broader OEM and Android-version matrix validation remains incomplete.
 - The remote-worker client has no deployed server in this repository and normal task creation currently persists `worker=local`; remote execution is therefore not an end-to-end user path.
-- The generic async-job and idempotency contracts are foundations only: no Canva, Figma, Adobe Express, or other design-platform adapter is implemented or granted credentials.
+- The Canva MCP adapter is implemented but live access remains disabled unless a build supplies an approved HTTPS CIMD client URL and an allowlisted redirect URI, and each user completes Canva OAuth. No credential or pre-authorized account ships in the repository.
+- Canva design generation/edit/export is verified against fake MCP protocol fixtures only; a Canva-approved live account and physical-device OAuth/process-death run are still required before calling it a completed product path. No Figma or Adobe Express adapter is implemented.
 - Credits, payments, account recovery, and a remote credit ledger are not implemented.
 - Production release signing requires externally supplied protected key material. CI uses a stable, public test-only key so patched builds can upgrade in place; its APKs are explicitly test artifacts.
 - Several WebView privacy capabilities depend on the installed WebView version and can legitimately be unavailable on a device.
@@ -128,8 +132,12 @@ Do not move filtering or browser security decisions into Dart. Subresource reque
 | Android bridge | `app/android/app/src/main/java/com/mrnobody/browser/MainActivity.java` | MethodChannel implementation and platform-view registration |
 | Application bootstrap | `.../browser/MrNobodyApp.java` | Long-lived stores, privacy state, providers, tools, workers, and scheduler |
 | Visible browser | `.../browser/webview/MrNobodyWebView.java` | WebView policy, request blocking, navigation events, and downloads |
-| Agent engine | `.../agent/planner/DeterministicEngine.java` | Local research and remote-provider autonomous execution |
-| Tool security | `.../agent/core/ToolPipeline.java` | Schema validation, policy, guards, confirmation, idempotent replay, timeout, output validation, and preview limiting |
+| Agent engine | `.../agent/planner/DeterministicEngine.java` | Local research, remote-provider autonomous execution, and top-level skill dispatch |
+| Run isolation | `.../agent/core/AgentRunContext.java` | Pinned provider/platform, tool snapshot/scope, and per-run guards for two execution lanes |
+| Skill registry | `.../agent/skills/SkillRegistry.java` | Top-level clock/design/research routing before search-specific skills |
+| Design state | `.../agent/design/DesignSessionStore.java` | Artifact/revision lineage, three review gates, quotas, and multi-turn session state |
+| Canva MCP | `.../agent/mcp/CanvaMcpDesignAdapter.java` | Scoped official-MCP generation, selection, transactional editing, and export |
+| Tool security | `.../agent/core/ToolPipeline.java` | Schema validation, policy, guards, confirmation, idempotent replay, uniform retry, timeout, output validation, and preview limiting |
 | Execution recovery | `.../agent/execution/SqliteExecutionLedger.java` | Durable run/step/effect state, replay results, external references, and cost fields |
 | Async jobs | `.../agent/jobs/AsyncJobCoordinator.java` | Generic non-blocking submit, poll/reconcile and terminal-result coordination |
 | Task persistence | `.../agent/tasks/TaskStore.java` | Durable task/run state, atomic submission dedup, and schema migrations |
@@ -151,7 +159,7 @@ Do not move filtering or browser security decisions into Dart. Subresource reque
 7. Async adapters use the same key through the persisted job coordinator rather than blocking a worker until a remote platform finishes.
 8. Task state and events are persisted and streamed back to the Flutter task chat.
 
-`TaskScope` captures the task ID before a tool enters the shared executor and clears it after the call. `RunScope` separately binds the durable execution-cycle ID and allocates logical-step/effect identities. The local worker also serializes runs and resets browser anchor state per task. Active WorkManager runs are promoted with a low-importance `dataSync` foreground notification before web work begins, so switching away does not demote a user-started search or rendered read. This removes pooled-thread context loss and prevents concurrent tasks from sharing mutable planner, guard, or browser state; the end-to-end Android behavior remains part of device testing.
+`TaskScope` captures the task ID before a tool enters the shared executor and clears it after the call. `RunScope` separately binds the durable execution-cycle ID and allocates logical-step/effect identities. `AgentRunContext` owns provider/platform choice, tool snapshot/scope, repeat/work guards and browser anchors for one run. The local worker permits two fair lanes; no mutable planner or guard state is process-shared. Active WorkManager runs are promoted with a low-importance `dataSync` foreground notification before web work begins, so switching away does not demote a user-started search or rendered read. The end-to-end concurrency and WebView behavior remains part of device testing.
 
 The execution ledger and event log have deliberately different jobs. The ledger is authoritative recovery state and may retain a bounded structured tool result so a killed run can replay it. The event log remains a bounded user-facing audit projection and still excludes page bodies, prompts, form values and arbitrary tool output. A successful ledger replay records another attempt/outcome event but never executes the external effect again. An operation left `RUNNING` without a committed result is reconciled through the original idempotency key when the adapter supports it; otherwise consequential work stops with an explicit unknown outcome rather than guessing or repeating it.
 
@@ -225,6 +233,21 @@ This is separate from a remote AI provider. `RemoteWorker` is intended to move t
 
 There is no server implementation here, no production remote-task selector, and no end-to-end deployment. Keep this path off by default.
 
+**Canva MCP design platform**
+
+This is a remote effect platform, not an AI provider and not the remote worker. The on-device worker connects to Canva's official `https://mcp.canva.com/mcp` endpoint using MCP Streamable HTTP. Tool discovery is dynamic; only the high-level scoped design controller can invoke the required Canva capabilities. OAuth tokens are per-user, Keystore-encrypted, and never included in model prompts, tool arguments, event logs, or AI-provider configuration.
+
+A production build must provide these non-secret values:
+
+```bash
+export MRNOBODY_CANVA_MCP_CLIENT_ID='https://your-domain.example/mrnobody-mcp-client.json'
+export MRNOBODY_CANVA_MCP_REDIRECT_URI='mrnobody://oauth/canva'
+```
+
+The CIMD document URL and exact redirect must be approved/allowlisted by Canva. Without that build configuration, Settings reports `BUILD SETUP REQUIRED` and every design effect fails before approval or network execution. Each user must then connect their own Canva account in Settings → Design platform.
+
+Generated candidate thumbnails are immediately reduced to bounded local previews; expiring thumbnail/export URLs are not retained as session state. Export links are consumed immediately by the app-owned download engine and scrubbed from its durable row after completion. Canva does not document effect idempotency, so an ambiguous create/edit/export is not repeated automatically even though the local execution key is preserved.
+
 ### Read-loop economics (rules 1-6)
 
 The canonical statement of the agent's cost rules; code comments cite these
@@ -263,8 +286,8 @@ Changes must preserve these rules:
 7. The blocklist digest is verified before parsing. An invalid list disables blocking and records the reason; it does not silently run untrusted rules.
 8. Tool selection never grants permission. Every selected tool still enters `ToolPipeline`.
 9. A missing approval UI or timed-out approval parks/refuses the action; it never defaults to allow.
-10. Provider keys and granted account-cookie values remain inside Keystore-backed encrypted preferences; plaintext credential persistence fails the privacy audit.
-11. Credentials and page content must not be copied into memory summaries, logs, or model prompts outside their explicit task use.
+10. Provider keys, granted account-cookie values, and Canva MCP OAuth/PKCE state remain inside Keystore-backed encrypted preferences; plaintext credential persistence fails the privacy audit.
+11. Credentials and page content must not be copied into memory summaries, logs, model prompts, MCP tool arguments, or AI-provider configuration outside their explicit task use.
 12. Private/isolated-profile claims must be capability-detected from the installed System WebView.
 13. Approval tool grants are process-session only and return to the configured mode after restart.
 14. Restricted tools remain hard-off unless a separate security and product decision deliberately changes source code and tests.

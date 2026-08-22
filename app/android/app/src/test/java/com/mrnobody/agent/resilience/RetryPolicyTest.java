@@ -17,8 +17,16 @@ public class RetryPolicyTest {
     }
 
     @Test
-    public void effectRequiresIdempotency() {
+    public void rateLimitCanRetryBeforeAnEffectIsAccepted() {
         OperationFailure failure = FailureClassifier.fromHttp(429, "rate limited", 100L);
+        assertTrue("a 429 proves the effect was not accepted",
+                RetryPolicy.shouldRetry(failure, 0, Tier.EXEC, false));
+        assertTrue(RetryPolicy.shouldRetry(failure, 0, Tier.EXEC, true));
+    }
+
+    @Test
+    public void ambiguousServerFailureStillRequiresEffectIdempotency() {
+        OperationFailure failure = FailureClassifier.fromHttp(503, "HTTP 503", 0L);
         assertFalse(RetryPolicy.shouldRetry(failure, 0, Tier.EXEC, false));
         assertTrue(RetryPolicy.shouldRetry(failure, 0, Tier.EXEC, true));
     }

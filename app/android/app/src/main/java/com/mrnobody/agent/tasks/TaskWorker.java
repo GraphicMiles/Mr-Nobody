@@ -147,6 +147,11 @@ public final class TaskWorker extends Worker {
             TaskNotifier.notifyWaiting(getApplicationContext(), task);
             return Result.success();
         }
+        if (task.status() == Task.Status.WAITING_EXTERNAL) {
+            // The persisted AsyncJobPollWorker owns the next wake and final notification.
+            MrNobodyApp.tasks().update(task);
+            return Result.success();
+        }
 
         MrNobodyApp.tasks().update(task);
 

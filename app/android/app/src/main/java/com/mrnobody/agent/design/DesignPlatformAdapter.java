@@ -14,6 +14,7 @@ public interface DesignPlatformAdapter {
     String id();
     Set<String> capabilities();
     boolean isConfigured();
+    default boolean supportsIdempotency(String action) { return false; }
 
     ToolResult invoke(Context context, ToolRequest request,
                       ExecutionIdentity execution, Cancellation cancellation);

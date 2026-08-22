@@ -12,6 +12,13 @@ def releaseKeyPassword = System.getenv("MRNOBODY_KEY_PASSWORD")
 def releaseSigningReady = [
         releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
 ].every { it != null && !it.trim().isEmpty() }
+// Public OAuth client metadata. No Canva token or secret belongs in Gradle.
+def canvaMcpClientId = System.getenv("MRNOBODY_CANVA_MCP_CLIENT_ID") ?: ""
+def canvaMcpRedirectUri = System.getenv("MRNOBODY_CANVA_MCP_REDIRECT_URI") ?: "mrnobody://oauth/canva"
+def buildString = { value ->
+    '"' + String.valueOf(value).replace('\\', '\\\\').replace('"', '\\"') + '"'
+}
+
 def releaseRequested = gradle.startParameter.taskNames.any {
     it.toLowerCase(java.util.Locale.ROOT).contains("release")
 }
@@ -38,6 +45,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "String", "CANVA_MCP_CLIENT_ID", buildString(canvaMcpClientId)
+        buildConfigField "String", "CANVA_MCP_REDIRECT_URI", buildString(canvaMcpRedirectUri)
         // No ndk.abiFilters here: the release CI builds with
         // --split-per-abi, whose splits (arm64-v8a, armeabi-v7a, x86_64 —
         // exactly the shipped set) CONFLICT with abiFilters if both are

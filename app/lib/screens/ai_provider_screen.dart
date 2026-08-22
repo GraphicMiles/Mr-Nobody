@@ -84,7 +84,9 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
     if (!mounted) return;
     setState(() {
       _fallbackConsent = cfg['consent'] as bool? ?? false;
-      _fallbacks = ((cfg['providers'] as List?)?.cast<String>() ?? const <String>[]).toSet();
+      _fallbacks =
+          ((cfg['providers'] as List?)?.cast<String>() ?? const <String>[])
+              .toSet();
     });
   }
 
@@ -121,7 +123,8 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
       'could not list models',
     );
     if (!mounted) return;
-    final models = (response['models'] as List?)?.cast<String>() ?? const <String>[];
+    final models =
+        (response['models'] as List?)?.cast<String>() ?? const <String>[];
     setState(() {
       _loadingModels = false;
       _models = models;
@@ -171,7 +174,8 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
     await _saveFallback();
     await _state.load();
     if (!mounted) return;
-    AppToast.show(context, '${AiProviderOption.byId(_selected).shortName} · $model');
+    AppToast.show(
+        context, '${AiProviderOption.byId(_selected).shortName} · $model');
     Navigator.of(context).pop();
   }
 
@@ -215,7 +219,9 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                 children: [
                   _field('API KEY', _key,
                       obscure: true,
-                      hint: _hasStoredKey ? 'saved — type to replace' : 'paste your key'),
+                      hint: _hasStoredKey
+                          ? 'saved — type to replace'
+                          : 'paste your key'),
                   _field('BASE URL', _base, hint: 'https://…/v1'),
                   const SizedBox(height: 13),
                 ],
@@ -240,7 +246,8 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                   ? 'Local keeps every request on this device. Basic browsing never needs an AI provider.'
                   : 'If a remote provider is enabled, task context may leave the device. '
                       'Models are read from your account — nothing is assumed about what your key can use.',
-              style: AppTheme.sans(size: 11, color: AppColors.textMuted, height: 1.5),
+              style: AppTheme.sans(
+                  size: 11, color: AppColors.textMuted, height: 1.5),
             ),
           ),
         ],
@@ -261,9 +268,11 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
             children: withDividers([
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => setState(() => _fallbackConsent = !_fallbackConsent),
+                onTap: () =>
+                    setState(() => _fallbackConsent = !_fallbackConsent),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                   child: Row(
                     children: [
                       Icon(
@@ -271,7 +280,9 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                             ? Icons.check_box
                             : Icons.check_box_outline_blank,
                         size: 17,
-                        color: _fallbackConsent ? AppColors.accent : AppColors.textMuted,
+                        color: _fallbackConsent
+                            ? AppColors.accent
+                            : AppColors.textMuted,
                       ),
                       const SizedBox(width: 11),
                       Expanded(
@@ -290,10 +301,13 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                   onTap: !_fallbackConsent
                       ? null
                       : () => setState(() {
-                            if (!_fallbacks.add(option.id)) _fallbacks.remove(option.id);
+                            if (!_fallbacks.add(option.id)) {
+                              _fallbacks.remove(option.id);
+                            }
                           }),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                     child: Row(
                       children: [
                         Icon(
@@ -329,7 +343,8 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
             'Fallback is pinned when a run starts. A secondary provider receives task '
             'context only after this consent, and completed tool effects are replayed '
             'from the local ledger rather than executed again.',
-            style: AppTheme.sans(size: 10.5, color: AppColors.textMuted, height: 1.45),
+            style: AppTheme.sans(
+                size: 10.5, color: AppColors.textMuted, height: 1.45),
           ),
         ),
       ],
@@ -359,7 +374,8 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                 onTap: _loadingModels ? null : _refreshModels,
                 behavior: HitTestBehavior.opaque,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppColors.surface2,
                     borderRadius: BorderRadius.circular(999),
@@ -372,13 +388,17 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                         SizedBox(
                           width: 10,
                           height: 10,
-                          child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.accent),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 1.5, color: AppColors.accent),
                         )
                       else
                         Icon(Icons.refresh, size: 12, color: AppColors.accent),
                       const SizedBox(width: 6),
                       Text('Refresh',
-                          style: AppTheme.mono(size: 9.5, w: FontWeight.w700, color: AppColors.accent)),
+                          style: AppTheme.mono(
+                              size: 9.5,
+                              w: FontWeight.w700,
+                              color: AppColors.accent)),
                     ],
                   ),
                 ),
@@ -394,13 +414,15 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                   padding: const EdgeInsets.fromLTRB(14, 13, 14, 3),
                   child: Text(
                     _modelError!,
-                    style: AppTheme.sans(size: 11.5, color: AppColors.textDim, height: 1.45),
+                    style: AppTheme.sans(
+                        size: 11.5, color: AppColors.textDim, height: 1.45),
                   ),
                 ),
               if (_manualEntry)
                 Column(
                   children: [
-                    _field('MODEL ID', _manualModel, hint: 'exact id from your provider'),
+                    _field('MODEL ID', _manualModel,
+                        hint: 'exact id from your provider'),
                     const SizedBox(height: 13),
                   ],
                 )
@@ -409,10 +431,14 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
                     ? 'Asking the provider…'
                     : 'Tap Refresh to list the models your key can use.')
               else
-                Column(children: withDividers([for (final m in _models) _modelRow(m)])),
+                Column(
+                    children:
+                        withDividers([for (final m in _models) _modelRow(m)])),
               const RowDivider(),
               SettingRow(
-                label: _manualEntry ? 'Pick from the list instead' : 'Enter a model id manually',
+                label: _manualEntry
+                    ? 'Pick from the list instead'
+                    : 'Enter a model id manually',
                 onTap: () => setState(() => _manualEntry = !_manualEntry),
               ),
             ],
@@ -433,7 +459,9 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
         child: Row(
           children: [
             Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              selected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
               size: 15,
               color: selected ? AppColors.accent : AppColors.textMuted,
             ),
@@ -479,7 +507,9 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
               child: Icon(_icon(p.id), size: 14, color: AppColors.textDim),
             ),
             const SizedBox(width: 11),
-            Expanded(child: Text(p.name, style: AppTheme.sans(size: 13, w: FontWeight.w600))),
+            Expanded(
+                child: Text(p.name,
+                    style: AppTheme.sans(size: 13, w: FontWeight.w600))),
             Text(
               active ? 'ACTIVE' : p.tag,
               style: AppTheme.mono(
@@ -494,7 +524,8 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
     );
   }
 
-  Widget _field(String label, TextEditingController controller, {bool obscure = false, String? hint}) {
+  Widget _field(String label, TextEditingController controller,
+      {bool obscure = false, String? hint}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 13, 14, 0),
       child: Column(
@@ -540,8 +571,12 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
     if (uri == null || uri.scheme.toLowerCase() != 'https') {
       return 'Provider endpoints must use HTTPS';
     }
-    if (uri.host.isEmpty) return 'Enter a valid provider host';
-    if (uri.userInfo.isNotEmpty) return 'Do not put credentials in the endpoint URL';
+    if (uri.host.isEmpty) {
+      return 'Enter a valid provider host';
+    }
+    if (uri.userInfo.isNotEmpty) {
+      return 'Do not put credentials in the endpoint URL';
+    }
     if (uri.hasQuery || uri.hasFragment) {
       return 'Use a base URL without a query or fragment';
     }

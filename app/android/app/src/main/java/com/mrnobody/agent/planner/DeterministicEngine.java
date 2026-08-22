@@ -325,9 +325,18 @@ public final class DeterministicEngine implements AgentEngine {
             fail(task, outcome.toolResult);
             return;
         }
+        if (outcome.session != null && !outcome.session.previewRef.isEmpty()) {
+            task.setArtifacts(TaskArtifact.encode(java.util.Collections.singletonList(
+                    new TaskArtifact(1, "Canva design draft", "",
+                            "design-preview", outcome.session.previewRef))));
+        }
         task.setError("");
         task.setResult(outcome.answer);
-        task.setStatus(Task.Status.COMPLETED);
+        if (outcome.session != null && !outcome.session.pendingJobId.isEmpty()) {
+            task.setStatus(Task.Status.WAITING_EXTERNAL);
+        } else {
+            task.setStatus(Task.Status.COMPLETED);
+        }
         recordAnswer(task);
     }
 

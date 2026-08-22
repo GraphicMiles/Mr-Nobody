@@ -37,6 +37,7 @@ public final class DesignTool implements Tool {
             .param(ParamSpec.integer("sessionId", true, "Durable design session id."))
             .param(ParamSpec.text("instruction", false, "Requested design or edit.", 8000))
             .param(ParamSpec.string("candidateRef", false, "Candidate selected after review."))
+            .param(ParamSpec.string("generationJobId", false, "Job that produced the candidate."))
             .param(ParamSpec.string("artifactRef", false, "Existing platform design id."))
             .param(ParamSpec.string("expectedRevision", false, "Revision precondition."))
             .param(ParamSpec.enumOf("format", false, "Export format.",
@@ -80,7 +81,12 @@ public final class DesignTool implements Tool {
         return result;
     }
 
-    @Override public boolean supportsIdempotency(ToolRequest request) { return true; }
+    @Override
+    public boolean supportsIdempotency(ToolRequest request) {
+        DesignPlatformAdapter adapter = adapters == null ? null : adapters.get();
+        return adapter != null && adapter.supportsIdempotency(
+                request == null ? "" : request.action());
+    }
 
     @Override
     public ToolResult reconcile(Context context, ToolRequest request,

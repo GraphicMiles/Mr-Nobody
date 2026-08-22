@@ -11,7 +11,7 @@ public final class DesignSessionStore extends SQLiteOpenHelper
         implements DesignSessionRepository {
 
     private static final String DB = "mrnobody_design_sessions.db";
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final String T = "design_sessions";
 
     public DesignSessionStore(Context context) {
@@ -23,7 +23,8 @@ public final class DesignSessionStore extends SQLiteOpenHelper
                 + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + "task_id INTEGER NOT NULL UNIQUE,"
                 + "platform TEXT NOT NULL,"
-                + "artifact_ref TEXT,revision TEXT,candidate_ref TEXT,"
+                + "artifact_ref TEXT,revision TEXT,candidate_ref TEXT,candidate_options TEXT,"
+                + "generation_job_id TEXT,"
                 + "preview_ref TEXT,export_ref TEXT,pending_job_id TEXT,design_spec TEXT,"
                 + "status TEXT NOT NULL,safety_gate TEXT NOT NULL,"
                 + "creative_gate TEXT NOT NULL,finalization_gate TEXT NOT NULL,"
@@ -39,7 +40,11 @@ public final class DesignSessionStore extends SQLiteOpenHelper
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // v1 only; sessions are user work and must never be dropped.
+        // Sessions are user work and must never be dropped.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN candidate_options TEXT");
+            db.execSQL("ALTER TABLE " + T + " ADD COLUMN generation_job_id TEXT");
+        }
     }
 
     public DesignSession getOrCreate(long taskId, String spec) {
@@ -150,7 +155,9 @@ public final class DesignSessionStore extends SQLiteOpenHelper
         ContentValues v = new ContentValues();
         v.put("task_id", s.taskId); v.put("platform", s.platform);
         v.put("artifact_ref", s.artifactRef); v.put("revision", s.revision);
-        v.put("candidate_ref", s.candidateRef); v.put("preview_ref", s.previewRef);
+        v.put("candidate_ref", s.candidateRef); v.put("candidate_options", s.candidateOptions);
+        v.put("generation_job_id", s.generationJobId);
+        v.put("preview_ref", s.previewRef);
         v.put("export_ref", s.exportRef); v.put("pending_job_id", s.pendingJobId);
         v.put("design_spec", s.designSpec); v.put("status", s.status.name());
         v.put("safety_gate", s.safetyGate.name());
@@ -168,6 +175,8 @@ public final class DesignSessionStore extends SQLiteOpenHelper
         s.taskId = c.getLong(c.getColumnIndexOrThrow("task_id"));
         s.platform = text(c, "platform"); s.artifactRef = text(c, "artifact_ref");
         s.revision = text(c, "revision"); s.candidateRef = text(c, "candidate_ref");
+        s.candidateOptions = text(c, "candidate_options");
+        s.generationJobId = text(c, "generation_job_id");
         s.previewRef = text(c, "preview_ref"); s.exportRef = text(c, "export_ref");
         s.pendingJobId = text(c, "pending_job_id"); s.designSpec = text(c, "design_spec");
         try { s.status = DesignSession.Status.valueOf(text(c, "status")); }

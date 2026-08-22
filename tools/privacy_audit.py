@@ -59,6 +59,7 @@ UNGATED_CONNECT = "openConnection("
 CREDENTIAL_STORES = {
     "Settings.java": "provider API keys",
     "AccountStore.java": "granted account cookies",
+    "CanvaOAuthManager.java": "Canva MCP OAuth tokens",
 }
 SECURE_STORE = "EncryptedPreferences"
 

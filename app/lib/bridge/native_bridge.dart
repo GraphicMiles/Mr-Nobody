@@ -35,7 +35,9 @@ class NativeBridge {
 
   /// Reply inside an existing task. Same id, same chat — not a new thread.
   static Future<bool> followUpTask(int id, String text) async {
-    return await _ch.invokeMethod('followUpTask', {'id': id, 'text': text}) as bool? ?? false;
+    return await _ch.invokeMethod('followUpTask', {'id': id, 'text': text})
+            as bool? ??
+        false;
   }
 
   /// Recent task list for the Tasks / Agent Home screens.
@@ -56,7 +58,8 @@ class NativeBridge {
     return (r as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
-  static Future<Map<String, dynamic>> importAccount(String host, String cookies) async {
+  static Future<Map<String, dynamic>> importAccount(
+      String host, String cookies) async {
     return Map<String, dynamic>.from(await _ch.invokeMethod('importAccount', {
       'host': host,
       'cookies': cookies,
@@ -69,7 +72,8 @@ class NativeBridge {
   }
 
   static Future<bool> revokeAccount(String host) async {
-    return await _ch.invokeMethod('revokeAccount', {'host': host}) as bool? ?? false;
+    return await _ch.invokeMethod('revokeAccount', {'host': host}) as bool? ??
+        false;
   }
 
   /// Restricted tools catalog. {@code active} is always false.
@@ -118,9 +122,28 @@ class NativeBridge {
     return await _ch.invokeMethod('isHistoryEnabled') as bool;
   }
 
+  static Future<Map<String, dynamic>> canvaMcpStatus() async {
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('canvaMcpStatus') as Map);
+  }
+
+  static Future<bool> connectCanvaMcp() async {
+    return await _ch.invokeMethod('connectCanvaMcp') as bool? ?? false;
+  }
+
+  static Future<bool> disconnectCanvaMcp() async {
+    return await _ch.invokeMethod('disconnectCanvaMcp') as bool? ?? false;
+  }
+
+  static Future<Map<String, dynamic>> canvaMcpTools() async {
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('canvaMcpTools') as Map);
+  }
+
   /// Ordered remote-provider fallback. It is inert until consent is true.
   static Future<Map<String, dynamic>> providerFallback() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('providerFallback') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('providerFallback') as Map);
   }
 
   static Future<bool> setProviderFallback(
@@ -137,7 +160,8 @@ class NativeBridge {
   /// Base URL / model / whether a key is stored for an AI provider. The key
   /// itself never leaves the core.
   static Future<Map<String, dynamic>> providerConfig(String id) async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('providerConfig', {'id': id}));
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('providerConfig', {'id': id}));
   }
 
   /// Ask a provider which models the supplied key can actually use. Nothing is
@@ -147,7 +171,8 @@ class NativeBridge {
     String? base,
     String? key,
   }) async {
-    final r = await _ch.invokeMethod('listModels', {'id': id, 'base': base, 'key': key});
+    final r = await _ch
+        .invokeMethod('listModels', {'id': id, 'base': base, 'key': key});
     return Map<String, dynamic>.from(r as Map);
   }
 
@@ -230,18 +255,21 @@ class NativeBridge {
   /// Stop a running download, keeping the bytes already written so it can be
   /// continued. Only possible because the app performs the transfer itself.
   static Future<bool> pauseDownload(int id) async {
-    return await _ch.invokeMethod('pauseDownload', {'id': id}) as bool? ?? false;
+    return await _ch.invokeMethod('pauseDownload', {'id': id}) as bool? ??
+        false;
   }
 
   /// Continue a paused, stalled or failed download from where it stopped.
   static Future<bool> resumeDownload(int id) async {
-    return await _ch.invokeMethod('resumeDownload', {'id': id}) as bool? ?? false;
+    return await _ch.invokeMethod('resumeDownload', {'id': id}) as bool? ??
+        false;
   }
 
   /// Stop a download for good and delete the partial file, keeping the row so
   /// the user can see what happened to it.
   static Future<bool> cancelDownload(int id) async {
-    return await _ch.invokeMethod('cancelDownload', {'id': id}) as bool? ?? false;
+    return await _ch.invokeMethod('cancelDownload', {'id': id}) as bool? ??
+        false;
   }
 
   /// Take a download off the list. Deletes the file too unless asked not to —
@@ -255,18 +283,21 @@ class NativeBridge {
   /// Where finished downloads are put: a label and whether it is a folder the
   /// user chose (rather than the system Downloads directory).
   static Future<Map<String, dynamic>> downloadFolder() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('downloadFolder') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('downloadFolder') as Map);
   }
 
   /// Open Android's folder picker and keep lasting access to what is chosen.
   /// Returns `{label, custom}`, or `{cancelled: true}`.
   static Future<Map<String, dynamic>> pickDownloadFolder() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('pickDownloadFolder') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('pickDownloadFolder') as Map);
   }
 
   /// Go back to the system Downloads directory and release the folder grant.
   static Future<Map<String, dynamic>> clearDownloadFolder() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('clearDownloadFolder') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('clearDownloadFolder') as Map);
   }
 
   /// The core's own error log — tool failures, AI errors, failed tasks. These
@@ -275,22 +306,27 @@ class NativeBridge {
   /// took effect — a refused mode must not look like it applied.
   /// Re-check a live Nobody session. Returns `{ok, problem, mode}`.
   static Future<Map<String, dynamic>> revalidateRoute() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('revalidateRoute') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('revalidateRoute') as Map);
   }
 
   /// Allow or deny a WAITING task. Allow re-runs it; deny fails it.
   static Future<bool> resolveApproval(int id, {required bool allow}) async {
-    return await _ch.invokeMethod('resolveApproval', {'id': id, 'allow': allow}) as bool? ?? false;
+    return await _ch.invokeMethod('resolveApproval', {'id': id, 'allow': allow})
+            as bool? ??
+        false;
   }
 
   static Future<Map<String, dynamic>> applyPrivacyMode(String mode) async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('privacyMode', {'mode': mode}) as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('privacyMode', {'mode': mode}) as Map);
   }
 
   /// The poll behind the built-in Tor auto-apply: current mode, whether a
   /// bootstrap is still running, and the last async failure (delivered once).
   static Future<Map<String, dynamic>> privacyStatus() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('privacyStatus') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('privacyStatus') as Map);
   }
 
   /// Configure the privacy route (Orbot Tor / HTTP proxy / direct) and re-apply
@@ -311,7 +347,8 @@ class NativeBridge {
 
   /// What the agent remembers: the on-device task history, newest first.
   static Future<Map<String, dynamic>> memoryInfo() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('memoryInfo') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('memoryInfo') as Map);
   }
 
   /// Erase everything the agent remembers (task history + event log).
@@ -321,7 +358,8 @@ class NativeBridge {
 
   /// This week's unattended-completion counters (target ~90%).
   static Future<Map<String, dynamic>> completionStats() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('completionStats') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('completionStats') as Map);
   }
 
   /// The Phase 1 device benchmark: each subsystem reports pass/fail so a
@@ -352,7 +390,8 @@ class NativeBridge {
   }
 
   static Future<List<String>> debugLog() async {
-    final r = Map<String, dynamic>.from(await _ch.invokeMethod('debugLog') as Map);
+    final r =
+        Map<String, dynamic>.from(await _ch.invokeMethod('debugLog') as Map);
     return (r['entries'] as List?)?.cast<String>() ?? const <String>[];
   }
 
@@ -362,7 +401,8 @@ class NativeBridge {
 
   /// What the connection can do right now: transport, metered, link speeds.
   static Future<Map<String, dynamic>> networkStatus() async {
-    return Map<String, dynamic>.from(await _ch.invokeMethod('networkStatus') as Map);
+    return Map<String, dynamic>.from(
+        await _ch.invokeMethod('networkStatus') as Map);
   }
 
   /// Locally stored bookmarks.
@@ -383,12 +423,15 @@ class NativeBridge {
   /// sitedata, taskstate, workspace.
   static Future<Map<String, dynamic>> clearData(List<String> buckets) async {
     final r = await _ch.invokeMethod('clearData', {'buckets': buckets});
-    return r == null ? <String, dynamic>{} : Map<String, dynamic>.from(r as Map);
+    return r == null
+        ? <String, dynamic>{}
+        : Map<String, dynamic>.from(r as Map);
   }
 
   /// Run [call], logging platform failures to the debug overlay and returning
   /// [fallback] instead of throwing — the UI must degrade, never crash.
-  static Future<T> guard<T>(Future<T> Function() call, T fallback, String label) async {
+  static Future<T> guard<T>(
+      Future<T> Function() call, T fallback, String label) async {
     try {
       return await call();
     } catch (e) {
