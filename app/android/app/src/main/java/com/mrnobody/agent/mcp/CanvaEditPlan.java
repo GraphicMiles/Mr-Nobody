@@ -97,11 +97,7 @@ final class CanvaEditPlan {
                     "(?i)(?:change|replace)\\s+[\\\"']([^\\\"']+)[\\\"']\\s+(?:to|with)\\s+[\\\"']([^\\\"']+)[\\\"']");
             Matcher q = quoted.matcher(text);
             if (q.find()) return new Pair(q.group(1).trim(), q.group(2).trim());
-            Matcher headline = Pattern.compile(
-                    "(?i)(?:change|set|update)\\s+(?:the\\s+)?(?:headline|title|subheading|text)\\s+to\\s+[\\\"']?(.+?)[\\\"']?$" )
-                    .matcher(text);
-            if (headline.find()) return new Pair("", headline.group(1).trim());
-            return null;
+            return null; // never guess which element “headline” means
         }
     }
 }

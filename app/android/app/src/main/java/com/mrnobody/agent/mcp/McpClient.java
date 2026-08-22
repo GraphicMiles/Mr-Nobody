@@ -134,8 +134,8 @@ public final class McpClient {
             }
             String negotiated = result.optString("protocolVersion", protocolVersion);
             if (!negotiated.isEmpty()) protocolVersion = negotiated;
-            initialized = true;
             sendInitialized(cancellation);
+            initialized = true;
         }
     }
 
@@ -178,6 +178,10 @@ public final class McpClient {
         try { envelope = new JSONObject(response.body); }
         catch (Exception e) {
             throw new McpException(OperationFailure.unknown("MCP returned malformed JSON"));
+        }
+        Object responseId = envelope.opt("id");
+        if (responseId == null || !String.valueOf(id).equals(String.valueOf(responseId))) {
+            throw new McpException(OperationFailure.unknown("MCP response id did not match the request"));
         }
         JSONObject error = envelope.optJSONObject("error");
         if (error != null) {
