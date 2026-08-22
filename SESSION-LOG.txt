@@ -610,4 +610,5 @@ for hour/day-long work.
 Verification: full JVM suite 1,028 green; privacy-auditor suite 14 green;
 repository privacy audit clean; strict Flutter analysis clean; all 167 Flutter
 widget/golden tests pass locally with the four intentional classic/warm S6
-golden updates. Full branch CI and live Canva/device evidence remain pending.
+golden updates. PR #1 and the merged-main signed-APK workflow are green. Live
+Canva/device evidence remains pending until an approved CIMD/redirect exists.
