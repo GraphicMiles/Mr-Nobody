@@ -31,9 +31,8 @@ import java.util.Map;
 public final class UpdateChecker {
 
     /**
-     * The single endpoint. Point this at the deployed service after it is
-     * live on Render (see server/README.md) — it is the only place the URL
-     * appears in the app.
+     * The single endpoint — the only place the URL appears in the app.
+     * Live on Render; the service is documented in server/README.md.
      */
     public static final String UPDATE_URL =
             "https://mrnobody-updates.onrender.com/update.json";
