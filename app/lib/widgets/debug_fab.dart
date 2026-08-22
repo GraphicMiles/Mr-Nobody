@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../bridge/native_bridge.dart';
@@ -58,6 +59,10 @@ class _DebugOverlayState extends State<DebugOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    // The developer panel and the ⓘ overlay are debug-only. They are never
+    // shipped in a release build, so the floating button (and the dev-mode
+    // checks / benchmarks behind it) is absent from anything a user installs.
+    if (kReleaseMode) return const SizedBox.shrink();
     final safeBottom = MediaQuery.of(context).padding.bottom;
     return AnimatedBuilder(
       animation: ErrorLog.instance,

@@ -101,6 +101,18 @@ class NativeBridge {
     return await _ch.invokeMethod('cancelTask', {'id': id}) as bool? ?? false;
   }
 
+  /// Delete a single task and all of its derived state (events, ledger, jobs).
+  /// Returns true when the delete was issued; idempotent for a missing id.
+  static Future<bool> deleteTask(int id) async {
+    return await _ch.invokeMethod('deleteTask', {'id': id}) as bool? ?? false;
+  }
+
+  /// Delete every task and all derived state (events, ledger, jobs, schedules).
+  /// Returns false only when cancellation could not be confirmed.
+  static Future<bool> deleteAllTasks() async {
+    return await _ch.invokeMethod('deleteAllTasks') as bool? ?? false;
+  }
+
   /// Privacy counters for the dashboard.
   static Future<Map<String, dynamic>> privacyStats() async {
     return Map<String, dynamic>.from(await _ch.invokeMethod('privacyStats'));

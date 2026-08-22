@@ -236,7 +236,7 @@ These are different concepts.
 - JDK 17
 - Android SDK compatible with the pinned Flutter/Gradle toolchain
 - Python 3
-- Android 12 / API 31 or newer for the application
+- Android 10 / API 29 or newer for the application
 
 ### Clone and test
 
