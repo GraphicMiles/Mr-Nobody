@@ -62,9 +62,23 @@ public final class EmbeddedJson {
         return out;
     }
 
+    // JSON-LD / schema metadata keys whose values are never article prose.
+    private static final String[] META_KEYS = {
+            "@type", "@context", "displayType", "headline", "description",
+            "name", "url", "image", "datePublished", "dateModified", "author",
+            "publisher", "mainEntityOfPage", "inLanguage", "articleBody",
+            "articleSection", "keywords", "text", "title", "type", "id",
+    };
+
     private static boolean looksLikeProse(String s) {
+        if (s == null) return false;
         if (s.startsWith("http://") || s.startsWith("https://")) return false;
         if (s.startsWith("/") || s.contains("function(")) return false;
+        // "displayType": "standard article" is metadata, not a sentence.
+        for (String key : META_KEYS) {
+            String k = "\"" + key + "\"";
+            if (s.startsWith(k + ":") || s.startsWith(k + " :")) return false;
+        }
         int letters = 0;
         int spaces = 0;
         for (int i = 0; i < s.length(); i++) {
@@ -76,6 +90,11 @@ public final class EmbeddedJson {
     }
 
     private static String unescape(String s) {
-        return s.replace("\\n", "\n").replace("\\\"", "\"").replace("\\\\", "\\");
+        // JSON escapes first, then the same transport cleaning prose evidence
+        // gets, so a lifted string never carries tags, entities or markdown
+        // into the answer.
+        String out = s.replace("\\n", "\n").replace("\\\"", "\"")
+                .replace("\\/", "/").replace("\\\\", "\\");
+        return com.mrnobody.agent.util.Sanitize.prose(out);
     }
 }

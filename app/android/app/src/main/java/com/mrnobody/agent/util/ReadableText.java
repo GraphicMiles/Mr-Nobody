@@ -55,6 +55,8 @@ public final class ReadableText {
         }
         if (cssShaped(lower)) return false;
         if (boilerplateSentence(lower)) return false;
+        if (keywordDump(lower)) return false;
+        if (menuRail(lower)) return false;
         int braces = 0;
         int quotes = 0;
         int letters = 0;
@@ -65,6 +67,143 @@ public final class ReadableText {
             if (c == '"') quotes++;
         }
         return letters > 12 && braces < 6 && quotes < Math.max(8, letters / 8);
+    }
+
+    /**
+     * A search-result / entity "insight" dump is not prose: it is a run of
+     * comma-/ampersand-separated attribute labels with no verb — the exact
+     * shape seen as "MrBeast Biography, Age, Girlfriend, Family, Career,
+     * Net Worth" and "Net Worth MrBeast Biography, Age, Girlfriend, Family,
+     * Career, Net Worth". Quoting it as an answer reads as keyword spam.
+     *
+     * @param lower the sentence, already lower-cased
+     */
+    static boolean keywordDump(String lower) {
+        // Count the label separators: commas and bare '&'.
+        int commas = 0;
+        int amps = 0;
+        for (int i = 0; i < lower.length(); i++) {
+            char c = lower.charAt(i);
+            if (c == ',') commas++;
+            else if (c == '&') amps++;
+        }
+        int separators = commas + amps;
+        if (separators < 3) return false;
+        // A proper sentence carries a finite verb. A label list does not.
+        if (hasFiniteVerb(lower)) return false;
+        return true;
+    }
+
+    /**
+     * A site menu / navigation rail ("News Sports More News Today's news US
+     * Politics World Weather climate change Science Originals … Markets
+     * Research") is page furniture, not a sentence. It is a long run of short
+     * label tokens with no finite verb.
+     *
+     * @param lower the sentence, already lower-cased
+     */
+    static boolean menuRail(String lower) {
+        String[] tokens = lower.split("\\s+");
+        if (tokens.length < 8) return false;
+        // A menu rail is a run of site-section labels. It is identified by
+        // vocabulary, not by "short words": count how many tokens are known
+        // portal/menu sections and require enough of them plus no finite verb.
+        int menuHits = 0;
+        for (String t : tokens) {
+            String w = t.replaceAll("[^a-z]", "");
+            if (MENU_WORDS.contains(w)) menuHits++;
+        }
+        return menuHits >= 6 && menuHits * 2 >= tokens.length && !hasFiniteVerb(lower);
+    }
+
+    private static final java.util.Set<String> MENU_WORDS = new java.util.HashSet<>(
+            java.util.Arrays.asList(
+                    "news", "sports", "weather", "horoscopes", "shopping",
+                    "entertainment", "celebrity", "tv", "movies", "music",
+                    "videos", "games", "lifestyle", "health", "parenting",
+                    "food", "travel", "autos", "gift", "ideas", "buying",
+                    "guides", "finance", "markets", "research", "hotlist",
+                    "portfolio", "today", "world", "politics", "business",
+                    "tech", "science", "us", "economy", "opinion", "culture",
+                    "magazine", "newsletters"));
+
+    /**
+     * A broad set of finite English verbs. Used to tell a prose sentence apart
+     * from a label/list dump — a keyword dump or menu rail almost never
+     * contains a real verb. Kept deliberately large so genuine sentences are
+     * not misclassified. Present, past and third-person forms are listed
+     * explicitly because stemming is unreliable in a curated classifier.
+     */
+    private static final java.util.Set<String> FINITE_VERBS = new java.util.HashSet<>(
+            java.util.Arrays.asList(
+                    // be, have, do, modal
+                    "is", "are", "was", "were", "am", "be", "been", "being",
+                    "has", "have", "had", "having", "does", "do", "did", "doing",
+                    "done", "can", "could", "will", "would", "shall", "should",
+                    "may", "might", "must", "ought",
+                    // common verbs (base / third / past)
+                    "say", "says", "said", "state", "states", "stated",
+                    "report", "reports", "reported", "write", "writes", "wrote",
+                    "show", "shows", "showed", "shown", "contain", "contains",
+                    "contained", "include", "includes", "included", "describe",
+                    "describes", "described", "define", "defines", "defined",
+                    "mean", "means", "meant", "refer", "refers", "referred",
+                    "help", "helps", "helped", "make", "makes", "made", "take",
+                    "takes", "took", "taken", "give", "gives", "gave", "given",
+                    "know", "knows", "knew", "known", "think", "thinks", "thought",
+                    "find", "finds", "found", "use", "uses", "used", "work",
+                    "works", "worked", "play", "plays", "played", "want", "wants",
+                    "wanted", "need", "needs", "needed", "look", "looks", "looked",
+                    "start", "starts", "started", "stay", "stays", "stayed",
+                    "remain", "remains", "remained", "exist", "exists", "existed",
+                    "become", "becomes", "became", "call", "calls", "called",
+                    "name", "names", "named", "title", "titles", "titled",
+                    "begin", "begins", "began", "begun", "run", "runs", "ran",
+                    "lead", "leads", "led", "hold", "holds", "held", "come",
+                    "comes", "came", "belong", "belongs", "belonged", "serve",
+                    "serves", "served", "sell", "sells", "sold", "buy", "buys",
+                    "bought", "grow", "grows", "grew", "grown", "rise", "rises",
+                    "rose", "risen", "fall", "falls", "fell", "fallen", "set",
+                    "sets", "put", "puts", "pay", "pays", "paid", "earn", "earns",
+                    "earned", "live", "lives", "lived", "die", "dies", "died",
+                    "born", "create", "creates", "created", "found", "founded",
+                    "launch", "launches", "launched", "release", "releases",
+                    "released", "publish", "publishes", "published", "offer",
+                    "offers", "offered", "provide", "provides", "provided",
+                    "allow", "allows", "allowed", "enable", "enables", "enabled",
+                    "require", "requires", "required", "support", "supports",
+                    "supported", "increase", "increases", "increased", "decrease",
+                    "decreases", "decreased", "reach", "reaches", "reached",
+                    "hit", "hits", "gain", "gains", "gained", "lose", "loses",
+                    "lost", "trade", "trades", "traded", "value", "values",
+                    "valued", "estimate", "estimates", "estimated", "report",
+                    "claims", "claim", "claimed", "peaked", "average", "averages",
+                    "averaged", "cost", "costs", "charge", "charges", "charged",
+                    "measured", "measures", "measure", "rank", "ranks", "ranked",
+                    "appear", "appears", "appeared", "result", "results",
+                    "resulted", "cause", "causes", "caused", "due", "based",
+                    "occurs", "occur", "occurred", "develop", "develops",
+                    "developed", "produce", "produces", "produced", "generate",
+                    "generates", "generated", "explain", "explains", "explained",
+                    "refer", "refers", "comprise", "comprises", "comprised",
+                    "quality", "consist", "consists", "consisted", "amount",
+                    "amounts", "amounted", "total", "totals", "totalled", "count",
+                    "counts", "counted", "population", "witness", "witnessed",
+                    "feature", "features", "featured", "list", "lists", "listed",
+                    "mention", "mentions", "mentioned", "note", "notes", "noted",
+                    "said", "add", "adds", "added", "announce", "announces",
+                    "announced", "confirm", "confirms", "confirmed", "according",
+                    "estimated", "predicted", "projected", "expect", "expects",
+                    "expected", "predict", "predicts", "forecast", "forecasts",
+                    "forecasted", "surpass", "surpasses", "surpassed", "cross",
+                    "crosses", "crossed", "stood", "stand", "stands", "sitting",
+                    "sits", "sat"));
+
+    public static boolean hasFiniteVerb(String lower) {
+        for (String token : lower.split("[^a-z]+")) {
+            if (FINITE_VERBS.contains(token)) return true;
+        }
+        return false;
     }
 
     /**
@@ -123,7 +262,21 @@ public final class ReadableText {
                 || lower.contains("sign in to continue")
                 || lower.contains("log in to continue")
                 || lower.contains("full output was not retained")
-                || lower.contains("characters omitted")) {
+                || lower.contains("characters omitted")
+                || lower.contains("skip to navigation")
+                || lower.contains("skip to main content")
+                || lower.contains("skip to content")
+                || lower.contains("skip to primary")
+                || lower.contains("oops, something went wrong")
+                || lower.contains("something went wrong")
+                || lower.contains("javascript is currently disabled")
+                || lower.contains("for the best experience")
+                || lower.contains("menu menu")
+                || lower.contains("close menu")
+                || lower.contains("subscribe buttons and other page furniture")
+                || lower.contains("page furniture follows")
+                || lower.contains("subscribe to our")
+                || lower.contains("other page furniture follow")) {
             return true;
         }
         // Navigation/table-of-contents runs: "Table of contents 1 Introduction

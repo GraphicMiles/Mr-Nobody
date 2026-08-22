@@ -36,6 +36,10 @@ The agent can:
 
 The local agent is deterministic and does not contain an on-device language model. It searches, extracts, ranks, and verifies information with normal code. Do not describe it as a local LLM.
 
+The extractive answer is ranked, not dumped: the engine classifies what the question wants (a figure, a person/identity, a definition, an explanation, a comparison), scores each candidate sentence on how well it answers *that*, rejects keyword/metadata dumps and site-menu rails, drops verbatim repeats, and renders a structured answer — a lead sentence with the key figure bolded and a short key-facts list. This keeps a price question answered with the price and a "who is" question answered with the identity, instead of whatever sentence merely mentions the topic.
+
+Transport noise — HTML tags, undecoded entities, markdown links, JSON schema metadata and page furniture — is stripped before a sentence can be cited, so the model never reads (and the answer never quotes) the raw markup a page actually contained.
+
 A Tier-0 fast path runs before any AI request, for both local and remote runs: a device-clock question, a simple arithmetic question ("what is 25% of 800"), and an instruction that names a single direct action (a file to download, a terminal command) are answered locally by the deterministic router — no AI provider call, and no page content leaves the device. A remote AI request is only made once the instruction has cleared that fast path — i.e. it needs classification, planning, or answer synthesis.
 
 Users may optionally configure Gemini, Groq, or an OpenAI-compatible remote AI provider. When a remote provider is enabled, task context sent to that provider leaves the device. Tool execution still passes through Mr Nobody's local policy and execution ledger.

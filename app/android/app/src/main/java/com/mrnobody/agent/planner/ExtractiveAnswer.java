@@ -1,6 +1,8 @@
 package com.mrnobody.agent.planner;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -10,14 +12,28 @@ import java.util.regex.Pattern;
 /**
  * The local (no-model) answer: extractive, cited, and honest.
  *
- * <p>This is not an AI agent. There is no on-device model. The previous local
- * path dumped the search listing and the UI treated that dump as a reasoned
- * answer. This class only rearranges text that was actually read, cites it,
- * and says so.
+ * <p>This is not an AI agent. There is no on-device model. It only rearranges
+ * text that was actually read, cites it, and says so.
+ *
+ * <p>Answer quality is a ranking problem, not a formatting one. The old scorer
+ * matched query words and dumped the top hits as equal-weight sentences, so a
+ * "what is the price" question answered with a sentence about hashing, and a
+ * "who is X" question quoted a comma-separated metadata dump. This composer:
+ *
+ * <ol>
+ *   <li>classifies what the question wants ({@link AnswerIntent}),</li>
+ *   <li>rejects keyword/metadata dumps and menu rails before ranking,</li>
+ *   <li>scores each candidate on how well it answers <em>that</em> intent, not
+ *       how many query words it happens to contain,</li>
+ *   <li>picks a lead sentence plus only factually distinct supporting ones,</li>
+ *   <li>renders them as a structured answer: a lead, then a short key-facts
+ *       list, with the key element bolded.</li>
+ * </ol>
  */
 public final class ExtractiveAnswer {
 
-    private static final int MAX_SENTENCES = 8;
+    private static final int MAX_SENTENCES = 9;
+    private static final int MAX_LEAD = 3;         // supporting facts beyond the lead
     private static final int MAX_CHARS = 2800;
 
     private ExtractiveAnswer() {
@@ -25,7 +41,7 @@ public final class ExtractiveAnswer {
 
     /**
      * @param question  what the user asked
-     * @param sources   numbered source block ({@code [1] title\\nurl\\ntext})
+     * @param sources   numbered source block ({@code [1] title\nurl\ntext})
      * @param pagesRead true when whole pages were fetched, not just snippets
      * @param results   parsed search rows, used only when no page was read
      */
@@ -44,47 +60,208 @@ public final class ExtractiveAnswer {
     }
 
     static String fromPages(String question, String sources) {
+        AnswerIntent intent = AnswerIntent.classify(question);
         List<Source> parsed = dedupeBodies(parseSources(sources));
+
+        // Score every candidate sentence across every source. A "candidate" is
+        // one sentence that passed the prose gate, with an intent-aware score
+        // and the source it came from.
+        List<Candidate> candidates = new ArrayList<>();
+        List<Source> used = new ArrayList<>();
+        for (Source src : parsed) {
+            for (String sentence : splitSentences(src.body)) {
+                String clean = sentence.trim();
+                if (!com.mrnobody.agent.util.ReadableText.proseSentence(clean)) continue;
+                double score = score(clean, question, intent);
+                if (score <= 0) continue;
+                candidates.add(new Candidate(clean, src.number, score));
+            }
+            used.add(src);
+        }
+
+        // Rank by answer-relevance and drop verbatim repeats (the same sentence
+        // echoed by a mirror page, a "key facts" box, or an identical excerpt).
+        candidates.sort((a, b) -> Double.compare(b.score, a.score));
+        List<Candidate> picked = new ArrayList<>();
+        for (Candidate c : candidates) {
+            if (picked.size() >= MAX_SENTENCES) break;
+            if (isDupeOfAny(c.sentence, picked)) continue;
+            picked.add(c);
+        }
+
+        // Nothing ranked: quote the opening of each source so the user at
+        // least sees what was read, rather than inventing a summary.
+        if (picked.isEmpty()) {
+            return fallback(question, parsesOf(parsed));
+        }
+
         StringBuilder out = new StringBuilder();
         out.append("# ").append(heading(question)).append("\n\n");
 
-        // The same sentence must not repeat across sources: mirror pages and
-        // shared boilerplate headers otherwise produce an answer that says one
-        // thing three times with three citations.
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        int used = 0;
-        for (Source src : parsed) {
-            List<String> picked = pick(question, src.body, 3);
-            boolean any = false;
-            for (String sentence : picked) {
-                if (!seen.add(normalise(sentence))) continue;
-                if (used > 0 && !any) out.append("\n");
-                any = true;
-                out.append(sentence.trim());
-                if (!sentence.trim().endsWith(".")) out.append('.');
-                out.append(" [").append(src.number).append("]\n");
-                used++;
-                if (used >= MAX_SENTENCES) break;
-            }
-            if (used >= MAX_SENTENCES) break;
+        // The lead directly answers the intent. Keep it a single, bolded
+        // sentence.
+        Candidate lead = picked.get(0);
+        out.append(bold(lead.sentence, question, intent))
+                .append(" [").append(lead.source).append("]");
+
+        // Additional facts, only if distinct from the lead and relevant to the
+        // intent. A supporting fact for a price query must carry an actual
+        // amount, so "bitcoin is secured with SHA-256" and other tangential
+        // sentences never fill the key-facts list as noise.
+        int usedFacts = 0;
+        for (int i = 1; i < picked.size() && usedFacts < MAX_LEAD; i++) {
+            Candidate c = picked.get(i);
+            if (!supports(c.sentence, question, intent)) continue;
+            if (usedFacts == 0) out.append("\n\n**Key facts**");
+            out.append("\n- ").append(bold(c.sentence, question, intent))
+                    .append(" [").append(c.source).append("]");
+            usedFacts++;
         }
 
-        if (used == 0) {
-            // Pages were read but nothing matched the question. Quote the
-            // opening of each page rather than inventing a summary.
-            for (Source src : parsed) {
-                String excerpt = firstSentences(src.body, 2);
-                if (excerpt.isEmpty()) continue;
-                if (!seen.add(normalise(excerpt))) continue;
-                out.append(excerpt);
-                if (!excerpt.endsWith(".")) out.append('.');
-                out.append(" [").append(src.number).append("]\n");
-            }
-        }
-
-        out.append("\nExtracted from the pages read. No language model was used.");
+        out.append("\n\nExtracted from the pages read. No language model was used.");
         String text = out.toString().trim();
         return text.length() > MAX_CHARS ? text.substring(0, MAX_CHARS) : text;
+    }
+
+    // --------------------------------------------------------------- ranking
+
+    /**
+     * Score a sentence against the question and its intent. The intent weight
+     * dominates, so an answer that <em>answers</em> beats one that merely
+     * mentions a topic.
+     */
+    private static double score(String sentence, String question, AnswerIntent intent) {
+        String lower = sentence.toLowerCase(Locale.ROOT);
+        double intentScore = intent.evidence(sentence);
+
+        // Term overlap with the question's content words.
+        List<String> terms = termsOf(question);
+        int hit = 0;
+        for (String t : terms) {
+            if (lower.contains(t)) hit++;
+        }
+        double overlap = terms.isEmpty() ? 0 : (double) hit / terms.size();
+
+        // A sentence that pins the subject and the intent together is worth the
+        // most. Figure sentences need a figure; person sentences need an
+        // identity; a definition needs "is a".
+        double score = 5.0 * intentScore + 3.0 * overlap;
+
+        // Long, scattershot "sentences" (a whole page glued together) are less
+        // likely to be a clean, standalone claim.
+        if (sentence.length() > 400) score -= 1.0;
+        if (sentence.length() < 40) score -= 0.5;
+        // A title-like fragment with no verb is a label, not a claim — only
+        // used as a tiebreaker, never as a hard reject.
+        if (!com.mrnobody.agent.util.ReadableText.hasFiniteVerb(lower)) score -= 1.0;
+        return score;
+    }
+
+    /**
+     * True when a supporting fact is genuinely relevant to the intent. A figure
+     * answer's supporting facts must carry an amount; a definition's must name
+     * the topic; otherwise we just repeat the lead or cite noise.
+     */
+    private static boolean supports(String sentence, String question, AnswerIntent intent) {
+        String lower = sentence.toLowerCase(Locale.ROOT);
+        switch (intent) {
+            case FIGURE:
+                return hasFigureMarker(lower);
+            case PERSON:
+            case DEFINITION:
+            case EXPLAIN:
+            case COMPARE:
+                return anyTerm(sentence, termsOf(question));
+            default:
+                return true;
+        }
+    }
+
+    /** A supporting sentence that names the question's subject (any term). */
+    private static boolean anyTerm(String sentence, List<String> terms) {
+        if (terms.isEmpty()) return true;
+        String lower = sentence.toLowerCase(Locale.ROOT);
+        for (String t : terms) {
+            if (lower.contains(t)) return true;
+        }
+        return false;
+    }
+
+    /** True when the sentence carries a currency/unit-marked amount. */
+    static boolean hasFigureMarker(String lower) {
+        if (lower == null) return false;
+        String[] markers = {"$", "\u20ac", "\u00a3", " usd", " percent", "%", " dollars",
+                " years old", " million", " billion", " trillion", " per ",
+                " rupees", " naira"};
+        for (String m : markers) {
+            if (lower.contains(m)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * True when {@code s} restates a fact already chosen. Two distinct sources
+     * about one topic are <em>not</em> duplicates — only a sentence that is
+     * verbatim (after case/punctuation normalisation) is. This keeps source 2
+     * citeable while mirrors and repeated boilerplate collapse to one.
+     */
+    private static boolean isDupeOfAny(String s, List<Candidate> chosen) {
+        String normalized = normalise(s);
+        if (normalized.length() < 40) return false;
+        for (Candidate c : chosen) {
+            if (c.sentence.length() < 40) continue;
+            if (normalise(c.sentence).equals(normalized)) return true;
+        }
+        return false;
+    }
+
+    /** Put ** around a figure amount in a figure answer (the key fact). */
+    private static String bold(String sentence, String question, AnswerIntent intent) {
+        if (intent != AnswerIntent.FIGURE) return sentence;
+        Matcher f = FIGURE_RUN.matcher(sentence);
+        if (f.find()) {
+            return wrap(sentence, f.start(), f.end());
+        }
+        return sentence;
+    }
+
+    private static String wrap(String s, int start, int end) {
+        if (start < 0 || end > s.length() || start >= end) return s;
+        return s.substring(0, start) + "**" + s.substring(start, end) + "**" + s.substring(end);
+    }
+
+    // A figure worth bolding carries a currency symbol or an explicit unit.
+    // A bare number inside an identifier ("SHA-256", "Web3", "5G") is matched by
+    // neither alternative, so it is never highlighted.
+    private static final Pattern FIGURE_RUN = Pattern.compile(
+            "(?i)(?:\\$|€|£)\\s?\\d[\\d,]*(?:\\.\\d+)?"
+                    + "|\\d[\\d,]*(?:\\.\\d+)?\\s?(?:%|k|m|bn|mn|billion|million|"
+                    + "thousand|dollars|usd|years old|naira|rupees)");
+
+    // ---------------------------------------------------------------- format
+
+    private static String fallback(String question, List<Source> parsed) {
+        StringBuilder out = new StringBuilder();
+        out.append("# ").append(heading(question)).append("\n\n");
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Source src : parsed) {
+            for (String excerpt : firstSentences(src.body, 2).split("\n")) {
+                if (excerpt.trim().isEmpty()) continue;
+                if (!seen.add(normalise(excerpt))) continue;
+                out.append(excerpt.trim()).append(" [").append(src.number).append("]\n");
+            }
+        }
+        if (out.length() == 0) {
+            return "# " + heading(question) + "\n\nThe pages read did not contain a clear answer.\n\n"
+                    + "Extracted from the pages read. No language model was used.";
+        }
+        out.append("\n\nExtracted from the pages read. No language model was used.");
+        String text = out.toString().trim();
+        return text.length() > MAX_CHARS ? text.substring(0, MAX_CHARS) : text;
+    }
+
+    private static List<Source> parsesOf(List<Source> parsed) {
+        return parsed;
     }
 
     /**
@@ -158,6 +335,7 @@ public final class ExtractiveAnswer {
     static List<String> pick(String question, String body, int max) {
         List<String> out = new ArrayList<>();
         if (body == null || body.isEmpty()) return out;
+        AnswerIntent intent = AnswerIntent.classify(question);
         List<String> terms = termsOf(question);
         String[] sentences = splitSentences(body);
         int[] scores = new int[sentences.length];
@@ -167,12 +345,12 @@ public final class ExtractiveAnswer {
                 scores[i] = 0;
                 continue;
             }
-            scores[i] = score(sentences[i], terms);
+            scores[i] = (int) Math.round(score(sentences[i], question, intent) * 10);
             if (scores[i] > best) best = scores[i];
         }
         if (best <= 0) return out;
         for (int i = 0; i < sentences.length && out.size() < max; i++) {
-            if (scores[i] >= Math.max(1, best / 2) && sentences[i].length() >= 40) {
+            if (scores[i] >= Math.max(5, best / 2) && sentences[i].length() >= 40) {
                 out.add(sentences[i].trim());
             }
         }
@@ -189,16 +367,6 @@ public final class ExtractiveAnswer {
             out.add(w);
         }
         return out;
-    }
-
-    private static int score(String sentence, List<String> terms) {
-        if (sentence == null || terms.isEmpty()) return 0;
-        String lower = sentence.toLowerCase(Locale.ROOT);
-        int n = 0;
-        for (String t : terms) {
-            if (lower.contains(t)) n++;
-        }
-        return n;
     }
 
     static String[] splitSentences(String text) {
@@ -251,6 +419,18 @@ public final class ExtractiveAnswer {
         }
     }
 
+    private static final class Candidate {
+        final String sentence;
+        final int source;
+        final double score;
+
+        Candidate(String sentence, int source, double score) {
+            this.sentence = sentence;
+            this.source = source;
+            this.score = score;
+        }
+    }
+
     private static String trimAt(String s, int max) {
         if (s == null) return "";
         return s.length() <= max ? s : s.substring(0, max) + "…";
@@ -261,5 +441,11 @@ public final class ExtractiveAnswer {
             "where", "which", "who", "how", "are", "was", "were", "you", "your",
             "about", "into", "just", "can", "could", "would", "should", "have",
             "has", "had", "not", "but", "its", "they", "them", "their", "open",
-            "one", "second", "first", "third", "please", "tell", "find"));
+            "one", "second", "first", "third", "please", "tell", "find",
+            "why", "is", "it", "to", "in", "on", "of", "as", "at", "by",
+            "will", "be", "or", "an", "if", "so", "do", "does", "did", "then",
+            "also", "there", "here", "more", "some", "than", "very", "only",
+            "both", "each", "such", "much", "many", "most", "other", "same",
+            "still", "through", "during", "while", "because", "since", "after",
+            "before", "between", "under", "over", "again", "further", "once"));
 }
