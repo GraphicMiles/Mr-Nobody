@@ -16,6 +16,14 @@ import 'toast.dart';
 /// This app ships no analytics and no crash reporter (V1 §2), so this is the
 /// only channel a user has to report what went wrong — it must be present on
 /// every screen and must never lie about the count.
+///
+/// While the distribution APK is being diagnosed (the page turning black
+/// mid-browse, the bottom nav vanishing), this flag keeps the overlay in
+/// release builds too, so a tester watching the defect happen live can read
+/// and copy the exact failure instead of reporting "it just went black".
+/// Flip it to false for the public build.
+const bool kDebugOverlayInRelease = true;
+
 class DebugOverlay extends StatefulWidget {
   /// Extra bottom offset, so the button clears a bottom bar when one is shown.
   final double bottomInset;
@@ -59,10 +67,11 @@ class _DebugOverlayState extends State<DebugOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    // The developer panel and the ⓘ overlay are debug-only. They are never
-    // shipped in a release build, so the floating button (and the dev-mode
-    // checks / benchmarks behind it) is absent from anything a user installs.
-    if (kReleaseMode) return const SizedBox.shrink();
+    // The developer panel and the ⓘ overlay are debug-only in a public
+    // release. While the distribution APK defect is being chased, the overlay
+    // stays in so the failure is observable on a tester's device; see
+    // [kDebugOverlayInRelease].
+    if (kReleaseMode && !kDebugOverlayInRelease) return const SizedBox.shrink();
     final safeBottom = MediaQuery.of(context).padding.bottom;
     return AnimatedBuilder(
       animation: ErrorLog.instance,
