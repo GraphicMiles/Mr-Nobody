@@ -88,7 +88,7 @@ public final class SearchProviders {
 
     private static final Provider GOOGLE = new Provider(
             "google", "Google",
-            "https://www.google.com/search?q={q}",
+            "https://www.google.com/search?udm=14&q={q}",
             "{block:'div.g,div[data-sokoban-container],div.MjjYud',link:'a[href^=\"http\"]',"
                     + "title:'h3',snippet:'div[data-sncf], .VwiC3b, .IsZvec'}");
 

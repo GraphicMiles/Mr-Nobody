@@ -388,9 +388,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _pushBrowser() {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      PageRouteBuilder<void>(
         settings: const RouteSettings(name: 'browser'),
-        builder: (_) => BrowserScreen(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => BrowserScreen(
           tabs: _tabs,
           onShowTabs: () {
             Navigator.of(context).popUntil((r) => r.isFirst);

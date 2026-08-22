@@ -50,6 +50,8 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   ValueChanged<String>? onTitleChanged;
   @override
+  ValueChanged<Uint8List>? onIconChanged;
+  @override
   ValueChanged<String>? onError;
   @override
   ValueChanged<int>? onScroll;
@@ -153,6 +155,10 @@ class NativeWebViewEngine implements BrowserEngine {
       case 'onTitle':
         final title = args['title'] as String?;
         if (title != null && title.isNotEmpty) onTitleChanged?.call(title);
+        break;
+      case 'onIcon':
+        final icon = args['icon'];
+        if (icon is Uint8List && icon.isNotEmpty) onIconChanged?.call(icon);
         break;
       case 'onProgress':
         onProgress?.call((args['progress'] as num?)?.toInt() ?? 0);

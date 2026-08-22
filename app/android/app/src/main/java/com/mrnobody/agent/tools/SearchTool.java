@@ -101,8 +101,13 @@ public final class SearchTool implements Tool {
             return ToolResult.needsApproval("network", NetworkGate.blockedReason());
         }
         List<String> refused = new ArrayList<>();
+        // The setting is a real provider choice, not just a preferred label.
+        // The old fast path always queried DDG first and returned its results,
+        // making Bing/Google appear selectable while being ignored.
+        String preferred = safeSearchEngineSetting();
+        String selected = SearchProviders.idFor(preferred);
 
-        if (requestedProvider.isEmpty()) {
+        if (requestedProvider.isEmpty() && "ddg".equals(selected)) {
             // 1. Cheap paths before paying for a WebView.
             try {
                 String html = fetch("https://html.duckduckgo.com/html/?q="
@@ -144,7 +149,6 @@ public final class SearchTool implements Tool {
         // escalate here rather than killing the research task.
         BrowserEngine engine = engines.get();
         if (engine != null) {
-            String preferred = safeSearchEngineSetting();
             for (SearchProviders.Provider provider
                     : SearchProviders.chainRequested(requestedProvider, preferred)) {
                 long left = remaining(deadline);

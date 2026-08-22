@@ -223,13 +223,16 @@ class _TabCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(10, 9, 6, 7),
               child: Row(
                 children: [
-                  Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface3,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: tab.icon == null
+                        ? Container(
+                            width: 14,
+                            height: 14,
+                            color: AppColors.surface3,
+                            child: Icon(Icons.public, size: 10, color: AppColors.textFaint),
+                          )
+                        : Image.memory(tab.icon!, width: 14, height: 14, fit: BoxFit.cover),
                   ),
                   const SizedBox(width: 7),
                   Expanded(
