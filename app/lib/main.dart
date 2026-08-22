@@ -46,21 +46,28 @@ class MrNobodyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: AppState.instance,
-      builder: (context, _) => MaterialApp(
-        title: 'Mr Nobody',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.forTheme(AppState.instance.themeId),
-        builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-          value: SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-            systemNavigationBarColor: AppColors.bg,
-            systemNavigationBarIconBrightness: Brightness.light,
+      builder: (context, _) {
+        final themeId = AppState.instance.themeId;
+        return MaterialApp(
+          title: 'Mr Nobody',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.forTheme(themeId),
+          themeAnimationDuration: const Duration(milliseconds: 240),
+          themeAnimationCurve: Curves.easeOutCubic,
+          builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+            value: SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.light,
+              systemNavigationBarColor: AppColors.bg,
+              systemNavigationBarIconBrightness: Brightness.light,
+            ),
+            child: child ?? const SizedBox.shrink(),
           ),
-          child: child ?? const SizedBox.shrink(),
-        ),
-        home: const AppShell(),
-      ),
+          // A fresh widget instance (with the current theme id) ensures the
+          // stateful shell updates immediately while preserving its State.
+          home: AppShell(themeId: themeId),
+        );
+      },
     );
   }
 }
@@ -71,7 +78,9 @@ enum ShellTab { home, tabs, tasks, settings }
 /// The shell owns the bottom nav, the shared [TabManager] and the routing of
 /// the unified input + deep links. Drill-in screens are pushed routes.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  final String themeId;
+
+  const AppShell({super.key, required this.themeId});
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -98,10 +107,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _listenForDeepLinks();
     _checkFirstLaunch();
+    // Listen before the asynchronous initial load so even an immediately
+    // resolving platform channel cannot publish a palette before the shell is
+    // subscribed.
+    AppState.instance.addListener(_onAppStateChanged);
     AppState.instance.load();
-    // A settings change (JavaScript, parameter stripping) has to reach the
-    // engines of pages that are already open.
-    AppState.instance.addListener(_pushSettingsToTabs);
     for (final entry in _scrollControllers.entries) {
       entry.value.addListener(() => _onScroll(entry.key, entry.value));
     }
@@ -121,7 +131,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    AppState.instance.removeListener(_pushSettingsToTabs);
+    AppState.instance.removeListener(_onAppStateChanged);
     for (final c in _scrollControllers.values) {
       c.dispose();
     }
@@ -129,7 +139,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  void _pushSettingsToTabs() => _tabs.applySettingsToAll();
+  void _onAppStateChanged() {
+    _tabs.applySettingsToAll();
+    // Most app widgets use semantic AppColors rather than Theme.of(context).
+    // Explicitly rebuilding the persistent shell prevents stale bottom-nav,
+    // IndexedStack and overlay colours until the next tab selection.
+    if (mounted) setState(() {});
+  }
 
   Future<void> _checkFirstLaunch() async {
     final done = await NativeBridge.guard(
@@ -171,7 +187,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           _handleDeepLink(initial);
         }
       } on PlatformException catch (e) {
-        ErrorLog.instance.add('initial deep link unavailable: ${e.message ?? e.code}');
+        ErrorLog.instance
+            .add('initial deep link unavailable: ${e.message ?? e.code}');
       }
     });
   }
@@ -234,7 +251,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _push(const DownloadsScreen());
         break;
       case 'clear':
-        _push(ClearDataScreen(onBeforeBrowserDataClear: _onBeforeBrowserDataClear));
+        _push(ClearDataScreen(
+            onBeforeBrowserDataClear: _onBeforeBrowserDataClear));
         break;
       default:
         ErrorLog.instance.add('unknown deep link: $uri');
@@ -248,7 +266,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (!mounted || _deepLinkPromptOpen) return;
     if (instruction.length > 4000) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This linked task is too long to review safely.')),
+        const SnackBar(
+            content: Text('This linked task is too long to review safely.')),
       );
       return;
     }
@@ -466,13 +485,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (_launched == false) {
       return LaunchScreen(
         onStart: () {
-          NativeBridge.guard(NativeBridge.setFirstLaunchDone, null, 'first-launch flag');
+          NativeBridge.guard(
+              NativeBridge.setFirstLaunchDone, null, 'first-launch flag');
           setState(() => _launched = true);
         },
         onPrivacy: () {
-          NativeBridge.guard(NativeBridge.setFirstLaunchDone, null, 'first-launch flag');
+          NativeBridge.guard(
+              NativeBridge.setFirstLaunchDone, null, 'first-launch flag');
           setState(() => _launched = true);
-          WidgetsBinding.instance.addPostFrameCallback((_) => _push(const PrivacyScreen()));
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _push(const PrivacyScreen()));
         },
       );
     }

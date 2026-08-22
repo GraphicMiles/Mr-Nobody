@@ -17,7 +17,9 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
       width: double.infinity,
       margin: margin,
       padding: padding,
@@ -84,7 +86,9 @@ class MetricRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: AppTheme.sans(size: 12.5, color: AppColors.textDim))),
+          Expanded(
+              child: Text(label,
+                  style: AppTheme.sans(size: 12.5, color: AppColors.textDim))),
           Text(
             value,
             style: AppTheme.mono(
@@ -130,8 +134,10 @@ class StatusChip extends StatelessWidget {
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999), border: border),
-      child: Text(label, style: AppTheme.mono(size: 9.5, color: fg, w: FontWeight.w600)),
+      decoration: BoxDecoration(
+          color: bg, borderRadius: BorderRadius.circular(999), border: border),
+      child: Text(label,
+          style: AppTheme.mono(size: 9.5, color: fg, w: FontWeight.w600)),
     );
   }
 }
@@ -188,7 +194,8 @@ class TopBar extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.line),
                 ),
-                child: Icon(Icons.arrow_back, size: 15, color: AppColors.textDim),
+                child:
+                    Icon(Icons.arrow_back, size: 15, color: AppColors.textDim),
               ),
             ),
             const SizedBox(width: 10),
@@ -226,7 +233,8 @@ class PanelShell extends StatelessWidget {
         ),
         Column(
           children: [
-            SafeArea(bottom: false, child: TopBar(title: title, onBack: onBack)),
+            SafeArea(
+                bottom: false, child: TopBar(title: title, onBack: onBack)),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.only(bottom: 28),
@@ -247,14 +255,17 @@ class ActionButton extends StatelessWidget {
   final bool solid;
   final VoidCallback onTap;
 
-  const ActionButton(this.label, {super.key, this.solid = false, required this.onTap});
+  const ActionButton(this.label,
+      {super.key, this.solid = false, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
         width: double.infinity,
         height: 44,
         alignment: Alignment.center,
@@ -297,7 +308,8 @@ class PillToggle extends StatelessWidget {
         decoration: BoxDecoration(
           color: value ? AppColors.accent : AppColors.surface2,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: value ? AppColors.accent : AppColors.lineStrong),
+          border: Border.all(
+              color: value ? AppColors.accent : AppColors.lineStrong),
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 150),
@@ -329,9 +341,12 @@ class SquareCheck extends StatelessWidget {
       decoration: BoxDecoration(
         color: value ? AppColors.accent : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: value ? AppColors.accent : AppColors.lineStrong, width: 1.5),
+        border: Border.all(
+            color: value ? AppColors.accent : AppColors.lineStrong, width: 1.5),
       ),
-      child: value ? Icon(Icons.check, size: 12, color: AppColors.accentInk) : null,
+      child: value
+          ? Icon(Icons.check, size: 12, color: AppColors.accentInk)
+          : null,
     );
   }
 }
@@ -439,12 +454,15 @@ class ListRow extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 3),
                       child: Text(
                         subtitle!,
-                        style: AppTheme.mono(size: 10.5, color: AppColors.textMuted),
+                        style: AppTheme.mono(
+                            size: 10.5, color: AppColors.textMuted),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  if (below != null) Padding(padding: const EdgeInsets.only(top: 5), child: below!),
+                  if (below != null)
+                    Padding(
+                        padding: const EdgeInsets.only(top: 5), child: below!),
                 ],
               ),
             ),
@@ -503,11 +521,13 @@ class ScreenSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.bg,
+      color: Colors.transparent,
       // The app draws its own typography everywhere; this is a surface, not a
       // theme, so nothing here should tint or restyle what it wraps.
       type: MaterialType.canvas,
-      child: DecoratedBox(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
         decoration: AppTheme.backdrop,
         child: child,
       ),

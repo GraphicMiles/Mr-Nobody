@@ -8,8 +8,16 @@ import '../theme/app_theme.dart';
 class BrandLogo extends StatelessWidget {
   final double size;
   final Color? color;
+  final double leftEyeOpen;
+  final double rightEyeOpen;
 
-  const BrandLogo({super.key, this.size = 64, this.color});
+  const BrandLogo({
+    super.key,
+    this.size = 64,
+    this.color,
+    this.leftEyeOpen = 1,
+    this.rightEyeOpen = 1,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +25,11 @@ class BrandLogo extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _BrandLogoPainter(color ?? AppColors.accent),
+        painter: _BrandLogoPainter(
+          color ?? AppColors.accent,
+          leftEyeOpen.clamp(.08, 1).toDouble(),
+          rightEyeOpen.clamp(.08, 1).toDouble(),
+        ),
       ),
     );
   }
@@ -25,7 +37,10 @@ class BrandLogo extends StatelessWidget {
 
 class _BrandLogoPainter extends CustomPainter {
   final Color color;
-  const _BrandLogoPainter(this.color);
+  final double leftEyeOpen;
+  final double rightEyeOpen;
+
+  const _BrandLogoPainter(this.color, this.leftEyeOpen, this.rightEyeOpen);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -64,14 +79,26 @@ class _BrandLogoPainter extends CustomPainter {
       fill,
     );
 
-    // Glasses: two lenses + bridge.
-    canvas.drawCircle(const Offset(24, 42), 7, stroke);
-    canvas.drawCircle(const Offset(40, 42), 7, stroke);
+    // Glasses: each lens can pinch vertically for the blink animation while
+    // retaining the exact launcher-mark geometry at eyeOpen == 1.
+    void drawLens(Offset center, double openness) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.scale(1, openness);
+      canvas.drawCircle(Offset.zero, 7, stroke);
+      canvas.restore();
+    }
+
+    drawLens(const Offset(24, 42), leftEyeOpen);
+    drawLens(const Offset(40, 42), rightEyeOpen);
     canvas.drawLine(const Offset(31, 42), const Offset(33, 42), stroke);
 
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_BrandLogoPainter old) => old.color != color;
+  bool shouldRepaint(_BrandLogoPainter old) =>
+      old.color != color ||
+      old.leftEyeOpen != leftEyeOpen ||
+      old.rightEyeOpen != rightEyeOpen;
 }

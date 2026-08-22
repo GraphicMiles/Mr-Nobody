@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import '../bridge/native_bridge.dart';
+import '../theme/app_theme.dart';
 import 'error_log.dart';
 
 /// An AI provider the user can point the agent at.
@@ -87,9 +88,12 @@ class AppState extends ChangeNotifier {
   String get terminalLabel => terminal ? 'on' : 'off';
   String get privacyModeLabel => _title(privacyMode);
   String get searchEngineLabel => searchEngines.entries
-      .firstWhere((e) => e.value == searchEngine, orElse: () => const MapEntry('DuckDuckGo', 'https://duckduckgo.com/?q='))
+      .firstWhere((e) => e.value == searchEngine,
+          orElse: () =>
+              const MapEntry('DuckDuckGo', 'https://duckduckgo.com/?q='))
       .key;
-  String get approvalModeLabel => approvalLabels[approvalMode] ?? _title(approvalMode);
+  String get approvalModeLabel =>
+      approvalLabels[approvalMode] ?? _title(approvalMode);
   String get resourcePolicyLabel => _title(resourcePolicy);
   String get themeLabel => themeLabels[themeId] ?? themeLabels['classic']!;
 
@@ -109,12 +113,15 @@ class AppState extends ChangeNotifier {
       providerId = s['provider'] as String? ?? providerId;
       privacyMode = (s['privacyMode'] as String? ?? privacyMode).toUpperCase();
       searchEngine = s['searchEngine'] as String? ?? searchEngine;
-      approvalMode = (s['approvalMode'] as String? ?? approvalMode).toUpperCase();
-      resourcePolicy = (s['resourcePolicy'] as String? ?? resourcePolicy).toUpperCase();
+      approvalMode =
+          (s['approvalMode'] as String? ?? approvalMode).toUpperCase();
+      resourcePolicy =
+          (s['resourcePolicy'] as String? ?? resourcePolicy).toUpperCase();
       final storedTheme = (s['theme'] as String? ?? themeId).toLowerCase();
       // Old releases stored system/dark/light but never exposed a working
       // Flutter theme picker. Preserve their monochrome appearance.
       themeId = themes.contains(storedTheme) ? storedTheme : 'classic';
+      AppColors.use(themeId);
     } catch (e) {
       ErrorLog.instance.add('settings load failed: $e');
     } finally {
@@ -125,17 +132,33 @@ class AppState extends ChangeNotifier {
 
   Future<void> setHistory(bool v) => _set('history', v, () => history = v);
   Future<void> setJs(bool v) => _set('js', v, () => js = v);
-  Future<void> setSuggestions(bool v) => _set('suggestions', v, () => suggestions = v);
+  Future<void> setSuggestions(bool v) =>
+      _set('suggestions', v, () => suggestions = v);
   Future<void> setTerminal(bool v) => _set('terminal', v, () => terminal = v);
-  Future<void> setProvider(String v) => _set('provider', v, () => providerId = v);
+  Future<void> setProvider(String v) =>
+      _set('provider', v, () => providerId = v);
   Future<void> setBlocking(bool v) => _set('blocking', v, () => blocking = v);
-  Future<void> setParamStripping(bool v) => _set('paramStripping', v, () => paramStripping = v);
-  Future<void> setSearchEngine(String v) => _set('searchEngine', v, () => searchEngine = v);
-  Future<void> setApprovalMode(String v) => _set('approvalMode', v, () => approvalMode = v);
-  Future<void> setResourcePolicy(String v) => _set('resourcePolicy', v, () => resourcePolicy = v);
-  Future<void> setTheme(String v) {
+  Future<void> setParamStripping(bool v) =>
+      _set('paramStripping', v, () => paramStripping = v);
+  Future<void> setSearchEngine(String v) =>
+      _set('searchEngine', v, () => searchEngine = v);
+  Future<void> setApprovalMode(String v) =>
+      _set('approvalMode', v, () => approvalMode = v);
+  Future<void> setResourcePolicy(String v) =>
+      _set('resourcePolicy', v, () => resourcePolicy = v);
+  Future<void> setTheme(String v) async {
     final safe = themes.contains(v.toLowerCase()) ? v.toLowerCase() : 'classic';
-    return _set('theme', safe, () => themeId = safe);
+    // Publish the palette before notifying listeners so the shell, bottom bar
+    // and every AppColors-based widget rebuild with one coherent colour set in
+    // the same frame. Persistence remains asynchronous and never delays paint.
+    themeId = safe;
+    AppColors.use(safe);
+    notifyListeners();
+    try {
+      await NativeBridge.setSetting('theme', safe);
+    } catch (e) {
+      ErrorLog.instance.add('could not persist theme: $e');
+    }
   }
 
   Future<void> setProfile(String v) async {

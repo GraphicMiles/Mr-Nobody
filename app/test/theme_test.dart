@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mrnobody/main.dart' show MrNobodyApp;
 import 'package:mrnobody/screens/settings_screen.dart';
 import 'package:mrnobody/state/app_state.dart';
 import 'package:mrnobody/theme/app_theme.dart';
 import 'package:mrnobody/widgets/anchored_menu.dart';
 import 'package:mrnobody/widgets/debug_fab.dart';
 import 'package:mrnobody/widgets/menu_sheet.dart';
+import 'package:mrnobody/widgets/bottom_nav.dart';
 
 import 'test_fonts.dart';
 
@@ -45,6 +47,10 @@ void main() {
       switch (call.method) {
         case 'getSettings':
           return settings();
+        case 'isFirstLaunchDone':
+          return true;
+        case 'recentTasks':
+          return <Map<String, Object>>[];
         case 'setSetting':
           final arguments = Map<String, Object?>.from(call.arguments as Map);
           if (arguments['key'] == 'theme') {
@@ -140,6 +146,30 @@ void main() {
     await AppState.instance.setTheme('not-a-theme');
     expect(AppState.instance.themeId, AppColors.classicId);
     expect(storedTheme, AppColors.classicId);
+  });
+
+  testWidgets(
+      'theme change repaints the persistent bottom bar without switching tabs',
+      (tester) async {
+    await AppState.instance.load();
+    await tester.pumpWidget(const MrNobodyApp());
+    await tester.pump(const Duration(milliseconds: 450));
+
+    expect(find.byType(BottomNav), findsOneWidget);
+    BoxDecoration navDecoration() => tester
+        .widget<AnimatedContainer>(find.byKey(kBottomNavSurfaceKey))
+        .decoration! as BoxDecoration;
+    expect(navDecoration().color, AppColors.classic.bg);
+
+    final persisted = AppState.instance.setTheme(AppColors.warmId);
+    // One frame is enough: persistence is not allowed to hold up repainting.
+    await tester.pump();
+    expect(AppColors.isWarm, isTrue);
+    expect(navDecoration().color, AppColors.warm.bg);
+    expect(find.byType(BottomNav), findsOneWidget);
+
+    await persisted;
+    await tester.pump(const Duration(milliseconds: 260));
   });
 
   testWidgets('warm anchored menus and sheets use cream decision surfaces',

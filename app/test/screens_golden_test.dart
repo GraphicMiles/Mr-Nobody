@@ -99,6 +99,7 @@ void main() {
       () => Scaffold(
         backgroundColor: AppColors.bg,
         body: HomeScreen(
+          isActive: false,
           onSubmit: (_) {},
           onShortcut: (_) {},
           onOpenTask: (_) {},

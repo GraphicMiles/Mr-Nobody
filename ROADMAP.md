@@ -11,7 +11,7 @@ The main branch is green in GitHub Actions.
 | Check | Current result |
 |---|---|
 | Flutter analysis | Passed |
-| Flutter widget and screen-golden tests | 167 passed |
+| Flutter widget and screen-golden tests | 174 passed |
 | Java/JVM tests | 1,028 passed |
 | Privacy-auditor tests | 14 passed |
 | Repository privacy audit | Clean |
@@ -43,6 +43,8 @@ Automated success does not prove behavior on every Android device. System WebVie
 - Proxy and Orbot support
 - Bundled Tor with Orbot priority and fail-closed behavior
 - Device capability reporting for WebView-dependent privacy features
+- Immediate, animated Classic dark/Warm cream theme switching across the persistent shell
+- Lower home composition with ten reduced-motion-aware logo sequences played through a shuffle bag
 
 ### Agent
 

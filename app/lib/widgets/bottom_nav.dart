@@ -13,14 +13,21 @@ const double _plusSize = 36;
 /// Stable handle for the "new" button (used by tests and by anything that
 /// needs to point at it).
 const Key kNavNewButtonKey = Key('nav-new-button');
+const Key kBottomNavSurfaceKey = Key('bottom-nav-surface');
 
 class _NavShell extends StatelessWidget {
   /// Two items, the "new" button, then two items.
   final List<Widget> items;
   final VoidCallback onPlus;
   final bool visible;
+  final Key? surfaceKey;
 
-  const _NavShell({required this.items, required this.onPlus, required this.visible});
+  const _NavShell({
+    required this.items,
+    required this.onPlus,
+    required this.visible,
+    this.surfaceKey,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +41,16 @@ class _NavShell extends StatelessWidget {
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 240),
         opacity: visible ? 1 : 0,
-        child: Container(
+        child: AnimatedContainer(
+          key: surfaceKey,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             color: AppColors.bg,
             border: Border(top: BorderSide(color: AppColors.line)),
           ),
-          padding: EdgeInsets.only(left: 10, right: 10, top: 6, bottom: safeBottom + 8),
+          padding: EdgeInsets.only(
+              left: 10, right: 10, top: 6, bottom: safeBottom + 8),
           child: SizedBox(
             height: _barContent,
             // A fixed-height bar must not be re-flowed by a large system font.
@@ -55,14 +66,17 @@ class _NavShell extends StatelessWidget {
                         key: kNavNewButtonKey,
                         onTap: onPlus,
                         behavior: HitTestBehavior.opaque,
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
                           width: _plusSize,
                           height: _plusSize,
                           decoration: BoxDecoration(
                             color: AppColors.accent,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.add, color: AppColors.accentInk, size: 19),
+                          child: Icon(Icons.add,
+                              color: AppColors.accentInk, size: 19),
                         ),
                       ),
                     ),
@@ -96,24 +110,35 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.accent : (enabled ? AppColors.textFaint : AppColors.textMuted);
+    final target = active
+        ? AppColors.accent
+        : (enabled ? AppColors.textFaint : AppColors.textMuted);
     return Expanded(
       child: GestureDetector(
         onTap: enabled ? onTap : null,
         behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.clip,
-              style: AppTheme.mono(size: 9, w: FontWeight.w600, color: color),
-            ),
-          ],
+        child: TweenAnimationBuilder<Color?>(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          tween: ColorTween(end: target),
+          builder: (context, color, _) => Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: color ?? target),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.clip,
+                style: AppTheme.mono(
+                  size: 9,
+                  w: FontWeight.w600,
+                  color: color ?? target,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -144,12 +169,29 @@ class BottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return _NavShell(
       visible: visible,
+      surfaceKey: kBottomNavSurfaceKey,
       onPlus: onNew,
       items: [
-        _NavItem(icon: Icons.home_rounded, label: 'Home', active: selected == 0, onTap: () => onSelect(0)),
-        _NavItem(icon: Icons.layers_rounded, label: 'Tabs', active: selected == 1, onTap: () => onSelect(1)),
-        _NavItem(icon: Icons.checklist_rounded, label: 'Tasks', active: selected == 2, onTap: () => onSelect(2)),
-        _NavItem(icon: Icons.settings_rounded, label: 'Settings', active: selected == 3, onTap: () => onSelect(3)),
+        _NavItem(
+            icon: Icons.home_rounded,
+            label: 'Home',
+            active: selected == 0,
+            onTap: () => onSelect(0)),
+        _NavItem(
+            icon: Icons.layers_rounded,
+            label: 'Tabs',
+            active: selected == 1,
+            onTap: () => onSelect(1)),
+        _NavItem(
+            icon: Icons.checklist_rounded,
+            label: 'Tasks',
+            active: selected == 2,
+            onTap: () => onSelect(2)),
+        _NavItem(
+            icon: Icons.settings_rounded,
+            label: 'Settings',
+            active: selected == 3,
+            onTap: () => onSelect(3)),
       ],
     );
   }
@@ -186,8 +228,16 @@ class BrowserNav extends StatelessWidget {
       visible: visible,
       onPlus: onNewTab,
       items: [
-        _NavItem(icon: Icons.arrow_back, label: 'Back', enabled: canGoBack, onTap: onBack),
-        _NavItem(icon: Icons.arrow_forward, label: 'Forward', enabled: canGoForward, onTap: onForward),
+        _NavItem(
+            icon: Icons.arrow_back,
+            label: 'Back',
+            enabled: canGoBack,
+            onTap: onBack),
+        _NavItem(
+            icon: Icons.arrow_forward,
+            label: 'Forward',
+            enabled: canGoForward,
+            onTap: onForward),
         _NavItem(icon: Icons.layers_rounded, label: 'Tabs', onTap: onTabs),
         _NavItem(icon: Icons.more_horiz, label: 'Menu', onTap: onMenu),
       ],
