@@ -1,6 +1,8 @@
 package com.mrnobody.agent.execution;
 
 import com.mrnobody.agent.core.ToolResult;
+import com.mrnobody.agent.resilience.FailureKind;
+import com.mrnobody.agent.resilience.OperationFailure;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -27,6 +29,7 @@ final class ToolResultCodec {
             root.put("success", result.isSuccess());
             root.put("awaitingApproval", result.needsApproval());
             if (result.error() != null) root.put("error", result.error());
+            putFailure(root, result.failure());
             if (result.isSuccess() && result.result() != null) {
                 root.put("modelText", result.result());
             }
@@ -52,7 +55,35 @@ final class ToolResultCodec {
             Object raw = root.opt("value");
             Map<String, Object> value = raw instanceof JSONObject
                     ? object((JSONObject) raw) : new LinkedHashMap<>();
-            return ToolResult.restore(success, value, error, modelText, waiting);
+            OperationFailure failure = readFailure(root, error);
+            return ToolResult.restore(success, value, error, modelText, waiting, failure);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static void putFailure(JSONObject root, OperationFailure failure) throws Exception {
+        if (failure == null) return;
+        JSONObject out = new JSONObject();
+        out.put("kind", failure.kind.name());
+        out.put("status", failure.statusCode);
+        out.put("retryAfterMs", failure.retryAfterMs);
+        out.put("retryable", failure.retryable);
+        out.put("ambiguous", failure.ambiguous);
+        root.put("failure", out);
+    }
+
+    private static OperationFailure readFailure(JSONObject root, String message) {
+        try {
+            JSONObject value = root.optJSONObject("failure");
+            if (value == null) return null;
+            FailureKind kind;
+            try { kind = FailureKind.valueOf(value.optString("kind", "UNKNOWN")); }
+            catch (Exception e) { kind = FailureKind.UNKNOWN; }
+            return new OperationFailure(kind, message, value.optInt("status", 0),
+                    value.optLong("retryAfterMs", 0L),
+                    value.optBoolean("retryable", false),
+                    value.optBoolean("ambiguous", false));
         } catch (Exception e) {
             return null;
         }
@@ -67,6 +98,7 @@ final class ToolResultCodec {
             if (result != null && result.error() != null) {
                 root.put("error", truncate(result.error(), 8_000));
             }
+            if (result != null) putFailure(root, result.failure());
             String rendered = result == null ? "" : result.result();
             if (rendered != null) root.put("modelText", truncate(rendered, 32_000));
             JSONObject value = new JSONObject();

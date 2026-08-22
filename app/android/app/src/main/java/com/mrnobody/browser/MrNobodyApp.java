@@ -8,9 +8,13 @@ import com.mrnobody.agent.ai.GeminiProvider;
 import com.mrnobody.agent.ai.GroqProvider;
 import com.mrnobody.agent.ai.LocalProvider;
 import com.mrnobody.agent.ai.OpenAiCompatibleProvider;
+import com.mrnobody.agent.ai.FallbackAiProvider;
+import com.mrnobody.agent.ai.ProviderSnapshot;
 import com.mrnobody.agent.browser.AccountStore;
 import com.mrnobody.agent.browser.HeadlessSessions;
 import com.mrnobody.agent.core.AgentEngine;
+import com.mrnobody.agent.core.AgentRunContext;
+import com.mrnobody.agent.core.Task;
 import com.mrnobody.agent.dispatcher.LocalWorker;
 import com.mrnobody.agent.dispatcher.RemoteWorker;
 import com.mrnobody.agent.dispatcher.TaskDispatcher;
@@ -282,6 +286,81 @@ public final class MrNobodyApp extends Application {
     public static TaskScheduler scheduler() { return taskScheduler; }
 
     // ------------------------------------------------------------ AI providers
+
+    /**
+     * Freeze provider/model/base and the explicitly consented fallback order
+     * before a run's first call. A retry reloads these values from the task row,
+     * never from settings changed halfway through the run.
+     */
+    public static AgentRunContext createRunContext(Task task) {
+        ProviderSnapshot primary;
+        List<ProviderSnapshot> fallbacks = new ArrayList<>();
+        if (task.providerSnapshot().isEmpty()) {
+            String id = activeAiProviderId;
+            primary = snapshot(id);
+            task.setProviderSnapshot(primary.encode());
+            if (settings.hasAiFallbackConsent()) {
+                java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+                seen.add(primary.id);
+                for (String candidate : settings.aiFallbackProviders().split(",")) {
+                    String fallbackId = candidate == null ? "" : candidate.trim();
+                    if (fallbackId.isEmpty() || "local".equals(fallbackId)
+                            || !PROVIDER_IDS.contains(fallbackId) || !seen.add(fallbackId)) continue;
+                    fallbacks.add(snapshot(fallbackId));
+                }
+            }
+            task.setFallbackProviderSnapshots(encodeSnapshots(fallbacks));
+        } else {
+            primary = ProviderSnapshot.decode(task.providerSnapshot());
+            fallbacks.addAll(decodeSnapshots(task.fallbackProviderSnapshots()));
+        }
+        if (task.executionPlatform().isEmpty()) task.setExecutionPlatform("local-device");
+
+        AiProvider provider = providerFrom(primary);
+        if (!primary.isLocal() && !fallbacks.isEmpty()) {
+            List<AiProvider> chain = new ArrayList<>();
+            chain.add(provider);
+            for (ProviderSnapshot fallback : fallbacks) chain.add(providerFrom(fallback));
+            provider = new FallbackAiProvider(chain);
+        }
+        return new AgentRunContext(task.id(), task.runId(), primary, fallbacks,
+                provider, task.executionPlatform());
+    }
+
+    private static ProviderSnapshot snapshot(String id) {
+        String safe = id == null || !PROVIDER_IDS.contains(id) ? "local" : id;
+        String key = storageKey(safe);
+        return new ProviderSnapshot(safe,
+                "local".equals(safe) ? "" : settings.apiBase(key),
+                "local".equals(safe) ? "" : settings.apiModel(key));
+    }
+
+    private static AiProvider providerFrom(ProviderSnapshot snapshot) {
+        if (snapshot == null || snapshot.isLocal()) return new LocalProvider();
+        String key = settings.apiKey(storageKey(snapshot.id));
+        return buildProvider(snapshot.id, snapshot.baseUrl, snapshot.modelId, key);
+    }
+
+    private static String encodeSnapshots(List<ProviderSnapshot> snapshots) {
+        StringBuilder out = new StringBuilder();
+        if (snapshots != null) {
+            for (ProviderSnapshot snapshot : snapshots) {
+                if (snapshot == null) continue;
+                if (out.length() > 0) out.append('\n');
+                out.append(snapshot.encode());
+            }
+        }
+        return out.toString();
+    }
+
+    private static List<ProviderSnapshot> decodeSnapshots(String encoded) {
+        List<ProviderSnapshot> out = new ArrayList<>();
+        if (encoded == null || encoded.isEmpty()) return out;
+        for (String line : encoded.split("\\n")) {
+            if (!line.trim().isEmpty()) out.add(ProviderSnapshot.decode(line));
+        }
+        return out;
+    }
 
     /** Build the provider for an id, reading the current key/base/model from settings. */
     public static AiProvider buildProvider(String id) {

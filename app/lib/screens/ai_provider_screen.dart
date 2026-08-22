@@ -38,11 +38,14 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
   bool _loadingModels = false;
   String? _modelError;
   bool _manualEntry = false;
+  bool _fallbackConsent = false;
+  Set<String> _fallbacks = <String>{};
 
   @override
   void initState() {
     super.initState();
     _loadConfig();
+    _loadFallback();
   }
 
   @override
@@ -70,6 +73,30 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
       _modelError = null;
       _manualEntry = false;
     });
+  }
+
+  Future<void> _loadFallback() async {
+    final cfg = await NativeBridge.guard(
+      NativeBridge.providerFallback,
+      const <String, dynamic>{},
+      'provider fallback unavailable',
+    );
+    if (!mounted) return;
+    setState(() {
+      _fallbackConsent = cfg['consent'] as bool? ?? false;
+      _fallbacks = ((cfg['providers'] as List?)?.cast<String>() ?? const <String>[]).toSet();
+    });
+  }
+
+  Future<void> _saveFallback() async {
+    await NativeBridge.guard(
+      () => NativeBridge.setProviderFallback(
+        _fallbacks.where((id) => id != _selected).toList(),
+        consent: _fallbackConsent,
+      ),
+      false,
+      'could not save fallback providers',
+    );
   }
 
   bool get _isLocal => _selected == 'local';
@@ -110,6 +137,7 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
   Future<void> _save() async {
     if (_isLocal) {
       await _state.setProvider('local');
+      await _saveFallback();
       if (!mounted) return;
       AppToast.show(context, 'Local provider active');
       Navigator.of(context).pop();
@@ -140,6 +168,7 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
       null,
       'could not save provider',
     );
+    await _saveFallback();
     await _state.load();
     if (!mounted) return;
     AppToast.show(context, '${AiProviderOption.byId(_selected).shortName} · $model');
@@ -194,6 +223,7 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
             ),
             _modelsSection(),
           ],
+          _fallbackSection(),
           Padding(
             padding: const EdgeInsets.all(16),
             child: ActionButton('Save', solid: true, onTap: _save),
@@ -215,6 +245,94 @@ class _AiProviderScreenState extends State<AiProviderScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _fallbackSection() {
+    final options = AiProviderOption.all
+        .where((p) => p.id != 'local' && p.id != _selected)
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionLabel('Provider fallback'),
+        AppCard(
+          child: Column(
+            children: withDividers([
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _fallbackConsent = !_fallbackConsent),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _fallbackConsent
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank,
+                        size: 17,
+                        color: _fallbackConsent ? AppColors.accent : AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Text(
+                          'Allow the configured fallback providers',
+                          style: AppTheme.sans(size: 12.5, w: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              for (final option in options)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: !_fallbackConsent
+                      ? null
+                      : () => setState(() {
+                            if (!_fallbacks.add(option.id)) _fallbacks.remove(option.id);
+                          }),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _fallbacks.contains(option.id)
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked,
+                          size: 16,
+                          color: _fallbackConsent
+                              ? (_fallbacks.contains(option.id)
+                                  ? AppColors.accent
+                                  : AppColors.textMuted)
+                              : AppColors.lineStrong,
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Text(option.name,
+                              style: AppTheme.sans(
+                                  size: 12.5,
+                                  color: _fallbackConsent
+                                      ? AppColors.textDim
+                                      : AppColors.textMuted)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: Text(
+            'Fallback is pinned when a run starts. A secondary provider receives task '
+            'context only after this consent, and completed tool effects are replayed '
+            'from the local ledger rather than executed again.',
+            style: AppTheme.sans(size: 10.5, color: AppColors.textMuted, height: 1.45),
+          ),
+        ),
+      ],
     );
   }
 

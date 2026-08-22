@@ -1,5 +1,8 @@
 package com.mrnobody.agent.core;
 
+import com.mrnobody.agent.resilience.FailureClassifier;
+import com.mrnobody.agent.resilience.OperationFailure;
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -20,31 +23,41 @@ public final class ToolResult {
     private final String error;
     private final String modelText;
     private final boolean awaitingApproval;
+    private final OperationFailure failure;
 
     private ToolResult(boolean success, Map<String, Object> value, String error,
-                       String modelText, boolean awaitingApproval) {
+                       String modelText, boolean awaitingApproval,
+                       OperationFailure failure) {
         this.success = success;
         this.value = value == null ? Collections.emptyMap()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(value));
         this.error = error;
         this.modelText = modelText;
         this.awaitingApproval = awaitingApproval;
+        this.failure = failure;
     }
 
     /** Success carrying a structured value. */
     public static ToolResult ok(Map<String, Object> value) {
-        return new ToolResult(true, value, null, null, false);
+        return new ToolResult(true, value, null, null, false, null);
     }
 
     /** Success whose whole value is one piece of text (a status line, a page's text). */
     public static ToolResult okText(String text) {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("text", text == null ? "" : text);
-        return new ToolResult(true, value, null, null, false);
+        return new ToolResult(true, value, null, null, false, null);
     }
 
     public static ToolResult fail(String error) {
-        return new ToolResult(false, null, error == null ? "unknown error" : error, null, false);
+        String message = error == null ? "unknown error" : error;
+        return fail(FailureClassifier.fromMessage(message));
+    }
+
+    public static ToolResult fail(OperationFailure failure) {
+        OperationFailure safe = failure == null
+                ? OperationFailure.unknown("unknown error") : failure;
+        return new ToolResult(false, null, safe.message, null, false, safe);
     }
 
     /**
@@ -54,13 +67,15 @@ public final class ToolResult {
     public static ToolResult needsApproval(String tool, String error) {
         Map<String, Object> value = new LinkedHashMap<>();
         if (tool != null && !tool.isEmpty()) value.put("pendingTool", tool);
-        return new ToolResult(false, value,
-                error == null ? "Needs your approval." : error, null, true);
+        String message = error == null ? "Needs your approval." : error;
+        return new ToolResult(false, value, message, null, true,
+                new OperationFailure(com.mrnobody.agent.resilience.FailureKind.PERMANENT,
+                        message, 0, 0L, false, false));
     }
 
     /** The pipeline attaches the rendered model text once the value has passed its spec. */
     public ToolResult renderedAs(String text) {
-        return new ToolResult(success, value, error, text, awaitingApproval);
+        return new ToolResult(success, value, error, text, awaitingApproval, failure);
     }
 
     /**
@@ -73,7 +88,15 @@ public final class ToolResult {
     public static ToolResult restore(boolean success, Map<String, Object> value,
                                      String error, String modelText,
                                      boolean awaitingApproval) {
-        return new ToolResult(success, value, error, modelText, awaitingApproval);
+        OperationFailure failure = success ? null : FailureClassifier.fromMessage(error);
+        return restore(success, value, error, modelText, awaitingApproval, failure);
+    }
+
+    public static ToolResult restore(boolean success, Map<String, Object> value,
+                                     String error, String modelText,
+                                     boolean awaitingApproval, OperationFailure failure) {
+        return new ToolResult(success, value, error, modelText,
+                awaitingApproval, failure);
     }
 
     public boolean isSuccess() { return success; }
@@ -93,6 +116,7 @@ public final class ToolResult {
     public Map<String, Object> value() { return value; }
 
     public String error() { return error; }
+    public OperationFailure failure() { return failure; }
 
     /**
      * What a model should read. The rendered projection when the pipeline has

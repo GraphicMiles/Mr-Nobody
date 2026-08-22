@@ -701,6 +701,35 @@ public class MainActivity extends FlutterActivity {
                             result.success(null);
                             return;
                         }
+                        case "providerFallback": {
+                            Map<String, Object> m = new HashMap<>();
+                            String raw = MrNobodyApp.settings().aiFallbackProviders();
+                            List<String> ids = new ArrayList<>();
+                            if (raw != null && !raw.trim().isEmpty()) {
+                                for (String id : raw.split(",")) {
+                                    if (!id.trim().isEmpty()) ids.add(id.trim());
+                                }
+                            }
+                            m.put("providers", ids);
+                            m.put("consent", MrNobodyApp.settings().hasAiFallbackConsent());
+                            result.success(m);
+                            return;
+                        }
+                        case "setProviderFallback": {
+                            List<String> requested = call.argument("providers");
+                            Boolean consent = call.argument("consent");
+                            java.util.LinkedHashSet<String> safe = new java.util.LinkedHashSet<>();
+                            if (requested != null) {
+                                for (String id : requested) {
+                                    if (id != null && !"local".equals(id)
+                                            && MrNobodyApp.PROVIDER_IDS.contains(id)) safe.add(id);
+                                }
+                            }
+                            MrNobodyApp.settings().setAiFallbackProviders(
+                                    String.join(",", safe), Boolean.TRUE.equals(consent));
+                            result.success(true);
+                            return;
+                        }
                         case "providerConfig": {
                             String id = call.argument("id");
                             if (id == null) id = "local";
@@ -1237,6 +1266,8 @@ public class MainActivity extends FlutterActivity {
         m.put("error", t.error() == null ? "" : t.error());
         m.put("worker", t.worker() == null ? "local" : t.worker());
         m.put("runId", t.runId());
+        m.put("providerSnapshot", t.providerSnapshot());
+        m.put("executionPlatform", t.executionPlatform());
         m.put("createdAt", t.createdAt());
         m.put("updatedAt", t.updatedAt());
         m.put("artifacts", t.artifacts() == null ? "" : t.artifacts());

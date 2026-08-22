@@ -62,29 +62,24 @@ public final class HttpTool implements Tool {
             int code = 0;
             String body = "";
             String finalUrl = requestedUrl;
-            for (int attempt = 0;
-                 attempt < com.mrnobody.agent.util.FetchRetry.MAX_ATTEMPTS; attempt++) {
-                Opened opened = openFollowingRedirects(requestedUrl);
-                HttpURLConnection conn = opened.connection;
-                finalUrl = opened.url;
-                outcomeHost = com.mrnobody.agent.util.Hosts.firstIn(finalUrl);
-                try {
-                    code = conn.getResponseCode();
-                    if (com.mrnobody.agent.util.FetchRetry.shouldRetry(code)
-                            && com.mrnobody.agent.util.FetchRetry.hasAttemptsLeft(attempt)) {
-                        sleepQuietly(com.mrnobody.agent.util.FetchRetry.delayMs(
-                                attempt, conn.getHeaderField("Retry-After")));
-                        continue;
-                    }
-                    if (code < 200 || code >= 300) {
-                        com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(outcomeHost, false);
-                        return ToolResult.fail("HTTP " + code + " for " + finalUrl);
-                    }
-                    body = readBounded(conn.getInputStream());
-                    break;
-                } finally {
-                    conn.disconnect();
+            Opened opened = openFollowingRedirects(requestedUrl);
+            HttpURLConnection conn = opened.connection;
+            finalUrl = opened.url;
+            outcomeHost = com.mrnobody.agent.util.Hosts.firstIn(finalUrl);
+            try {
+                code = conn.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    com.mrnobody.agent.util.SiteMemory.recordHttpOutcome(outcomeHost, false);
+                    long retryAfter = com.mrnobody.agent.util.FetchRetry.shouldRetry(code)
+                            ? com.mrnobody.agent.util.FetchRetry.delayMs(
+                                    0, conn.getHeaderField("Retry-After")) : 0L;
+                    return ToolResult.fail(
+                            com.mrnobody.agent.resilience.FailureClassifier.fromHttp(
+                                    code, "HTTP " + code + " for " + finalUrl, retryAfter));
                 }
+                body = readBounded(conn.getInputStream());
+            } finally {
+                conn.disconnect();
             }
             PageKind.Kind kind = PageKind.classify(body);
             com.mrnobody.agent.util.SiteMemory.remember(outcomeHost, kind);
@@ -230,15 +225,6 @@ public final class HttpTool implements Tool {
             idx += 2;
         }
         return closes >= 3;
-    }
-
-    private static void sleepQuietly(long ms) {
-        if (ms <= 0) return;
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     private static String readBounded(InputStream in) throws Exception {

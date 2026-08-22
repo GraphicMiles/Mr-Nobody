@@ -118,6 +118,22 @@ class NativeBridge {
     return await _ch.invokeMethod('isHistoryEnabled') as bool;
   }
 
+  /// Ordered remote-provider fallback. It is inert until consent is true.
+  static Future<Map<String, dynamic>> providerFallback() async {
+    return Map<String, dynamic>.from(await _ch.invokeMethod('providerFallback') as Map);
+  }
+
+  static Future<bool> setProviderFallback(
+    List<String> providers, {
+    required bool consent,
+  }) async {
+    return await _ch.invokeMethod('setProviderFallback', {
+          'providers': providers,
+          'consent': consent,
+        }) as bool? ??
+        false;
+  }
+
   /// Base URL / model / whether a key is stored for an AI provider. The key
   /// itself never leaves the core.
   static Future<Map<String, dynamic>> providerConfig(String id) async {
