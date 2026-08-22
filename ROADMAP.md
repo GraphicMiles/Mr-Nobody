@@ -2,7 +2,7 @@
 
 This is the single source of truth for delivery status. Implementation guidance lives in `README.md`; per-batch history lives in `SESSION-LOG.txt`. No additional standing documents.
 
-Status baseline: 2026-08-22. The resilience/design-MCP feature branch has 1,028 JVM tests passing locally; branch CI and live Canva/OAuth device evidence are pending. The Android emulator workflow remains manual-dispatch only (its last full run passed API 31 and API 34).
+Status baseline: 2026-08-22. The resilience/design-MCP architecture is merged to `main`; 1,028 JVM tests and 167 Flutter widget/golden tests pass, and the full signed-APK CI workflow is green. Live Canva/OAuth device evidence remains pending. The Android emulator workflow remains manual-dispatch only (its last full run passed API 31 and API 34).
 
 Status vocabulary:
 
@@ -29,7 +29,7 @@ Remote workers and credits remain unstarted by design. The next toolchain step i
 
 | Evidence | Result |
 |---|---|
-| GitHub Actions run | **Prior main passed; feature-branch run pending push** |
+| GitHub Actions run | **Passed on merged `main`** — signed ABI APK workflow green |
 | Strict Flutter analysis | **Passed locally** |
 | Flutter widget/golden suite | **167 tests passed locally, including updated classic/warm S6 goldens** |
 | Java/JVM suite | **1,028 tests passed locally** at the current feature head |
