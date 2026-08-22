@@ -1042,15 +1042,21 @@ class _UpdateSheetState extends State<_UpdateSheet> {
 
   void _update() {
     final u = AppState.instance.updates;
-    if (u.downloadUrl.isEmpty) {
+    final url = u.downloadUrl;
+    if (url.isEmpty) {
       AppToast.show(context, 'No download link in the release metadata yet.');
       return;
     }
-    // Hands the signed release to the user through the app's own browser:
-    // the download and the install are the system's job, with its own
-    // signature verification. Nothing is fetched or run behind their back.
-    widget.onOpenUrl?.call(u.downloadUrl);
+    final open = widget.onOpenUrl;
+    if (open == null) {
+      AppToast.show(context, 'The in-app browser is unavailable right now.');
+      return;
+    }
+    // Close the sheet BEFORE navigating: pushing the browser first would
+    // leave it on top, so the pop() that follows would dismiss the browser
+    // instead of the sheet — the tap would appear to do nothing.
     Navigator.of(context).pop();
+    open(url);
   }
 
   @override

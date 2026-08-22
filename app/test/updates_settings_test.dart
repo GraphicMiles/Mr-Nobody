@@ -138,6 +138,50 @@ void main() {
         reason: 'a dismissed release no longer badges');
   });
 
+  testWidgets('Update hands the download URL to the browser and closes',
+      (tester) async {
+    String? opened;
+    // Explicit state: an available, non-dismissed release (the previous test
+    // left the singleton in a dismissed state).
+    AppState.instance.updates = UpdateStatus(
+      installedVersion: '1.0.0',
+      latestVersion: '1.1.0',
+      updateAvailable: true,
+      releaseNotes: 'Faster tabs and reliable previews.',
+      downloadUrl: 'https://cdn.example.com/mr-nobody-1.1.0.apk',
+      lastCheckedAt: DateTime.now().millisecondsSinceEpoch,
+      source: 'cache',
+    );
+    mockCore(
+      cached: updateMap(latest: '1.1.0', available: true, dismissed: false),
+      checked: updateMap(latest: '1.1.0', available: true, dismissed: false),
+      dismissedMap: updateMap(latest: '1.1.0', available: true, dismissed: true),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsScreen(onOpenUrl: (url) => opened = url),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Updates'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Updates'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Update'));
+    await tester.pumpAndSettle();
+
+    expect(opened, 'https://cdn.example.com/mr-nobody-1.1.0.apk',
+        reason: 'Update must hand the release URL to the in-app browser');
+    expect(find.text('Remind me later'), findsNothing,
+        reason: 'the sheet must close after choosing Update');
+  });
+
   testWidgets('up-to-date state shows no badge and offers a recheck',
       (tester) async {
     // Direct state: a check completed and nothing newer exists.
