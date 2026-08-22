@@ -408,6 +408,7 @@ class ListRow extends StatelessWidget {
   final Widget? trailing;
   final Widget? below;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const ListRow({
     super.key,
@@ -417,12 +418,14 @@ class ListRow extends StatelessWidget {
     this.trailing,
     this.below,
     this.onTap,
+    this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

@@ -928,6 +928,44 @@ public class MainActivity extends FlutterActivity {
                             result.success(true);
                             return;
                         }
+                        case "deleteTask": {
+                            // Delete one task and everything that belongs to it:
+                            // its schedule, its append-only events, its execution
+                            // ledger entries and any async-job recovery state. If
+                            // the task no longer exists, report success — it is
+                            // already gone.
+                            Number delId = call.argument("id");
+                            if (delId == null) {
+                                result.error("bad_arg", "id required", null);
+                                return;
+                            }
+                            long id = delId.longValue();
+                            MrNobodyApp.scheduler().cancel(
+                                    getApplicationContext(), id);
+                            MrNobodyApp.tasks().delete(id);
+                            MrNobodyApp.taskEvents().clearTask(id);
+                            MrNobodyApp.executionLedger().clearTask(id);
+                            MrNobodyApp.asyncJobs().clearTask(id);
+                            result.success(true);
+                            return;
+                        }
+                        case "deleteAllTasks": {
+                            // Clear every task and its derived state. Cancellation
+                            // is asynchronous, so do it before deleting rows so no
+                            // worker can wake a task that no longer exists.
+                            if (!cancelAllTaskSchedules()) {
+                                result.error("cancel_failed",
+                                        "Could not stop every task; nothing was deleted.", null);
+                                return;
+                            }
+                            MrNobodyApp.tasks().clear();
+                            MrNobodyApp.taskEvents().clearAll();
+                            MrNobodyApp.executionLedger().clearAll();
+                            MrNobodyApp.asyncJobs().clearAll();
+                            MrNobodyApp.designSessions().clearAll();
+                            result.success(true);
+                            return;
+                        }
                         case "task": {
                             Number idArg = call.argument("id");
                             if (idArg == null) {
