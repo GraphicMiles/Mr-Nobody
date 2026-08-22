@@ -635,3 +635,35 @@ design-platform acceptance are explicitly deferred.
 LICENSE is now the canonical MIT License with copyright attributed to
 GraphicMiles and Mr Nobody contributors. Third-party licensing and trademark
 notes remain in README rather than being appended to the MIT grant.
+
+---
+
+## 2026-08-22 — Randomized home-logo motion and immediate theme repaint
+
+The home hero is now 190px tall, adding roughly fifty percent more vertical
+breathing room and moving the search/tasks/shortcuts composition lower while
+the bottom navigation remains anchored. The two decorative page rectangles
+were removed so the exact launcher/home mark is the only hero element.
+
+Ten native Flutter motion definitions landed: Spring Drop, Orbit Return,
+Figure Eight, Corner Patrol, Pendulum, Squash Launch, Stealth Peek, Spiral
+Home, Hover Scan and Cinematic Drift. A shuffle bag plays every movement once
+before reshuffling and prevents the same movement at a bag boundary. Every
+definition is asserted to end at x/y/rotation zero, unit scale, full opacity,
+and no residual glow/burst. The logo rests for 1.65 seconds between movements,
+adds a staggered 4.2-second lens blink and short idle float, pauses while Home
+is hidden, and stays static when Android requests reduced motion.
+
+Theme changes now publish AppColors before listeners are notified. AppShell
+subscribes before the initial settings load and explicitly rebuilds its
+persistent IndexedStack, bottom navigation and overlay on every settings
+change. MaterialApp, bottom-nav surfaces/icons, shared cards, buttons, screen
+backgrounds and the home search pill use matched 220–240ms ease-out colour
+transitions. This closes the bug where Settings changed immediately but the
+bar and hidden shell content retained the previous palette until a tab switch.
+
+Regression coverage verifies all ten terminal poses, shuffle-bag completeness
+and non-repetition, reduced-motion behavior, hidden-destination ticker pause,
+the lower 190px hero, and same-frame bottom-nav repaint without changing tabs.
+The complete Flutter suite now passes 174 tests with intentional updated Home
+and corrected Warm cream screen goldens.

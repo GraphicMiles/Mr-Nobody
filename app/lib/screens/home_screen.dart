@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../bridge/native_bridge.dart';
 import '../theme/app_theme.dart';
-import '../widgets/brand_logo.dart';
+import '../widgets/animated_brand_logo.dart';
 import '../widgets/common.dart';
 
 /// Where a Home shortcut sends the user.
 enum HomeShortcut { tabs, tasks, downloads, settings }
+
+const Key kHomeLogoHeroKey = Key('home-logo-hero');
+const Key kHomeSearchPillKey = Key('home-search-pill');
 
 /// Agent Home (S2) — the centre of the product: brand mark, the one unified
 /// input, live agent tasks, and shortcuts. Matches `#v-newtab` in the
@@ -41,7 +44,13 @@ class HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _active = const [];
   Timer? _poll;
 
-  static const _liveStatuses = {'RUNNING', 'QUEUED', 'WAITING', 'VERIFYING'};
+  static const _liveStatuses = {
+    'RUNNING',
+    'QUEUED',
+    'WAITING',
+    'WAITING_EXTERNAL',
+    'VERIFYING',
+  };
 
   @override
   void initState() {
@@ -86,20 +95,15 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => ScreenSurface(child: _buildBody(context));
+  Widget build(BuildContext context) =>
+      ScreenSurface(child: _buildBody(context));
 
   Widget _buildBody(BuildContext context) {
     return ListView(
       controller: widget.scrollController,
       padding: const EdgeInsets.only(bottom: 120),
       children: [
-        if (AppColors.isWarm)
-          const _HomeHero()
-        else
-          const Padding(
-            padding: EdgeInsets.only(top: 30, bottom: 22),
-            child: Center(child: BrandLogo(size: 80)),
-          ),
+        _HomeHero(active: widget.isActive),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: _searchPill(),
@@ -108,7 +112,9 @@ class HomeScreenState extends State<HomeScreen> {
         AppCard(
           child: _active.isEmpty
               ? const EmptyNote('No active tasks')
-              : Column(children: withDividers([for (final t in _active) _taskLine(t)])),
+              : Column(
+                  children:
+                      withDividers([for (final t in _active) _taskLine(t)])),
         ),
         const SectionLabel('Shortcuts'),
         AppCard(
@@ -116,8 +122,10 @@ class HomeScreenState extends State<HomeScreen> {
             children: withDividers([
               _shortcut(Icons.layers_rounded, 'Tabs', HomeShortcut.tabs),
               _shortcut(Icons.checklist_rounded, 'Tasks', HomeShortcut.tasks),
-              _shortcut(Icons.download_rounded, 'Downloads', HomeShortcut.downloads),
-              _shortcut(Icons.settings_rounded, 'Settings', HomeShortcut.settings),
+              _shortcut(
+                  Icons.download_rounded, 'Downloads', HomeShortcut.downloads),
+              _shortcut(
+                  Icons.settings_rounded, 'Settings', HomeShortcut.settings),
             ]),
           ),
         ),
@@ -126,7 +134,10 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _searchPill() {
-    return Container(
+    return AnimatedContainer(
+      key: kHomeSearchPillKey,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
       height: 48,
       padding: const EdgeInsets.only(left: 14, right: 6),
       decoration: BoxDecoration(
@@ -146,7 +157,8 @@ class HomeScreenState extends State<HomeScreen> {
               cursorColor: AppColors.accent,
               decoration: InputDecoration(
                 hintText: 'Ask Mr Nobody or enter URL…',
-                hintStyle: AppTheme.sans(size: 13.5, color: AppColors.textFaint),
+                hintStyle:
+                    AppTheme.sans(size: 13.5, color: AppColors.textFaint),
                 border: InputBorder.none,
                 isDense: true,
               ),
@@ -159,8 +171,10 @@ class HomeScreenState extends State<HomeScreen> {
             child: Container(
               width: 34,
               height: 34,
-              decoration: BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
-              child: Icon(Icons.arrow_forward, size: 16, color: AppColors.accentInk),
+              decoration: BoxDecoration(
+                  color: AppColors.accent, shape: BoxShape.circle),
+              child: Icon(Icons.arrow_forward,
+                  size: 16, color: AppColors.accentInk),
             ),
           ),
         ],
@@ -191,54 +205,28 @@ class HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Warm, entirely local hero treatment from the approved visual direction.
-/// The two abstract cards suggest open pages without loading thumbnails or
-/// leaking browsing state onto the home screen.
+/// The home hero deliberately has about fifty percent more vertical breathing
+/// room than the previous 132–136px treatment. The logo and every section below
+/// it therefore sit lower without moving the anchored bottom navigation.
+///
+/// The two decorative page boxes were removed: the real app mark is now the
+/// only hero element, with ten transform-only motion studies played through a
+/// shuffle bag while Home is active.
 class _HomeHero extends StatelessWidget {
-  const _HomeHero();
+  final bool active;
+
+  const _HomeHero({required this.active});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 136,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            left: 42,
-            top: 24,
-            child: Transform.rotate(angle: -0.18, child: const _PageShape()),
-          ),
-          Positioned(
-            right: 38,
-            top: 36,
-            child: Transform.rotate(angle: 0.2, child: const _PageShape()),
-          ),
-          const BrandLogo(size: 80),
-        ],
-      ),
-    );
-  }
-}
-
-class _PageShape extends StatelessWidget {
-  const _PageShape();
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: 0.42,
-      child: Container(
-        width: 58,
-        height: 76,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.surface3, AppColors.surface],
-          ),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: AppColors.line),
+      key: kHomeLogoHeroKey,
+      height: 190,
+      child: Center(
+        child: AnimatedBrandLogo(
+          size: 88,
+          color: AppColors.accent,
+          active: active,
         ),
       ),
     );
@@ -251,11 +239,17 @@ IconData taskIcon(String instruction) {
   final s = instruction.toLowerCase();
   if (s.startsWith('download')) return Icons.download_rounded;
   if (s.startsWith('compare')) return Icons.balance;
-  if (s.startsWith('price') || s.startsWith('monitor') || s.startsWith('watch')) {
+  if (s.startsWith('price') ||
+      s.startsWith('monitor') ||
+      s.startsWith('watch')) {
     return Icons.show_chart;
   }
-  if (s.startsWith('summarize') || s.startsWith('summarise')) return Icons.article_outlined;
+  if (s.startsWith('summarize') || s.startsWith('summarise')) {
+    return Icons.article_outlined;
+  }
   if (s.startsWith('find') || s.startsWith('search')) return Icons.search;
-  if (s.startsWith('scrape') || s.startsWith('extract')) return Icons.star_outline;
+  if (s.startsWith('scrape') || s.startsWith('extract')) {
+    return Icons.star_outline;
+  }
   return Icons.checklist_rounded;
 }
