@@ -87,6 +87,28 @@ public class ToolRouterTest {
         assertNull(ToolRouter.route("   ", ALL));
     }
 
+    @Test
+    public void aLandingPageUrlIsNotADirectFileDownload() {
+        // The reported bug: "…/Silo.S03E01.(THENKIRI.COM).mkv.html" contains
+        // ".mkv" but is a page that returns HTML. It must not route to the
+        // downloader as a direct file; it falls through so the agent reads the
+        // page and resolves the real link.
+        assertNull(ToolRouter.route(
+                "download https://downloadwella.com/x/Silo.S03E01.(THENKIRI.COM).mkv.html",
+                ALL));
+        assertNull(ToolRouter.route("download https://example.test/report.pdf.html", ALL));
+    }
+
+    @Test
+    public void aDownloadVerbDoesNotTriggerTheTerminalViaSubstring() {
+        // "report" contains "repo"; the router must not treat a download of a
+        // report as a shell command.
+        ToolRouter.Route r = ToolRouter.route(
+                "download https://example.test/report.pdf", ALL);
+        assertEquals("download", r.tool);
+        assertEquals("https://example.test/report.pdf", r.request.param("url"));
+    }
+
     // ------------------------------------------------------------ permission
 
     /**

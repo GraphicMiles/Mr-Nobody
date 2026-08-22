@@ -424,6 +424,8 @@ class WaitingPrompt extends StatelessWidget {
         return 'Have a look first';
       case 'network':
         return 'Waiting for a connection';
+      case 'download':
+        return 'Insecure download';
       default:
         return 'Needs your approval';
     }
@@ -456,6 +458,8 @@ class WaitingPrompt extends StatelessWidget {
         return 'Continue';
       case 'network':
         return 'Retry';
+      case 'download':
+        return 'Continue';
       default:
         return 'Allow';
     }

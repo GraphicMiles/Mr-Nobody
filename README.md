@@ -19,7 +19,8 @@ Mr Nobody is open source under the MIT License.
 - Supports normal and private tabs.
 - Can route traffic through a configured proxy, Orbot, or the bundled Tor service.
 - Fails closed when a privacy route that was promised is unavailable.
-- Loads a plain `http://` page only after an explicit "Load anyway / Cancel" warning; the site host is remembered for the session. A download from a `http://` file also shows an insecure-connection warning before anything is fetched, and only sends the source page's Referer header over cleartext when the user approves that download. The agent's autonomous tools and AI providers still require HTTPS, so cleartext is never used outside the user's explicit browsing or download choice.
+- Loads a plain `http://` page only after an explicit "Load anyway / Cancel" warning; the site host is remembered for the session. A download from a `http://` file also shows an insecure-connection warning with Continue / Reject before anything is fetched, and only sends the source page's Referer header over cleartext when the user approves that download. The agent's autonomous tools and AI providers still require HTTPS, so cleartext is never used outside the user's explicit browsing or download choice.
+- A download URL that is a landing page (`…/film.mkv.html`) is resolved, not fetched as a file: the agent reads the page, finds the real file link, and downloads that, so it never saves an HTML page for a video. A genuinely direct file URL is still downloaded directly.
 
 ### Agent tasks
 
