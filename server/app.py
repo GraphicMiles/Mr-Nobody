@@ -55,6 +55,13 @@ def _site_file(raw_path):
 class Handler(BaseHTTPRequestHandler):
     server_version = "MrNobodyUpdate/1.0"
 
+    # HTTP/1.1 with keep-alive: Render's router pools origin connections.
+    # The default HTTP/1.0 + Connection: close makes the pool route a
+    # request onto a connection we just closed, which the router reports
+    # as a 404 "no-server". Every response below carries Content-Length,
+    # so keep-alive framing is unambiguous.
+    protocol_version = "HTTP/1.1"
+
     def log_message(self, fmt, *args):
         sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
 
@@ -86,6 +93,21 @@ class Handler(BaseHTTPRequestHandler):
         self._handle_get()
 
     def _handle_get(self):
+        try:
+            self._route()
+        except BrokenPipeError:
+            pass  # client went away; nothing to send
+        except Exception:
+            # Never let one bad request take the worker down: answer 500
+            # and keep serving. The traceback lands in the service logs.
+            import traceback
+            traceback.print_exc()
+            try:
+                self._json(500, {"error": "internal error"})
+            except Exception:
+                pass
+
+    def _route(self):
         path = urlparse(self.path).path
         if path == "/health":
             self._json(200, {"status": "ok"})
