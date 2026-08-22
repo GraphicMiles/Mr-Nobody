@@ -68,4 +68,41 @@ void main() {
     expect(IntentRouter.slashCommand('/agent'), isNull);
     expect(IntentRouter.slashCommand('/searching habits'), isNull);
   });
+
+  test('search queries use the configured engine', () {
+    expect(
+        IntentRouter.toUrl('titan',
+            searchEngine: 'https://www.google.com/search?q='),
+        'https://www.google.com/search?q=titan');
+    expect(
+        IntentRouter.toUrl('titan mail',
+            searchEngine: 'https://www.google.com/search?q='),
+        'https://www.google.com/search?q=titan+mail');
+    expect(
+        IntentRouter.toUrl('titan', searchEngine: 'https://www.bing.com/search?q='),
+        'https://www.bing.com/search?q=titan');
+    expect(
+        IntentRouter.toUrl('titan',
+            searchEngine: 'https://www.startpage.com/sp/search?query='),
+        'https://www.startpage.com/sp/search?query=titan');
+  });
+
+  test('search falls back to DuckDuckGo only without an engine', () {
+    expect(IntentRouter.toUrl('titan'), 'https://duckduckgo.com/?q=titan');
+    expect(IntentRouter.toUrl('titan', searchEngine: ''),
+        'https://duckduckgo.com/?q=titan');
+    expect(IntentRouter.toUrl('titan', searchEngine: '   '),
+        'https://duckduckgo.com/?q=titan');
+  });
+
+  test('urls and domains are untouched by the engine setting', () {
+    const google = 'https://www.google.com/search?q=';
+    expect(IntentRouter.toUrl('example.com', searchEngine: google),
+        'https://example.com');
+    expect(
+        IntentRouter.toUrl('https://example.com/a', searchEngine: google),
+        'https://example.com/a');
+    expect(IntentRouter.toUrl('http://example.com', searchEngine: google),
+        'https://example.com');
+  });
 }
