@@ -103,22 +103,21 @@ jobs:
           echo "MRNOBODY_KEY_ALIAS=mrnobody-ci-test" >> "$GITHUB_ENV"
           echo "MRNOBODY_KEY_PASSWORD=mrnobody-ci-test" >> "$GITHUB_ENV"
 
-      - name: Build signed ABI-specific CI APKs
+      # One universal APK, not one per ABI: a single standard artifact that
+      # installs on any device, with one signature to verify. The trade is a
+      # larger download (three native engines) for simpler distribution.
+      - name: Build signed universal CI APK
         working-directory: app
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release
 
-      - name: Verify APK signatures
+      - name: Verify APK signature
         working-directory: app
         run: |
           apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
           test -n "$apksigner"
-          found=0
-          for apk in build/app/outputs/flutter-apk/*-release.apk; do
-            test -f "$apk" || continue
-            found=1
-            "$apksigner" verify --verbose --print-certs "$apk"
-          done
-          test "$found" -eq 1
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          test -f "$apk"
+          "$apksigner" verify --verbose --print-certs "$apk"
 
       # The Java agent core (routing, filtering, policy, reconciliation) is
       # written to run on a plain JVM precisely so it can be tested without a
@@ -127,23 +126,20 @@ jobs:
         working-directory: app/android
         run: ./gradlew :app:testDebugUnitTest --console=plain
 
-      # Gate the artifact a user actually installs. Splitting by ABI avoids
-      # charging every phone for three native Flutter engines in one fat APK.
-      - name: APK size gate (45 MiB per ABI)
+      # Gate the artifact a user actually installs. A universal APK carries
+      # all three native engines, so its ceiling sits above the old per-ABI
+      # 45 MiB one.
+      - name: APK size gate (80 MiB universal)
         working-directory: app
         run: |
-          found=0
-          for apk in build/app/outputs/flutter-apk/*-release.apk; do
-            test -f "$apk" || continue
-            found=1
-            size=$(stat -c%s "$apk")
-            echo "$(basename "$apk"): $((size / 1024 / 1024)) MiB ($size bytes)" >> "$GITHUB_STEP_SUMMARY"
-            python3 ../tools/apk_size_check.py "$apk" 45
-          done
-          test "$found" -eq 1
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          test -f "$apk"
+          size=$(stat -c%s "$apk")
+          echo "universal APK: $((size / 1024 / 1024)) MiB ($size bytes)" >> "$GITHUB_STEP_SUMMARY"
+          python3 ../tools/apk_size_check.py "$apk" 80
 
-      - name: Upload ABI-specific APKs
+      - name: Upload universal APK
         uses: actions/upload-artifact@v7
         with:
-          name: mrnobody-ci-test-apks
-          path: app/build/app/outputs/flutter-apk/*-release.apk
+          name: mrnobody-ci-test-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk

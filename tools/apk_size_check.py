@@ -6,14 +6,14 @@ Usage:
 
 Exit code 0 if the APK is within budget, 1 otherwise.
 
-Each ABI-specific APK must be at most 45 MiB. The build-failing default matches
-that product limit; CI does not keep a looser second ceiling. See README.md and
-ROADMAP.md.
+The universal APK (all ABIs in one artifact) must be at most 80 MiB. The
+build-failing default matches that product limit; CI does not keep a looser
+second ceiling. See README.md and ROADMAP.md.
 """
 import os
 import sys
 
-DEFAULT_MAX_MB = 45.0
+DEFAULT_MAX_MB = 80.0
 
 
 def human(n: int) -> str:
