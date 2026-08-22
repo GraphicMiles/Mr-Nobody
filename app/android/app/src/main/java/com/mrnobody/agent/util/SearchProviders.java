@@ -132,7 +132,7 @@ public final class SearchProviders {
     }
 
     /** Map the stored search-engine URL prefix onto a provider id. */
-    static String idFor(String engineUrl) {
+    public static String idFor(String engineUrl) {
         if (engineUrl == null) return "ddg";
         String u = engineUrl.toLowerCase(Locale.ROOT);
         if (u.contains("bing.")) return "bing";
