@@ -512,6 +512,7 @@ class ComingSoonRow extends StatelessWidget {
     this.icon,
   });
 
+
   @override
   Widget build(BuildContext context) {
     return Padding(
