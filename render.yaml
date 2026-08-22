@@ -1,12 +1,10 @@
-# Render Blueprint — deploy with `render deploy` or by importing this
-# blueprint in the Render dashboard. See server/README.md for the full
-# walkthrough, including how to cut a release.
+# Render Blueprint — import from the Render dashboard (New → Blueprint)
+# or deploy with the Render CLI. Service details: server/README.md
 services:
   - type: web
     name: mrnobody-updates
     runtime: python
-    pythonVersion: "3.12"
     plan: free
-    buildCommand: ""
+    buildCommand: "true" # no dependencies: nothing to build
     startCommand: python3 server/app.py
     healthCheckPath: /health
