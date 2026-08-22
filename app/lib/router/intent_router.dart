@@ -125,7 +125,7 @@ class IntentRouter {
     final q = Uri.encodeComponent(query);
     if (e.contains('{q}')) return e.replaceFirst('{q}', q);
     if (e.endsWith('=')) return '$e$q';
-    if (e.endsWith('?')) return '$eq=$q';
+    if (e.endsWith('?')) return '${e}q=$q';
     return '${e.contains('?') ? '$e&q=' : '$e?q='}$q';
   }
 
