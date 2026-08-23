@@ -54,6 +54,18 @@ public class BlocklistTest {
     }
 
     @Test
+    public void pathRuleConsidersEveryAncestorDomain() {
+        // A host can be a subdomain of several registered rule hosts. Every
+        // ancestor's path prefixes must be consulted — the old matcher broke
+        // after the first ancestor and could miss a deeper rule.
+        addAd("||b.example.com/x^");
+        addAd("||example.com/y^");
+        assertTrue(list.ads.matchesPath("a.b.example.com", "/y/z"));
+        assertTrue(list.ads.matchesPath("a.b.example.com", "/x/z"));
+        assertFalse(list.ads.matchesPath("a.b.example.com", "/other"));
+    }
+
+    @Test
     public void wildcardRuleMatches() {
         addAd("*adserver*/banner*");
         assertTrue(list.ads.matchesWildcard("cdn.adserver.com/banner/hero.jpg"));

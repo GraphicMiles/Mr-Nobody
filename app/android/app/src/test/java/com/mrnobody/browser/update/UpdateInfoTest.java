@@ -104,6 +104,15 @@ public class UpdateInfoTest {
     }
 
     @Test
+    public void oversizedVersionComponentsAreRejectedNotCrashed() {
+        // A component too large for int must not throw NumberFormatException out
+        // of isNewer; it is rejected as a version and never reported as newer.
+        assertFalse(UpdateInfo.isVersion("99999999999.0.0"));
+        assertFalse(UpdateInfo.isNewer("99999999999.0.0", "1.0.0"));
+        assertFalse(UpdateInfo.isNewer("1.0.0", "99999999999.0.0"));
+    }
+
+    @Test
     public void requiredFlagDefaultsToFalse() {
         UpdateInfo info = UpdateInfo.parse(
                 payload("1.1.0", "https://cdn.example.com/a.apk")

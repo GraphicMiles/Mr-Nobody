@@ -47,16 +47,23 @@ public final class Blocklist {
         }
 
         boolean matchesPath(String host, String path) {
-            List<String> prefixes = pathRules.get(host);
-            if (prefixes == null) {
-                // also check the registered subdomain rules under an exact-host key
-                for (Map.Entry<String, List<String>> e : pathRules.entrySet()) {
-                    if (host.equals(e.getKey()) || host.endsWith("." + e.getKey())) {
-                        prefixes = e.getValue();
-                        break;
-                    }
+            if (host == null) return false;
+            // Exact host first — the common case, and O(1).
+            if (hasPrefix(pathRules.get(host), path)) return true;
+            // Then every registered ancestor domain: sub.example.com must match
+            // a rule keyed on example.com. The previous loop broke after the
+            // first ancestor, so a second registered ancestor was never checked.
+            for (Map.Entry<String, List<String>> e : pathRules.entrySet()) {
+                String rule = e.getKey();
+                if (!host.equals(rule) && host.endsWith("." + rule)
+                        && hasPrefix(e.getValue(), path)) {
+                    return true;
                 }
             }
+            return false;
+        }
+
+        private static boolean hasPrefix(List<String> prefixes, String path) {
             if (prefixes == null) return false;
             for (String prefix : prefixes) {
                 if (path.startsWith(prefix)) return true;

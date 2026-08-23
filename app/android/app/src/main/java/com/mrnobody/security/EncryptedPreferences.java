@@ -43,20 +43,42 @@ public final class EncryptedPreferences {
         // One-time migration from the former plaintext preference.
         if (!SecretCipher.isEncrypted(raw)) {
             if (putString(key, raw)) return raw;
-            prefs.edit().remove(key).commit();
-            ErrorLog.record("secret migration failed for " + safeName(key));
-            return fallback;
+            // Migration could not encrypt right now (Keystore not ready, lock
+            // state, etc.). Return the existing plaintext so the app keeps
+            // working and the next successful read retries the migration — a
+            // transient failure must never destroy the value.
+            ErrorLog.record("secret migration deferred for " + safeName(key));
+            return raw;
         }
 
+        SecretKey secretKey;
         try {
-            SecretKey secretKey = key(false);
-            if (secretKey == null) throw new IllegalStateException("Keystore key missing");
+            secretKey = key(false);
+        } catch (Exception e) {
+            // The Keystore could not be loaded at all right now. That is a
+            // transient condition, so the ciphertext is left in place — a load
+            // failure must never silently erase a valid credential.
+            ErrorLog.record("keystore temporarily unavailable for "
+                    + safeName(key) + "; secret left in place");
+            return fallback;
+        }
+        if (secretKey == null) {
+            // The Keystore key is absent at the moment. That can be a transient
+            // load failure rather than a corrupt secret, so the ciphertext is
+            // left in place — a momentarily missing key must not silently erase
+            // a valid credential. A later read retries once the key is back.
+            ErrorLog.record("keystore key unavailable for "
+                    + safeName(key) + "; secret left in place");
+            return fallback;
+        }
+        try {
             return SecretCipher.decrypt(secretKey, scope(key), raw);
         } catch (Exception e) {
-            // A corrupt or invalidated credential is unusable. Remove the
-            // ciphertext so it cannot repeatedly fail or look configured.
+            // A concrete decrypt failure (malformed envelope, AEAD tag
+            // mismatch) is permanent: the bytes will never decode, so remove
+            // them so they cannot fail on every read or look configured.
             prefs.edit().remove(key).commit();
-            ErrorLog.record("stored secret unavailable for " + safeName(key));
+            ErrorLog.record("stored secret unusable for " + safeName(key));
             return fallback;
         }
     }
@@ -77,7 +99,10 @@ public final class EncryptedPreferences {
     }
 
     public synchronized boolean contains(String key) {
-        return !getString(key, "").isEmpty();
+        // Presence only. A read here must never decrypt — and therefore never
+        // hit the decrypt-failure path that removes a corrupt/transient value.
+        String raw = prefs.getString(key, null);
+        return raw != null && !raw.isEmpty();
     }
 
     private SecretKey key(boolean create) throws Exception {

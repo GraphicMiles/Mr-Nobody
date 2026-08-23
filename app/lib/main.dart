@@ -221,9 +221,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     switch (path) {
       case 'open':
         final url = q['url'] ?? '';
-        if (url.isNotEmpty) {
+        if (url.isEmpty) break;
+        // Only web URLs are handed to the browser. A custom-scheme intent is
+        // controlled by another app or page and may name file:, intent:,
+        // content:, etc.; those are never passed verbatim to the WebView.
+        final lower = url.toLowerCase();
+        if (lower.startsWith('https://') || lower.startsWith('http://')) {
           _openBrowser(
               IntentRouter.toUrl(url, searchEngine: AppState.instance.searchEngine));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Mr Nobody only opens http and https links.')),
+          );
         }
         break;
       case 'search':
