@@ -73,8 +73,11 @@ class TutorialVariantsTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion: reduce",js)
         self.assertIn("height:100dvh",css)
         self.assertNotIn('class="controls"',html)
-        for removed in ('class="appbar"','HOME MOTION LAB','id="sequenceName"','TAP TO SWITCH'):
+        for removed in ('class="appbar"','HOME MOTION LAB','id="sequenceName"','TAP TO SWITCH','id="sequenceCount"','id="microProgress"','class="sequence-bar"'):
             self.assertNotIn(removed,html)
+        for live_home_element in ('Ask Mr Nobody or enter URL…','Active tasks','Shortcuts','Downloads','Settings'):
+            self.assertIn(live_home_element,html)
+        self.assertIn('.motion-hero{position:relative;width:100%;height:266px;border:0;border-radius:0;background:transparent',css)
         self.assertNotIn("setProperty('--accent'",js)
         self.assertNotIn('var palettes=',js)
 
