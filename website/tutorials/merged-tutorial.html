@@ -216,6 +216,8 @@
   body{gap:0;padding:0;overflow:hidden;min-height:100dvh}
   #stageWrap{position:relative}
   .phone{border-radius:0;border:0;box-shadow:none}
+  /* The real app navigation appears only after onboarding, on the Home page. */
+  .phone>.nav{display:none!important}
   .tour-back{position:absolute;top:8px;left:18px;z-index:10;font:500 12px 'Matter',sans-serif;color:var(--muted);background:none;border:0;cursor:pointer;padding:12px 6px}
   .tour-back:disabled{opacity:0;pointer-events:none}
   .slide{visibility:hidden}.slide.active{visibility:visible}

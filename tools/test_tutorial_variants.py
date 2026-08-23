@@ -97,6 +97,8 @@ class TutorialVariantsTest(unittest.TestCase):
             self.assertIn(topic,html)
         for retired_control in ('id="prev"','id="play"','id="reset"','preview controls'):
             self.assertNotIn(retired_control,html)
+        self.assertIn('.phone>.nav{display:none!important}',html)
+        self.assertIn("home-motion-lab.html?from=tutorial",js)
         self.assertIn('merged-tutorial.html',(DIR/"index.html").read_text(encoding="utf-8"))
         self.assertIn('tutorials/merged-tutorial.html',(ROOT/"website"/"welcome_preview.html").read_text(encoding="utf-8"))
 
