@@ -64,29 +64,46 @@ so a cold start is not a failure case.
 
 ## Cutting a release
 
-1. Bump the version in `app/pubspec.yaml` and build the signed release APK
-   (`.github/workflows/release-apk.yml` shows the signing setup).
-2. Publish the metadata:
-   ```bash
-   python3 tools/publish_update.py \
-       --version 1.1.0 \
-       --notes "What changed in this release." \
-       --apk path/to/app-release.apk \
-       --url https://<where-you-host-the-apk>/mr-nobody-1.1.0.apk
-   ```
-   The script validates the version, computes the APK's `sha256`, and
-   rewrites `website/update.json`. `--required` marks the release required
-   (the app nudges persistently but never blocks — see the brief).
-   Until real signing metadata is settled, `signature` stays a
-   placeholder; fill it with the apksigner cert digest:
-   ```bash
-   apksigner verify --print-certs app-release.apk
-   # → "Signer #1 certificate SHA-256 digest: <hex>"
-   ```
-3. Host the APK wherever distribution is decided (see the README's
-   "Update distribution" note) and make sure `downloadUrl` points there.
-4. Commit `website/update.json` and push. Both the landing page and every
-   app that opens next will pick the release up on their next check.
+One command publishes the APK to GitHub Releases and rewrites the metadata
+and every site download link so the two can never drift:
+
+```bash
+# 1. bump the version in app/pubspec.yaml, then build the signed APK
+#    (signing env vars required — see .github/workflows/release-apk.yml):
+cd app && flutter build apk --release
+
+# 2. publish (run from the repo root):
+python3 tools/publish_update.py \
+    --version 1.1.0 \
+    --notes "What changed in this release." \
+    --apk app/build/app/outputs/flutter-apk/app-release.apk
+```
+
+That single command:
+
+  - creates the GitHub Release `v1.1.0` and uploads the APK (via `gh`),
+  - derives the canonical `downloadUrl` itself,
+  - fills `sha256` and the signing-cert digest (via `apksigner`),
+  - rewrites `website/update.json` **and** the download button in every
+    site page (`index.html`, `desktop.html`, `mobile.html`).
+
+The repo is detected from `git remote` — override with `--repo owner/name`.
+`--dry-run` previews without changing anything. `--required` marks the
+release required (the app nudges persistently but never blocks). Use
+`--no-latest` to avoid marking it the "latest" release, and `--notes-file
+NOTES.md` for long notes.
+
+Then commit and push:
+
+```bash
+git add website/
+git commit -m "release v1.1.0"
+git push
+```
+
+`--apk` triggers the GitHub Releases flow; no `--url` is needed. Pass
+`--url <https>` instead of `--apk` for a metadata-only publish when the
+APK is already hosted somewhere else.
 
 ## What deliberately is not here
 
