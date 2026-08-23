@@ -59,4 +59,19 @@ class TutorialVariantsTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion:reduce",css)
         self.assertNotIn(".controls",css)
 
+    def test_home_motion_lab_runs_all_ten_sequences_safely(self):
+        html=(DIR/"home-motion-lab.html").read_text(encoding="utf-8")
+        js=(DIR/"home-motion-lab.js").read_text(encoding="utf-8")
+        css=(DIR/"home-motion-lab.css").read_text(encoding="utf-8")
+        parser=Parser(); parser.feed(html)
+        self.assertEqual(len(parser.ids),len(set(parser.ids)))
+        self.assertIn('home-motion-lab.html',(DIR/"index.html").read_text(encoding="utf-8"))
+        match=re.search(r"var sequences=\[([^]]+)\]",js)
+        self.assertIsNotNone(match)
+        self.assertEqual(len(re.findall(r"'[^']+'",match.group(1))),10)
+        self.assertIn("visibilitychange",js)
+        self.assertIn("prefers-reduced-motion: reduce",js)
+        self.assertIn("height:100dvh",css)
+        self.assertNotIn('class="controls"',html)
+
 if __name__ == "__main__": unittest.main()
