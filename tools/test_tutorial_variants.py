@@ -84,17 +84,19 @@ class TutorialVariantsTest(unittest.TestCase):
         self.assertNotIn("setProperty('--accent'",js)
         self.assertNotIn('var palettes=',js)
 
-    def test_merged_tutorial_has_six_pages_and_five_second_interval(self):
+    def test_merged_tutorial_uses_reference_seven_page_shell(self):
         html=(DIR/"merged-tutorial.html").read_text(encoding="utf-8")
-        js=(DIR/"merged-tutorial.js").read_text(encoding="utf-8")
+        js=(DIR/"reference-tutorial.js").read_text(encoding="utf-8")
         parser=Parser(); parser.feed(html)
-        self.assertEqual(parser.slides,6)
+        self.assertEqual(parser.slides,7)
         self.assertEqual(len(parser.ids),len(set(parser.ids)))
-        self.assertIn('var PAGE_MS=5000;',js)
-        for control in ('id="back"','id="next"','id="skip"'):
+        self.assertIn('var TOTAL=7,PAGE_MS=5000;',js)
+        for control in ('id="tourBack"','id="skip"','id="go"'):
             self.assertIn(control,html)
-        for topic in ('Browser · 02','Task agent · 03','Private browsing · 04','Downloads · 05','Open source · 06'):
+        for topic in ('Browsing','Agent','Privacy','Downloads','Open source','Start browsing'):
             self.assertIn(topic,html)
+        for retired_control in ('id="prev"','id="play"','id="reset"','preview controls'):
+            self.assertNotIn(retired_control,html)
         self.assertIn('merged-tutorial.html',(DIR/"index.html").read_text(encoding="utf-8"))
         self.assertIn('tutorials/merged-tutorial.html',(ROOT/"website"/"welcome_preview.html").read_text(encoding="utf-8"))
 

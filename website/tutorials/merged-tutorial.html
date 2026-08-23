@@ -1,15 +1,334 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#000000"><title>Welcome to Mr Nobody</title><link rel="stylesheet" href="merged-tutorial.css"></head>
-<body><main class="tutorial" id="tutorial">
-  <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><b>4G</b><span class="battery"></span></span></div>
-  <header class="topbar"><span class="brand"><svg class="mini-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 30 24 15c2 5 6 6 8-3 2 9 6 8 8 3l6 15Z" fill="currentColor"/><rect x="14" y="30" width="36" height="4" rx="2" fill="currentColor"/><circle cx="24" cy="42" r="7" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="40" cy="42" r="7" fill="none" stroke="currentColor" stroke-width="3"/></svg>Mr Nobody</span><button type="button" class="skip" id="skip">Skip tutorial</button></header>
-  <div class="slides">
-    <section class="slide active" data-page="welcome" aria-hidden="false"><div class="copy"><span class="eyebrow">Welcome · 01</span><h1>The web can work <span>for you.</span></h1><p class="lede">Browse privately, ask an agent, manage downloads and inspect every line of the open-source app.</p></div><div class="visual"><div class="welcome-stage" id="welcomeStage"><div class="kinetic-word" id="kineticWord">BE NOBODY</div><div class="floor-shadow" id="floorShadow"></div><div class="hero-mark" id="welcomeMark"><svg viewBox="0 0 64 64"><path d="M18 30 24 15c2 5 6 6 8-3 2 9 6 8 8 3l6 15Z" fill="currentColor"/><rect x="14" y="30" width="36" height="4" rx="2" fill="currentColor"/><circle cx="24" cy="42" r="7" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="40" cy="42" r="7" fill="none" stroke="currentColor" stroke-width="3"/><path d="M31 42h2" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></div></div></div></section>
-    <section class="slide" data-page="browser" aria-hidden="true"><div class="copy"><span class="eyebrow">Browser · 02</span><h1>Search, open and organise <span>the real web.</span></h1><p class="lede">Use your chosen search engine, keep tabs ready and open any URL from one private address bar.</p></div><div class="visual"><div class="magnet-layer" id="magnetLayer"></div><div class="ui-card browser-window"><div class="address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span><b>Search</b> <span id="browserType"></span><i class="caret"></i></span></div><div class="tab-strip"><span class="tab on">Results</span><span class="tab">Research notes</span><span class="tab">GitHub</span></div><div class="search-results"><article class="result"><small>mrnobody.app</small><h3>A private browser with an agent inside</h3><p>Search, read, compare and download through one calm interface.</p></article><article class="result"><small>docs.mrnobody.app</small><h3>Tabs stay ready until you close them</h3><p>Switch quickly without losing the page you were using.</p></article><article class="result"><small>github.com/GraphicMiles</small><h3>Inspect the source code</h3><p>Mr Nobody is open source under the MIT License.</p></article></div></div></div></section>
-    <section class="slide" data-page="agent" aria-hidden="true"><div class="copy"><span class="eyebrow">Task agent · 03</span><h1>Ask once. Get an answer <span>with sources.</span></h1><p class="lede">The agent searches a bounded set of pages, reads what matters and shows where every useful claim came from.</p></div><div class="visual"><canvas class="constellation" id="sourceCanvas"></canvas><div class="agent-shell"><div class="prompt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg><span id="agentType"></span><i class="caret"></i></div><div class="ui-card agent-card"><div class="agent-step" id="agentStep1"><span class="step-state">1</span>Searching useful results</div><div class="agent-step" id="agentStep2"><span class="step-state">2</span>Reading three pages</div><div class="answer" id="agentAnswer">Top pick: <b>RedmiBook 14 — ₦498,000</b><br>16 GB RAM, 512 GB SSD and available from three stores.<div class="sources"><div class="eyebrow">Sources</div><div class="source"><b>retailers.com</b> Current price and stock</div><div class="source"><b>techng.com</b> August laptop comparison</div></div></div></div></div></div></section>
-    <section class="slide" data-page="privacy" aria-hidden="true"><div class="copy"><span class="eyebrow">Private browsing · 04</span><h1>Choose how visible <span>you want to be.</span></h1><p class="lede">Normal blocks ads and trackers. Private clears local tab data. Nobody uses your configured privacy route and fails closed.</p></div><div class="visual"><div class="portal-layer" id="portalLayer"></div><div class="privacy-shell"><article class="mode"><span class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></span><span><b>Normal</b><p>Ads and trackers blocked</p></span><span class="tag">DEFAULT</span></article><article class="mode"><span class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10.6 10.6a2.5 2.5 0 003.4 3.4M6 8c-2 1.3-3 2.7-3 4 0 3.5 4 7 9 9"/></svg></span><span><b>Private</b><p>Clears local data with the tab</p></span><span class="tag">TAB</span></article><article class="mode selected"><span class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="m9 12 2 2 4-5"/></svg></span><span><b>Nobody</b><p>Uses your configured privacy route</p></span><span class="tag">TOR</span></article><div class="route"><span>YOU</span><i></i><span>TOR</span><i></i><span>WEB</span></div></div></div></section>
-    <section class="slide" data-page="downloads" aria-hidden="true"><div class="copy"><span class="eyebrow">Downloads · 05</span><h1>Downloads you can <span>pause and trust.</span></h1><p class="lede">Save to your chosen folder, pause and resume safely, and verify progress without handing files to another app.</p></div><div class="visual"><div class="pendulum-layer" id="pendulumLayer"></div><div class="download-shell"><div class="ui-card download-card"><div class="download-row"><div class="fileline"><span class="file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></svg></span><span class="filename">quarterly-report.pdf</span><span class="filesize">4.2 MB</span></div><div class="download-bar"><i id="downloadProgress" style="--download:18%"></i></div><div class="download-meta"><span id="downloadState">Downloading</span><span id="downloadPercent">18%</span></div></div><div class="download-row"><div class="fileline"><span class="file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></svg></span><span class="filename">research-data.csv</span><span class="filesize">860 KB</span></div><div class="download-bar"><i style="--download:100%"></i></div><div class="download-meta"><span>Complete</span><span>100%</span></div></div></div><div class="verified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg><span>Saved to your selected Downloads folder. Resume data verified.</span></div></div></div></section>
-    <section class="slide" data-page="opensource" aria-hidden="true"><div class="copy"><span class="eyebrow">Open source · 06</span><h1>Inspect it. Improve it. <span>Make it yours.</span></h1><p class="lede">Read the code, report a bug or contribute a fix. Mr Nobody is built in public under the MIT License.</p></div><div class="visual"><div class="liquid-blob" id="liquidBlob"></div><div class="oss-shell"><div class="ui-card repo-card"><div class="repo-head"><span class="repo-icon">⌘</span><span><span class="repo-name">GraphicMiles / Mr-Nobody</span><span class="repo-meta">PUBLIC · MIT LICENSE · FLUTTER + JAVA</span></span></div><div class="code"><div class="minus">- tracking enabled by default</div><div class="plus">+ history disabled by default</div><div class="plus">+ consequential actions require approval</div></div><div class="contribute"><span>View source ↗</span><span>Report an issue ↗</span><span>Read the roadmap</span><span>Open a pull request</span></div><div class="license">OPEN SOURCE · PRIVACY CLAIMS MUST MATCH EFFECTIVE BEHAVIOUR</div></div></div></div></section>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Welcome to Mr Nobody — seven-page tutorial</title>
+<style>
+  @font-face{font-family:'Matter';font-weight:400;src:url('../fonts/matter-400.ttf') format('truetype');font-display:swap}
+  @font-face{font-family:'Matter';font-weight:600;src:url('../fonts/matter-600.ttf') format('truetype');font-display:swap}
+  @font-face{font-family:'Matter';font-weight:700;src:url('../fonts/matter-700.ttf') format('truetype');font-display:swap}
+  @font-face{font-family:'JBMono';font-weight:600;src:url('../fonts/JetBrainsMono-600.ttf') format('truetype');font-display:swap}
+
+  :root{
+    --bg:#090909; --card:#101010; --card2:#151312;
+    --line:#282525; --line2:#332e2c;
+    --white:#f7f5f1; --dim:#b9b4ae; --muted:#77747b; --faint:#5a5655;
+    --cream:#f7f6e9; --link:#9db8e8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:#050505;color:var(--white);
+       font-family:'Matter',-apple-system,'Segoe UI',Arial,sans-serif;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;
+       gap:14px;padding:16px 12px;overflow:hidden}
+
+  #stageWrap{position:relative}
+  #stage{width:390px;height:844px;transform-origin:top left;position:relative}
+  .phone{position:absolute;inset:0;background:var(--bg);border-radius:44px;overflow:hidden;
+         border:1px solid #1d1a19;box-shadow:0 30px 80px #000c, 0 0 0 8px #0d0c0b;
+         display:flex;flex-direction:column;will-change:transform}
+
+  .statusbar{height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:space-between;
+             padding:0 26px;font:600 13px 'Matter',sans-serif;z-index:20;position:relative}
+  .statusbar .right{display:flex;align-items:center;gap:6px}
+  .sig{display:flex;align-items:flex-end;gap:1.5px}
+  .sig i{width:3px;background:var(--white);border-radius:1px;display:block}
+  .sig i:nth-child(1){height:5px}.sig i:nth-child(2){height:7px}
+  .sig i:nth-child(3){height:9px}.sig i:nth-child(4){height:11px}
+  .batt{width:22px;height:11px;border:1px solid #5a5654;border-radius:3px;position:relative;padding:1.5px}
+  .batt::after{content:'';position:absolute;right:-4px;top:3px;width:2px;height:5px;background:#5a5654;border-radius:1px}
+  .batt i{display:block;height:100%;width:70%;background:var(--white);border-radius:1px}
+
+  .screen{position:relative;flex:1;overflow:hidden}
+
+  /* ============ the real Mr Nobody mark (hat + brim + glasses), 64 grid ============ */
+  .mark{display:block}
+  .mark .lens{transform-box:fill-box;transform-origin:center}
+  .mark .lensL{animation:blinkL 4.2s 1.2s infinite}
+  .mark .lensR{animation:blinkR 4.2s 3.3s infinite}
+  @keyframes blinkL{0%,82%,90%,100%{transform:scaleY(1)}85%{transform:scaleY(.08)}88%{transform:scaleY(1)}}
+  @keyframes blinkR{0%,82%,90%,100%{transform:scaleY(1)}85%{transform:scaleY(.08)}88%{transform:scaleY(1)}}
+
+  /* home (after skip) */
+  .home{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;transition:opacity .5s;z-index:1}
+  .home.show{opacity:1}
+  .home .hero{flex:0 0 190px;display:flex;align-items:center;justify-content:center}
+  .home .hero svg{width:112px;height:112px;animation:idlefloat 3.2s ease-in-out infinite}
+  @keyframes idlefloat{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+  .home .pill{width:82%;height:52px;border:1px solid var(--line2);border-radius:14px;background:var(--card);
+              display:flex;align-items:center;padding:0 16px;gap:10px;color:var(--muted);font-size:14px;margin:0 auto}
+  .home .pill svg{opacity:.7}
+  .home .space{flex:1}
+  .nav{flex:0 0 64px;display:flex;align-items:center;justify-content:space-around;padding:0 18px 6px;background:var(--bg);position:relative;z-index:2}
+  .nav a{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);font:500 9.5px 'Matter',sans-serif}
+  .nav a.on{color:var(--cream)}
+  .nav .pluswrap{display:flex;align-items:center;justify-content:center}
+  .nav .plus{width:44px;height:44px;border-radius:50%;background:var(--cream);color:#171311;display:grid;place-items:center;
+             font-size:20px;font-weight:400;transform:translateY(-12px)}
+
+  /* ============ welcome ============ */
+  #welcome{position:absolute;inset:0;background:var(--bg);z-index:5;transition:opacity .55s,visibility .55s;cursor:pointer}
+  #welcome.done{opacity:0;visibility:hidden}
+  .skip{position:absolute;top:8px;right:18px;z-index:9;font:500 12px 'Matter',sans-serif;
+        color:var(--muted);background:none;border:0;cursor:pointer;padding:12px 6px}
+  .skip:active{color:var(--white)}
+
+  .slides{position:absolute;inset:0}
+  .slide{position:absolute;inset:0;opacity:0;visibility:hidden;pointer-events:none;display:flex;flex-direction:column;
+         align-items:center;padding:56px 32px 84px;overflow:hidden}
+  .slide.active{opacity:1;visibility:visible;pointer-events:auto}
+
+  .anim{opacity:0;transform:translateY(14px)}
+  .slide.active .anim{animation:rise .55s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:var(--d,0s)}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  .slabel{font:600 10.5px 'JBMono',monospace;letter-spacing:1.26px;color:var(--muted);text-transform:uppercase}
+  h2{font-size:25px;line-height:1.1;letter-spacing:-.035em;font-weight:700;margin-top:12px}
+  h2 em{font-style:normal;color:var(--muted)}
+  .sub{margin-top:9px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:300px;text-align:center}
+  .visual{margin-top:20px;width:100%;flex:1;display:flex;flex-direction:column;justify-content:flex-start}
+
+  /* hero stage : all logo motion lives inside this box and can never touch the text */
+  .hero{position:relative;width:220px;height:220px;flex:0 0 220px;margin:0 auto}
+  .phys{position:absolute;left:50%;top:50%;width:110px;height:110px;margin:-55px 0 0 -55px;will-change:transform,filter}
+  .ghost{position:absolute;left:50%;top:50%;width:110px;height:110px;margin:-55px 0 0 -55px;opacity:0;will-change:transform,opacity;pointer-events:none}
+  .floor{position:absolute;left:50%;bottom:34px;width:110px;height:20px;transform:translateX(-50%);
+         background:radial-gradient(ellipse at center, #000 0%, #000 40%, transparent 74%);border-radius:50%;opacity:.3}
+  .dust{position:absolute;left:50%;bottom:30px;width:64px;height:16px;transform:translateX(-50%);
+        border:1.5px solid var(--cream);border-radius:50%;opacity:0;will-change:transform,opacity}
+
+  /* dots + toast */
+  .dots{position:absolute;bottom:56px;left:0;right:0;display:flex;justify-content:center;gap:7px;z-index:8}
+  .dot{width:6px;height:6px;border-radius:99px;background:#3a3533;transition:all .35s}
+  .dot.on{width:20px;background:var(--cream)}
+  .toast{position:absolute;bottom:88px;left:50%;transform:translate(-50%,10px);background:var(--card2);
+         border:1px solid var(--line2);border-radius:99px;padding:10px 16px;font-size:11.5px;color:var(--dim);
+         opacity:0;transition:all .4s;z-index:7;white-space:nowrap}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- slide 1 : launch composition ---------- */
+  .wordmark{font-size:26px;font-weight:800;letter-spacing:-.045em;line-height:1.1;margin-top:20px;text-align:center}
+  .tagline{margin-top:10px;font-size:12.5px;line-height:1.55;color:var(--faint);text-align:center}
+  .checks{margin-top:24px;display:flex;flex-direction:column;gap:10px;align-items:center}
+  .check{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--dim)}
+  .check .c{width:17px;height:17px;border-radius:50%;background:var(--card2);border:1px solid var(--line2);
+            display:grid;place-items:center;flex:0 0 17px}
+  .check .c svg{stroke:var(--cream)}
+
+  /* ---------- app-card (Settings AppCard replica) ---------- */
+  .acard{border:1px solid var(--line);background:var(--card);border-radius:14px;overflow:hidden}
+  .arow{display:flex;align-items:center;gap:11px;padding:13px 15px}
+  .arow + .arow{border-top:1px solid var(--line)}
+  .arow .al{font-size:13px;font-weight:600}
+  .arow .ad{font-size:10.5px;color:var(--muted);margin-top:1px;line-height:1.35}
+  .arow .atag{margin-left:auto;font-size:10px;color:var(--muted);border:1px solid var(--line2);border-radius:99px;
+              padding:4px 9px;flex:0 0 auto}
+  .arow.hot{background:#141210}
+  .arow.hot .atag{color:var(--cream);border-color:#4a4442}
+  .slide.active .arow.hot{animation:rise .55s .7s cubic-bezier(.2,.7,.2,1) forwards, hotpulse 2.6s 1.8s ease-in-out infinite}
+  @keyframes hotpulse{0%,100%{box-shadow:inset 0 0 0 0 #f7f6e900}50%{box-shadow:inset 0 0 0 2px #f7f6e926}}
+
+  .micon{width:34px;height:34px;border-radius:10px;background:#1a1716;display:grid;place-items:center;flex:0 0 34px}
+
+  /* route strip (Nobody) */
+  .route{display:flex;align-items:center;gap:8px;padding:14px 15px 16px;border-top:1px solid var(--line)}
+  .route .node{font-size:10px;color:var(--muted);flex:0 0 auto}
+  .route .line{flex:1;height:2px;background:var(--line2);border-radius:2px;position:relative;overflow:hidden}
+  .route .line i{position:absolute;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--cream);opacity:0}
+  .slide.active .route .line i{animation:travel 2.2s 1s linear infinite}
+  @keyframes travel{0%{left:0;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:calc(100% - 8px);opacity:0}}
+  .route .note{padding:0 15px 15px;font-size:11px;color:var(--muted);line-height:1.5}
+
+  /* browser mock (search slide) */
+  .bframe{border:1px solid var(--line);background:var(--card);border-radius:14px;overflow:hidden}
+  .ab{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .ab .q{font-size:13px;color:var(--white);font-weight:500;white-space:nowrap;overflow:hidden}
+  .caret{display:inline-block;width:2px;height:14px;background:var(--cream);vertical-align:-2px;margin-left:1px;
+         animation:blinkc 1s steps(1) infinite}
+  @keyframes blinkc{50%{opacity:0}}
+  .results{padding:13px 15px 15px}
+  .rtitle{font-size:14px;font-weight:700;letter-spacing:-.02em}
+  .res{margin-top:13px}
+  .res .rd{font-size:10px;color:var(--faint)}
+  .res .rt{font-size:12.5px;color:var(--link);margin-top:2px;font-weight:500}
+  .res .rs{height:5px;border-radius:2px;background:#1d1a18;margin-top:6px}
+  .res .rs.w60{width:60%}.res .rs.w80{width:80%}.res .rs.w45{width:45%}
+  .bbar{display:flex;align-items:center;justify-content:space-around;border-top:1px solid var(--line);padding:9px 0 11px;color:var(--muted)}
+  .bbar .bplus{width:30px;height:30px;border-radius:50%;background:var(--cream);color:#171311;display:grid;place-items:center;font-size:15px}
+  .eng{font-size:11.5px;font-weight:500;color:var(--dim);border:1px solid var(--line);border-radius:99px;
+       padding:8px 13px;display:flex;align-items:center;gap:7px}
+  .eng.sel{color:#171311;background:var(--cream);border-color:var(--cream);font-weight:600}
+  .eng svg{display:block}
+
+  /* agent card (task chat replica) */
+  .input{display:flex;align-items:center;gap:9px;border:1px solid var(--line2);border-radius:14px;background:var(--card);
+         height:48px;padding:0 14px;margin-bottom:12px}
+  .input .q{font-size:13px;color:var(--white);font-weight:500;white-space:nowrap;overflow:hidden}
+  .tcard{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:13px 15px;
+         opacity:0;transform:translateY(10px)}
+  .tcard.on{opacity:1;transform:none;transition:all .5s cubic-bezier(.2,.7,.2,1)}
+  .step{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:11.5px;color:var(--muted)}
+  .step .st{width:18px;height:18px;border-radius:50%;border:1px solid var(--line2);display:grid;place-items:center;flex:0 0 18px}
+  .step .spin{width:9px;height:9px;border:1.5px solid var(--muted);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .step.done{color:var(--dim)}
+  .step.done .st{background:var(--cream);border-color:var(--cream)}
+  .answer{margin-top:8px;border-top:1px solid var(--line);padding-top:11px;font-size:12px;line-height:1.55;color:var(--dim);
+          opacity:0;transform:translateY(6px)}
+  .answer.on{opacity:1;transform:none;transition:all .45s}
+  .answer b{color:var(--white);font-weight:700}
+  .srcs{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
+  .srcs .sl{font:600 9.5px 'JBMono',monospace;letter-spacing:1.2px;color:var(--faint)}
+  .src{display:flex;gap:8px;align-items:baseline;margin-top:6px;font-size:10.5px;color:var(--muted)}
+  .src b{color:var(--dim);font-weight:500;flex:0 0 auto}
+
+  /* commands rows */
+  .crow{display:flex;align-items:center;gap:12px;padding:12px 15px}
+  .crow + .crow{border-top:1px solid var(--line)}
+  .crow .cc{font:600 12px 'JBMono',monospace;color:var(--cream);flex:0 0 auto}
+  .crow .cd{font-size:11px;color:var(--muted);margin-left:auto;text-align:right}
+
+  /* downloads + tabs */
+  .dlrow{display:flex;align-items:center;gap:10px;padding:13px 15px;font-size:12px}
+  .dlrow .nm{color:var(--white);font-weight:600}
+  .dlrow .sz{margin-left:auto;font:500 10px 'JBMono',monospace;color:var(--faint)}
+  .bar{height:5px;border-radius:99px;background:#1e1a18;margin:0 15px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--cream);border-radius:99px}
+  .slide.active .bar i{animation:fill 3.4s 1s cubic-bezier(.3,.6,.3,1) forwards}
+  @keyframes fill{to{width:100%}}
+  .dlnote{padding:9px 15px 14px;font-size:10.5px;color:var(--faint)}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .tab{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:11px}
+  .tab .tt{font-size:11px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+           display:flex;align-items:center;gap:6px}
+  .tab .pv{height:52px;background:#161311;border-radius:8px;margin-top:9px;position:relative;overflow:hidden}
+  .tab .pv::before{content:'';position:absolute;left:9px;right:9px;top:10px;height:4px;border-radius:2px;background:#2b2624}
+  .tab .pv::after{content:'';position:absolute;left:9px;right:28px;top:21px;height:4px;border-radius:2px;background:#241f1d}
+
+  /* ready slide = the real home */
+  .go{width:100%;max-width:280px;height:50px;border-radius:14px;background:var(--cream);color:#171311;border:0;
+      font:600 14px 'Matter',sans-serif;letter-spacing:-.01em;cursor:pointer;margin:26px auto 0}
+  .go:active{transform:scale(.98)}
+  .fine{margin-top:16px;font-size:11px;color:var(--faint);line-height:1.7;text-align:center}
+
+  /* Full-screen production preview: the reference phone shell, without the old external controls. */
+  body{gap:0;padding:0;overflow:hidden;min-height:100dvh}
+  #stageWrap{position:relative}
+  .phone{border-radius:0;border:0;box-shadow:none}
+  .tour-back{position:absolute;top:8px;left:18px;z-index:10;font:500 12px 'Matter',sans-serif;color:var(--muted);background:none;border:0;cursor:pointer;padding:12px 6px}
+  .tour-back:disabled{opacity:0;pointer-events:none}
+  .slide{visibility:hidden}.slide.active{visibility:visible}
+  .merge-fx{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1}
+  .merge-front{position:relative;z-index:2}
+  .kinetic-letter{display:inline-block;will-change:transform,opacity}
+  #magnetFx,#pendulumFx{z-index:3}
+  #downloadBar{animation:none!important}
+  .motion-chip{position:absolute;left:0;top:0;padding:6px 9px;border:1px solid var(--line2);border-radius:99px;background:var(--card2);font:600 7px 'JBMono';color:var(--dim);white-space:nowrap;will-change:transform}
+  .magnet-dot{position:absolute;width:5px;height:5px;border-radius:50%;background:var(--cream);box-shadow:0 0 10px #f7f6e988;will-change:transform}
+  .source-canvas{position:absolute;inset:0;width:100%;height:100%;opacity:.38;z-index:1}
+  .portal-frame{position:absolute;left:50%;top:50%;width:var(--size);height:var(--size);margin:calc(var(--size)/-2);border:1px solid rgba(247,246,233,var(--alpha));border-radius:28%;transform-style:preserve-3d;will-change:transform}
+  .portal-space{perspective:800px}
+  .pendulum-line{position:absolute;left:50%;top:0;width:1px;height:100px;background:var(--line2);transform-origin:50% 0;will-change:transform}
+  .pendulum-bob{position:absolute;left:50%;bottom:-18px;width:36px;height:36px;margin-left:-18px;border-radius:50%;background:var(--cream);color:#171311;display:grid;place-items:center}
+  .pendulum-bob svg{width:15px}
+  .liquid-blob{position:absolute;left:50%;top:50%;width:190px;height:190px;margin:-95px;border-radius:42% 58% 63% 37%/44% 42% 58% 56%;background:radial-gradient(circle at 35% 30%,#f7f6e940,#f7f6e912 48%,transparent 75%);filter:blur(2px);will-change:transform,border-radius}
+  .repo-card{padding:14px 15px}.repo-head{display:flex;align-items:center;gap:10px}.repo-badge{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--cream);color:#171311;font-weight:700}.repo-name{font-size:12px;font-weight:700}.repo-meta{font:600 8px 'JBMono';color:var(--faint);margin-top:3px}.code-diff{margin-top:11px;border:1px solid var(--line);border-radius:11px;background:#090909;padding:10px;font:600 8px/1.6 'JBMono';color:var(--muted)}.code-diff .plus{color:#77d9a1}.code-diff .minus{color:#e8888d}.contribute-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}.contribute-grid span{padding:9px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:9px;color:var(--dim);text-align:center}.license-note{margin-top:9px;text-align:center;font:600 8px 'JBMono';color:var(--faint)}
+  .download-status{display:flex;justify-content:space-between;padding:9px 15px 13px;font:600 8.5px 'JBMono';color:var(--faint)}
+  .task-answer{margin-top:9px;border-top:1px solid var(--line);padding-top:11px;font-size:11px;line-height:1.5;color:var(--dim);opacity:0;transform:translateY(7px)}.task-answer.show{opacity:1;transform:none;transition:.42s}.task-answer b{color:var(--white)}
+  .tap-note{position:absolute;bottom:34px;left:0;right:0;text-align:center;font:600 8px 'JBMono';letter-spacing:.08em;color:var(--faint);z-index:8}
+  @media(prefers-reduced-motion:reduce){.merge-fx,.source-canvas{display:none!important}}
+</style>
+</head>
+<body>
+
+  <div id="stageWrap">
+    <div id="stage">
+      <div class="phone" id="phone">
+
+        <div class="statusbar">
+          <span>00:41</span>
+          <span class="right">
+            <span class="sig"><i></i><i></i><i></i><i></i></span>
+            <span style="font-size:10px;font-weight:700">4G</span>
+            <span class="batt"><i></i></span>
+          </span>
+        </div>
+
+        <div class="screen">
+
+          <!-- home : the real app shell, revealed after skip -->
+          <div class="home" id="home">
+            <div class="hero">
+              <svg class="mark" viewBox="0 0 64 64">
+                <path d="M18 30 L24 15 C26 20 30 21 32 12 C34 21 38 20 40 15 L46 30 Z" fill="#f7f6e9"/>
+                <rect x="14" y="30" width="36" height="4" rx="2" fill="#f7f6e9"/>
+                <g class="lens lensL"><circle cx="24" cy="42" r="7" fill="none" stroke="#f7f6e9" stroke-width="3"/></g>
+                <g class="lens lensR"><circle cx="40" cy="42" r="7" fill="none" stroke="#f7f6e9" stroke-width="3"/></g>
+                <line x1="31" y1="42" x2="33" y2="42" stroke="#f7f6e9" stroke-width="3" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="pill">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aaa5a6" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              Ask Mr Nobody anything…
+            </div>
+            <div class="space"></div>
+          </div>
+
+          <!-- ============ WELCOME ============ -->
+          <div id="welcome">
+            <button type="button" class="tour-back" id="tourBack" disabled>‹ Back</button>
+            <button type="button" class="skip" id="skip">Skip</button>
+
+            <div class="slides">
+              <section class="slide active" data-page="welcome">
+                <div class="hero" id="hero0"><div class="floor" id="sh0"></div><div class="dust" id="du0"></div><div class="merge-fx" id="welcomeFx"></div><div class="phys" id="ph0"><svg class="mark" viewBox="0 0 64 64"><path d="M18 30 L24 15 C26 20 30 21 32 12 C34 21 38 20 40 15 L46 30 Z" fill="#f7f6e9"/><rect x="14" y="30" width="36" height="4" rx="2" fill="#f7f6e9"/><g class="lens lensL"><circle cx="24" cy="42" r="7" fill="none" stroke="#f7f6e9" stroke-width="3"/></g><g class="lens lensR"><circle cx="40" cy="42" r="7" fill="none" stroke="#f7f6e9" stroke-width="3"/></g><line x1="31" y1="42" x2="33" y2="42" stroke="#f7f6e9" stroke-width="3" stroke-linecap="round"/></svg></div></div>
+                <div class="wordmark anim" id="kineticTitle" style="--d:.45s">Mr Nobody</div>
+                <div class="tagline anim" style="--d:.65s">Tell Mr Nobody what you want from the web.<br>No ads, no tracking, no history by default.</div>
+                <div class="checks anim" style="--d:.85s"><div class="check"><span class="c"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke-width="3.4"><path d="M20 6 9 17l-5-5"/></svg></span>Browse the real web</div><div class="check"><span class="c"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke-width="3.4"><path d="M20 6 9 17l-5-5"/></svg></span>Ask an agent with sources</div><div class="check"><span class="c"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke-width="3.4"><path d="M20 6 9 17l-5-5"/></svg></span>Inspect the open-source code</div></div>
+              </section>
+              <section class="slide" data-page="browser">
+                <div class="slabel anim">Browsing</div><h2 class="anim" style="--d:.08s">Search your way.</h2><p class="sub anim" style="--d:.16s">Open a URL, use your chosen search engine and keep every tab ready.</p>
+                <div class="visual"><div class="merge-fx" id="magnetFx"></div><div class="bframe anim merge-front" style="--d:.3s"><div class="ab"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aaa5a6" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="q">duckduckgo.com/?q=<span id="browserType"></span><span class="caret"></span></span></div><div class="results"><div class="rtitle">private browser</div><div class="res"><div class="rd">mrnobody.app</div><div class="rt">A private browser with an agent inside</div><div class="rs w80"></div></div><div class="res"><div class="rd">docs.mrnobody.app</div><div class="rt">Tabs, search engines and commands</div><div class="rs w60"></div></div><div class="res"><div class="rd">github.com/GraphicMiles</div><div class="rt">Inspect Mr Nobody's source code</div><div class="rs w45"></div></div></div><div class="bbar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg><span class="bplus">+</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M21 8v11a2 2 0 0 1-2 2H8"/></svg><span>•••</span></div></div></div>
+              </section>
+              <section class="slide" data-page="agent">
+                <div class="slabel anim">Agent</div><h2 class="anim" style="--d:.08s">Ask once. See the sources.</h2><p class="sub anim" style="--d:.16s">It searches a bounded set of pages, reads what matters and shows its work.</p>
+                <div class="visual"><canvas class="source-canvas" id="sourceCanvas"></canvas><div class="input anim merge-front" style="--d:.3s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa5a6" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg><span class="q"><span id="agentType"></span><span class="caret"></span></span></div><div class="tcard merge-front" id="agentCard"><div class="step" id="agentStep1"><span class="st"><span class="spin"></span></span> Searching the web…</div><div class="step" id="agentStep2"><span class="st"><span class="spin"></span></span> Reading 3 pages…</div><div class="task-answer" id="agentAnswer">Top pick: <b>RedmiBook 14 — ₦498,000</b><br>16 GB RAM, 512 GB SSD and available from three stores.<div class="srcs"><div class="sl">SOURCES</div><div class="src"><b>retailers.com</b> Current price and stock</div><div class="src"><b>techng.com</b> August laptop comparison</div></div></div></div></div>
+              </section>
+              <section class="slide" data-page="privacy">
+                <div class="slabel anim">Privacy</div><h2 class="anim" style="--d:.08s">Stay out of sight.</h2><p class="sub anim" style="--d:.16s">Normal, Private or Nobody. Protection is explicit and a promised route fails closed.</p>
+                <div class="visual portal-space"><div class="merge-fx" id="portalFx"></div><div class="acard anim merge-front" style="--d:.3s"><div class="arow"><span class="micon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f7f5f1" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></span><span><span class="al">Normal</span><div class="ad">Ads and trackers blocked</div></span><span class="atag">default</span></div><div class="arow"><span class="micon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f7f5f1" stroke-width="1.8"><path d="M3 3l18 18M6 8c-2 1.3-3 2.7-3 4 0 3.5 4 7 9 9"/></svg></span><span><span class="al">Private</span><div class="ad">Clears local data with the tab</div></span><span class="atag">per tab</span></div><div class="arow hot"><span class="micon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f7f6e9" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9.5 12.5 12 15l3.5-4.5"/></svg></span><span><span class="al">Nobody</span><div class="ad">Uses your configured privacy route</div></span><span class="atag">tor</span></div><div class="route"><span class="node">You</span><span class="line"><i></i></span><span class="node">Web</span></div><div class="note">Your ISP sees an encrypted tunnel, not where you go.</div></div></div>
+              </section>
+              <section class="slide" data-page="downloads">
+                <div class="slabel anim">Downloads</div><h2 class="anim" style="--d:.08s">Pause. Resume. Verify.</h2><p class="sub anim" style="--d:.16s">Save to your chosen folder and recover safely after the app restarts.</p>
+                <div class="visual"><div class="merge-fx" id="pendulumFx"></div><div class="acard anim merge-front" style="--d:.3s"><div class="dlrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa5a6" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></svg><span class="nm">quarterly-report.pdf</span><span class="sz">4.2 MB</span></div><div class="bar"><i id="downloadBar"></i></div><div class="download-status"><span id="downloadState">Downloading</span><span id="downloadPercent">18%</span></div><div class="dlrow" style="border-top:1px solid var(--line)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa5a6" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg><span class="nm">research-data.csv</span><span class="sz">complete</span></div><div class="dlnote">Saved to your selected Downloads folder · resume data verified</div></div></div>
+              </section>
+              <section class="slide" data-page="opensource">
+                <div class="slabel anim">Open source</div><h2 class="anim" style="--d:.08s">Inspect it. Improve it.</h2><p class="sub anim" style="--d:.16s">Read the code, report an issue or contribute a fix under the MIT License.</p>
+                <div class="visual"><div class="merge-fx"><i class="liquid-blob" id="liquidBlob"></i></div><div class="acard repo-card anim merge-front" style="--d:.3s"><div class="repo-head"><span class="repo-badge">⌘</span><span><div class="repo-name">GraphicMiles / Mr-Nobody</div><div class="repo-meta">PUBLIC · FLUTTER + JAVA</div></span></div><div class="code-diff"><div class="minus">- tracking enabled by default</div><div class="plus">+ history disabled by default</div><div class="plus">+ consequential actions require approval</div></div><div class="contribute-grid"><span>View source ↗</span><span>Report issue ↗</span><span>Read roadmap</span><span>Open pull request</span></div><div class="license-note">OPEN SOURCE · MIT LICENSE</div></div></div>
+              </section>
+              <section class="slide" data-page="ready">
+                <div class="hero" id="hero6" style="margin-top:14px"><div class="floor" id="sh6"></div><div class="phys" id="ph6"><svg class="mark" viewBox="0 0 64 64"><path d="M18 30 L24 15 C26 20 30 21 32 12 C34 21 38 20 40 15 L46 30 Z" fill="#f7f6e9"/><rect x="14" y="30" width="36" height="4" rx="2" fill="#f7f6e9"/><g class="lens lensL"><circle cx="24" cy="42" r="7" fill="none" stroke="#f7f6e9" stroke-width="3"/></g><g class="lens lensR"><circle cx="40" cy="42" r="7" fill="none" stroke="#f7f6e9" stroke-width="3"/></g><line x1="31" y1="42" x2="33" y2="42" stroke="#f7f6e9" stroke-width="3" stroke-linecap="round"/></svg></div></div><div style="width:82%;height:48px;border:1px solid var(--line2);border-radius:14px;background:var(--card);display:flex;align-items:center;padding:0 16px;gap:10px;color:var(--muted);font-size:13.5px;margin-top:18px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa5a6" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Ask Mr Nobody anything…</div><button type="button" class="go anim" style="--d:.3s" id="go">Start browsing</button><div class="fine anim" style="--d:.5s">You are ready.<br>Every feature stays one tap away in Settings.</div>
+              </section>
+            </div>
+            <div class="dots" id="dots"></div>
+            <div class="toast" id="toast">Welcome skipped — everything is one tap away in Settings</div>
+          </div>
+
+        </div>
+
+        <div class="nav">
+          <a class="on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5"/></svg>Home</a>
+          <a><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M21 8v11a2 2 0 0 1-2 2H8"/></svg>Tabs</a>
+          <span class="pluswrap"><span class="plus">+</span></span>
+          <a><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7"/><path d="m17 15 2 2 3-3.5"/></svg>Tasks</a>
+          <a><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z"/></svg>Settings</a>
+        </div>
+
+      </div>
+    </div>
   </div>
-  <footer class="footer"><button type="button" class="back" id="back" disabled>Back</button><span class="progress" id="progress" aria-label="Tutorial progress"><i class="active"></i><i></i><i></i><i></i><i></i><i></i></span><button type="button" class="next" id="next">Next <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button></footer>
-</main><script src="vendor/motion-13.1.1.js"></script><script src="vendor/matter-0.20.0.min.js"></script><script src="vendor/anime-4.5.0.min.js"></script><script src="merged-tutorial.js"></script></body></html>
+
+<script src="vendor/motion-13.1.1.js"></script><script src="vendor/matter-0.20.0.min.js"></script><script src="vendor/anime-4.5.0.min.js"></script><script src="reference-tutorial.js"></script>
+</body>
+</html>
