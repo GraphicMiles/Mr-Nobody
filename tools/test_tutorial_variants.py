@@ -59,7 +59,7 @@ class TutorialVariantsTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion:reduce",css)
         self.assertNotIn(".controls",css)
 
-    def test_home_motion_lab_runs_all_ten_sequences_safely(self):
+    def test_home_motion_lab_runs_selected_seven_sequences_safely(self):
         html=(DIR/"home-motion-lab.html").read_text(encoding="utf-8")
         js=(DIR/"home-motion-lab.js").read_text(encoding="utf-8")
         css=(DIR/"home-motion-lab.css").read_text(encoding="utf-8")
@@ -68,7 +68,10 @@ class TutorialVariantsTest(unittest.TestCase):
         self.assertIn('home-motion-lab.html',(DIR/"index.html").read_text(encoding="utf-8"))
         match=re.search(r"var sequences=\[([^]]+)\]",js)
         self.assertIsNotNone(match)
-        self.assertEqual(len(re.findall(r"'[^']+'",match.group(1))),10)
+        enabled=re.findall(r"'([^']+)'",match.group(1))
+        self.assertEqual(enabled,['gravity','magnet','liquid','pendulum','kinetic','portal','constellation'])
+        for removed in ('elastic','toss','domino'):
+            self.assertNotIn(f'run{removed.title()}',js)
         self.assertIn("visibilitychange",js)
         self.assertIn("prefers-reduced-motion: reduce",js)
         self.assertIn("height:100dvh",css)
