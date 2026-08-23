@@ -11,7 +11,6 @@ import 'package:mrnobody/screens/clear_data_screen.dart';
 import 'package:mrnobody/screens/downloads_screen.dart';
 import 'package:mrnobody/screens/dev_panel_screen.dart';
 import 'package:mrnobody/screens/home_screen.dart';
-import 'package:mrnobody/screens/launch_screen.dart';
 import 'package:mrnobody/screens/memory_screen.dart';
 import 'package:mrnobody/screens/privacy_screen.dart';
 import 'package:mrnobody/screens/restricted_tools_screen.dart';
@@ -88,11 +87,8 @@ void main() {
   }
 
   final cases = <_GoldenCase>[
-    _GoldenCase(
-      'S1 launch',
-      's1_launch',
-      () => LaunchScreen(onStart: () {}, onPrivacy: () {}),
-    ),
+    // The timer-driven seven-page onboarding flow is covered by
+    // onboarding_screen_test.dart instead of a single stale launch golden.
     _GoldenCase(
       'S2 agent home',
       's2_home',

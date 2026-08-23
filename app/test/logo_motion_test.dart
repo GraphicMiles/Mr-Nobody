@@ -7,7 +7,8 @@ import 'package:mrnobody/widgets/animated_brand_logo.dart';
 import 'package:mrnobody/widgets/brand_logo.dart';
 
 void main() {
-  test('all seventeen movement definitions return to the exact resting pose', () {
+  test('all seventeen movement definitions return to the exact resting pose',
+      () {
     expect(logoMotionDefinitions.length, 17);
     expect(logoMotionDefinitions.keys.toSet(), LogoMotionType.values.toSet());
 

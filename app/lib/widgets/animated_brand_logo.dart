@@ -730,8 +730,8 @@ const Map<LogoMotionType, LogoMotionDefinition> logoMotionDefinitions = {
     ],
   ),
   LogoMotionType.gravityDrop: LogoMotionDefinition(
-    initial: LogoPose(
-        y: -190, rotation: -.24, scaleX: .52, scaleY: .52, opacity: 0),
+    initial:
+        LogoPose(y: -190, rotation: -.24, scaleX: .52, scaleY: .52, opacity: 0),
     beats: [
       LogoMotionBeat(
           LogoPose(
@@ -747,10 +747,8 @@ const Map<LogoMotionType, LogoMotionDefinition> logoMotionDefinitions = {
           LogoPose(y: -28, rotation: -.045, scaleX: .94, scaleY: 1.07),
           Duration(milliseconds: 230),
           Curves.easeOutCubic),
-      LogoMotionBeat(
-          LogoPose(y: 7, rotation: .026, scaleX: 1.045, scaleY: .96),
-          Duration(milliseconds: 180),
-          Curves.easeInOut),
+      LogoMotionBeat(LogoPose(y: 7, rotation: .026, scaleX: 1.045, scaleY: .96),
+          Duration(milliseconds: 180), Curves.easeInOut),
       LogoMotionBeat(
           LogoPose(y: -3, rotation: -.012, scaleX: .99, scaleY: 1.01),
           Duration(milliseconds: 140),
@@ -762,30 +760,22 @@ const Map<LogoMotionType, LogoMotionDefinition> logoMotionDefinitions = {
   LogoMotionType.magneticOrbit: LogoMotionDefinition(
     initial: LogoPose.rest,
     beats: [
-      LogoMotionBeat(
-          LogoPose(x: 12, scaleX: .88, scaleY: .88, glow: .25),
-          Duration(milliseconds: 170),
-          Curves.easeIn),
-      LogoMotionBeat(
-          LogoPose(x: 68, y: -28, rotation: .31, glow: .52),
-          Duration(milliseconds: 330),
-          Curves.easeOutCubic),
+      LogoMotionBeat(LogoPose(x: 12, scaleX: .88, scaleY: .88, glow: .25),
+          Duration(milliseconds: 170), Curves.easeIn),
+      LogoMotionBeat(LogoPose(x: 68, y: -28, rotation: .31, glow: .52),
+          Duration(milliseconds: 330), Curves.easeOutCubic),
       LogoMotionBeat(
           LogoPose(x: 24, y: 46, rotation: .86, scaleX: 1.06, scaleY: 1.06),
           Duration(milliseconds: 360),
           Curves.easeInOutSine),
-      LogoMotionBeat(
-          LogoPose(x: -63, y: 17, rotation: 1.48, glow: .72),
-          Duration(milliseconds: 390),
-          Curves.easeInOutSine),
+      LogoMotionBeat(LogoPose(x: -63, y: 17, rotation: 1.48, glow: .72),
+          Duration(milliseconds: 390), Curves.easeInOutSine),
       LogoMotionBeat(
           LogoPose(x: -17, y: -24, rotation: 2.16, scaleX: .96, scaleY: .96),
           Duration(milliseconds: 320),
           Curves.easeInOutSine),
-      LogoMotionBeat(
-          LogoPose(x: 5, y: 3, rotation: 2.95, burst: .52),
-          Duration(milliseconds: 300),
-          Curves.easeOutCubic),
+      LogoMotionBeat(LogoPose(x: 5, y: 3, rotation: 2.95, burst: .52),
+          Duration(milliseconds: 300), Curves.easeOutCubic),
       LogoMotionBeat(
           LogoPose.rest, Duration(milliseconds: 300), Curves.easeOutBack),
     ],
@@ -833,18 +823,12 @@ const Map<LogoMotionType, LogoMotionDefinition> logoMotionDefinitions = {
   LogoMotionType.kineticType: LogoMotionDefinition(
     initial: LogoPose(scaleX: .25, scaleY: .25, opacity: 0),
     beats: [
-      LogoMotionBeat(
-          LogoPose(x: -42, scaleX: .62, scaleY: .62, opacity: .55),
-          Duration(milliseconds: 180),
-          Curves.easeOutBack),
-      LogoMotionBeat(
-          LogoPose(x: 34, scaleX: .78, scaleY: .78, opacity: .75),
-          Duration(milliseconds: 170),
-          Curves.easeOutBack),
-      LogoMotionBeat(
-          LogoPose(x: -17, scaleX: .92, scaleY: .92, opacity: .9),
-          Duration(milliseconds: 160),
-          Curves.easeOutBack),
+      LogoMotionBeat(LogoPose(x: -42, scaleX: .62, scaleY: .62, opacity: .55),
+          Duration(milliseconds: 180), Curves.easeOutBack),
+      LogoMotionBeat(LogoPose(x: 34, scaleX: .78, scaleY: .78, opacity: .75),
+          Duration(milliseconds: 170), Curves.easeOutBack),
+      LogoMotionBeat(LogoPose(x: -17, scaleX: .92, scaleY: .92, opacity: .9),
+          Duration(milliseconds: 160), Curves.easeOutBack),
       LogoMotionBeat(
           LogoPose(
               x: 8,
@@ -855,25 +839,19 @@ const Map<LogoMotionType, LogoMotionDefinition> logoMotionDefinitions = {
               burst: .68),
           Duration(milliseconds: 220),
           Curves.easeOutBack),
-      LogoMotionBeat(
-          LogoPose(scaleX: .97, scaleY: 1.04),
-          Duration(milliseconds: 180),
-          Curves.easeInOut),
+      LogoMotionBeat(LogoPose(scaleX: .97, scaleY: 1.04),
+          Duration(milliseconds: 180), Curves.easeInOut),
       LogoMotionBeat(
           LogoPose.rest, Duration(milliseconds: 250), Curves.easeOutCubic),
     ],
   ),
   LogoMotionType.portalDepth: LogoMotionDefinition(
-    initial: LogoPose(
-        rotation: -2.8, scaleX: .08, scaleY: .08, opacity: 0, glow: 1),
+    initial:
+        LogoPose(rotation: -2.8, scaleX: .08, scaleY: .08, opacity: 0, glow: 1),
     beats: [
       LogoMotionBeat(
           LogoPose(
-              rotation: -1.5,
-              scaleX: .38,
-              scaleY: .38,
-              opacity: .35,
-              glow: .9),
+              rotation: -1.5, scaleX: .38, scaleY: .38, opacity: .35, glow: .9),
           Duration(milliseconds: 300),
           Curves.easeOut),
       LogoMotionBeat(
@@ -895,10 +873,8 @@ const Map<LogoMotionType, LogoMotionDefinition> logoMotionDefinitions = {
               burst: .75),
           Duration(milliseconds: 360),
           Curves.easeOutBack),
-      LogoMotionBeat(
-          LogoPose(rotation: -.035, scaleX: .97, scaleY: .97),
-          Duration(milliseconds: 230),
-          Curves.easeInOut),
+      LogoMotionBeat(LogoPose(rotation: -.035, scaleX: .97, scaleY: .97),
+          Duration(milliseconds: 230), Curves.easeInOut),
       LogoMotionBeat(
           LogoPose.rest, Duration(milliseconds: 260), Curves.easeOutCubic),
     ],
@@ -914,10 +890,8 @@ const Map<LogoMotionType, LogoMotionDefinition> logoMotionDefinitions = {
           LogoPose(x: 35, y: -17, rotation: .08, glow: .36, burst: .5),
           Duration(milliseconds: 310),
           Curves.easeInOutSine),
-      LogoMotionBeat(
-          LogoPose(x: 24, y: 31, rotation: -.06, burst: .72),
-          Duration(milliseconds: 300),
-          Curves.easeInOutSine),
+      LogoMotionBeat(LogoPose(x: 24, y: 31, rotation: -.06, burst: .72),
+          Duration(milliseconds: 300), Curves.easeInOutSine),
       LogoMotionBeat(
           LogoPose(x: -29, y: 25, rotation: .045, glow: .62, burst: .9),
           Duration(milliseconds: 320),
