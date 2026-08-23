@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'brand_logo.dart';
 
-/// The ten approved movement studies. Each definition finishes at [LogoPose.rest].
+/// The seventeen approved movement studies. The original ten stay intact and
+/// the seven tutorial studies are appended to the same shuffle bag. Every
+/// definition finishes at [LogoPose.rest].
 enum LogoMotionType {
   springDrop,
   orbitReturn,
@@ -18,6 +20,13 @@ enum LogoMotionType {
   spiralHome,
   hoverScan,
   cinematicDrift,
+  gravityDrop,
+  magneticOrbit,
+  liquidLens,
+  pendulumGuide,
+  kineticType,
+  portalDepth,
+  constellation,
 }
 
 extension LogoMotionTypeLabel on LogoMotionType {
@@ -43,6 +52,20 @@ extension LogoMotionTypeLabel on LogoMotionType {
         return 'Hover Scan';
       case LogoMotionType.cinematicDrift:
         return 'Cinematic Drift';
+      case LogoMotionType.gravityDrop:
+        return 'Gravity Drop';
+      case LogoMotionType.magneticOrbit:
+        return 'Magnetic Orbit';
+      case LogoMotionType.liquidLens:
+        return 'Liquid Lens';
+      case LogoMotionType.pendulumGuide:
+        return 'Pendulum Guide';
+      case LogoMotionType.kineticType:
+        return 'Kinetic Type';
+      case LogoMotionType.portalDepth:
+        return 'Portal Depth';
+      case LogoMotionType.constellation:
+        return 'Constellation';
     }
   }
 }
@@ -179,7 +202,7 @@ class LogoMotionDeck {
   }
 }
 
-/// Native Flutter implementation of the ten logo movements.
+/// Native Flutter implementation of the seventeen logo movements.
 ///
 /// Only transform and opacity are animated. Every sequence lands at the exact
 /// resting transform, pauses, then the next shuffle-bag movement starts.
@@ -704,6 +727,207 @@ const Map<LogoMotionType, LogoMotionDefinition> logoMotionDefinitions = {
           Curves.easeInOut),
       LogoMotionBeat(
           LogoPose.rest, Duration(milliseconds: 380), Curves.easeOutCubic),
+    ],
+  ),
+  LogoMotionType.gravityDrop: LogoMotionDefinition(
+    initial: LogoPose(
+        y: -190, rotation: -.24, scaleX: .52, scaleY: .52, opacity: 0),
+    beats: [
+      LogoMotionBeat(
+          LogoPose(
+              y: 15,
+              rotation: .07,
+              scaleX: 1.16,
+              scaleY: .82,
+              glow: .68,
+              burst: .9),
+          Duration(milliseconds: 520),
+          Curves.easeInQuart),
+      LogoMotionBeat(
+          LogoPose(y: -28, rotation: -.045, scaleX: .94, scaleY: 1.07),
+          Duration(milliseconds: 230),
+          Curves.easeOutCubic),
+      LogoMotionBeat(
+          LogoPose(y: 7, rotation: .026, scaleX: 1.045, scaleY: .96),
+          Duration(milliseconds: 180),
+          Curves.easeInOut),
+      LogoMotionBeat(
+          LogoPose(y: -3, rotation: -.012, scaleX: .99, scaleY: 1.01),
+          Duration(milliseconds: 140),
+          Curves.easeInOut),
+      LogoMotionBeat(
+          LogoPose.rest, Duration(milliseconds: 170), Curves.easeOut),
+    ],
+  ),
+  LogoMotionType.magneticOrbit: LogoMotionDefinition(
+    initial: LogoPose.rest,
+    beats: [
+      LogoMotionBeat(
+          LogoPose(x: 12, scaleX: .88, scaleY: .88, glow: .25),
+          Duration(milliseconds: 170),
+          Curves.easeIn),
+      LogoMotionBeat(
+          LogoPose(x: 68, y: -28, rotation: .31, glow: .52),
+          Duration(milliseconds: 330),
+          Curves.easeOutCubic),
+      LogoMotionBeat(
+          LogoPose(x: 24, y: 46, rotation: .86, scaleX: 1.06, scaleY: 1.06),
+          Duration(milliseconds: 360),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: -63, y: 17, rotation: 1.48, glow: .72),
+          Duration(milliseconds: 390),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: -17, y: -24, rotation: 2.16, scaleX: .96, scaleY: .96),
+          Duration(milliseconds: 320),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: 5, y: 3, rotation: 2.95, burst: .52),
+          Duration(milliseconds: 300),
+          Curves.easeOutCubic),
+      LogoMotionBeat(
+          LogoPose.rest, Duration(milliseconds: 300), Curves.easeOutBack),
+    ],
+  ),
+  LogoMotionType.liquidLens: LogoMotionDefinition(
+    initial: LogoPose.rest,
+    beats: [
+      LogoMotionBeat(
+          LogoPose(scaleX: 1.18, scaleY: .82, rotation: -.08, glow: .38),
+          Duration(milliseconds: 300),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: 18, y: -9, scaleX: .78, scaleY: 1.22, rotation: .11),
+          Duration(milliseconds: 360),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: -16, y: 8, scaleX: 1.13, scaleY: .89, rotation: -.07),
+          Duration(milliseconds: 340),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: 7, y: -4, scaleX: .94, scaleY: 1.07, glow: .68),
+          Duration(milliseconds: 300),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose.rest, Duration(milliseconds: 360), Curves.easeOutCubic),
+    ],
+  ),
+  LogoMotionType.pendulumGuide: LogoMotionDefinition(
+    initial: LogoPose(y: -70, rotation: -.68),
+    beats: [
+      LogoMotionBeat(LogoPose(y: -70, rotation: .58),
+          Duration(milliseconds: 560), Curves.easeInOutSine),
+      LogoMotionBeat(LogoPose(y: -66, rotation: -.43),
+          Duration(milliseconds: 470), Curves.easeInOutSine),
+      LogoMotionBeat(LogoPose(y: -58, rotation: .29),
+          Duration(milliseconds: 390), Curves.easeInOutSine),
+      LogoMotionBeat(LogoPose(y: -45, rotation: -.16),
+          Duration(milliseconds: 310), Curves.easeInOutSine),
+      LogoMotionBeat(LogoPose(y: -25, rotation: .06, glow: .4),
+          Duration(milliseconds: 250), Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose.rest, Duration(milliseconds: 420), Curves.easeOutCubic),
+    ],
+  ),
+  LogoMotionType.kineticType: LogoMotionDefinition(
+    initial: LogoPose(scaleX: .25, scaleY: .25, opacity: 0),
+    beats: [
+      LogoMotionBeat(
+          LogoPose(x: -42, scaleX: .62, scaleY: .62, opacity: .55),
+          Duration(milliseconds: 180),
+          Curves.easeOutBack),
+      LogoMotionBeat(
+          LogoPose(x: 34, scaleX: .78, scaleY: .78, opacity: .75),
+          Duration(milliseconds: 170),
+          Curves.easeOutBack),
+      LogoMotionBeat(
+          LogoPose(x: -17, scaleX: .92, scaleY: .92, opacity: .9),
+          Duration(milliseconds: 160),
+          Curves.easeOutBack),
+      LogoMotionBeat(
+          LogoPose(
+              x: 8,
+              scaleX: 1.14,
+              scaleY: .88,
+              opacity: 1,
+              glow: .55,
+              burst: .68),
+          Duration(milliseconds: 220),
+          Curves.easeOutBack),
+      LogoMotionBeat(
+          LogoPose(scaleX: .97, scaleY: 1.04),
+          Duration(milliseconds: 180),
+          Curves.easeInOut),
+      LogoMotionBeat(
+          LogoPose.rest, Duration(milliseconds: 250), Curves.easeOutCubic),
+    ],
+  ),
+  LogoMotionType.portalDepth: LogoMotionDefinition(
+    initial: LogoPose(
+        rotation: -2.8, scaleX: .08, scaleY: .08, opacity: 0, glow: 1),
+    beats: [
+      LogoMotionBeat(
+          LogoPose(
+              rotation: -1.5,
+              scaleX: .38,
+              scaleY: .38,
+              opacity: .35,
+              glow: .9),
+          Duration(milliseconds: 300),
+          Curves.easeOut),
+      LogoMotionBeat(
+          LogoPose(
+              rotation: -.42,
+              scaleX: .78,
+              scaleY: .78,
+              opacity: .76,
+              glow: .72),
+          Duration(milliseconds: 340),
+          Curves.easeOutCubic),
+      LogoMotionBeat(
+          LogoPose(
+              rotation: .12,
+              scaleX: 1.17,
+              scaleY: 1.17,
+              opacity: 1,
+              glow: .55,
+              burst: .75),
+          Duration(milliseconds: 360),
+          Curves.easeOutBack),
+      LogoMotionBeat(
+          LogoPose(rotation: -.035, scaleX: .97, scaleY: .97),
+          Duration(milliseconds: 230),
+          Curves.easeInOut),
+      LogoMotionBeat(
+          LogoPose.rest, Duration(milliseconds: 260), Curves.easeOutCubic),
+    ],
+  ),
+  LogoMotionType.constellation: LogoMotionDefinition(
+    initial: LogoPose.rest,
+    beats: [
+      LogoMotionBeat(
+          LogoPose(x: -32, y: -24, scaleX: .9, scaleY: .9, burst: .28),
+          Duration(milliseconds: 260),
+          Curves.easeOutCubic),
+      LogoMotionBeat(
+          LogoPose(x: 35, y: -17, rotation: .08, glow: .36, burst: .5),
+          Duration(milliseconds: 310),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: 24, y: 31, rotation: -.06, burst: .72),
+          Duration(milliseconds: 300),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: -29, y: 25, rotation: .045, glow: .62, burst: .9),
+          Duration(milliseconds: 320),
+          Curves.easeInOutSine),
+      LogoMotionBeat(
+          LogoPose(x: -7, y: -5, scaleX: 1.07, scaleY: 1.07, burst: .45),
+          Duration(milliseconds: 280),
+          Curves.easeOutCubic),
+      LogoMotionBeat(
+          LogoPose.rest, Duration(milliseconds: 300), Curves.easeOutBack),
     ],
   ),
 };
