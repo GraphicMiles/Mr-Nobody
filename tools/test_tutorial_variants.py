@@ -73,5 +73,9 @@ class TutorialVariantsTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion: reduce",js)
         self.assertIn("height:100dvh",css)
         self.assertNotIn('class="controls"',html)
+        for removed in ('class="appbar"','HOME MOTION LAB','id="sequenceName"','TAP TO SWITCH'):
+            self.assertNotIn(removed,html)
+        self.assertNotIn("setProperty('--accent'",js)
+        self.assertNotIn('var palettes=',js)
 
 if __name__ == "__main__": unittest.main()
