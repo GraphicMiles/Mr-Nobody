@@ -76,6 +76,7 @@ That allows the app to provide:
 - Classic dark and Warm cream themes repaint the complete shell immediately.
 - Theme colours transition smoothly across the bottom navigation, cards, controls, and home surfaces.
 - The home mark uses seventeen native Flutter motion sequences in a shuffle bag: the original ten plus seven tutorial-derived studies. Every movement plays once before reshuffling, never repeats twice in succession, and returns to the exact resting pose.
+- First install uses a modular seven-page onboarding flow for browsing, the cited task agent, privacy modes, downloads, open-source contribution, and readiness. Pages advance after five seconds, support swipe and Back, and can be skipped immediately.
 - Motion pauses while Home is hidden and is disabled when Android requests reduced motion.
 
 ## Privacy modes
@@ -95,7 +96,7 @@ The main branch is green in GitHub Actions.
 Current automated coverage:
 
 - 1,028 Java/JVM tests
-- 174 Flutter widget and screen-golden tests
+- 185 Flutter widget and screen-golden tests
 - 14 privacy-auditor tests
 - Strict Flutter analysis
 - Android Gradle unit tests
