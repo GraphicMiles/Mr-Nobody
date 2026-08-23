@@ -1,9 +1,9 @@
 {
-  "latestVersion": "1.0.1",
-  "releaseNotes": "Searches now use the engine you configured in Settings (Google, Bing, Startpage or DuckDuckGo).",
-  "downloadUrl": "https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.1/mr-nobody-1.0.1.apk",
+  "latestVersion": "1.0.2",
+  "releaseNotes": "Stability and security fixes: corrected on-device page/search text extraction; credentials no longer wiped on transient Android Keystore errors; hardened blocklist matching and the exported open deep link; crash-proof version parsing; bounded the agent tool-execution pool; added a one-shot release publisher. Same signing key as 1.0.1 \u2014 updates in place.",
+  "downloadUrl": "https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.2/mr-nobody-1.0.2.apk",
   "required": false,
-  "sha256": "8bb07b78855cf85bd031618cfbfcb45b980eb3f7ea0979e7cdcf583a5a2a7966",
+  "sha256": "ea0b18926f482a87216b60046dad5061e9d2f82a8481dad569ccbb786809f71c",
   "signature": "1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5",
-  "publishedAt": "2026-08-22T23:32:15Z"
+  "publishedAt": "2026-08-23T13:32:39Z"
 }

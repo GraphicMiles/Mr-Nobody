@@ -195,6 +195,9 @@ def main():
                         help="do not mark this release as 'latest'")
     parser.add_argument("--published-at", default="",
                         help="ISO-8601 UTC timestamp (default: now)")
+    parser.add_argument("--signature", default="",
+                        help="signing-cert SHA-256 digest (override; default: "
+                             "read from the APK via apksigner)")
     parser.add_argument("--target", default="",
                         help="output file (default: website/update.json)")
     parser.add_argument("--dry-run", action="store_true",
@@ -248,7 +251,11 @@ def main():
     if apk and not SHA256_RE.match(sha):
         sys.exit("error: computed sha256 is malformed — refusing to publish")
 
-    signature = signing_cert_digest(apk) if apk else ""
+    signature = (args.signature or "").strip().lower()
+    if not signature:
+        signature = signing_cert_digest(apk) if apk else ""
+    if signature and not SHA256_RE.match(signature):
+        sys.exit("error: --signature must be a 64-hex SHA-256 digest")
 
     published = args.published_at.strip() or datetime.datetime.now(
         datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
