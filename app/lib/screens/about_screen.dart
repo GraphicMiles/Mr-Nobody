@@ -19,14 +19,24 @@ class AboutScreen extends StatelessWidget {
   static const String githubUrl = 'https://github.com/GraphicMiles/Mr-Nobody';
   static const String _repo = 'github.com/GraphicMiles/Mr-Nobody';
 
-  void _openGithub() {
+  /// The public landing page and release notes, served by the update service.
+  /// The same server also answers the app's update check — the page is the
+  /// human face of the same release data the app reads.
+  static const String websiteUrl = 'https://mrnobody-updates.onrender.com';
+  static const String _site = 'mrnobody-updates.onrender.com';
+
+  void _open(String url) {
     final opener = onOpenUrl;
     if (opener != null) {
-      opener(githubUrl);
+      opener(url);
     }
     // else: no browser callback in this context (e.g. a widget test). Do
     // nothing rather than pretend we navigated.
   }
+
+  void _openGithub() => _open(githubUrl);
+
+  void _openWebsite() => _open(websiteUrl);
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +183,12 @@ class AboutScreen extends StatelessWidget {
         AppCard(
           child: Column(
             children: withDividers([
+              _InfoRow(
+                icon: Icons.public_outlined,
+                label: 'Website',
+                detail: _site,
+                onTap: _openWebsite,
+              ),
               _InfoRow(
                 icon: Icons.link,
                 label: 'Source code',
