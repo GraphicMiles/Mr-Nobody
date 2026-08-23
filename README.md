@@ -75,7 +75,7 @@ That allows the app to provide:
 
 - Classic dark and Warm cream themes repaint the complete shell immediately.
 - Theme colours transition smoothly across the bottom navigation, cards, controls, and home surfaces.
-- The home mark uses ten native Flutter motion sequences in a shuffle bag: every movement plays once before reshuffling, never repeats twice in succession, and returns to the exact resting pose.
+- The home mark uses seventeen native Flutter motion sequences in a shuffle bag: the original ten plus seven tutorial-derived studies. Every movement plays once before reshuffling, never repeats twice in succession, and returns to the exact resting pose.
 - Motion pauses while Home is hidden and is disabled when Android requests reduced motion.
 
 ## Privacy modes

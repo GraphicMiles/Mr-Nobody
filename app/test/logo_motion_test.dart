@@ -7,8 +7,8 @@ import 'package:mrnobody/widgets/animated_brand_logo.dart';
 import 'package:mrnobody/widgets/brand_logo.dart';
 
 void main() {
-  test('all ten movement definitions return to the exact resting pose', () {
-    expect(logoMotionDefinitions.length, 10);
+  test('all seventeen movement definitions return to the exact resting pose', () {
+    expect(logoMotionDefinitions.length, 17);
     expect(logoMotionDefinitions.keys.toSet(), LogoMotionType.values.toSet());
 
     for (final entry in logoMotionDefinitions.entries) {
@@ -29,7 +29,9 @@ void main() {
 
   test('shuffle bag plays every movement before repeating', () {
     final deck = LogoMotionDeck(random: Random(42));
-    final firstCycle = [for (var i = 0; i < 10; i++) deck.next()];
+    final firstCycle = [
+      for (var i = 0; i < LogoMotionType.values.length; i++) deck.next(),
+    ];
     expect(firstCycle.toSet(), LogoMotionType.values.toSet());
 
     final firstOfNextCycle = deck.next();

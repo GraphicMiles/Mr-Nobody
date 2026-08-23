@@ -98,6 +98,12 @@ class TutorialVariantsTest(unittest.TestCase):
         for retired_control in ('id="prev"','id="play"','id="reset"','preview controls'):
             self.assertNotIn(retired_control,html)
         self.assertIn('.phone>.nav{display:none!important}',html)
+        self.assertIn('.merge-fx{position:absolute;inset:0;overflow:visible',html)
+        self.assertEqual(html.count('class="pipeline-row"'),2)
+        self.assertIn('class="pipeline-icon"',html)
+        self.assertNotIn('<span class="spin">',html)
+        self.assertNotIn('⌘',html)
+        self.assertNotIn('•••',html)
         self.assertIn("home-motion-lab.html?from=tutorial",js)
         self.assertIn('merged-tutorial.html',(DIR/"index.html").read_text(encoding="utf-8"))
         self.assertIn('tutorials/merged-tutorial.html',(ROOT/"website"/"welcome_preview.html").read_text(encoding="utf-8"))
