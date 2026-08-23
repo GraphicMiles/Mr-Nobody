@@ -415,7 +415,9 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
-                .replace("\r", "\\r") + "\"";
+                .replace("\r", "\\r")
+                .replace("\u2028", "\\u2028")
+                .replace("\u2029", "\\u2029") + "\"";
     }
 
     @Override
@@ -491,19 +493,57 @@ public final class HeadlessWebViewEngine implements BrowserEngine {
         return u.startsWith("about:") || u.startsWith("data:text/html");
     }
 
-    /** Strip the JSON string wrapper and basic escapes evaluateJavascript adds. */
+    /**
+     * Strip the JSON string wrapper and decode the escape pairs
+     * {@code evaluateJavascript} emits.
+     *
+     * <p>Decoded in a single left-to-right pass. The earlier chain of
+     * sequential {@code replace} calls reordered escapes — {@code \\} was
+     * expanded last, so a literal backslash followed by {@code n}/{@code t}/
+     * {@code "} was first re-interpreted as a newline/tab/quote (a page reading
+     * {@code C:\\new} became {@code C:\} + newline + {@code ew}). One pass
+     * guarantees a backslash is consumed as part of exactly one escape.
+     */
     private static String unescapeJs(String s) {
         if (s == null) return "";
         String out = s;
         if (out.startsWith("\"") && out.endsWith("\"") && out.length() >= 2) {
             out = out.substring(1, out.length() - 1);
         }
-        return out
-                .replace("\\n", "\n")
-                .replace("\\t", "\t")
-                .replace("\\\"", "\"")
-                .replace("\\\\", "\\")
-                .replace("\\u003c", "<")
-                .replace("\\u003e", ">");
+        StringBuilder sb = new StringBuilder(out.length());
+        for (int i = 0; i < out.length(); i++) {
+            char c = out.charAt(i);
+            if (c != '\\' || i + 1 >= out.length()) {
+                sb.append(c);
+                continue;
+            }
+            char next = out.charAt(++i);
+            switch (next) {
+                case 'n': sb.append('\n'); break;
+                case 't': sb.append('\t'); break;
+                case 'r': sb.append('\r'); break;
+                case 'b': sb.append('\b'); break;
+                case 'f': sb.append('\f'); break;
+                case '"': sb.append('"'); break;
+                case '\\': sb.append('\\'); break;
+                case '/': sb.append('/'); break;
+                case 'u':
+                    if (i + 4 < out.length()) {
+                        try {
+                            sb.append((char) Integer.parseInt(out.substring(i + 1, i + 5), 16));
+                            i += 4;
+                            break;
+                        } catch (NumberFormatException e) {
+                            // fall through and keep the backslash literally
+                        }
+                    }
+                    sb.append('\\').append(next);
+                    break;
+                default:
+                    // An unknown escape: keep both characters verbatim.
+                    sb.append('\\').append(next);
+            }
+        }
+        return sb.toString();
     }
 }

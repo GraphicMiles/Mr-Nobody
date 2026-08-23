@@ -46,7 +46,10 @@ public final class UpdateInfo {
         String[] parts = s.split("\\.");
         if (parts.length != 3) return false;
         for (String part : parts) {
-            if (part.isEmpty()) return false;
+            // A component longer than nine digits cannot fit a signed int and
+            // is not a real version number; reject it here rather than letting
+            // isNewer throw NumberFormatException on it later.
+            if (part.isEmpty() || part.length() > 9) return false;
             for (int i = 0; i < part.length(); i++) {
                 if (part.charAt(i) < '0' || part.charAt(i) > '9') return false;
             }
@@ -108,10 +111,16 @@ public final class UpdateInfo {
         if (!isVersion(latest) || !isVersion(current)) return false;
         String[] a = latest.split("\\.");
         String[] b = current.split("\\.");
-        for (int i = 0; i < 3; i++) {
-            int x = Integer.parseInt(a[i]);
-            int y = Integer.parseInt(b[i]);
-            if (x != y) return x > y;
+        try {
+            for (int i = 0; i < 3; i++) {
+                int x = Integer.parseInt(a[i]);
+                int y = Integer.parseInt(b[i]);
+                if (x != y) return x > y;
+            }
+        } catch (NumberFormatException e) {
+            // isVersion bounds the magnitude, but stay defensive: a malformed
+            // value is simply never "newer" rather than a crash.
+            return false;
         }
         return false;
     }

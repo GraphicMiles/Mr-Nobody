@@ -512,7 +512,10 @@ public final class BrowserTool implements Tool {
         return "\"" + (s == null ? "" : s)
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
-                .replace("\n", "\\n") + "\"";
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\u2028", "\\u2028")
+                .replace("\u2029", "\\u2029") + "\"";
     }
 
     private static final String LINKS_SCRIPT =

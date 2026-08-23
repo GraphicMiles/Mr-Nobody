@@ -127,6 +127,11 @@ public final class FilterEngine {
             host = uri.getHost();
             if (host == null) return Category.NONE;
             host = host.toLowerCase(Locale.ROOT);
+            // A trailing DNS root dot does not change the name; strip it so a
+            // request to "doubleclick.net." cannot dodge a "doubleclick.net"
+            // rule. Matches the normalization RedirectGuard.hostOf applies.
+            while (host.endsWith(".")) host = host.substring(0, host.length() - 1);
+            if (host.isEmpty()) return Category.NONE;
             path = uri.getRawPath() == null ? "" : uri.getRawPath();
             if (path.isEmpty()) path = "/";
         } catch (URISyntaxException e) {

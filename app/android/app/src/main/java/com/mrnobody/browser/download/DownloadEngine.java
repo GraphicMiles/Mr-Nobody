@@ -692,7 +692,6 @@ public final class DownloadEngine {
                 if (location == null || location.trim().isEmpty()) {
                     throw new IOException("Redirect had no Location header");
                 }
-                if (redirects == 5) throw new IOException("Too many redirects");
                 String next = new URL(new URL(current), location).toString();
                 if (!sameOrigin(current, next)) sendReferrer = false;
                 current = next;

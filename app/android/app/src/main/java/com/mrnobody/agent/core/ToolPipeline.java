@@ -82,11 +82,24 @@ public final class ToolPipeline {
         Confirmation confirm(ToolCall call, String reason);
     }
 
-    private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "tool-exec");
-        t.setDaemon(true);
-        return t;
-    });
+    /**
+     * Tool bodies run here. Bounded so a run of tools that ignore interruption
+     * (a WebView callback that never fires, a non-interruptible read) cannot
+     * grow the pool without limit. A {@code SynchronousQueue} hands a task to an
+     * idle thread or spawns one up to the cap; above the cap the task runs on
+     * the caller. The caller is never a tool-exec thread — it is the worker
+     * awaiting the result — so caller-runs can never deadlock the pool.
+     */
+    private static final int MAX_TOOL_THREADS = 16;
+    private static final ExecutorService EXECUTOR = new java.util.concurrent.ThreadPoolExecutor(
+            4, MAX_TOOL_THREADS, 60L, TimeUnit.SECONDS,
+            new java.util.concurrent.SynchronousQueue<>(),
+            r -> {
+                Thread t = new Thread(r, "tool-exec");
+                t.setDaemon(true);
+                return t;
+            },
+            new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
 
     private final Approval approval;
     private final List<Guard> guards = new ArrayList<>();
