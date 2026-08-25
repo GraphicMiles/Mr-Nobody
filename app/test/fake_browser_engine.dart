@@ -136,6 +136,9 @@ class FakeBrowserEngine implements BrowserEngine {
   Future<String?> getLocalStorage() async => null;
 
   @override
+  void recoverFromRendererFailure() {}
+
+  @override
   void dispose() {
     disposed = true;
     nativeOwnershipReleased = true;

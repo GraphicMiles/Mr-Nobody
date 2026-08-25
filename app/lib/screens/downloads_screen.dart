@@ -205,16 +205,6 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     return '${humanBytes(total.round())}/s';
   }
 
-  String _linkSpeedLabel() {
-    // Android's getLinkDownstreamBandwidthKbps() is often hardcoded by OEM (e.g. 105 Mbps)
-    // and does NOT reflect real throughput. Keep it for reference but label clearly,
-    // and show real speed in _realSpeedLabel above.
-    final kbps = _int(_network['downKbps']);
-    if (kbps <= 0) return '—';
-    if (kbps < 1000) return '$kbps kbps (estimated)';
-    return '${(kbps / 1000).toStringAsFixed(1)} Mbps (estimated)';
-  }
-
   Widget _row(Map<String, dynamic> d) {
     final id = _int(d['id']);
     final name = d['name'] as String? ?? 'download';
