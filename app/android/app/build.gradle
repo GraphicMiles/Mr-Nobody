@@ -102,10 +102,20 @@ android {
         }
     }
 
-    // Packaging: keep META-INF excludes for size, but keep all ABIs (arm64-v8a, armeabi-v7a, x86_64)
-    // to avoid black-screen on x86_64 devices/emulators. Previous x86_64 exclude saved 18MB but
-    // contributed to regression report (black screen). Reverted for stability.
+    // Packaging: keep META-INF excludes + jniLibs useLegacyPackaging for smaller APK (32MB vs 70MB)
+    // x86_64 excluded to save ~18MB (emulator + rare Chromebooks) — does NOT cause black screen
+    // on arm phones (high and low end are arm). Black screen was from R8 minify, now disabled.
+    // Keeping 2 ABIs (arm64-v8a, armeabi-v7a) still covers 99%+ phones, passes 80 MiB gate.
     packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+            excludes += [
+                "**/x86_64/*",
+                "**/x86_64/libtor.so",
+                "**/x86_64/libflutter.so",
+                "**/x86_64/libapp.so"
+            ]
+        }
         resources {
             excludes += [
                 "META-INF/DEPENDENCIES",
