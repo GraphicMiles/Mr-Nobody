@@ -188,6 +188,11 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     private final java.util.List<Map<String, Object>> consoleBuffer = new java.util.ArrayList<>();
     private static final int MAX_CONSOLE = 300;
 
+    /** Network log buffer for DevTools */
+    private final java.util.List<Map<String, Object>> networkBuffer = new java.util.ArrayList<>();
+    private static final int MAX_NETWORK = 200;
+    private final Map<String, Long> networkTimings = new java.util.HashMap<>();
+
     private static final class PendingDownload {
         final String url;
         final String userAgent;
@@ -387,6 +392,23 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             // Runs off the UI thread, once per request. Keep it cheap.
             boolean mainFrame = request.isForMainFrame();
+            String url = request.getUrl() == null ? null : request.getUrl().toString();
+            // Network logging for DevTools (lightweight, no body)
+            if (url != null && !url.isEmpty()) {
+                try {
+                    long now = System.currentTimeMillis();
+                    networkTimings.put(url, now);
+                    Map<String, Object> entry = new HashMap<>();
+                    entry.put("url", url);
+                    entry.put("mainFrame", mainFrame);
+                    entry.put("method", request.getMethod() == null ? "GET" : request.getMethod());
+                    entry.put("ts", now);
+                    synchronized (networkBuffer) {
+                        networkBuffer.add(entry);
+                        if (networkBuffer.size() > MAX_NETWORK) networkBuffer.remove(0);
+                    }
+                } catch (Throwable ignored) {}
+            }
             // During Tor bootstrap and the asynchronous proxy hand-off,
             // NetworkGate carries BlockedRoute. WebView has its own network
             // stack, so it must consult the same gate or it could escape while
@@ -406,7 +428,6 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 // doubleclick.net escaped into a Google marketing redirect.
                 MrNobodyApp.filters().resetPageCounters();
             }
-            String url = request.getUrl() == null ? null : request.getUrl().toString();
             String sourceUrl = mainFrame ? navigationSource() : null;
             FilterEngine.Category category = mainFrame
                     ? NavigationGuard.evaluate(MrNobodyApp.filters(), sourceUrl, url, true)
@@ -426,6 +447,19 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 publishRestoredSource(sourceUrl);
             }
             reportBlocked(category, mainFrame);
+            // Log blocked to network buffer as well
+            try {
+                Map<String, Object> blockedEntry = new HashMap<>();
+                blockedEntry.put("url", url == null ? "" : url);
+                blockedEntry.put("blocked", true);
+                blockedEntry.put("category", category.name());
+                blockedEntry.put("mainFrame", mainFrame);
+                blockedEntry.put("ts", System.currentTimeMillis());
+                synchronized (networkBuffer) {
+                    networkBuffer.add(blockedEntry);
+                    if (networkBuffer.size() > MAX_NETWORK) networkBuffer.remove(0);
+                }
+            } catch (Throwable ignored) {}
             if (mainFrame) {
                 // 204 means the attempted navigation has no replacement
                 // document, so the current page/history stay intact. An empty
@@ -1025,6 +1059,37 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                     consoleBuffer.clear();
                 }
                 result.success(true);
+                return;
+            }
+            case "getNetwork": {
+                java.util.List<Map<String, Object>> copy;
+                synchronized (networkBuffer) {
+                    copy = new java.util.ArrayList<>(networkBuffer);
+                }
+                result.success(copy);
+                return;
+            }
+            case "clearNetwork": {
+                synchronized (networkBuffer) {
+                    networkBuffer.clear();
+                }
+                networkTimings.clear();
+                result.success(true);
+                return;
+            }
+            case "getCookies": {
+                try {
+                    CookieManager cm = ProfileManager.cookiesFor(webView);
+                    String url = webView.getUrl();
+                    String cookies = url != null ? cm.getCookie(url) : "";
+                    result.success(cookies == null ? "" : cookies);
+                } catch (Exception e) {
+                    result.success("");
+                }
+                return;
+            }
+            case "getLocalStorage": {
+                webView.evaluateJavascript("(function(){try{var o={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);o[k]=localStorage.getItem(k);}return JSON.stringify(o);}catch(e){return '{}';}})()", v -> result.success(v));
                 return;
             }
             case "getHtml": {

@@ -329,6 +329,28 @@ class NativeWebViewEngine implements BrowserEngine {
     await _invoke<void>('injectEruda');
   }
 
+  @override
+  Future<List<Map<String, dynamic>>> getNetworkLogs() async {
+    final r = await _invoke<List>('getNetwork');
+    if (r == null) return const [];
+    return r.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  @override
+  Future<void> clearNetwork() async {
+    await _invoke<void>('clearNetwork');
+  }
+
+  @override
+  Future<String?> getCookies() async {
+    return await _invoke<String>('getCookies');
+  }
+
+  @override
+  Future<String?> getLocalStorage() async {
+    return await _invoke<String>('getLocalStorage');
+  }
+
   /// Ask native to destroy the retained page exactly once. Clear-data awaits
   /// this acknowledgement before requesting isolated-profile deletion.
   @override

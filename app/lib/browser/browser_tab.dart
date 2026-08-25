@@ -48,6 +48,10 @@ class BrowserTab extends ChangeNotifier {
   final ValueNotifier<List<Map<String, dynamic>>> consoleLogs = ValueNotifier(const []);
   static const int maxConsoleLogs = 300;
 
+  /// Network logs for DevTools
+  final ValueNotifier<List<Map<String, dynamic>>> networkLogs = ValueNotifier(const []);
+  static const int maxNetworkLogs = 200;
+
   /// What the page looks like, for the tab grid. Memory only: never written to
   /// disk, and never captured at all for a private tab.
   Uint8List? thumbnail;
@@ -239,6 +243,13 @@ class BrowserTab extends ChangeNotifier {
     await engine.clearConsole();
   }
   Future<void> injectEruda() => engine.injectEruda();
+  Future<List<Map<String, dynamic>>> getNetworkFromNative() => engine.getNetworkLogs();
+  Future<void> clearNetwork() async {
+    networkLogs.value = const [];
+    await engine.clearNetwork();
+  }
+  Future<String?> getCookies() => engine.getCookies();
+  Future<String?> getLocalStorage() => engine.getLocalStorage();
 
   /// What the tab grid shows: page title, else the bare host, else "New tab".
   String get label {
@@ -274,6 +285,7 @@ class BrowserTab extends ChangeNotifier {
     notice.dispose();
     downloadApproval.dispose();
     consoleLogs.dispose();
+    networkLogs.dispose();
     engine.dispose();
     super.dispose();
   }

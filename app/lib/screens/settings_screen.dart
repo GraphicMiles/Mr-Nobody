@@ -422,6 +422,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppCard(
                     child: Column(
                       children: withDividers([
+                        _toggle('Developer Tools (console + inspect)', _state.terminal, (v) async {
+                          await _state.setTerminal(v);
+                          AppToast.show(context, v ? 'DevTools ON — WebView debugging enabled, use menu > Developer Tools' : 'DevTools OFF');
+                        }),
                         SettingRow(
                           label: 'Restricted tools',
                           value: 'off',
@@ -430,6 +434,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               builder: (_) => const RestrictedToolsScreen(),
                             ),
                           ),
+                        ),
+                        SettingRow(
+                          label: 'DevTools Help',
+                          value: 'how to use',
+                          onTap: () {
+                            showDialog<void>(
+                              context: context,
+                              builder: (c) => AlertDialog(
+                                backgroundColor: AppColors.overlay,
+                                title: Text('Developer Tools', style: AppTheme.sans(size: 16, color: AppColors.overlayInk, w: FontWeight.w700)),
+                                content: SingleChildScrollView(
+                                  child: Text(
+                                    'Mr Nobody now has 2 DevTools layers:
+
+'
+                                    '1. In-App DevTools (menu > Developer Tools):\n'
+                                    '• Console: live console.log/warn/error\n'
+                                    '• Network: all requests + blocked\n'
+                                    '• Elements: live DOM HTML\n'
+                                    '• Storage: cookies + localStorage\n'
+                                    '• Eval: run JS in page context\n\n'
+                                    '2. Eruda overlay (menu > Inject Eruda):\n'
+                                    '• Full mobile DevTools injected into page\n'
+                                    '• Tap floating button to open\n'
+                                    '• Elements, Console, Network, Sources, etc\n\n'
+                                    '3. Remote chrome://inspect (USB + desktop Chrome):\n'
+                                    '• Enable Terminal/DevTools toggle\n'
+                                    '• Connect via USB, open chrome://inspect\n'
+                                    '• Full desktop DevTools\n\n'
+                                    'All bundled, no CDN — privacy safe.',
+                                    style: AppTheme.sans(size: 12.5, color: AppColors.overlayMuted, height: 1.5),
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(c), child: const Text('Got it')),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ]),
                     ),
