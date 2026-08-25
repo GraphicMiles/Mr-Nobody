@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -402,7 +404,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _openBrowser(String url) {
     final tab = _tabs.active ?? _tabs.newTab();
-    if (url.isNotEmpty) tab.engine.loadUrl(url);
+    // Go through BrowserTab rather than calling the engine directly so the
+    // loading timeout/error state and the retained tab's recreation URL stay
+    // in sync with the native WebView.
+    if (url.isNotEmpty) unawaited(tab.load(url));
     _pushBrowser();
   }
 

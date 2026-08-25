@@ -59,12 +59,6 @@ android {
         buildConfigField "String", "CANVA_MCP_REDIRECT_URI", buildString(canvaMcpRedirectUri)
         // P2 size optimization: keep only English to strip other language resources
         resConfigs "en"
-        // P2 size optimization: x86_64 is emulator + rare Chromebooks (<0.1% real phones).
-        // Original plan used ndk.abiFilters to drop x86_64, but that conflicts with
-        // --split-per-abi CI (test EmbeddedTorWiringTest enforces no abiFilters).
-        // Instead, exclude x86_64 via packaging jniLibs excludes — saves ~18MB uncompressed
-        // without using abiFilters, so --split-per-abi still works and test passes.
-        // For universal APK (no split), this effectively keeps arm64-v8a + armeabi-v7a.
     }
 
     testOptions {
@@ -102,19 +96,15 @@ android {
         }
     }
 
-    // Packaging: keep META-INF excludes + jniLibs useLegacyPackaging for smaller APK (32MB vs 70MB)
-    // x86_64 excluded to save ~18MB (emulator + rare Chromebooks) — does NOT cause black screen
-    // on arm phones (high and low end are arm). Black screen was from R8 minify, now disabled.
-    // Keeping 2 ABIs (arm64-v8a, armeabi-v7a) still covers 99%+ phones, passes 80 MiB gate.
+    // Packaging: keep META-INF excludes + legacy packaging for a smaller APK.
+    // All ABIs remain present so debug and release exercise the same native
+    // WebView/Flutter/Tor payload.
     packagingOptions {
         jniLibs {
+            // Keep the release native payload identical to debug. Excluding
+            // x86_64 here made the public APK unable to render on x86_64
+            // devices/emulators even though the debug APK worked.
             useLegacyPackaging true
-            excludes += [
-                "**/x86_64/*",
-                "**/x86_64/libtor.so",
-                "**/x86_64/libflutter.so",
-                "**/x86_64/libapp.so"
-            ]
         }
         resources {
             excludes += [

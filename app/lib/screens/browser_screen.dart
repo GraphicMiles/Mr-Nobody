@@ -22,9 +22,9 @@ enum BrowserDestination { privacy, settings, downloads }
 /// bar floating over it. Tabs are owned by the shared [TabManager], so
 /// switching preserves each tab's engine state.
 ///
-/// The page fills the whole area under the address bar and the chrome floats
-/// on top of it, collapsing as the user scrolls down — the page is never
-/// squeezed into a shorter viewport by the bar.
+/// The page fills the area under the address bar. Browser controls occupy a
+/// deterministic sibling region rather than floating over the Android
+/// platform view; they collapse as the user scrolls down.
 class BrowserScreen extends StatefulWidget {
   final TabManager tabs;
 
@@ -267,9 +267,12 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   children: [
                     SafeArea(bottom: false, child: _addressBar(tab)),
                     Expanded(
+                      // Do not stack Flutter chrome over an Android platform
+                      // view. Hybrid-composed platform views can win the z
+                      // order, which made the bottom bar disappear or left a
+                      // single clipped icon on some release builds.
                       child: Stack(
                         children: [
-                          // The page owns the full height; the bar floats over it.
                           Positioned.fill(child: _pageSurface(tab)),
                           if (tab.isLoading)
                             Align(
@@ -282,33 +285,39 @@ class _BrowserScreenState extends State<BrowserScreen> {
                             ),
                           if (tab.error != null && !tab.isLoading)
                             Positioned.fill(child: _errorView(tab)),
-                          DebugOverlay(
-                            bottomInset: chromeVisible ? BrowserNav.height(context) + 12 : 16,
-                          ),
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: BrowserNav(
-                              visible: chromeVisible,
-                              canGoBack: tab.canGoBack,
-                              canGoForward: tab.canGoForward,
-                              onBack: () => _goBack(tab),
-                              onForward: () => _goForward(tab),
-                              onNewTab: () {
-                                tab.captureThumbnail();
-                                _addressFocus.unfocus();
-                                widget.tabs.newTab();
-                                AppToast.show(context, 'New tab');
-                              },
-                              onTabs: () {
-              tab.captureThumbnail();
-              widget.onShowTabs();
-            },
-                              onMenu: _openMenu,
-                            ),
-                          ),
+                          const DebugOverlay(bottomInset: 16),
                         ],
+                      ),
+                    ),
+                    // Keep the browser controls outside the platform-view
+                    // bounds. This makes their height deterministic and keeps
+                    // them tappable on both debug and release APKs.
+                    ClipRect(
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.bottomCenter,
+                        child: SizedBox(
+                          height: chromeVisible ? BrowserNav.height(context) : 0,
+                          child: BrowserNav(
+                            visible: chromeVisible,
+                            canGoBack: tab.canGoBack,
+                            canGoForward: tab.canGoForward,
+                            onBack: () => _goBack(tab),
+                            onForward: () => _goForward(tab),
+                            onNewTab: () {
+                              tab.captureThumbnail();
+                              _addressFocus.unfocus();
+                              widget.tabs.newTab();
+                              AppToast.show(context, 'New tab');
+                            },
+                            onTabs: () {
+                              tab.captureThumbnail();
+                              widget.onShowTabs();
+                            },
+                            onMenu: _openMenu,
+                          ),
+                        ),
                       ),
                     ),
                   ],
