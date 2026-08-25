@@ -436,7 +436,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ),
                         ),
-                        SettingRow(
+                                                SettingRow(
                           label: 'DevTools Help',
                           value: 'how to use',
                           onTap: () {
@@ -447,41 +447,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 title: Text('Developer Tools', style: AppTheme.sans(size: 16, color: AppColors.overlayInk, w: FontWeight.w700)),
                                 content: SingleChildScrollView(
                                   child: Text(
-                                    'Mr Nobody now has 3 DevTools layers:
+                                    '''Mr Nobody DevTools:
 
-'
-                                    '1. In-App DevTools (menu > Developer Tools):
-'
-                                    '• Console: live console.log/warn/error
-'
-                                    '• Network: all requests + blocked
-'
-                                    '• Elements: live DOM HTML
-'
-                                    '• Storage: cookies + localStorage
-'
-                                    '• Eval: run JS in page context
+1. In-App (menu > Developer Tools):
+- Console: logs
+- Network: requests
+- Elements: HTML
+- Storage: cookies
+- Eval: JS
 
-'
-                                    '2. Eruda overlay (menu > Inject Eruda):
-'
-                                    '• Full mobile DevTools injected into page
-'
-                                    '• Tap floating button to open
-'
-                                    '• Elements, Console, Network, Sources, etc
+2. Eruda overlay:
+- Full mobile DevTools
 
-'
-                                    '3. Remote chrome://inspect (USB + desktop Chrome):
-'
-                                    '• Enable Terminal/DevTools toggle
-'
-                                    '• Connect via USB, open chrome://inspect
-'
-                                    '• Full desktop DevTools
+3. Remote chrome://inspect
+- Enable toggle
+- USB + inspect
 
-'
-                                    'All bundled, no CDN — privacy safe.',
+Bundled, no CDN.''',
                                     style: AppTheme.sans(size: 12.5, color: AppColors.overlayMuted, height: 1.5),
                                   ),
                                 ),
