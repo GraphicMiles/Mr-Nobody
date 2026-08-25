@@ -108,6 +108,14 @@ public final class MrNobodyApp extends Application {
         super.onCreate();
         appInstance = this;
 
+        // Enable remote debugging for chrome://inspect when terminal/dev mode is on
+        // P0 fix: allows desktop Chrome DevTools to inspect WebViews for debugging page load issues
+        try {
+            if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                android.webkit.WebView.setWebContentsDebuggingEnabled(true);
+            }
+        } catch (Throwable ignored) {}
+
         // Catch native crashes before anything else can. A Java uncaught
         // exception or OOM takes the process down silently; the handler writes
         // the stack to disk so the next launch can surface it in the debug ⓘ
@@ -241,6 +249,16 @@ public final class MrNobodyApp extends Application {
         }, "task-reconcile").start();
     }
 
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        try {
+            com.mrnobody.browser.webview.TabWebViews.onTrimMemory(level);
+        } catch (Throwable t) {
+            com.mrnobody.debug.ErrorLog.record("trim memory handling failed: " + t);
+        }
+    }
+
     public static FilterEngine filters() { return filterEngine; }
     public static Settings settings() { return settings; }
 
@@ -289,6 +307,9 @@ public final class MrNobodyApp extends Application {
         DeterministicEngine engine = (DeterministicEngine) agentEngine;
         if (settings.isTerminalEnabled()) {
             if (!engine.hasTool("terminal")) engine.registerTool(new TerminalTool(new PolicyGate()));
+            try {
+                android.webkit.WebView.setWebContentsDebuggingEnabled(true);
+            } catch (Throwable ignored) {}
         } else {
             engine.unregisterTool("terminal");
         }

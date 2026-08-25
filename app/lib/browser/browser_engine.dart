@@ -88,6 +88,16 @@ abstract class BrowserEngine {
   /// Called with the load progress 0..100.
   ValueChanged<int>? onProgress;
 
+  /// Called with console log entry {message, source, line, level, ts}
+  ValueChanged<Map<String, dynamic>>? onConsole;
+
+  // ---- DevTools extensions ----
+  Future<String?> evalJs(String js) async => null;
+  Future<String?> getHtml() async => null;
+  Future<List<Map<String, dynamic>>> getConsoleLogs() async => const [];
+  Future<void> clearConsole() async {}
+  Future<void> injectEruda() async {}
+
   /// Complete the native ownership handoff for a tab that is closing.
   ///
   /// Ordinary disposal starts this asynchronously. Clear-data awaits it before

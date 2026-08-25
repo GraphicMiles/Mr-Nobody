@@ -65,12 +65,34 @@ class TabManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  DateTime? _lastApply;
+  bool _applyInProgress = false;
+
   /// Push the current user settings (JavaScript, parameter stripping) into
   /// every live engine, so a Settings change reaches pages already open.
-  Future<void> applySettingsToAll() async {
-    for (final tab in _tabs) {
-      await tab.engine.applySettings();
+  /// P0 fix: debounced and parallel, not sequential await per tab.
+  Future<void> applySettingsToAll({bool force = false}) async {
+    if (_applyInProgress && !force) return;
+    final now = DateTime.now();
+    if (!force && _lastApply != null && now.difference(_lastApply!).inMilliseconds < 500) {
+      // Debounce rapid theme changes
+      return;
     }
+    _lastApply = now;
+    _applyInProgress = true;
+    try {
+      // Parallel, not sequential — 6 tabs * 100ms sequential = 600ms jank
+      await Future.wait(_tabs.map((tab) => tab.engine.applySettings().catchError((_) {})));
+    } finally {
+      _applyInProgress = false;
+    }
+  }
+
+  /// Only call when settings that affect WebView actually changed (js, blocking, etc)
+  Future<void> applySettingsIfNeeded({required Set<String> changedKeys}) async {
+    const webViewKeys = {'js', 'blocking', 'paramStripping', 'resourcePolicy', 'profile'};
+    if (changedKeys.intersection(webViewKeys).isEmpty) return;
+    await applySettingsToAll(force: true);
   }
 
   /// Remove private tab models and await their native retained-page teardown.

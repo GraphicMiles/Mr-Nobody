@@ -44,12 +44,18 @@ class BrowserTab extends ChangeNotifier {
   /// A potentially harmful file waiting for an explicit user decision.
   final ValueNotifier<BrowserDownloadRequest?> downloadApproval = ValueNotifier(null);
 
+  /// Console logs for DevTools — ring buffer
+  final ValueNotifier<List<Map<String, dynamic>>> consoleLogs = ValueNotifier(const []);
+  static const int maxConsoleLogs = 300;
+
   /// What the page looks like, for the tab grid. Memory only: never written to
   /// disk, and never captured at all for a private tab.
   Uint8List? thumbnail;
   Uint8List? icon;
 
   Timer? _captureAfterLoad;
+  Timer? _loadingTimeout;
+  bool _disposed = false;
 
   int _lastScrollY = 0;
 
@@ -86,7 +92,21 @@ class BrowserTab extends ChangeNotifier {
       ..onLoadingChanged = (l) {
         if (l == isLoading) return;
         isLoading = l;
-        if (l) error = null;
+        if (l) {
+          error = null;
+          // P0 fix: safety timeout — if native never sends loading=false (previous bug),
+          // auto-reset after 25s so tab doesn't stay stuck forever
+          _loadingTimeout?.cancel();
+          _loadingTimeout = Timer(const Duration(seconds: 25), () {
+            if (_disposed) return;
+            if (isLoading) {
+              isLoading = false;
+              notifyListeners();
+            }
+          });
+        } else {
+          _loadingTimeout?.cancel();
+        }
         notifyListeners();
         if (!l) {
           _syncHistory();
@@ -96,10 +116,15 @@ class BrowserTab extends ChangeNotifier {
           // Android can report finished before the compositor has painted the
           // retained WebView. Retry a few times so the grid never gets stuck
           // with a white/empty card after a fast tab switch.
+          // P0 fix: check disposed before scheduling retry
           _captureAfterLoad = Timer(const Duration(milliseconds: 450), () async {
+            if (_disposed) return;
             await captureThumbnail();
-            if (thumbnail == null) {
-              _captureAfterLoad = Timer(const Duration(milliseconds: 900), captureThumbnail);
+            if (thumbnail == null && !_disposed) {
+              _captureAfterLoad = Timer(const Duration(milliseconds: 900), () {
+                if (_disposed) return;
+                captureThumbnail();
+              });
             }
           });
         }
@@ -123,6 +148,15 @@ class BrowserTab extends ChangeNotifier {
       }
       ..onDownloadApproval = (request) {
         downloadApproval.value = request;
+      }
+      ..onConsole = (entry) {
+        if (_disposed) return;
+        final current = List<Map<String, dynamic>>.from(consoleLogs.value);
+        current.add(entry);
+        if (current.length > maxConsoleLogs) {
+          current.removeRange(0, current.length - maxConsoleLogs);
+        }
+        consoleLogs.value = current;
       };
   }
 
@@ -181,13 +215,30 @@ class BrowserTab extends ChangeNotifier {
   void showChrome() => chromeVisible.value = true;
 
   /// Refresh the tab-grid preview. Cheap enough to call when leaving the page.
+  /// P0 fix: skip if disposed, and debounce rapid calls
+  DateTime? _lastCapture;
   Future<void> captureThumbnail() async {
-    if (isPrivate) return;
+    if (_disposed || isPrivate) return;
+    final now = DateTime.now();
+    if (_lastCapture != null && now.difference(_lastCapture!).inMilliseconds < 800) return;
+    _lastCapture = now;
     final shot = await engine.captureThumbnail();
+    if (_disposed) return;
     if (shot == null || shot.isEmpty) return;
+    // P0 fix: limit thumbnail size to 150KB to avoid memory pressure
+    if (shot.length > 150 * 1024) return;
     thumbnail = shot;
     notifyListeners();
   }
+
+  Future<String?> evalJs(String js) => engine.evalJs(js);
+  Future<String?> getHtml() => engine.getHtml();
+  Future<List<Map<String, dynamic>>> getConsoleFromNative() => engine.getConsoleLogs();
+  Future<void> clearConsole() async {
+    consoleLogs.value = const [];
+    await engine.clearConsole();
+  }
+  Future<void> injectEruda() => engine.injectEruda();
 
   /// What the tab grid shows: page title, else the bare host, else "New tab".
   String get label {
@@ -214,12 +265,15 @@ class BrowserTab extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _captureAfterLoad?.cancel();
+    _loadingTimeout?.cancel();
     thumbnail = null;
     icon = null;
     chromeVisible.dispose();
     notice.dispose();
     downloadApproval.dispose();
+    consoleLogs.dispose();
     engine.dispose();
     super.dispose();
   }

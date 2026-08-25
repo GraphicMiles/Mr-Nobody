@@ -49,6 +49,8 @@ class _TabsScreenState extends State<TabsScreen> {
             _searchField(),
             Expanded(
               child: GridView.builder(
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 120),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
@@ -232,7 +234,7 @@ class _TabCard extends StatelessWidget {
                             color: AppColors.surface3,
                             child: Icon(Icons.public, size: 10, color: AppColors.textFaint),
                           )
-                        : Image.memory(tab.icon!, width: 14, height: 14, fit: BoxFit.cover),
+                        : Image.memory(tab.icon!, width: 14, height: 14, fit: BoxFit.cover, cacheWidth: 28, gaplessPlayback: true),
                   ),
                   const SizedBox(width: 7),
                   Expanded(
@@ -270,12 +272,16 @@ class _TabCard extends StatelessWidget {
                     if (tab.thumbnail != null)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.memory(
-                          tab.thumbnail!,
-                          fit: BoxFit.cover,
-                          alignment: Alignment.topCenter,
-                          gaplessPlayback: true,
-                          filterQuality: FilterQuality.low,
+                        child: RepaintBoundary(
+                          child: Image.memory(
+                            tab.thumbnail!,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.topCenter,
+                            gaplessPlayback: true,
+                            filterQuality: FilterQuality.low,
+                            cacheWidth: 240,
+                            isAntiAlias: false,
+                          ),
                         ),
                       )
                     else
