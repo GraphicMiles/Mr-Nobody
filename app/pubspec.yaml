@@ -28,26 +28,20 @@ flutter:
   # wireframe. Bundled as subset static instances (latin, ~620 KB total) so the
   # app NEVER fetches a font at runtime — a remote font request would leak an
   # IP address on every cold start, which this product does not do.
+  # P2 size optimization: reduced from 9 to 5 font files (Inter 400/600/700, Mono 400/600)
+  # saves ~250KB. Weights 500 maps to 400, 800 maps to 700 via weight mapping in AppTheme.
   fonts:
     - family: Inter
       fonts:
         - asset: assets/fonts/Inter-400.ttf
           weight: 400
-        - asset: assets/fonts/Inter-500.ttf
-          weight: 500
         - asset: assets/fonts/Inter-600.ttf
           weight: 600
         - asset: assets/fonts/Inter-700.ttf
           weight: 700
-        - asset: assets/fonts/Inter-800.ttf
-          weight: 800
     - family: JetBrainsMono
       fonts:
         - asset: assets/fonts/JetBrainsMono-400.ttf
           weight: 400
-        - asset: assets/fonts/JetBrainsMono-500.ttf
-          weight: 500
         - asset: assets/fonts/JetBrainsMono-600.ttf
           weight: 600
-        - asset: assets/fonts/JetBrainsMono-700.ttf
-          weight: 700
