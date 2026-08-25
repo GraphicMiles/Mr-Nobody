@@ -82,7 +82,7 @@ class TabManager extends ChangeNotifier {
     }
     _lastApply = now;
     _applyInProgress = true;
-    final keysToApply = Set<String>.from(_pendingChangedKeys)..clear();
+    _pendingChangedKeys.clear();
     try {
       await Future.wait(_tabs.map((tab) => tab.engine.applySettings().catchError((_) {})));
     } finally {
