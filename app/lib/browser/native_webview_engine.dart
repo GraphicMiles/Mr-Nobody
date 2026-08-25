@@ -39,6 +39,7 @@ class NativeWebViewEngine implements BrowserEngine {
   MethodChannel? _channel;
   bool _disposed = false;
   Future<void>? _nativeRelease;
+  int _surfaceGeneration = 0;
 
   /// Commands issued before the platform view exists are replayed on creation.
   final List<_PendingCall> _pending = [];
@@ -77,7 +78,17 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   bool get isAvailable => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
-  ValueKey<String> get platformViewKey => ValueKey<String>('mrnobody-webview-$tabId');
+  ValueKey<String> get platformViewKey =>
+      ValueKey<String>('mrnobody-webview-$tabId-$_surfaceGeneration');
+
+  @override
+  void recoverFromRendererFailure() {
+    if (_disposed) return;
+    // onRenderProcessGone releases the dead native WebView. Changing the key
+    // is what makes Flutter create a replacement; merely retrying on the old
+    // channel leaves the destroyed platform view painted black.
+    _surfaceGeneration++;
+  }
 
   // ------------------------------------------------------------------ view
 

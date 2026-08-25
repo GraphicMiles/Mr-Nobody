@@ -109,5 +109,10 @@ abstract class BrowserEngine {
   /// deletion while even one WebView still owns that profile.
   Future<void> releaseNativeOwnership();
 
+  /// Recreate the native surface after Android reports that Chromium's
+  /// renderer died. Most engines do not need this; the Android implementation
+  /// bumps its platform-view key so a fresh WebView is mounted.
+  void recoverFromRendererFailure() {}
+
   void dispose();
 }

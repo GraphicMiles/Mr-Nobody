@@ -136,6 +136,14 @@ class BrowserTab extends ChangeNotifier {
       ..onError = (e) {
         error = e;
         isLoading = false;
+        // A renderer failure is not recoverable by calling reload on the same
+        // Android platform view: onRenderProcessGone has already destroyed it.
+        // Force a new platform-view instance so Retry (and the next frame)
+        // cannot leave a permanently black surface.
+        if (e.startsWith('Renderer crashed') ||
+            e.startsWith('Page closed by system')) {
+          engine.recoverFromRendererFailure();
+        }
         notifyListeners();
       }
       ..onScroll = _onScroll

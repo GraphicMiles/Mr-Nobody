@@ -122,8 +122,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             child: Column(
               children: withDividers([
                 MetricRow('Network', _networkLabel()),
-                MetricRow('Download speed', _realSpeedLabel()),
-                MetricRow('Link capability', _linkSpeedLabel()),
+                // This is measured from bytes delivered by the active
+                // transfers. Do not show Android's link-capability estimate:
+                // OEMs commonly report a stale value such as 105 Mbps, which
+                // users understandably read as the current download speed.
+                MetricRow('Measured download speed', _realSpeedLabel()),
                 if (active > 0) MetricRow('Downloading now', '$active'),
               ]),
             ),
