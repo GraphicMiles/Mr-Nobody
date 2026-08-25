@@ -12,6 +12,7 @@ import '../widgets/debug_fab.dart';
 import '../widgets/menu_sheet.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/toast.dart';
+import 'devtools_screen.dart' hide ActionButton;
 
 /// Drill-in screens the browser's ⋮ menu can ask the shell to open.
 enum BrowserDestination { privacy, settings, downloads }
