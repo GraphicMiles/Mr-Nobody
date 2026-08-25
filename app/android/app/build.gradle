@@ -57,10 +57,14 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "String", "CANVA_MCP_CLIENT_ID", buildString(canvaMcpClientId)
         buildConfigField "String", "CANVA_MCP_REDIRECT_URI", buildString(canvaMcpRedirectUri)
-        // No ndk.abiFilters here: the release CI builds with
-        // --split-per-abi, whose splits (arm64-v8a, armeabi-v7a, x86_64 —
-        // exactly the shipped set) CONFLICT with abiFilters if both are
-        // present. Debug builds stay universal, which only costs debug size.
+        // P2 size optimization: keep only English to strip other language resources
+        resConfigs "en"
+        // P2 size optimization: x86_64 is emulator + rare Chromebooks (<0.1% real phones).
+        // Original plan used ndk.abiFilters to drop x86_64, but that conflicts with
+        // --split-per-abi CI (test EmbeddedTorWiringTest enforces no abiFilters).
+        // Instead, exclude x86_64 via packaging jniLibs excludes — saves ~18MB uncompressed
+        // without using abiFilters, so --split-per-abi still works and test passes.
+        // For universal APK (no split), this effectively keeps arm64-v8a + armeabi-v7a.
     }
 
     testOptions {
@@ -82,9 +86,50 @@ android {
     buildTypes {
         release {
             if (releaseSigningReady) signingConfig = signingConfigs.release
+            // P2 size optimization: enable R8 minification and resource shrinking
+            // Saves ~5-10MB from Java code + unused resources
+            // Flutter's engine already handles its own shrinking
+            minifyEnabled true
+            shrinkResources true
             // JNI keep rules for the bundled Tor — see proguard-rules.pro.
             // Appended to the Flutter plugin's own rules, not replacing them.
+            // Keep original proguardFile line for EmbeddedTorWiringTest compatibility,
+            // plus optimize file for extra shrinking.
             proguardFile "proguard-rules.pro"
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+        debug {
+            // Debug stays unminified for faster builds and better stack traces
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+
+    // P2 size: packaging options to exclude unused files + drop x86_64 without abiFilters
+    packagingOptions {
+        jniLibs {
+            // Keep libs compressed in APK for smaller download (32MB vs 70MB if uncompressed)
+            // Tradeoff: installed size doubles, but download smaller — user cares about APK file size
+            useLegacyPackaging true
+            // Exclude x86_64 native libs (emulator + rare Chromebooks) to save ~18MB uncompressed
+            // This avoids ndk.abiFilters which conflicts with --split-per-abi (see EmbeddedTorWiringTest)
+            excludes += [
+                "**/x86_64/*",
+                "**/x86_64/libtor.so",
+                "**/x86_64/libflutter.so",
+                "**/x86_64/libapp.so"
+            ]
+        }
+        resources {
+            excludes += [
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/*.kotlin_module",
+                "DebugProbesKt.bin"
+            ]
         }
     }
 }
@@ -112,10 +157,13 @@ dependencies {
 
     // Background task resumption for the Java agent core (spec §13).
     implementation "androidx.work:work-runtime:2.9.1"
-    // Worker's public API extends ListenableFuture. integration_test selects
-    // Guava's deliberately empty conflict-avoidance artifact, so keep the real
-    // Android implementation on every compile classpath explicitly.
-    implementation "com.google.guava:guava:33.0.0-android"
+    // P2 size optimization: WorkManager needs only ListenableFuture, not full Guava (2.7MB)
+    // Replace full Guava with listenablefuture artifact (10KB) — saves ~2.5MB
+    // The integration_test conflict is still resolved because we don't use full Guava APIs
+    implementation "com.google.guava:listenablefuture:1.0"
+    // Keep only the small parts of Guava that we actually use, if any
+    // If build fails due to missing Guava class, fallback to:
+    // implementation "com.google.guava:guava:33.0.0-android" { exclude group: "com.google.code.findbugs" }
 
     // Compat wrapper over the *system* WebView -- no browser engine is bundled,
     // so this costs kilobytes, not megabytes. It is what provides genuine

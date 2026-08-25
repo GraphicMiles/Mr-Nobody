@@ -247,6 +247,25 @@ abstract final class AppTheme {
     );
   }
 
+  // P2 size optimization: only 400/600/700 bundled, map others to nearest available
+  static FontWeight _mapSansWeight(FontWeight w) {
+    if (w == FontWeight.w500) return FontWeight.w400;
+    if (w == FontWeight.w800) return FontWeight.w700;
+    if (w == FontWeight.w900) return FontWeight.w700;
+    if (w == FontWeight.w300) return FontWeight.w400;
+    if (w == FontWeight.w200) return FontWeight.w400;
+    if (w == FontWeight.w100) return FontWeight.w400;
+    return w;
+  }
+
+  static FontWeight _mapMonoWeight(FontWeight w) {
+    if (w == FontWeight.w500) return FontWeight.w400;
+    if (w == FontWeight.w700) return FontWeight.w600;
+    if (w == FontWeight.w800) return FontWeight.w600;
+    if (w == FontWeight.w900) return FontWeight.w600;
+    return w;
+  }
+
   static TextStyle mono({
     double size = 12,
     Color? color,
@@ -258,7 +277,7 @@ abstract final class AppTheme {
         fontFamily: monoFamily,
         fontSize: size,
         color: color ?? AppColors.textDim,
-        fontWeight: w,
+        fontWeight: _mapMonoWeight(w),
         height: height,
         letterSpacing: letterSpacing,
       );
@@ -274,7 +293,7 @@ abstract final class AppTheme {
         fontFamily: sansFamily,
         fontSize: size,
         color: color ?? AppColors.text,
-        fontWeight: w,
+        fontWeight: _mapSansWeight(w),
         height: height,
         letterSpacing: letterSpacing,
       );
