@@ -22,7 +22,7 @@ import 'toast.dart';
 /// release builds too, so a tester watching the defect happen live can read
 /// and copy the exact failure instead of reporting "it just went black".
 /// Flip it to false for the public build.
-const bool kDebugOverlayInRelease = true;
+const bool kDebugOverlayInRelease = false;
 
 class DebugOverlay extends StatefulWidget {
   /// Extra bottom offset, so the button clears a bottom bar when one is shown.
