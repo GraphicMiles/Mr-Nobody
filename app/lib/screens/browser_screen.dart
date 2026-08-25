@@ -81,7 +81,10 @@ class _BrowserScreenState extends State<BrowserScreen> {
   /// Listen for transient browser notices and download approval requests on the
   /// active tab. Notices use a toast and never replace the page with an error.
   void _listenForTabActions(BrowserTab? tab) {
-    if (identical(tab, _noticeTab) && identical(tab, _approvalTab)) return;
+    final sameTab = tab != null &&
+        (identical(tab, _noticeTab) || (tab.id == _noticeTab?.id && tab.id >= 0)) &&
+        (identical(tab, _approvalTab) || (tab.id == _approvalTab?.id && tab.id >= 0));
+    if (sameTab) return;
     _noticeTab?.notice.removeListener(_onNotice);
     _approvalTab?.downloadApproval.removeListener(_onDownloadApproval);
     _noticeTab = tab;

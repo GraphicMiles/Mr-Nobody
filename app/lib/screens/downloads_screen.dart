@@ -62,6 +62,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       const <Map<String, dynamic>>[],
       'downloads unavailable',
     );
+    if (!mounted) return;
     final network = await NativeBridge.guard(
       NativeBridge.networkStatus,
       const <String, dynamic>{},

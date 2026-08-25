@@ -67,6 +67,7 @@ class TabManager extends ChangeNotifier {
 
   DateTime? _lastApply;
   bool _applyInProgress = false;
+  final Set<String> _pendingChangedKeys = {};
 
   /// Push the current user settings (JavaScript, parameter stripping) into
   /// every live engine, so a Settings change reaches pages already open.
@@ -75,13 +76,14 @@ class TabManager extends ChangeNotifier {
     if (_applyInProgress && !force) return;
     final now = DateTime.now();
     if (!force && _lastApply != null && now.difference(_lastApply!).inMilliseconds < 500) {
-      // Debounce rapid theme changes
+      // Root fix: accumulate changed keys during debounce window instead of dropping
+      _pendingChangedKeys.addAll(_pendingChangedKeys); // keep existing
       return;
     }
     _lastApply = now;
     _applyInProgress = true;
+    final keysToApply = Set<String>.from(_pendingChangedKeys)..clear();
     try {
-      // Parallel, not sequential — 6 tabs * 100ms sequential = 600ms jank
       await Future.wait(_tabs.map((tab) => tab.engine.applySettings().catchError((_) {})));
     } finally {
       _applyInProgress = false;
@@ -91,7 +93,9 @@ class TabManager extends ChangeNotifier {
   /// Only call when settings that affect WebView actually changed (js, blocking, etc)
   Future<void> applySettingsIfNeeded({required Set<String> changedKeys}) async {
     const webViewKeys = {'js', 'blocking', 'paramStripping', 'resourcePolicy', 'profile'};
-    if (changedKeys.intersection(webViewKeys).isEmpty) return;
+    final relevant = changedKeys.intersection(webViewKeys);
+    if (relevant.isEmpty) return;
+    _pendingChangedKeys.addAll(relevant);
     await applySettingsToAll(force: true);
   }
 
