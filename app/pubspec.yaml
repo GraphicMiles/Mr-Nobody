@@ -1,7 +1,7 @@
 name: mrnobody
 description: "Mr Nobody — a small, private, agentic browser."
 publish_to: 'none'
-version: 1.0.4+5
+version: 1.0.5+6
 
 environment:
   sdk: ^3.5.4
