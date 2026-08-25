@@ -449,24 +449,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   child: Text(
                                     'Mr Nobody now has 3 DevTools layers:
 
-1. In-App DevTools (menu > Developer Tools):
-• Console: live console.log/warn/error
-• Network: all requests + blocked
-• Elements: live DOM HTML
-• Storage: cookies + localStorage
-• Eval: run JS in page context
+'
+                                    '1. In-App DevTools (menu > Developer Tools):
+'
+                                    '• Console: live console.log/warn/error
+'
+                                    '• Network: all requests + blocked
+'
+                                    '• Elements: live DOM HTML
+'
+                                    '• Storage: cookies + localStorage
+'
+                                    '• Eval: run JS in page context
 
-2. Eruda overlay (menu > Inject Eruda):
-• Full mobile DevTools injected into page
-• Tap floating button to open
-• Elements, Console, Network, Sources, etc
+'
+                                    '2. Eruda overlay (menu > Inject Eruda):
+'
+                                    '• Full mobile DevTools injected into page
+'
+                                    '• Tap floating button to open
+'
+                                    '• Elements, Console, Network, Sources, etc
 
-3. Remote chrome://inspect (USB + desktop Chrome):
-• Enable Terminal/DevTools toggle
-• Connect via USB, open chrome://inspect
-• Full desktop DevTools
+'
+                                    '3. Remote chrome://inspect (USB + desktop Chrome):
+'
+                                    '• Enable Terminal/DevTools toggle
+'
+                                    '• Connect via USB, open chrome://inspect
+'
+                                    '• Full desktop DevTools
 
-All bundled, no CDN — privacy safe.',
+'
+                                    'All bundled, no CDN — privacy safe.',
                                     style: AppTheme.sans(size: 12.5, color: AppColors.overlayMuted, height: 1.5),
                                   ),
                                 ),
