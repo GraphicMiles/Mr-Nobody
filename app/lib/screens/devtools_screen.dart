@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 
 import '../browser/browser_tab.dart';
 import '../theme/app_theme.dart';
-import '../widgets/common.dart';
 import '../widgets/toast.dart';
 
 /// In-app Developer Tools — like desktop browser DevTools but mobile-native.
@@ -439,7 +438,7 @@ class _DevToolsScreenState extends State<DevToolsScreen> with SingleTickerProvid
               style: AppTheme.mono(size: 12, color: AppColors.text),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText: 'e.g.\ndocument.title\nlocalStorage.length\nwindow.location.href\n2+2\ndocument.querySelectorAll(\"a\").length\nJSON.stringify(performance.timing)',
+                hintText: 'e.g.\ndocument.title\nlocalStorage.length\nwindow.location.href\n2+2\ndocument.querySelectorAll("a").length\nJSON.stringify(performance.timing)',
                 hintStyle: AppTheme.mono(size: 11, color: AppColors.textFaint, height: 1.4),
               ),
             ),
@@ -486,7 +485,7 @@ class _DevToolsScreenState extends State<DevToolsScreen> with SingleTickerProvid
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.line)),
-            child: Text('Quick snippets:\n• document.documentElement.outerHTML.slice(0,5000)\n• performance.getEntriesByType(\"navigation\")[0].toJSON()\n• document.cookie\n• localStorage\n• window.eruda ? \"eruda ready\" : \"not injected\"',
+            child: Text('Quick snippets:\n• document.documentElement.outerHTML.slice(0,5000)\n• performance.getEntriesByType("navigation")[0].toJSON()\n• document.cookie\n• localStorage\n• window.eruda ? "eruda ready" : "not injected"',
                 style: AppTheme.mono(size: 10.5, color: AppColors.textFaint, height: 1.5)),
           ),
         ],

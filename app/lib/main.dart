@@ -429,12 +429,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() => _browserVisible = false);
   }
 
-  // Legacy route-based methods kept for deep-link compatibility, but now delegate to persistent
-  void _pushBrowser() {
-    _showBrowserPersistent();
-  }
-
-  /// Open the browser without stacking a second copy of it.
   void _showBrowser() {
     _showBrowserPersistent();
   }
