@@ -65,6 +65,8 @@ class NativeWebViewEngine implements BrowserEngine {
   ValueChanged<BrowserDownloadRequest>? onDownloadApproval;
   @override
   ValueChanged<int>? onProgress;
+  @override
+  ValueChanged<Map<String, dynamic>>? onConsole;
 
   NativeWebViewEngine({this.tabId = -1, this.initialUrl = '', this.isPrivate = false}) {
     _recreationUrl = initialUrl;

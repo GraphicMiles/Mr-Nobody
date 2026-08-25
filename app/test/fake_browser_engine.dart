@@ -47,6 +47,8 @@ class FakeBrowserEngine implements BrowserEngine {
   ValueChanged<BrowserDownloadRequest>? onDownloadApproval;
   @override
   ValueChanged<int>? onProgress;
+  @override
+  ValueChanged<Map<String, dynamic>>? onConsole;
 
   @override
   bool get isAvailable => false;
@@ -113,6 +115,25 @@ class FakeBrowserEngine implements BrowserEngine {
   Future<void> releaseNativeOwnership() async {
     nativeOwnershipReleased = true;
   }
+
+  @override
+  Future<String?> evalJs(String js) async => null;
+  @override
+  Future<String?> getHtml() async => null;
+  @override
+  Future<List<Map<String, dynamic>>> getConsoleLogs() async => const [];
+  @override
+  Future<void> clearConsole() async {}
+  @override
+  Future<void> injectEruda() async {}
+  @override
+  Future<List<Map<String, dynamic>>> getNetworkLogs() async => const [];
+  @override
+  Future<void> clearNetwork() async {}
+  @override
+  Future<String?> getCookies() async => null;
+  @override
+  Future<String?> getLocalStorage() async => null;
 
   @override
   void dispose() {
