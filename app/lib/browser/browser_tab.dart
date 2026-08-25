@@ -207,12 +207,15 @@ class BrowserTab extends ChangeNotifier {
   }
 
   Future<void> _syncHistory() async {
+    if (_disposed) return;
     final back = await engine.canGoBack();
+    if (_disposed) return;
     final forward = await engine.canGoForward();
+    if (_disposed) return;
     if (back == canGoBack && forward == canGoForward) return;
     canGoBack = back;
     canGoForward = forward;
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   /// Hide the chrome while the page scrolls down, bring it back on the way up

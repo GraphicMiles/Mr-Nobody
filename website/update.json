@@ -1,9 +1,9 @@
 {
-  "latestVersion": "1.0.6",
-  "releaseNotes": "Stability and release-build reliability update: fixed intermittent WebView loading and renderer recovery, tab retention and tab-grid behavior, missing or clipped browser controls, release/debug native ABI mismatch, and the misleading download link-speed estimate. Universal ARM APK: 32.55 MiB download, 58.71 MiB unpacked.",
-  "downloadUrl": "https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.6/mr-nobody-1.0.6.apk",
+  "latestVersion": "1.0.7",
+  "releaseNotes": "Root-core fixes: browser tab sync, WebView renderer recovery, native replay race, settings debounce accumulation, download mounted guard, browser listener identity. Release/debug ABI match preserved; universal APK ready.",
+  "downloadUrl": "https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.7/mr-nobody-1.0.7.apk",
   "required": false,
-  "sha256": "06d60164006c5641d0b4375e1a3adf21b873573d55e8470a0f127725e81c89d4",
-  "signature": "1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5",
-  "publishedAt": "2026-08-25T20:26:00Z"
+  "sha256": "PENDING_BUILD_SHA256",
+  "signature": "PENDING_BUILD_SIG",
+  "publishedAt": "2026-08-25T22:00:00Z"
 }

@@ -150,13 +150,19 @@ class NativeWebViewEngine implements BrowserEngine {
       final toReplay = List<_PendingCall>.from(_pending);
       _pending.clear();
       for (final call in toReplay) {
-        newChannel.invokeMethod<void>(call.method, call.arguments).catchError((e) {
-          // If replay fails (renderer gone), keep for next attach if still relevant
+        try {
+          newChannel.invokeMethod<void>(call.method, call.arguments).catchError((e) {
+            if (call.method == 'loadUrl' || call.method == 'reload') {
+              _pending.add(call);
+            }
+            _report(e);
+          });
+        } catch (e) {
           if (call.method == 'loadUrl' || call.method == 'reload') {
             _pending.add(call);
           }
           _report(e);
-        });
+        }
       }
     }
   }
