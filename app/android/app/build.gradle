@@ -157,13 +157,13 @@ dependencies {
 
     // Background task resumption for the Java agent core (spec §13).
     implementation "androidx.work:work-runtime:2.9.1"
-    // P2 size optimization: WorkManager needs only ListenableFuture, not full Guava (2.7MB)
-    // Replace full Guava with listenablefuture artifact (10KB) — saves ~2.5MB
-    // The integration_test conflict is still resolved because we don't use full Guava APIs
-    implementation "com.google.guava:listenablefuture:1.0"
-    // Keep only the small parts of Guava that we actually use, if any
-    // If build fails due to missing Guava class, fallback to:
-    // implementation "com.google.guava:guava:33.0.0-android" { exclude group: "com.google.code.findbugs" }
+    // Worker's public API extends ListenableFuture. integration_test selects
+    // Guava's deliberately empty conflict-avoidance artifact, so keep the real
+    // Android implementation on every compile classpath explicitly.
+    // P2: tried listenablefuture:1.0 alone (10KB vs 2.7MB) but TaskWorker extends Worker which needs Guava's ListenableFuture
+    // at compile time and Gradle's classpath didn't resolve it without full Guava in this setup.
+    // Keep full Guava for now — size saving from x86_64 exclude (18MB) + R8 + fonts is already major.
+    implementation "com.google.guava:guava:33.0.0-android"
 
     // Compat wrapper over the *system* WebView -- no browser engine is bundled,
     // so this costs kilobytes, not megabytes. It is what provides genuine
