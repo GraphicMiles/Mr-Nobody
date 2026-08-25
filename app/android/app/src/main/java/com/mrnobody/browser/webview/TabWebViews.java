@@ -53,8 +53,40 @@ public final class TabWebViews {
      * (tens of MB with its renderer), so retention has to have a ceiling or a
      * long session becomes an out-of-memory kill. Tabs beyond this still work
      * — they just reload when reopened, which is the old behaviour.
+     *
+     * P0 fix: increased from 6 to 10 to reduce black-screen reloads during
+     * rapid tab switching. Memory pressure will still evict via onTrimMemory.
      */
-    private static final int MAX_RETAINED = 6;
+    private static final int MAX_RETAINED = 10;
+
+    /** Memory pressure level at which we aggressively evict. */
+    private static volatile int lastTrimLevel = 0;
+
+    public static void onTrimMemory(int level) {
+        lastTrimLevel = level;
+        // TRIM_MEMORY_RUNNING_LOW = 10, MODERATE=60, COMPLETE=80
+        if (level >= 60) {
+            // Aggressive eviction: keep only 3 most recent
+            while (LIVE.size() > 3) {
+                Integer oldest = null;
+                for (Integer id : LIVE.keySet()) {
+                    oldest = id;
+                    break;
+                }
+                if (oldest == null) break;
+                MrNobodyWebView.releaseChannel(oldest);
+                destroy(LIVE.remove(oldest));
+            }
+            ErrorLog.record("TabWebViews: trimmed to " + LIVE.size() + " due to memory level " + level);
+        } else if (level >= 10 && LIVE.size() > MAX_RETAINED) {
+            // Light trim back to limit
+            Integer keep = null;
+            for (Integer id : LIVE.keySet()) {
+                keep = id;
+            }
+            if (keep != null) evictBeyondLimit(keep);
+        }
+    }
 
     private TabWebViews() {
     }
@@ -139,6 +171,8 @@ public final class TabWebViews {
                 }
             }
             if (oldest == null) return;
+            // P0 fix: log eviction so debug overlay shows why a tab reloaded
+            ErrorLog.record("TabWebViews: evicting tab " + oldest + " (limit " + MAX_RETAINED + ", kept " + keepTabId + ")");
             // Eviction destroys the native target just like closing a tab.
             // Detach the stable channel first so no settings/navigation call
             // can reach the destroyed WebView before Flutter recreates it.

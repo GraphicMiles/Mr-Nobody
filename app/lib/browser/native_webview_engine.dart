@@ -82,7 +82,8 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   Widget buildView() {
     if (!isAvailable) return const _UnavailableSurface();
-    return PlatformViewLink(
+    return RepaintBoundary(
+      child: PlatformViewLink(
       // Without a tab-specific key Flutter reuses the previous platform-view
       // controller when + selects a new tab, leaving the old page on screen.
       key: platformViewKey,
@@ -114,26 +115,37 @@ class NativeWebViewEngine implements BrowserEngine {
           ..create();
         return controller;
       },
+    ),
     );
   }
 
   void _attach(int id) {
     if (_disposed) return;
-    // A rebuilt platform view means a new channel name; drop the old handler
-    // so a destroyed view cannot answer for this tab.
-    _channel?.setMethodCallHandler(null);
-    // Must match MrNobodyWebView's channel name. It is keyed by the stable
-    // tab id, not the ephemeral view id: a view-id-keyed channel goes stale
-    // whenever the platform view is rebuilt, which is why loadUrl and
-    // applySettings were firing on a channel with no handler.
-    final channel = MethodChannel(
+    // P0 fix: avoid race where old handler cleared before new ready.
+    // Create new channel first, then swap.
+    final newChannel = MethodChannel(
         tabId >= 0 ? '${viewType}_tab_$tabId' : '${viewType}_$id');
-    channel.setMethodCallHandler(_handleEvent);
-    _channel = channel;
-    for (final call in _pending) {
-      channel.invokeMethod<void>(call.method, call.arguments).catchError(_report);
+    newChannel.setMethodCallHandler(_handleEvent);
+    final oldChannel = _channel;
+    _channel = newChannel;
+    // Now safe to clear old handler
+    if (oldChannel != null && oldChannel != newChannel) {
+      oldChannel.setMethodCallHandler(null);
     }
-    _pending.clear();
+    // Replay pending with retry logic — don't lose commands issued during rapid switches
+    if (_pending.isNotEmpty) {
+      final toReplay = List<_PendingCall>.from(_pending);
+      _pending.clear();
+      for (final call in toReplay) {
+        newChannel.invokeMethod<void>(call.method, call.arguments).catchError((e) {
+          // If replay fails (renderer gone), keep for next attach if still relevant
+          if (call.method == 'loadUrl' || call.method == 'reload') {
+            _pending.add(call);
+          }
+          _report(e);
+        });
+      }
+    }
   }
 
   // ---------------------------------------------------------------- events
@@ -195,6 +207,9 @@ class NativeWebViewEngine implements BrowserEngine {
           ));
         }
         break;
+      case 'onConsole':
+        onConsole?.call(args);
+        break;
     }
     return null;
   }
@@ -206,6 +221,10 @@ class NativeWebViewEngine implements BrowserEngine {
     final channel = _channel;
     if (channel == null) {
       // The view is still being created; replay once it is.
+      // P0 fix: deduplicate loadUrl — only keep latest
+      if (method == 'loadUrl') {
+        _pending.removeWhere((p) => p.method == 'loadUrl');
+      }
       _pending.add(_PendingCall(method, arguments));
       return null;
     }
@@ -213,6 +232,14 @@ class NativeWebViewEngine implements BrowserEngine {
       return await channel.invokeMethod<T>(method, arguments);
     } catch (e) {
       _report(e);
+      // P0 fix: on MissingPluginException (channel handler gone), queue for replay
+      final msg = e.toString();
+      if (msg.contains('MissingPluginException') || msg.contains('notImplemented')) {
+        if (method == 'loadUrl' || method == 'reload' || method == 'applySettings') {
+          _pending.removeWhere((p) => p.method == method && method != 'applySettings');
+          _pending.add(_PendingCall(method, arguments));
+        }
+      }
       return null;
     }
   }
@@ -260,6 +287,47 @@ class NativeWebViewEngine implements BrowserEngine {
   @override
   Future<bool> resolveDownload(String requestId, bool allow) async =>
       await _invoke<bool>('resolveDownload', {'id': requestId, 'allow': allow}) ?? false;
+
+  // ---- DevTools ----
+  @override
+  Future<String?> evalJs(String js) async {
+    final res = await _invoke<String>('evalJs', {'js': js});
+    return res;
+  }
+
+  @override
+  Future<String?> getHtml() async {
+    final res = await _invoke<String>('getHtml');
+    // WebView returns JSON-encoded string with quotes, unwrap
+    if (res == null) return null;
+    // Remove surrounding quotes if present
+    if (res.startsWith('"') && res.endsWith('"')) {
+      try {
+        // crude unescape
+        return res.substring(1, res.length - 1).replaceAll(r'\n', '\n').replaceAll(r'\"','"').replaceAll(r'\u003C','<');
+      } catch (_) {
+        return res;
+      }
+    }
+    return res;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getConsoleLogs() async {
+    final r = await _invoke<List>('getConsole');
+    if (r == null) return const [];
+    return r.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  @override
+  Future<void> clearConsole() async {
+    await _invoke<void>('clearConsole');
+  }
+
+  @override
+  Future<void> injectEruda() async {
+    await _invoke<void>('injectEruda');
+  }
 
   /// Ask native to destroy the retained page exactly once. Clear-data awaits
   /// this acknowledgement before requesting isolated-profile deletion.

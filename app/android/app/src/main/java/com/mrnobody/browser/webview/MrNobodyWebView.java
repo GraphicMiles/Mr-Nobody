@@ -184,6 +184,10 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     /** Harmful-looking downloads waiting for an explicit Flutter decision. */
     private final Map<String, PendingDownload> pendingDownloads = new LinkedHashMap<>();
 
+    /** Console log buffer for DevTools — ring buffer, max 300 entries */
+    private final java.util.List<Map<String, Object>> consoleBuffer = new java.util.ArrayList<>();
+    private static final int MAX_CONSOLE = 300;
+
     private static final class PendingDownload {
         final String url;
         final String userAgent;
@@ -489,7 +493,19 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-            if (sameUrl(url, blockedMainFrameUrl)) return;
+            if (sameUrl(url, blockedMainFrameUrl)) {
+                // P0 fix: blocked main frame must not leave tab in loading=true forever.
+                container.setRefreshing(false);
+                String restore = navigationSource();
+                if (restore == null || restore.isEmpty()) restore = lastCommittedUrl;
+                Map<String, Object> data = new HashMap<>();
+                if (restore != null && !restore.isEmpty()) data.put("url", restore);
+                data.put("loading", false);
+                data.put("canGoBack", view.canGoBack());
+                data.put("canGoForward", view.canGoForward());
+                send("onNavigation", data);
+                return;
+            }
             Map<String, Object> data = new HashMap<>();
             data.put("url", url);
             data.put("loading", true);
@@ -501,7 +517,11 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             // Back/forward and same-document history restores do not reliably
             // invoke onPageStarted. This callback is the authoritative history
             // URL and keeps both BrowserTab and the visible address bar honest.
-            if (url == null || url.isEmpty() || sameUrl(url, blockedMainFrameUrl)) return;
+            if (url == null || url.isEmpty()) return;
+            if (sameUrl(url, blockedMainFrameUrl)) {
+                container.setRefreshing(false);
+                return;
+            }
             lastCommittedUrl = url;
             lastMainFrameRequestUrl = url;
             Map<String, Object> data = new HashMap<>();
@@ -515,7 +535,19 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         @Override
         public void onPageFinished(WebView view, String url) {
             container.setRefreshing(false);
-            if (sameUrl(url, blockedMainFrameUrl)) return;
+            if (sameUrl(url, blockedMainFrameUrl)) {
+                // P0 fix: ensure loading=false is always sent even when blocked.
+                String restore = navigationSource();
+                if (restore == null || restore.isEmpty()) restore = lastCommittedUrl;
+                Map<String, Object> data = new HashMap<>();
+                if (restore != null && !restore.isEmpty()) data.put("url", restore);
+                data.put("loading", false);
+                data.put("canGoBack", view.canGoBack());
+                data.put("canGoForward", view.canGoForward());
+                send("onNavigation", data);
+                send("onBlocked", counters(null));
+                return;
+            }
             lastCommittedUrl = url;
             lastMainFrameRequestUrl = url;
             if (!isPrivate) {
@@ -537,6 +569,14 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             // A failed image or script is not a failed page.
             if (!request.isForMainFrame()) return;
             container.setRefreshing(false);
+            // P0 fix: ensure loading=false sent even on error, to avoid stuck spinner
+            Map<String, Object> nav = new HashMap<>();
+            String restore = lastCommittedUrl != null ? lastCommittedUrl : lastMainFrameRequestUrl;
+            if (restore != null && !restore.isEmpty()) nav.put("url", restore);
+            nav.put("loading", false);
+            nav.put("canGoBack", view.canGoBack());
+            nav.put("canGoForward", view.canGoForward());
+            send("onNavigation", nav);
             Map<String, Object> data = new HashMap<>();
             data.put("error", error.getDescription() == null ? "Network error" : error.getDescription().toString());
             data.put("code", error.getErrorCode());
@@ -559,6 +599,19 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                     + ": renderer gone"
                     + (detail != null && detail.didCrash()
                         ? " (renderer crashed)" : " (renderer killed by system)"));
+            // P0 fix: notify Dart before destroying, so UI can show retry instead of black screen
+            try {
+                container.setRefreshing(false);
+                Map<String, Object> nav = new HashMap<>();
+                String restore = lastCommittedUrl != null ? lastCommittedUrl : lastMainFrameRequestUrl;
+                if (restore != null && !restore.isEmpty()) nav.put("url", restore);
+                nav.put("loading", false);
+                send("onNavigation", nav);
+                Map<String, Object> err = new HashMap<>();
+                err.put("error", detail != null && detail.didCrash() ? "Renderer crashed — tap Retry" : "Page closed by system — tap Retry");
+                err.put("code",  -1);
+                send("onError", err);
+            } catch (Throwable ignored) {}
             destroyed = true;
             pendingDownloads.clear();
             try {
@@ -586,6 +639,31 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     };
 
     private final WebChromeClient chromeClient = new WebChromeClient() {
+        @Override
+        public boolean onConsoleMessage(android.webkit.ConsoleMessage consoleMessage) {
+            try {
+                String msg = consoleMessage.message();
+                String source = consoleMessage.sourceId();
+                int line = consoleMessage.lineNumber();
+                String level = consoleMessage.messageLevel() != null ? consoleMessage.messageLevel().name() : "LOG";
+                Map<String, Object> entry = new HashMap<>();
+                entry.put("message", msg == null ? "" : msg);
+                entry.put("source", source == null ? "" : source);
+                entry.put("line", line);
+                entry.put("level", level);
+                entry.put("ts", System.currentTimeMillis());
+                synchronized (consoleBuffer) {
+                    consoleBuffer.add(entry);
+                    if (consoleBuffer.size() > MAX_CONSOLE) {
+                        consoleBuffer.remove(0);
+                    }
+                }
+                Map<String, Object> data = new HashMap<>(entry);
+                send("onConsole", data);
+            } catch (Throwable ignored) {}
+            return true;
+        }
+
         @Override
         public void onProgressChanged(WebView view, int newProgress) {
             Map<String, Object> data = new HashMap<>();
@@ -925,6 +1003,51 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 webView.evaluateJavascript("document.body ? document.body.innerText : ''",
                         value -> result.success(value));
                 return;
+            case "evalJs": {
+                String js = call.argument("js");
+                if (js == null || js.isEmpty()) {
+                    result.error("bad_arg", "js required", null);
+                    return;
+                }
+                webView.evaluateJavascript(js, value -> result.success(value));
+                return;
+            }
+            case "getConsole": {
+                java.util.List<Map<String, Object>> copy;
+                synchronized (consoleBuffer) {
+                    copy = new java.util.ArrayList<>(consoleBuffer);
+                }
+                result.success(copy);
+                return;
+            }
+            case "clearConsole": {
+                synchronized (consoleBuffer) {
+                    consoleBuffer.clear();
+                }
+                result.success(true);
+                return;
+            }
+            case "getHtml": {
+                webView.evaluateJavascript("(function(){return document.documentElement.outerHTML;})()", value -> result.success(value));
+                return;
+            }
+            case "injectEruda": {
+                // Bundled eruda via asset injection - privacy safe, no CDN
+                try {
+                    java.io.InputStream is = context.getAssets().open("eruda.min.js");
+                    byte[] bytes = new byte[is.available()];
+                    is.read(bytes);
+                    is.close();
+                    String erudaJs = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                    String inject = erudaJs + "\n;if(!window.eruda||!window.eruda._isInit){eruda.init();} eruda.show();";
+                    webView.evaluateJavascript(inject, v -> result.success(true));
+                } catch (Exception e) {
+                    // Fallback to CDN if asset missing (should not happen in prod)
+                    String cdn = "(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=function(){eruda.init();eruda.show();};document.head.appendChild(s);})()";
+                    webView.evaluateJavascript(cdn, v -> result.success(true));
+                }
+                return;
+            }
             default:
                 result.notImplemented();
         }
@@ -1085,43 +1208,89 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      * navigation is held (shouldOverrideUrlLoading already returned true);
      * only an explicit "Load anyway" proceeds, and it remembers the host for
      * this tab so the rest of the site loads without further prompts.
+     *
+     * P0 fix: cleartext gate previously left tab in loading=true when dialog
+     * was cancelled or activity died. Now it always restores loading=false and
+     * uses a queued URL + single dialog guard.
      */
+    private volatile String pendingCleartextUrl;
+
     private void promptCleartext(String url) {
+        if (cleartextDialogShowing) {
+            // Queue latest, but never stack dialogs
+            pendingCleartextUrl = url;
+            return;
+        }
         cleartextDialogShowing = true;
+        pendingCleartextUrl = url;
         final android.app.Activity activity = activityOf(context);
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
             cleartextDialogShowing = false;
+            pendingCleartextUrl = null;
+            // P0 fix: notify Dart that navigation was cancelled, so loading spinner clears
+            container.setRefreshing(false);
+            Map<String, Object> data = new HashMap<>();
+            String restore = navigationSource();
+            if (restore == null || restore.isEmpty()) restore = lastCommittedUrl;
+            if (restore != null && !restore.isEmpty()) data.put("url", restore);
+            data.put("loading", false);
+            send("onNavigation", data);
+            sendNotice("Insecure connection blocked — no activity to confirm");
             return;
         }
         final String host = com.mrnobody.agent.util.Hosts.firstIn(url);
         main.post(() -> {
             if (!cleartextDialogShowing) return;
+            String currentUrl = pendingCleartextUrl != null ? pendingCleartextUrl : url;
+            String currentHost = com.mrnobody.agent.util.Hosts.firstIn(currentUrl);
+            if (currentHost == null) currentHost = host;
             AlertDialog dialog = new AlertDialog.Builder(activity)
                     .setTitle("Insecure connection")
-                    .setMessage("The site " + (host == null || host.isEmpty() ? url : host)
+                    .setMessage("The site " + (currentHost == null || currentHost.isEmpty() ? currentUrl : currentHost)
                             + " uses a plain, unencrypted HTTP connection. "
                             + "Anything it sends or you type can be seen by others "
                             + "on the network.\n\n"
-                            + "It is being loaded only because you chose to continue.")
-                    .setPositiveButton("Load anyway", (d, w) -> cleartextAllowed(url))
+                            + "Load anyway?")
+                    .setPositiveButton("Load anyway", (d, w) -> {
+                        String toLoad = pendingCleartextUrl != null ? pendingCleartextUrl : url;
+                        cleartextAllowed(toLoad);
+                    })
                     .setNegativeButton("Cancel", (d, w) -> cleartextDenied())
                     .setOnCancelListener(d -> cleartextDenied())
                     .setCancelable(true)
                     .create();
-            dialog.setOnDismissListener(d -> cleartextDenied());
+            // Only clear flag on explicit dismiss if not already handled by buttons
+            dialog.setOnDismissListener(d -> {
+                if (cleartextDialogShowing) {
+                    cleartextDenied();
+                }
+            });
             dialog.show();
         });
     }
 
     private void cleartextAllowed(String url) {
         cleartextDialogShowing = false;
-        String host = com.mrnobody.agent.util.Hosts.firstIn(url);
+        String toLoad = pendingCleartextUrl != null ? pendingCleartextUrl : url;
+        pendingCleartextUrl = null;
+        String host = com.mrnobody.agent.util.Hosts.firstIn(toLoad);
         if (host != null && !host.isEmpty()) approvedCleartextHosts.add(host);
-        webView.loadUrl(url);
+        webView.loadUrl(toLoad);
     }
 
     private void cleartextDenied() {
+        boolean wasShowing = cleartextDialogShowing;
         cleartextDialogShowing = false;
+        pendingCleartextUrl = null;
+        if (wasShowing) {
+            container.setRefreshing(false);
+            Map<String, Object> data = new HashMap<>();
+            String restore = navigationSource();
+            if (restore == null || restore.isEmpty()) restore = lastCommittedUrl;
+            if (restore != null && !restore.isEmpty()) data.put("url", restore);
+            data.put("loading", false);
+            send("onNavigation", data);
+        }
     }
 
     /** Resolve the activity hosting this view, unwrapping any ContextWrapper. */

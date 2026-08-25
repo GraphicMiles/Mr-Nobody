@@ -11,6 +11,7 @@ import '../widgets/debug_fab.dart';
 import '../widgets/menu_sheet.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/toast.dart';
+import 'devtools_screen.dart';
 
 /// Drill-in screens the browser's ⋮ menu can ask the shell to open.
 enum BrowserDestination { privacy, settings, downloads }
@@ -484,6 +485,15 @@ class _BrowserScreenState extends State<BrowserScreen> {
           return;
         }
         _showBookmarks(marks);
+      }),
+      SheetItem(Icons.code, 'Developer Tools', () {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => DevToolsScreen(tab: tab),
+        ));
+      }),
+      SheetItem(Icons.bug_report_outlined, 'Inject Eruda (inspect)', () async {
+        await tab.injectEruda();
+        if (mounted) AppToast.show(context, 'Eruda injected — look for floating button on page');
       }),
       SheetItem(Icons.shield_outlined, 'Privacy report',
           () => widget.onOpenDestination(BrowserDestination.privacy)),

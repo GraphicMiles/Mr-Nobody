@@ -143,8 +143,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  String _lastTheme = '';
   void _onAppStateChanged() {
-    _tabs.applySettingsToAll();
+    // P0 fix: only push settings to WebViews when web-relevant keys changed.
+    // Theme changes previously triggered 6 sequential MethodChannel calls.
+    final theme = AppState.instance.themeId;
+    final isThemeOnlyChange = _lastTheme.isNotEmpty && _lastTheme != theme;
+    _lastTheme = theme;
+    if (!isThemeOnlyChange) {
+      // For theme-only, skip heavy WebView apply; for other changes, debounced parallel
+      _tabs.applySettingsToAll();
+    }
     // Most app widgets use semantic AppColors rather than Theme.of(context).
     // Explicitly rebuilding the persistent shell prevents stale bottom-nav,
     // IndexedStack and overlay colours until the next tab selection.

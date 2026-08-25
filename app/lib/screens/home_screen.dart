@@ -56,11 +56,30 @@ class HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     refresh();
-    // Tasks run in background workers, so Home polls for their progress while
-    // it is on screen (cheap: one in-process call, no network).
-    _poll = Timer.periodic(const Duration(seconds: 3), (_) {
+    _startPollingIfNeeded();
+  }
+
+  void _startPollingIfNeeded() {
+    _poll?.cancel();
+    if (!widget.isActive) return;
+    // P0 fix: only poll when active, longer interval to reduce bridge traffic
+    _poll = Timer.periodic(const Duration(seconds: 5), (_) {
       if (widget.isActive) refresh();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      if (widget.isActive) {
+        refresh();
+        _startPollingIfNeeded();
+      } else {
+        _poll?.cancel();
+        _poll = null;
+      }
+    }
   }
 
   @override

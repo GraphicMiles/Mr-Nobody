@@ -41,11 +41,24 @@ class _DebugOverlayState extends State<DebugOverlay> {
   @override
   void initState() {
     super.initState();
-    // Half of what goes wrong happens in the Java core and never touches a
-    // Dart try/catch, so the badge has to ask the core rather than wait to be
-    // told. Cheap: one in-process call.
+    // P0 fix: reduced polling frequency and only poll when overlay open or error count >0
     _syncNative();
+    // Start with 15s interval, faster when open
+    _poll = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (_open || ErrorLog.instance.count > 0) _syncNative();
+    });
+  }
+
+  void _startFastPoll() {
+    _poll?.cancel();
     _poll = Timer.periodic(const Duration(seconds: 5), (_) => _syncNative());
+  }
+
+  void _startSlowPoll() {
+    _poll?.cancel();
+    _poll = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (_open || ErrorLog.instance.count > 0) _syncNative();
+    });
   }
 
   @override
@@ -95,8 +108,14 @@ class _DebugOverlayState extends State<DebugOverlay> {
               bottom: safeBottom + widget.bottomInset,
               child: GestureDetector(
                 onTap: () {
-                  setState(() => _open = !_open);
-                  if (_open) _syncNative();
+                  final willOpen = !_open;
+                  setState(() => _open = willOpen);
+                  if (willOpen) {
+                    _startFastPoll();
+                    _syncNative();
+                  } else {
+                    _startSlowPoll();
+                  }
                 },
                 child: Stack(
                   clipBehavior: Clip.none,
