@@ -97,6 +97,10 @@ abstract class BrowserEngine {
   Future<List<Map<String, dynamic>>> getConsoleLogs() async => const [];
   Future<void> clearConsole() async {}
   Future<void> injectEruda() async {}
+  Future<List<Map<String, dynamic>>> getNetworkLogs() async => const [];
+  Future<void> clearNetwork() async {}
+  Future<String?> getCookies() async => null;
+  Future<String?> getLocalStorage() async => null;
 
   /// Complete the native ownership handoff for a tab that is closing.
   ///

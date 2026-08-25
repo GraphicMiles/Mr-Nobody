@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../browser/browser_tab.dart';
 import '../browser/tab_manager.dart';
@@ -445,8 +446,29 @@ class _BrowserScreenState extends State<BrowserScreen> {
             textAlign: TextAlign.center,
             style: AppTheme.sans(size: 12, color: AppColors.textFaint),
           ),
+          const SizedBox(height: 8),
+          Text(
+            tab.url,
+            textAlign: TextAlign.center,
+            style: AppTheme.mono(size: 10, color: AppColors.textFaint),
+          ),
           const SizedBox(height: 18),
-          SizedBox(width: 180, child: ActionButton('Retry', solid: true, onTap: tab.reload)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(width: 140, child: ActionButton('Retry', solid: true, onTap: tab.reload)),
+              const SizedBox(width: 12),
+              SizedBox(width: 140, child: ActionButton('Copy URL', onTap: () {
+                // ignore: avoid_print
+                Clipboard.setData(ClipboardData(text: tab.url));
+                AppToast.show(context, 'URL copied');
+              })),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (tab.consoleLogs.value.isNotEmpty)
+            Text('${tab.consoleLogs.value.length} console logs — open DevTools from menu',
+                style: AppTheme.mono(size: 10, color: AppColors.textMuted)),
         ],
       ),
     );
