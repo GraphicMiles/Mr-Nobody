@@ -113,8 +113,15 @@ class _DevToolsScreenState extends State<DevToolsScreen> with SingleTickerProvid
     try {
       final result = await widget.tab.evalJs(js);
       if (!mounted) return;
-      setState(() => _evalResult = result ?? 'null');
-      AppToast.show(context, 'Evaluated');
+      // WebView's evaluateJavascript returns the JSON literal "null" when
+      // the expression evaluates to undefined. That is normal for statements
+      // such as console.log("hi"): the useful value is emitted in the Console
+      // tab, not returned as the expression result.
+      final display = result == null || result == 'null'
+          ? 'undefined — check the Console tab for logged output'
+          : result;
+      setState(() => _evalResult = display);
+      AppToast.show(context, 'Evaluated — see Console for logs');
     } catch (e) {
       if (!mounted) return;
       setState(() => _evalResult = 'Error: $e');
@@ -124,8 +131,16 @@ class _DevToolsScreenState extends State<DevToolsScreen> with SingleTickerProvid
   Future<void> _injectEruda() async {
     try {
       await widget.tab.injectEruda();
+      // Verify the bundled script actually initialized in the page context;
+      // do not report success merely because the channel call completed.
+      final ready = await widget.tab.evalJs(
+          'window.eruda && typeof window.eruda.show === "function"');
       if (!mounted) return;
-      AppToast.show(context, 'Eruda injected — check page for floating button');
+      if (ready == 'true') {
+        AppToast.show(context, 'Eruda ready — check page for floating button');
+      } else {
+        AppToast.show(context, 'Eruda did not initialize on this page');
+      }
     } catch (e) {
       AppToast.show(context, 'Failed to inject: $e');
     }

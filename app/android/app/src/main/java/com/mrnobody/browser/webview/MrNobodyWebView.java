@@ -1097,19 +1097,27 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 return;
             }
             case "injectEruda": {
-                // Bundled eruda via asset injection - privacy safe, no CDN
-                try {
-                    java.io.InputStream is = context.getAssets().open("eruda.min.js");
-                    byte[] bytes = new byte[is.available()];
-                    is.read(bytes);
-                    is.close();
-                    String erudaJs = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-                    String inject = erudaJs + "\n;if(!window.eruda||!window.eruda._isInit){eruda.init();} eruda.show();";
-                    webView.evaluateJavascript(inject, v -> result.success(true));
+                // Eruda is bundled deliberately: do not fall back to a CDN,
+                // both because the app must work offline and because a CDN
+                // request would leak the visited page's network context.
+                try (java.io.InputStream is = context.getAssets().open("eruda.min.js");
+                     java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[16 * 1024];
+                    int count;
+                    while ((count = is.read(buffer)) != -1) out.write(buffer, 0, count);
+                    String erudaJs = out.toString(java.nio.charset.StandardCharsets.UTF_8.name());
+                    String inject = erudaJs
+                            + "\n;(function(){try{"
+                            + "if(!window.__mrNobodyErudaReady){window.eruda.init();"
+                            + "window.__mrNobodyErudaReady=true;}"
+                            + "window.eruda.show();return true;"
+                            + "}catch(e){return false;}})();";
+                    webView.evaluateJavascript(inject,
+                            value -> result.success("true".equals(value)));
                 } catch (Exception e) {
-                    // Fallback to CDN if asset missing (should not happen in prod)
-                    String cdn = "(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=function(){eruda.init();eruda.show();};document.head.appendChild(s);})()";
-                    webView.evaluateJavascript(cdn, v -> result.success(true));
+                    com.mrnobody.debug.ErrorLog.record("Eruda asset injection failed: "
+                            + e.getClass().getSimpleName());
+                    result.error("eruda_unavailable", "Bundled Eruda could not be loaded", null);
                 }
                 return;
             }
