@@ -1,14 +1,9 @@
 name: Distribution APK
 
-# Builds a single, signed, universal APK for sharing with testers. This is the
-# hand-out artifact: one APK that contains all three native ABIs (arm64-v8a,
-# armeabi-v7a, x86_64) so it installs on any device, and the app is set to
-# support Android 12+ (minSdk 31).
-#
-# It is separate from the per-ABI "Flutter Build" workflow, which keeps its own
-# 45 MiB per-ABI size gate. A universal APK bundles three engines, so it is
-# naturally larger than one ABI; the ceiling here is raised to match, and this
-# workflow is manual-only so it never gates a normal push.
+# Builds signed per-ABI APKs for distribution. A universal APK bundles three
+# Flutter/native payloads and cannot reliably stay below 50 MiB; each public
+# artifact contains exactly one ABI and remains installable on its matching
+# devices. This workflow is manual-only so it never gates a normal push.
 on:
   workflow_dispatch:
 

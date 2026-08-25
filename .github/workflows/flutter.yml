@@ -103,12 +103,11 @@ jobs:
           echo "MRNOBODY_KEY_ALIAS=mrnobody-ci-test" >> "$GITHUB_ENV"
           echo "MRNOBODY_KEY_PASSWORD=mrnobody-ci-test" >> "$GITHUB_ENV"
 
-      # One universal APK, not one per ABI: a single standard artifact that
-      # installs on any device, with one signature to verify. The trade is a
-      # larger download (three native engines) for simpler distribution.
-      - name: Build signed universal CI APK
+      # Build one ABI per artifact. This keeps the CI artifact close to the
+      # public download target without dropping x86_64 from release builds.
+      - name: Build signed per-ABI CI APKs
         working-directory: app
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi
 
       - name: Verify APK signature
         working-directory: app
