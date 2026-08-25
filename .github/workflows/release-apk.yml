@@ -1,9 +1,8 @@
 name: Distribution APK
 
-# Builds signed per-ABI APKs for distribution. A universal APK bundles three
-# Flutter/native payloads and cannot reliably stay below 50 MiB; each public
-# artifact contains exactly one ABI and remains installable on its matching
-# devices. This workflow is manual-only so it never gates a normal push.
+# Builds one signed universal APK for distribution. The APK keeps all native
+# ABIs and is size-checked both as downloaded and after unpacking. This
+# workflow is manual-only so it never gates a normal push.
 on:
   workflow_dispatch:
 
@@ -56,14 +55,19 @@ jobs:
             "$apksigner" verify --verbose --print-certs "$apk"
           done
 
-      - name: Size report
+      - name: Size gate (70 MiB unpacked)
         working-directory: app
         run: |
-          for apk in build/app/outputs/flutter-apk/app-release.apk; do
-            test -f "$apk" || continue
-            size=$(stat -c%s "$apk")
-            echo "universal APK: $((size / 1024 / 1024)) MiB ($size bytes)" >> "$GITHUB_STEP_SUMMARY"
-          done
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          test -f "$apk"
+          size=$(stat -c%s "$apk")
+          rm -rf /tmp/mr-nobody-apk && mkdir -p /tmp/mr-nobody-apk
+          unzip -q "$apk" -d /tmp/mr-nobody-apk
+          unpacked=$(du -sb /tmp/mr-nobody-apk | cut -f1)
+          echo "universal APK download: $((size / 1024 / 1024)) MiB ($size bytes)" >> "$GITHUB_STEP_SUMMARY"
+          echo "universal APK unpacked: $((unpacked / 1024 / 1024)) MiB ($unpacked bytes)" >> "$GITHUB_STEP_SUMMARY"
+          python3 ../tools/apk_size_check.py "$apk" 70
+          test "$unpacked" -le $((70 * 1024 * 1024))
 
       - name: Upload universal distribution APK
         uses: actions/upload-artifact@v7

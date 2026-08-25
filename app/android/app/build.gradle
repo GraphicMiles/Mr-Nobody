@@ -96,15 +96,21 @@ android {
         }
     }
 
-    // Packaging: keep META-INF excludes + legacy packaging for a smaller APK.
-    // All ABIs remain present so debug and release exercise the same native
-    // WebView/Flutter/Tor payload.
+    // Packaging: keep META-INF excludes and omit x86_64 from the single public
+    // ARM universal APK to keep the unpacked artifact in the 50–70 MiB range.
+    // Debug builds can still target x86_64 emulators when needed.
     packagingOptions {
         jniLibs {
-            // Keep the release native payload identical to debug. Excluding
-            // x86_64 here made the public APK unable to render on x86_64
-            // devices/emulators even though the debug APK worked.
+            // The public artifact is universal for supported ARM phones, but
+            // does not ship the rarely used x86_64 native payload. This saves
+            // roughly 18 MiB unpacked while keeping one non-split APK.
             useLegacyPackaging true
+            excludes += [
+                "**/x86_64/*",
+                "**/x86_64/libtor.so",
+                "**/x86_64/libflutter.so",
+                "**/x86_64/libapp.so"
+            ]
         }
         resources {
             excludes += [

@@ -103,21 +103,20 @@ jobs:
           echo "MRNOBODY_KEY_ALIAS=mrnobody-ci-test" >> "$GITHUB_ENV"
           echo "MRNOBODY_KEY_PASSWORD=mrnobody-ci-test" >> "$GITHUB_ENV"
 
-      # Build one ABI per artifact. This keeps the CI artifact close to the
-      # public download target without dropping x86_64 from release builds.
-      - name: Build signed per-ABI CI APKs
+      # Build one universal artifact. The public distribution is deliberately
+      # not split by ABI; size is measured both as downloaded and unpacked.
+      - name: Build signed universal CI APK
         working-directory: app
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release
 
       - name: Verify APK signature
         working-directory: app
         run: |
           apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
           test -n "$apksigner"
-          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
-            test -f "$apk"
-            "$apksigner" verify --verbose --print-certs "$apk"
-          done
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          test -f "$apk"
+          "$apksigner" verify --verbose --print-certs "$apk"
 
       # The Java agent core (routing, filtering, policy, reconciliation) is
       # written to run on a plain JVM precisely so it can be tested without a
@@ -126,17 +125,21 @@ jobs:
         working-directory: app/android
         run: ./gradlew :app:testDebugUnitTest --console=plain
 
-      # Gate the artifact a user actually installs. A universal APK carries
-      # all three native engines, so its ceiling sits above the old per-ABI
-      # 45 MiB one.
-      - name: APK size gate (80 MiB universal)
+      # Gate the universal artifact. Report both download and unpacked size;
+      # native libraries may be compressed inside an APK.
+      - name: APK size gate (universal, 70 MiB unpacked)
         working-directory: app
         run: |
           apk=build/app/outputs/flutter-apk/app-release.apk
           test -f "$apk"
           size=$(stat -c%s "$apk")
-          echo "universal APK: $((size / 1024 / 1024)) MiB ($size bytes)" >> "$GITHUB_STEP_SUMMARY"
-          python3 ../tools/apk_size_check.py "$apk" 80
+          rm -rf /tmp/mr-nobody-apk && mkdir -p /tmp/mr-nobody-apk
+          unzip -q "$apk" -d /tmp/mr-nobody-apk
+          unpacked=$(du -sb /tmp/mr-nobody-apk | cut -f1)
+          echo "universal APK download: $((size / 1024 / 1024)) MiB ($size bytes)" >> "$GITHUB_STEP_SUMMARY"
+          echo "universal APK unpacked: $((unpacked / 1024 / 1024)) MiB ($unpacked bytes)" >> "$GITHUB_STEP_SUMMARY"
+          python3 ../tools/apk_size_check.py "$apk" 70
+          test "$unpacked" -le $((70 * 1024 * 1024))
 
       - name: Upload universal APK
         uses: actions/upload-artifact@v7
