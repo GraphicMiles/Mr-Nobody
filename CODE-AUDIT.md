@@ -19,7 +19,7 @@ The release regression was introduced in `dc40c44` and compounded by the later r
 - `913bd56` disabled R8 and reverted the persistent overlay, which removed the most obvious failure but also brought back repeated platform-view teardown/recreation;
 - release then excluded `x86_64` native libraries while debug still contained them.
 
-The last item is a concrete debug/release mismatch: an x86_64 emulator/device can run the debug APK but cannot create the Flutter/WebView native surface from the public APK. The release build now keeps the same ABI payload as debug. R8 and resource shrinking remain disabled.
+The last item is a concrete debug/release mismatch: an x86_64 emulator/device can run the debug APK but cannot create the Flutter/WebView native surface from the public APK. R8 and resource shrinking remain disabled. The public universal APK intentionally omits x86_64 to reduce unpacked size; debug builds remain the x86_64-compatible choice for emulator validation.
 
 A second recovery defect was present in `onRenderProcessGone`: the dead WebView was released, but Dart only tried `reload()` against the old platform-view key. That cannot recover a destroyed renderer, so the view remained black until a larger navigation/reload happened. The Android engine now increments a platform-view generation on renderer failure, forcing Flutter to mount a fresh WebView using the last known URL.
 
