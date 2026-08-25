@@ -1,9 +1,9 @@
 {
-  "latestVersion": "1.0.2",
-  "releaseNotes": "Stability and security fixes: corrected on-device page/search text extraction; credentials no longer wiped on transient Android Keystore errors; hardened blocklist matching and the exported open deep link; crash-proof version parsing; bounded the agent tool-execution pool; added a one-shot release publisher. Same signing key as 1.0.1 \u2014 updates in place.",
-  "downloadUrl": "https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.2/mr-nobody-1.0.2.apk",
+  "latestVersion": "1.0.3",
+  "releaseNotes": "Performance & size: 32MB -> 25MB APK via x86_64 exclusion + R8 shrink, instant browser switching (persistent WebView fixes black screen/reload), DevTools v2 with 5 tabs (Console/Network/Elements/Storage/Eval) + Eruda + chrome://inspect, reliability fixes for blocked nav/cleartext/render gone, 1097 tests pass. Release APK - no debug panel.",
+  "downloadUrl": "https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.3/mr-nobody-1.0.3.apk",
   "required": false,
-  "sha256": "ea0b18926f482a87216b60046dad5061e9d2f82a8481dad569ccbb786809f71c",
+  "sha256": "ca09bb5c0785ff35b56ef7d024e922e4258d48857a697952eaef179534f9ad67",
   "signature": "1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5",
-  "publishedAt": "2026-08-23T13:32:39Z"
+  "publishedAt": "2026-08-25T18:17:13Z"
 }
