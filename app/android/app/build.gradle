@@ -86,40 +86,26 @@ android {
     buildTypes {
         release {
             if (releaseSigningReady) signingConfig = signingConfigs.release
-            // P2 size optimization: enable R8 minification and resource shrinking
-            // Saves ~5-10MB from Java code + unused resources
-            // Flutter's engine already handles its own shrinking
-            minifyEnabled true
-            shrinkResources true
+            // P2 size: previously enabled R8 minify+shrink to save 5-10MB, but caused black-screen regression
+            // in release APK (debug APK fine). Reverted to no minify to match debug and fix regression.
+            // Size optimization now comes from font subset + resConfigs en only, keeping universal 3 ABIs.
+            // If minify needed later, need more conservative proguard rules for WebView.
+            minifyEnabled false
+            shrinkResources false
             // JNI keep rules for the bundled Tor — see proguard-rules.pro.
             // Appended to the Flutter plugin's own rules, not replacing them.
-            // Keep original proguardFile line for EmbeddedTorWiringTest compatibility,
-            // plus optimize file for extra shrinking.
             proguardFile "proguard-rules.pro"
-            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
         debug {
-            // Debug stays unminified for faster builds and better stack traces
             minifyEnabled false
             shrinkResources false
         }
     }
 
-    // P2 size: packaging options to exclude unused files + drop x86_64 without abiFilters
+    // Packaging: keep META-INF excludes for size, but keep all ABIs (arm64-v8a, armeabi-v7a, x86_64)
+    // to avoid black-screen on x86_64 devices/emulators. Previous x86_64 exclude saved 18MB but
+    // contributed to regression report (black screen). Reverted for stability.
     packagingOptions {
-        jniLibs {
-            // Keep libs compressed in APK for smaller download (32MB vs 70MB if uncompressed)
-            // Tradeoff: installed size doubles, but download smaller — user cares about APK file size
-            useLegacyPackaging true
-            // Exclude x86_64 native libs (emulator + rare Chromebooks) to save ~18MB uncompressed
-            // This avoids ndk.abiFilters which conflicts with --split-per-abi (see EmbeddedTorWiringTest)
-            excludes += [
-                "**/x86_64/*",
-                "**/x86_64/libtor.so",
-                "**/x86_64/libflutter.so",
-                "**/x86_64/libapp.so"
-            ]
-        }
         resources {
             excludes += [
                 "META-INF/DEPENDENCIES",

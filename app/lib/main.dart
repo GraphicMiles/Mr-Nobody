@@ -400,13 +400,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     ));
   }
 
-  // P2: persistent browser — keep WebView alive across shell switches
-  bool _browserVisible = false;
-
   void _openBrowser(String url) {
     final tab = _tabs.active ?? _tabs.newTab();
     if (url.isNotEmpty) tab.engine.loadUrl(url);
-    _showBrowserPersistent();
+    _pushBrowser();
   }
 
   /// A waiting task asked the user to finish something on a real page
@@ -414,23 +411,46 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   /// underneath and they can come back to tap "I've finished".
   void _openUrlFromTask(String url) {
     _tabs.newTab(url: url);
-    _showBrowserPersistent();
+    _pushBrowser();
   }
 
-  void _showBrowserPersistent() {
-    if (_browserVisible) return;
-    setState(() => _browserVisible = true);
+  void _pushBrowser() {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        settings: const RouteSettings(name: 'browser'),
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => BrowserScreen(
+          tabs: _tabs,
+          onShowTabs: () {
+            Navigator.of(context).popUntil((r) => r.isFirst);
+            _select(ShellTab.tabs);
+          },
+          onOpenDestination: (dest) {
+            switch (dest) {
+              case BrowserDestination.privacy:
+                _push(const PrivacyScreen());
+                break;
+              case BrowserDestination.settings:
+                _push(SettingsScreen(
+                    onBeforeBrowserDataClear: _onBeforeBrowserDataClear,
+                    onOpenUrl: _openUrlFromTask));
+                break;
+              case BrowserDestination.downloads:
+                _push(const DownloadsScreen());
+                break;
+            }
+          },
+        ),
+      ),
+    );
   }
 
-  void _hideBrowserPersistent() {
-    if (!_browserVisible) return;
-    // Capture thumbnail when leaving browser — for tab grid
-    _tabs.active?.captureThumbnail();
-    setState(() => _browserVisible = false);
-  }
-
+  /// Open the browser without stacking a second copy of it.
   void _showBrowser() {
-    _showBrowserPersistent();
+    final route = ModalRoute.of(context);
+    if (route?.settings.name == 'browser') return;
+    _pushBrowser();
   }
 
   void _push(Widget screen) {
@@ -509,106 +529,66 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       );
     }
 
-    // P2: Handle back button when persistent browser is visible
-    return PopScope(
-      canPop: !_browserVisible,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        if (_browserVisible) {
-          _hideBrowserPersistent();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: IndexedStack(
-                index: _tab.index,
-                children: [
-                  HomeScreen(
-                    key: _homeKey,
-                    isActive: _tab == ShellTab.home && !_browserVisible,
-                    scrollController: _scrollControllers[ShellTab.home],
-                    onSubmit: _route,
-                    onOpenTask: _openTask,
-                    onShortcut: (s) {
-                      switch (s) {
-                        case HomeShortcut.tabs:
-                          _select(ShellTab.tabs);
-                          break;
-                        case HomeShortcut.tasks:
-                          _select(ShellTab.tasks);
-                          break;
-                        case HomeShortcut.downloads:
-                          _push(const DownloadsScreen());
-                          break;
-                        case HomeShortcut.settings:
-                          _select(ShellTab.settings);
-                          break;
-                      }
-                    },
-                  ),
-                  TabsScreen(tabs: _tabs, onOpenTab: _showBrowser),
-                  TasksScreen(
-                    isActive: _tab == ShellTab.tasks && !_browserVisible,
-                    scrollController: _scrollControllers[ShellTab.tasks],
-                    onOpenTask: _openTask,
-                  ),
-                  SettingsScreen(
-                    scrollController: _scrollControllers[ShellTab.settings],
-                    onBack: () => _select(ShellTab.home),
-                    onBeforeBrowserDataClear: _onBeforeBrowserDataClear,
-                    onOpenUrl: _openUrlFromTask,
-                  ),
-                ],
-              ),
-            ),
-            // P2: Persistent browser overlay — keeps WebView alive, no recreate on switch
-            // Uses Offstage to keep platform view mounted but hidden, so tab switching is instant
-            if (_browserVisible)
-              Positioned.fill(
-                child: BrowserScreen(
-                  tabs: _tabs,
-                  onShowTabs: () {
-                    _hideBrowserPersistent();
-                    _select(ShellTab.tabs);
-                  },
-                  onOpenDestination: (dest) {
-                    switch (dest) {
-                      case BrowserDestination.privacy:
-                        _push(const PrivacyScreen());
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: IndexedStack(
+              index: _tab.index,
+              children: [
+                HomeScreen(
+                  key: _homeKey,
+                  isActive: _tab == ShellTab.home,
+                  scrollController: _scrollControllers[ShellTab.home],
+                  onSubmit: _route,
+                  onOpenTask: _openTask,
+                  onShortcut: (s) {
+                    switch (s) {
+                      case HomeShortcut.tabs:
+                        _select(ShellTab.tabs);
                         break;
-                      case BrowserDestination.settings:
-                        _push(SettingsScreen(
-                            onBeforeBrowserDataClear: _onBeforeBrowserDataClear,
-                            onOpenUrl: _openUrlFromTask));
+                      case HomeShortcut.tasks:
+                        _select(ShellTab.tasks);
                         break;
-                      case BrowserDestination.downloads:
+                      case HomeShortcut.downloads:
                         _push(const DownloadsScreen());
+                        break;
+                      case HomeShortcut.settings:
+                        _select(ShellTab.settings);
                         break;
                     }
                   },
                 ),
-              ),
-            // The ⓘ overlay rides above every destination, as in the wireframe.
-            // The body already ends above the bar, so it only needs a small gap.
-            const Positioned.fill(child: DebugOverlay(bottomInset: 18)),
-          ],
-        ),
-        bottomNavigationBar: BottomNav(
-          selected: _tab.index,
-          visible: _navVisible && !_browserVisible,
-          onSelect: (i) {
-            if (_browserVisible) _hideBrowserPersistent();
-            _select(ShellTab.values[i]);
-          },
-          onNew: () {
-            _tabs.newTab();
-            AppToast.show(context, 'New tab');
-            _showBrowser();
-          },
-        ),
+                TabsScreen(tabs: _tabs, onOpenTab: _showBrowser),
+                TasksScreen(
+                  isActive: _tab == ShellTab.tasks,
+                  scrollController: _scrollControllers[ShellTab.tasks],
+                  onOpenTask: _openTask,
+                ),
+                SettingsScreen(
+                  scrollController: _scrollControllers[ShellTab.settings],
+                  onBack: () => _select(ShellTab.home),
+                  onBeforeBrowserDataClear: _onBeforeBrowserDataClear,
+                  onOpenUrl: _openUrlFromTask,
+                ),
+              ],
+            ),
+          ),
+          // The ⓘ overlay rides above every destination, as in the wireframe.
+          // The body already ends above the bar, so it only needs a small gap.
+          const Positioned.fill(child: DebugOverlay(bottomInset: 18)),
+        ],
+      ),
+      bottomNavigationBar: BottomNav(
+        selected: _tab.index,
+        visible: _navVisible,
+        onSelect: (i) => _select(ShellTab.values[i]),
+        onNew: () {
+          _tabs.newTab();
+          AppToast.show(context, 'New tab');
+          _showBrowser();
+        },
       ),
     );
   }
