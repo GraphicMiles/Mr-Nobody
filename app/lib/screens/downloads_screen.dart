@@ -122,7 +122,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             child: Column(
               children: withDividers([
                 MetricRow('Network', _networkLabel()),
-                MetricRow('Estimated speed', _linkSpeedLabel()),
+                MetricRow('Download speed', _realSpeedLabel()),
+                MetricRow('Link capability', _linkSpeedLabel()),
                 if (active > 0) MetricRow('Downloading now', '$active'),
               ]),
             ),
@@ -186,11 +187,29 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     return metered ? '$name · metered' : name;
   }
 
+  String _realSpeedLabel() {
+    // Sum real measured speeds from active downloads — fixes hardcoded 105 Mbps bug
+    // _speed contains smoothed bytes/sec per download id
+    double total = 0;
+    for (final entry in _items) {
+      final id = _int(entry['id']);
+      final status = _status(entry);
+      if (status == _running || status == _queued) {
+        total += _speed[id] ?? 0;
+      }
+    }
+    if (total <= 0) return '—';
+    return '${humanBytes(total.round())}/s';
+  }
+
   String _linkSpeedLabel() {
+    // Android's getLinkDownstreamBandwidthKbps() is often hardcoded by OEM (e.g. 105 Mbps)
+    // and does NOT reflect real throughput. Keep it for reference but label clearly,
+    // and show real speed in _realSpeedLabel above.
     final kbps = _int(_network['downKbps']);
     if (kbps <= 0) return '—';
-    if (kbps < 1000) return '$kbps kbps';
-    return '${(kbps / 1000).toStringAsFixed(1)} Mbps';
+    if (kbps < 1000) return '$kbps kbps (estimated)';
+    return '${(kbps / 1000).toStringAsFixed(1)} Mbps (estimated)';
   }
 
   Widget _row(Map<String, dynamic> d) {
