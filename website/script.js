@@ -1,98 +1,95 @@
 // Mr Nobody — Website Scripts
-// Naming: init + feature name, clean and maintainable
+// Simple, referenceable naming: init + feature name
 
 function initIcons() {
   if (window.lucide) {
-    lucide.createIcons();
+    window.lucide.createIcons();
   }
 }
 
 function initMenu() {
-  const btn = document.querySelector('.menu');
+  const toggle = document.querySelector('.menu-toggle');
   const menu = document.querySelector('.mobilemenu');
-  if (!btn || !menu) return;
+  if (!toggle || !menu) return;
 
-  function set(open) {
-    menu.classList.toggle('open', open);
-    btn.classList.toggle('open', open);
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  function setOpen(isOpen) {
+    toggle.classList.toggle('open', isOpen);
+    menu.classList.toggle('open', isOpen);
+    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   }
 
-  btn.addEventListener('click', function (e) {
+  toggle.addEventListener('click', function (e) {
     e.stopPropagation();
-    set(!menu.classList.contains('open'));
+    setOpen(!menu.classList.contains('open'));
   });
 
-  menu.querySelectorAll('a').forEach(function (a) {
-    a.addEventListener('click', function () {
-      set(false);
+  menu.querySelectorAll('a').forEach(function (link) {
+    link.addEventListener('click', function () {
+      setOpen(false);
     });
   });
 
   window.addEventListener('resize', function () {
-    if (window.innerWidth > 880) set(false);
+    if (window.innerWidth > 880) {
+      setOpen(false);
+    }
   });
 }
 
-function initYear() {
-  const el = document.getElementById('year');
-  if (el) el.textContent = new Date().getFullYear();
-}
+function initMockupTabs() {
+  const tabs = document.querySelectorAll('.mock-tab-item');
+  const panels = document.querySelectorAll('.mockup-panel');
 
-function initInteractiveMockup() {
-  const buttons = document.querySelectorAll('.mock-tab-btn');
-  const panes = document.querySelectorAll('.mock-tab-pane');
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      const targetId = tab.getAttribute('data-tab');
+      if (!targetId) return;
 
-  buttons.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      const tabId = btn.getAttribute('data-tab');
-      if (!tabId) return;
+      tabs.forEach(function (t) { t.classList.remove('active'); });
+      panels.forEach(function (p) { p.classList.remove('active'); });
 
-      buttons.forEach(function (b) {
-        b.classList.remove('active');
-      });
-      panes.forEach(function (p) {
-        p.classList.remove('active');
-      });
-
-      btn.classList.add('active');
-      const targetPane = document.getElementById('pane-' + tabId);
-      if (targetPane) {
-        targetPane.classList.add('active');
+      tab.classList.add('active');
+      const targetPanel = document.getElementById('panel-' + targetId);
+      if (targetPanel) {
+        targetPanel.classList.add('active');
       }
     });
   });
 }
 
-function initCopyChecksum() {
-  const copyButtons = document.querySelectorAll('.copy-btn');
-  copyButtons.forEach(function (btn) {
+function initCopyButtons() {
+  const buttons = document.querySelectorAll('.copy-btn');
+  buttons.forEach(function (btn) {
     btn.addEventListener('click', function () {
-      const textToCopy = btn.getAttribute('data-copy');
-      if (!textToCopy) return;
+      const text = btn.getAttribute('data-copy');
+      if (!text) return;
 
-      navigator.clipboard.writeText(textToCopy).then(function () {
+      navigator.clipboard.writeText(text).then(function () {
         const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i data-lucide="check" width="12"></i> Copied!';
-        if (window.lucide) lucide.createIcons();
-
+        btn.innerHTML = '<i data-lucide="check" width="12"></i> Copied';
+        initIcons();
         setTimeout(function () {
           btn.innerHTML = originalHtml;
-          if (window.lucide) lucide.createIcons();
-        }, 2200);
+          initIcons();
+        }, 2000);
       }).catch(function () {
-        // Fallback prompt if clipboard API is restricted
-        window.prompt('Copy checksum:', textToCopy);
+        window.prompt('Copy checksum:', text);
       });
     });
   });
 }
 
-// Initialise everything when DOM is loaded
+function initYear() {
+  const el = document.getElementById('year');
+  if (el) {
+    el.textContent = new Date().getFullYear();
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   initIcons();
   initMenu();
+  initMockupTabs();
+  initCopyButtons();
   initYear();
-  initInteractiveMockup();
-  initCopyChecksum();
 });
