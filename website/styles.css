@@ -221,7 +221,7 @@ button {
 }
 
 /* ==========================================================================
-   NAVIGATION (Guaranteed Single Line & Clean on Mobile)
+   NAVIGATION
    ========================================================================== */
 .section.nav {
   position: sticky !important;
@@ -478,31 +478,37 @@ button {
 }
 
 /* ==========================================================================
-   STATS (Mobile-First 2-Column Grid by Default)
+   STATS (Balanced 2x2 Grid on Mobile, Centered Solid Cards)
    ========================================================================== */
 .section.stats {
   display: grid !important;
   grid-template-columns: repeat(2, 1fr) !important;
-  gap: 1.8rem 1.2rem !important;
+  gap: 1rem !important;
   background: var(--black) !important;
-  padding: 2.8rem 5% !important;
+  padding: 2.5rem 5% !important;
   width: 100% !important;
 }
 
 .stat {
   display: flex !important;
   flex-direction: column !important;
-  align-items: flex-start !important;
-  gap: 0.25rem !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  padding: 1.6rem 1rem !important;
+  background: var(--card) !important;
+  border: 2px solid var(--line2) !important;
+  border-radius: 0.5rem !important;
   width: 100% !important;
   min-width: 0 !important;
+  gap: 0.4rem !important;
 }
 
 .stat .big {
   font-family: var(--font-head);
   font-weight: 700;
-  font-size: clamp(2rem, 5vw, 3.4rem);
-  letter-spacing: -0.04em;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  letter-spacing: -0.03em;
   color: var(--cream);
   line-height: 1;
 }
@@ -511,18 +517,14 @@ button {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--gray);
+  color: var(--copy);
   line-height: 1.35;
 }
 
-.stat:last-child:nth-child(odd) {
-  grid-column: span 2;
-}
-
 /* ==========================================================================
-   WORKFLOW / STEPS (01 / 02 / 03)
+   WORKFLOW / STEPS
    ========================================================================== */
 .section.workflow {
   flex-direction: column;
@@ -956,27 +958,11 @@ button {
    DESKTOP MEDIA QUERIES
    ========================================================================== */
 @media (min-width: 881px) {
-  /* On desktop: stats in a single clean row */
+  /* On desktop: 4 stat cards in a single row */
   .section.stats {
-    display: flex !important;
-    flex-direction: row !important;
-    justify-content: space-between !important;
-    align-items: flex-start !important;
-    gap: 2rem !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1.5rem !important;
     padding: 3.5rem 6% !important;
-  }
-
-  .stat {
-    flex: 1 1 160px !important;
-    width: auto !important;
-  }
-
-  .stat:last-child:nth-child(odd) {
-    grid-column: auto;
-  }
-
-  .stat .big {
-    font-size: clamp(2.4rem, 4vw, 3.8rem);
   }
 }
 
