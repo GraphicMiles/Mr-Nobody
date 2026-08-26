@@ -88,6 +88,8 @@ class NativeWebViewEngine implements BrowserEngine {
     // is what makes Flutter create a replacement; merely retrying on the old
     // channel leaves the destroyed platform view painted black.
     _surfaceGeneration++;
+    ErrorLog.instance.trace(
+        'tab $tabId: surface generation -> $_surfaceGeneration (renderer recovery)');
   }
 
   // ------------------------------------------------------------------ view
@@ -134,6 +136,8 @@ class NativeWebViewEngine implements BrowserEngine {
 
   void _attach(int id) {
     if (_disposed) return;
+    ErrorLog.instance.trace(
+        'tab $tabId: platform view attached (view id $id, surface gen $_surfaceGeneration)');
     // P0 fix: avoid race where old handler cleared before new ready.
     // Create new channel first, then swap.
     final newChannel = MethodChannel(
@@ -389,6 +393,7 @@ class NativeWebViewEngine implements BrowserEngine {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    ErrorLog.instance.trace('tab $tabId: engine disposed');
     _channel?.setMethodCallHandler(null);
     _channel = null;
     _pending.clear();

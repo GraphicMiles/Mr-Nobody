@@ -407,6 +407,12 @@ class NativeBridge {
     return (r['entries'] as List?)?.cast<String>() ?? const <String>[];
   }
 
+  /// Native tab/WebView lifecycle events for the black-screen chase.
+  static Future<List<String>> debugTrace() async {
+    final r = await _ch.invokeMethod('debugTrace');
+    return (r as List?)?.cast<String>() ?? const <String>[];
+  }
+
   static Future<void> clearDebugLog() async {
     await _ch.invokeMethod('clearDebugLog');
   }

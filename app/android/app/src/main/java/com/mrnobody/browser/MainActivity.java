@@ -570,6 +570,13 @@ public class MainActivity extends FlutterActivity {
                             result.success(m);
                             return;
                         }
+                        case "debugTrace": {
+                            // Tab/WebView lifecycle events for the black-screen
+                            // chase. Diagnostics, not errors: they are shown in
+                            // the panel but do not touch the badge count.
+                            result.success(ErrorLog.traceTail(80));
+                            return;
+                        }
                         case "clearDebugLog": {
                             ErrorLog.clear();
                             result.success(null);

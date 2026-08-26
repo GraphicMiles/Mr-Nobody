@@ -9,6 +9,42 @@ sandbox. One section per batch, newest first. Format: what shipped, why
 
 ---
 
+## 2026-08-26 — Batch: release debug panel + tab black-screen tracing
+
+**Why:** the distribution APK still shows the page-turns-black defect: a URL
+loads, and right after it finishes loading the screen goes black until a
+reload — which then goes black again once loading completes. The ⓘ debug
+overlay was disabled in release builds, so there was no channel to observe
+the failure on a real device.
+
+**Shipped:**
+1. `kDebugOverlayInRelease = true` — the ⓘ panel now ships in the
+   distribution APK (flip back to false once the defect is fixed).
+2. New trace channel (Java `ErrorLog.trace` + Dart `ErrorLog.trace`, bridged
+   as `debugTrace`): tab/WebView lifecycle events — view created (fresh vs
+   adopted retained), page start / progress milestones (25/50/75/100) /
+   finish, main-frame errors, renderer gone, attach/detach / window
+   visibility (new `DiagnosticWebView`), uniform-black thumbnail capture,
+   surface rebuilds, tab create/select/close, loading timeout. Shown in the
+   panel under TRACE; not counted as errors.
+3. Panel actions: ERUDA (inject Eruda into the active tab) and REBUILD
+   (recreate the active tab's platform-view surface, logging the attempt).
+4. `dispose()` log moved from the error channel to the trace channel (it was
+   inflating the badge on every screen leave).
+5. Version 1.0.6+7 → 1.0.7+8 (update.json already advertises 1.0.7).
+
+**How proven:** `flutter analyze` gate in CI; trace lines are visible in the
+ⓘ panel on a release build. Reading the trace on a black screen:
+- last line `page finished <host>` → failure is compositor/surface-side;
+- `renderer gone` → renderer kill (memory pressure with retained tabs);
+- `capture: uniform/black frame` after finish → retained WebView's
+  compositor never resumed painting.
+
+**Retest:** open a URL → wait for load to finish → observe screen; open ⓘ
+panel and read the TRACE order; try REBUILD and ERUDA on the black page.
+
+---
+
 ## 2026-08-20 — Batch: read-loop economics + image downloads + benchmark fixes
 
 **Scope (owner-approved):** items A, C and D of the handoff. Embedded Tor (B)
