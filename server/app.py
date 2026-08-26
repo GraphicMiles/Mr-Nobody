@@ -2,26 +2,24 @@
 """Mr Nobody update server.
 
 A small, dependency-free HTTP service (deployed to Render, see render.yaml
-and README.md). It has exactly one job: tell the app what the latest
-release is.
+and README.md). It serves release metadata and records anonymous active device
+counts on update checks.
 
 Endpoints
 ---------
 GET /              website/index.html (the landing page)
-GET /update.json   the release metadata the app checks on launch
+GET /update.json   the release metadata the app checks on launch (+ records ping)
+GET /stats         HTML dashboard of active devices and version distribution
+GET /stats.json    JSON metrics (DAU, WAU, MAU, total unique devices)
 GET /health        {"status": "ok"} (Render health check)
 GET /<other>       any other static file under website/ (fonts, images, ...)
 
-Security model
---------------
-* Metadata only. This service never serves executable code and never
-  instructs the app to run anything. An update is a signed APK the user
-  installs through Android's normal package installer, which verifies the
-  signature itself.
-* No writes, no state, no user input: every mutating method is refused.
-* Static paths are resolved under website/ and path traversal is rejected.
-* update.json is served with no-cache so a new release is visible on the
-  app's next launch check; everything else may be cached for an hour.
+Security & Privacy model
+------------------------
+* Metadata only. This service never serves executable code.
+* Anonymous device counting: install IDs are SHA-256 hashed before storage.
+* No personal data, hardware identifiers, or location data stored.
+* Database is local SQLite with zero external dependencies.
 """
 
 import json
@@ -30,14 +28,22 @@ import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
+# Load metrics store
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+from metrics import MetricsStore
+
 SITE = (ROOT.parent / "website").resolve()
 MAX_BODY = 1024 * 1024  # 1 MiB hard cap on anything this service serves
 
 UPDATE_JSON_HEADERS = {"Cache-Control": "no-cache"}
 STATIC_HEADERS = {"Cache-Control": "public, max-age=3600"}
+
+# Initialize SQLite metrics store
+METRICS_DB_PATH = os.environ.get("METRICS_DB_PATH", str(ROOT / "metrics.db"))
+metrics = MetricsStore(METRICS_DB_PATH)
 
 
 def _site_file(raw_path):
@@ -56,10 +62,6 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "MrNobodyUpdate/1.0"
 
     # HTTP/1.1 with keep-alive: Render's router pools origin connections.
-    # The default HTTP/1.0 + Connection: close makes the pool route a
-    # request onto a connection we just closed, which the router reports
-    # as a 404 "no-server". Every response below carries Content-Length,
-    # so keep-alive framing is unambiguous.
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
@@ -71,24 +73,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header(key, value)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        # HEAD must send the headers (incl. the real Content-Length) but no
-        # body. The flag is checked here — after end_headers() — so the
-        # headers themselves are not swallowed.
         if not getattr(self, "_head_only", False):
             self.wfile.write(body)
 
     def _json(self, code, payload, extra=None):
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json; charset=utf-8"}
         if extra:
             headers.update(extra)
-        self._send(code, json.dumps(payload).encode("utf-8"), headers)
+        self._send(code, json.dumps(payload, indent=2).encode("utf-8"), headers)
 
     def do_GET(self):
         self._head_only = False
         self._handle_get()
 
     def do_HEAD(self):
-        # Same routing as GET without a body, for well-behaved clients.
         self._head_only = True
         self._handle_get()
 
@@ -96,10 +94,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self._route()
         except BrokenPipeError:
-            pass  # client went away; nothing to send
+            pass
         except Exception:
-            # Never let one bad request take the worker down: answer 500
-            # and keep serving. The traceback lands in the service logs.
             import traceback
             traceback.print_exc()
             try:
@@ -108,15 +104,58 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
     def _route(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+
         if path == "/health":
             self._json(200, {"status": "ok"})
             return
 
-        # The app's update endpoint. website/update.json is the single
-        # source of truth — the landing page links to it and the app polls
-        # it, so both always agree.
+        # Metrics endpoints
+        if path == "/stats.json":
+            summary = metrics.get_summary()
+            self._json(200, summary, UPDATE_JSON_HEADERS)
+            return
+
+        if path == "/stats":
+            html = metrics.render_html()
+            headers = {
+                "Content-Type": "text/html; charset=utf-8",
+                "Cache-Control": "no-cache"
+            }
+            self._send(200, html.encode("utf-8"), headers)
+            return
+
+        # The app's update endpoint. When the app checks for updates,
+        # record the ping to count active devices.
         if path == "/update.json":
+            query = parse_qs(parsed.query)
+            install_id = (
+                query.get("id", [None])[0]
+                or query.get("install_id", [None])[0]
+                or self.headers.get("X-Install-ID")
+            )
+            app_version = (
+                query.get("v", [None])[0]
+                or query.get("version", [None])[0]
+                or self.headers.get("X-App-Version")
+            )
+            client_ip = self.headers.get(
+                "X-Forwarded-For", self.client_address[0]
+            ).split(",")[0].strip()
+            user_agent = self.headers.get("User-Agent", "")
+
+            # Record anonymous device ping (non-blocking, never fails the request)
+            try:
+                metrics.record_ping(
+                    install_id=install_id,
+                    app_version=app_version,
+                    client_ip=client_ip,
+                    user_agent=user_agent
+                )
+            except Exception as e:
+                sys.stderr.write("Metrics recording error: %s\n" % e)
+
             target = SITE / "update.json"
             if not target.is_file():
                 self._json(404, {"error": "update.json missing"})
@@ -143,7 +182,7 @@ class Handler(BaseHTTPRequestHandler):
         headers.update(STATIC_HEADERS)
         self._send(200, body, headers)
 
-    # No writes, no dynamic state: refuse everything that mutates.
+    # No mutating methods allowed
     def do_POST(self):
         self._json(405, {"error": "method not allowed"})
 
