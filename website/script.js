@@ -1,38 +1,47 @@
 // Mr Nobody — Landing Page Script
-// Simple, referenceable naming
+// Simple, referenceable naming: init + feature name
 
-function initIcons(){
-  if(window.lucide){ lucide.createIcons(); }
+function initIcons() {
+  if (window.lucide) {
+    lucide.createIcons();
+  }
 }
 
-function initMenu(){
+function initMenu() {
   const btn = document.querySelector('.menu');
   const menu = document.querySelector('.mobilemenu');
-  if(!btn || !menu) return;
+  if (!btn || !menu) return;
 
-  function set(open){
+  function set(open) {
     menu.classList.toggle('open', open);
     btn.classList.toggle('open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
-  btn.addEventListener('click', (e)=>{
+  btn.addEventListener('click', function (e) {
     e.stopPropagation();
     set(!menu.classList.contains('open'));
   });
 
-  menu.querySelectorAll('a').forEach(a=>{
-    a.addEventListener('click', ()=> set(false));
+  menu.querySelectorAll('a').forEach(function (a) {
+    a.addEventListener('click', function () {
+      set(false);
+    });
+  });
+
+  // close the menu when the screen grows past the mobile breakpoint
+  window.addEventListener('resize', function () {
+    if (window.innerWidth > 800) set(false);
   });
 }
 
-function initYear(){
+function initYear() {
   const el = document.getElementById('year');
-  if(el) el.textContent = new Date().getFullYear();
+  if (el) el.textContent = new Date().getFullYear();
 }
 
 // Init
-document.addEventListener('DOMContentLoaded', ()=>{
+document.addEventListener('DOMContentLoaded', function () {
   initIcons();
   initMenu();
   initYear();

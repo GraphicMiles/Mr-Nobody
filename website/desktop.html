@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mr Nobody. The private browser with an agent inside</title>
+<meta name="description" content="Mr Nobody is an open-source Android browser with an on-device agent. Search, read, compare and download authorised files through one calm, private interface.">
 <link rel="stylesheet" href="styles.css">
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
@@ -17,7 +18,8 @@
       <span>mr nobody</span>
     </a>
     <div class="navlinks">
-      <a href="#why">Product</a>
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
       <a href="#updates">Updates</a>
       <a href="#faq">FAQs</a>
     </div>
@@ -34,14 +36,23 @@
 </div>
 
 <div class="mobilemenu" id="mobileMenu">
-  <a href="#why">Product</a>
+  <a href="#features">Features</a>
+  <a href="#privacy">Privacy</a>
   <a href="#updates">Updates</a>
   <a href="#faq">FAQs</a>
+  <a class="cta" href="#downloads">
+    <p class="ctatext">Download</p>
+    <i data-lucide="download" width="15"></i>
+  </a>
 </div>
 
 <!-- HERO -->
 <div class="section hero" id="top">
   <div class="wrap">
+    <div class="badge">
+      <span class="dot"></span>
+      v1.0.7 · signed Android release · open source (MIT)
+    </div>
     <h1 class="title hero">Make the web work <span>for you.</span></h1>
     <p class="text hero">Mr Nobody is a quiet, capable browser that searches, reads, compares and gets things done without turning your activity into a product.</p>
     <div class="actions">
@@ -49,7 +60,7 @@
         <p class="ctatext">Download Mr Nobody</p>
         <i data-lucide="download" width="15"></i>
       </a>
-      <a class="cta alt" href="#why">
+      <a class="cta alt" href="#features">
         <p class="ctatext">See what it does</p>
         <i data-lucide="arrow-down" width="15"></i>
       </a>
@@ -68,7 +79,7 @@
           <div class="mocksearch">Ask Mr Nobody anything...</div>
           <div class="mockresult">
             <strong>Update ready</strong>
-            <p>Mr Nobody 1.0.3 · signed Android release</p>
+            <p>Mr Nobody 1.0.7 · signed Android release · 25 MB</p>
             <div class="bar"></div>
           </div>
         </div>
@@ -77,25 +88,48 @@
   </div>
 </div>
 
+<!-- STATS -->
+<div class="section stats">
+  <div class="wrap">
+    <div class="stat">
+      <b class="num">1,028</b>
+      <span class="label">Java / JVM tests</span>
+    </div>
+    <div class="stat">
+      <b class="num">185</b>
+      <span class="label">Flutter widget tests</span>
+    </div>
+    <div class="stat">
+      <b class="num">14</b>
+      <span class="label">Privacy-auditor tests</span>
+    </div>
+    <div class="stat">
+      <b class="num">80 MiB</b>
+      <span class="label">Signed APK size gate</span>
+    </div>
+  </div>
+</div>
+
 <!-- WHY -->
-<div class="section why" id="why">
+<div class="section why" id="features">
   <div class="wrap">
     <h2 class="title main">Built for people <span>who want more from the web.</span></h2>
+    <p class="text sub">The browser should be a tool, not a spectator. Mr Nobody keeps the interface calm, the evidence visible and every meaningful action in your hands.</p>
     <div class="grid">
       <div class="card">
         <div class="icon"><i data-lucide="search"></i></div>
         <h3>Search. Read. Understand.</h3>
-        <p>Ask a question or give it a page. Mr Nobody follows sources, extracts what matters and shows its work.</p>
+        <p>Ask a question or give it a page. Mr Nobody follows sources, extracts what matters and shows its work with citations.</p>
       </div>
       <div class="card">
         <div class="icon"><i data-lucide="shield-check"></i></div>
         <h3>Privacy is the starting point.</h3>
-        <p>Ad and tracker blocking, clear controls and an agent that never quietly acts outside its lane.</p>
+        <p>Local ad and tracker blocking, no browsing history by default, no third-party cookies, tracking parameters stripped.</p>
       </div>
       <div class="card">
         <div class="icon"><i data-lucide="zap"></i></div>
         <h3>Less tapping. More done.</h3>
-        <p>Research, compare, organise and download authorised files through one calm interface.</p>
+        <p>Research, compare, organise and download authorised files through one calm interface, on-device by default.</p>
       </div>
       <div class="card">
         <div class="icon"><i data-lucide="panels-top-left"></i></div>
@@ -105,7 +139,7 @@
       <div class="card">
         <div class="icon"><i data-lucide="file-check-2"></i></div>
         <h3>Know what actually happened.</h3>
-        <p>Tasks keep a readable trail of sources, decisions, downloads and verification.</p>
+        <p>Tasks keep a readable trail of sources, decisions, downloads and verification. The agent never acts invisibly.</p>
       </div>
       <div class="card">
         <div class="icon"><i data-lucide="wifi-off"></i></div>
@@ -121,7 +155,7 @@
   <div class="wrap">
     <h2 class="title main">Browse with confidence. <span>Act with intention.</span></h2>
     <p class="text sub">The browser should be a tool, not a spectator. Mr Nobody keeps the interface calm, the evidence visible and every meaningful action in your hands.</p>
-    <div class="feature">
+    <div class="showcase">
       <div class="image">
         <div class="mock">
           <div class="side">
@@ -154,12 +188,100 @@
   </div>
 </div>
 
+<!-- PRIVACY -->
+<div class="section privacy" id="privacy">
+  <div class="wrap">
+    <h2 class="title main">Three modes. <span>One rule: fail closed.</span></h2>
+    <p class="text sub">Pick how much the browser remembers, and how traffic is routed. When a promised privacy route is unavailable, Mr Nobody refuses to silently fall back.</p>
+    <div class="grid">
+      <div class="mode">
+        <div class="icon"><i data-lucide="globe"></i></div>
+        <h3>Normal</h3>
+        <p>Standard browsing through your current network connection. No history saved by default.</p>
+      </div>
+      <div class="mode">
+        <div class="icon"><i data-lucide="eye-off"></i></div>
+        <h3>Private</h3>
+        <p>Reduced local retention with stronger isolation when the installed WebView supports it.</p>
+      </div>
+      <div class="mode">
+        <div class="icon"><i data-lucide="radio"></i></div>
+        <h3>Nobody</h3>
+        <p>Uses your configured privacy route: Orbot when available, otherwise bundled Tor. Fails closed rather than leaking.</p>
+      </div>
+    </div>
+    <p class="note">Honest by design: privacy is not the same as anonymity. The interface reports effective protection instead of promising more than the device can deliver.</p>
+  </div>
+</div>
+
+<!-- AGENT -->
+<div class="section agent" id="agent">
+  <div class="wrap">
+    <div class="left">
+      <h2 class="title main">An agent <span>with boundaries.</span></h2>
+      <p class="text sub">Mr Nobody's local agent is deterministic code, not a hidden model. It searches, extracts, ranks and verifies with plain, reviewable logic — then pauses for your approval before anything consequential.</p>
+      <a class="cta alt" href="#faq">
+        <p class="ctatext">Read the FAQs</p>
+        <i data-lucide="arrow-right" width="15"></i>
+      </a>
+    </div>
+    <div class="right">
+      <div class="check"><i data-lucide="check"></i><p>Search the web and return parsed results</p></div>
+      <div class="check"><i data-lucide="check"></i><p>Read source pages and answer with citations</p></div>
+      <div class="check"><i data-lucide="check"></i><p>Use rendered page extraction when a plain read is not enough</p></div>
+      <div class="check"><i data-lucide="check"></i><p>Download files through the app-owned download engine</p></div>
+      <div class="check"><i data-lucide="check"></i><p>Run recurring checks with Android WorkManager</p></div>
+      <div class="check"><i data-lucide="check"></i><p>Pause for approval before consequential actions</p></div>
+      <div class="check"><i data-lucide="check"></i><p>Resume safely after process death, no repeated effects</p></div>
+      <div class="check"><i data-lucide="check"></i><p>Answer clock, arithmetic and direct-action questions locally — no AI call needed</p></div>
+      <div class="chip"><i data-lucide="lock"></i><p>Remote AI (Gemini, Groq or OpenAI-compatible) only when you enable it — task context leaves the device only then, and tool execution still passes through local policy.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- FILES -->
+<div class="section files" id="files">
+  <div class="wrap">
+    <h2 class="title main">Downloads <span>you own.</span></h2>
+    <p class="text sub">The app owns its download engine, so files behave the way you expect: your folder, your controls, your progress — even after the process dies.</p>
+    <div class="showcase">
+      <div class="copy">
+        <div class="check"><i data-lucide="folder"></i><p>Pick any Storage Access Framework folder; public Downloads is the default</p></div>
+        <div class="check"><i data-lucide="pause"></i><p>Pause, resume, retry and cancel any transfer</p></div>
+        <div class="check"><i data-lucide="refresh-cw"></i><p>Validated HTTP range resumption — no restarts from zero</p></div>
+        <div class="check"><i data-lucide="bell"></i><p>Foreground progress notifications that survive screen lock</p></div>
+        <div class="check"><i data-lucide="rotate-cw"></i><p>Recovery after process death, browser-initiated or agent-initiated</p></div>
+        <div class="check"><i data-lucide="file-search"></i><p>Landing-page links like <span class="mono">film.mkv.html</span> are resolved to the real file, never saved as HTML</p></div>
+      </div>
+      <div class="image">
+        <div class="mock">
+          <div class="side">
+            <b>MR NOBODY</b>
+            <div class="active">Tasks</div>
+            <div>Files</div>
+            <div>Updates</div>
+          </div>
+          <div class="main">
+            <div class="mocktitle">Downloading</div>
+            <div class="mocksearch">archive.zip · 412 MB of 1.2 GB</div>
+            <div class="mockresult">
+              <strong>Paused · resumable</strong>
+              <p>Validated range support keeps the byte range when the network drops.</p>
+              <div class="bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- UPDATES -->
 <div class="section updates" id="updates">
   <div class="wrap">
     <div class="left">
       <h2 class="title main">Keep Mr Nobody <span>current.</span></h2>
-      <p class="text sub">The app checks quietly when it opens. When a signed release is ready, you see exactly what changed before choosing to update.</p>
+      <p class="text sub">The app checks a small metadata endpoint quietly on launch — version, release notes and integrity data only, never code. When a signed release is ready, you see exactly what changed before choosing to update.</p>
       <a class="cta" href="#downloads">
         <p class="ctatext">Download latest</p>
         <i data-lucide="download" width="15"></i>
@@ -169,8 +291,8 @@
       <div class="release">
         <time>25 AUG 2026</time>
         <div class="info">
-          <h3>Mr Nobody 1.0.3</h3>
-          <p>23% smaller (25MB), instant tab switching, DevTools v2 with 5 tabs, reliability fixes, no debug panel for normal users.</p>
+          <h3>Mr Nobody 1.0.7</h3>
+          <p>23% smaller (25 MB), instant tab switching, DevTools v2 with 5 tabs, reliability fixes, no debug panel for normal users.</p>
         </div>
         <span class="tag">LATEST</span>
       </div>
@@ -183,12 +305,16 @@
         <span class="tag">SIGNED</span>
       </div>
       <div class="release">
-        <time>OFFLINE</time>
+        <time>ALWAYS</time>
         <div class="info">
-          <h3>No update? Keep browsing.</h3>
-          <p>If the server is unavailable, the last successful check is kept locally and normal browsing continues.</p>
+          <h3>Metadata only, cached locally</h3>
+          <p>If the update server is unreachable, the last successful check stays on device and normal browsing continues.</p>
         </div>
-        <span class="tag">CACHED</span>
+        <span class="tag">OFFLINE</span>
+      </div>
+      <div class="integrity">
+        <p class="mono">sha256 <span>38fbb0c5…e8a697d</span></p>
+        <p class="mono">signature <span>1106131f…516bd5</span></p>
       </div>
     </div>
   </div>
@@ -207,12 +333,12 @@
       <div class="step">
         <span class="num">02 / CHOOSE</span>
         <h3>See what changed.</h3>
-        <p>Settings shows the version, short release notes and whether the update is optional or required.</p>
+        <p>Settings shows the version, short release notes and whether the update is optional or required. “Remind me later” is always allowed.</p>
       </div>
       <div class="step">
         <span class="num">03 / VERIFY</span>
         <h3>Install safely.</h3>
-        <p>The APK goes through Android's signed-update flow. No injected executable code.</p>
+        <p>The APK goes through Android's package installer, which verifies the signature itself. Nothing is auto-downloaded or executed.</p>
       </div>
     </div>
   </div>
@@ -224,16 +350,40 @@
     <h2 class="title main">Questions? <span>We have answers.</span></h2>
     <div class="list">
       <details class="faqitem" open>
-        <summary>What does Mr Nobody do?<i data-lucide="plus" width="18"></i></summary>
-        <p>A private browser with an on-device agent for research, page reading, comparisons and authorised downloads.</p>
+        <summary>What exactly is Mr Nobody?<i data-lucide="plus" width="18"></i></summary>
+        <p>An open-source Android browser with an on-device agent for research, page reading, comparisons and authorised downloads. The browser and the agent share the same privacy controls, download system and network routing.</p>
       </details>
       <details class="faqitem">
-        <summary>How do updates work?<i data-lucide="plus" width="18"></i></summary>
-        <p>The app checks lightweight release metadata on startup. You see the version and release notes before choosing whether to install.</p>
+        <summary>Does it need an account?<i data-lucide="plus" width="18"></i></summary>
+        <p>No. There is no account, no sign-in and no profile. Install it and it works.</p>
       </details>
       <details class="faqitem">
-        <summary>What if I am offline?<i data-lucide="plus" width="18"></i></summary>
-        <p>Mr Nobody continues working normally. An unavailable update server never blocks the browser.</p>
+        <summary>What leaves my device?<i data-lucide="plus" width="18"></i></summary>
+        <p>By default, very little: pages you choose to open go to those sites, and update checks send lightweight version metadata. Clock, arithmetic and direct-action requests are answered locally by a fast path. A remote AI provider (Gemini, Groq or OpenAI-compatible) is used only if you enable one — and only the task context it needs leaves the device then.</p>
+      </details>
+      <details class="faqitem">
+        <summary>Does it block ads and trackers?<i data-lucide="plus" width="18"></i></summary>
+        <p>Yes, locally. Known advertising and tracking requests are blocked on device, cross-site redirects to known gambling, pop-up and ad-heavy link-shortener destinations are stopped, tracking parameters are stripped from links, and history, third-party cookies and mixed content are off by default.</p>
+      </details>
+      <details class="faqitem">
+        <summary>Are updates ever forced?<i data-lucide="plus" width="18"></i></summary>
+        <p>Never. The endpoint serves metadata only and the app never auto-downloads or executes anything. You see the version, release notes and integrity data, then choose — and “Remind me later” suppresses that release until a newer one appears.</p>
+      </details>
+      <details class="faqitem">
+        <summary>What happens when I am offline?<i data-lucide="plus" width="18"></i></summary>
+        <p>Browsing continues normally. The last successful update check is cached on device, so an offline launch shows the last known state and an unreachable server never blocks the browser.</p>
+      </details>
+      <details class="faqitem">
+        <summary>Can it open plain http pages?<i data-lucide="plus" width="18"></i></summary>
+        <p>Only after an explicit “Load anyway” warning, and the host is remembered for the session. Insecure downloads show a Continue / Reject warning before anything is fetched. The agent's autonomous tools still require HTTPS, so cleartext is never used outside your explicit choice.</p>
+      </details>
+      <details class="faqitem">
+        <summary>Is it really open source?<i data-lucide="plus" width="18"></i></summary>
+        <p>Yes — MIT licensed on GitHub, with the main branch green in CI: 1,028 Java tests, 185 Flutter tests and 14 privacy-auditor tests run on every push, plus a strict signed-APK build gate.</p>
+      </details>
+      <details class="faqitem">
+        <summary>Why no debug panel in the release?<i data-lucide="plus" width="18"></i></summary>
+        <p>Debug panels are for development only. Release builds keep the interface clean and focused on browsing.</p>
       </details>
     </div>
   </div>
@@ -247,7 +397,7 @@
     <div class="grid">
       <div class="platform">
         <h3>Android</h3>
-        <p>Signed APK · Android 8 or later</p>
+        <p>Signed APK · v1.0.7 · 25 MB · Android 8 or later</p>
         <a class="cta" href="https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.7/mr-nobody-1.0.7.apk">
           <p class="ctatext">Download APK</p>
           <i data-lucide="download" width="15"></i>
@@ -255,7 +405,7 @@
       </div>
       <div class="platform">
         <h3>Release metadata</h3>
-        <p>Version, notes, checksum and signature information.</p>
+        <p>Version, notes, sha256 checksum and signature for verification.</p>
         <a class="mono" href="update.json">
           <span>update.json</span>
           <i data-lucide="arrow-up-right" width="14"></i>
@@ -278,10 +428,10 @@
   <div class="wrap">
     <div>
       <div class="eyebrow">Stay out of the loop</div>
-      <h2>Be nobody. Browse freely.</h2>
+      <h2>Be nobody. <span>Browse freely.</span></h2>
     </div>
     <div>
-      <p>Useful automation without turning your activity into a product.</p>
+      <p>Useful automation without turning your activity into a product. Free, open source and yours.</p>
       <a class="cta" href="#downloads">
         <p class="ctatext">Get the latest</p>
         <i data-lucide="arrow-up-right" width="15"></i>
@@ -299,12 +449,13 @@
           <span class="mark"><img src="mr-nobody-mark.png" alt="Mr Nobody"></span>
           <span>mr nobody</span>
         </a>
-        <p>A quiet, private browser with an agent inside. Built for the real web.</p>
+        <p>A quiet, private browser with an agent inside. Open source, no account, no tracking.</p>
       </div>
       <div class="footcols">
         <div class="footcol">
           <h4>Product</h4>
-          <a href="#why">Why Mr Nobody</a>
+          <a href="#features">Features</a>
+          <a href="#privacy">Privacy modes</a>
           <a href="#updates">Updates</a>
           <a href="#downloads">Download</a>
         </div>
@@ -312,12 +463,14 @@
           <h4>Resources</h4>
           <a href="#faq">FAQs</a>
           <a href="update.json">Update metadata</a>
+          <a href="https://github.com/GraphicMiles/Mr-nobody">Source code</a>
           <a href="mailto:hello@mrnobody.app">Contact</a>
         </div>
         <div class="footcol">
           <h4>Legal</h4>
           <a href="#">Privacy</a>
           <a href="#">Terms</a>
+          <a href="LICENSE">MIT License</a>
         </div>
       </div>
     </div>
