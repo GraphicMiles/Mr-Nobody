@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../bridge/native_bridge.dart';
+import '../browser/tab_manager.dart';
 import '../screens/dev_panel_screen.dart';
 import '../screens/memory_screen.dart';
 import '../state/error_log.dart';
@@ -17,12 +18,13 @@ import 'toast.dart';
 /// only channel a user has to report what went wrong — it must be present on
 /// every screen and must never lie about the count.
 ///
-/// While the distribution APK is being diagnosed (the page turning black
-/// mid-browse, the bottom nav vanishing), this flag keeps the overlay in
-/// release builds too, so a tester watching the defect happen live can read
-/// and copy the exact failure instead of reporting "it just went black".
-/// Flip it to false for the public build.
-const bool kDebugOverlayInRelease = false;
+/// ON in the distribution APK while the "page turns black after it finishes
+/// loading" defect is being chased. The panel now carries the tab/WebView
+/// lifecycle trace (page start → progress → finish → attach/detach → renderer
+/// gone), so a tester watching the defect live can read and copy the exact
+/// sequence instead of reporting "it just went black". Flip to false once the
+/// defect is fixed and the public build can drop the overlay again.
+const bool kDebugOverlayInRelease = true;
 
 class DebugOverlay extends StatefulWidget {
   /// Extra bottom offset, so the button clears a bottom bar when one is shown.
@@ -74,8 +76,14 @@ class _DebugOverlayState extends State<DebugOverlay> {
       // Deliberately not logged: a failure to read the log must not write to it.
       '',
     );
+    final trace = await NativeBridge.guard(
+      NativeBridge.debugTrace,
+      const <String>[],
+      '',
+    );
     if (!mounted) return;
     ErrorLog.instance.setNative(entries);
+    ErrorLog.instance.setNativeTrace(trace);
   }
 
   @override
@@ -174,7 +182,10 @@ class _DebugOverlayState extends State<DebugOverlay> {
   Widget _panel(BuildContext context, int count) {
     final entries = ErrorLog.instance.entries;
     final tail =
-        entries.length > 5 ? entries.sublist(entries.length - 5) : entries;
+        entries.length > 8 ? entries.sublist(entries.length - 8) : entries;
+    final trace = ErrorLog.instance.traceLog;
+    final traceTail =
+        trace.length > 8 ? trace.sublist(trace.length - 8) : trace;
     return Container(
       padding: EdgeInsets.all(AppColors.isWarm ? 13 : 12),
       decoration: BoxDecoration(
@@ -249,36 +260,129 @@ class _DebugOverlayState extends State<DebugOverlay> {
             Container(height: 1, color: AppColors.overlayLine),
             const SizedBox(height: 8),
           ],
-          if (tail.isEmpty)
-            Text(
-              'no errors',
-              style: AppTheme.mono(
-                size: 10,
-                color: AppColors.isWarm
-                    ? AppColors.overlayFaint
-                    : AppColors.textMuted,
-                height: 1.6,
-              ),
-            )
-          else
-            ...tail.map(
-              (e) => Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  '✗ $e',
-                  style: AppTheme.mono(
-                    size: 10,
-                    color: AppColors.isWarm
-                        ? AppColors.overlayInk
-                        : AppColors.text,
-                    height: 1.5,
-                  ),
-                ),
+          // The lifecycle trace comes first: page start → progress → finish →
+          // attach/detach → renderer gone is what catches the black screen.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 250),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (traceTail.isNotEmpty) ...[
+                    Text(
+                      'TRACE',
+                      style: AppTheme.mono(
+                        size: 8.5,
+                        w: FontWeight.w700,
+                        color: AppColors.isWarm
+                            ? AppColors.overlayFaint
+                            : AppColors.textMuted,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...traceTail.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          e,
+                          style: AppTheme.mono(
+                            size: 9,
+                            color: AppColors.isWarm
+                                ? AppColors.overlayFaint
+                                : AppColors.textMuted,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (tail.isEmpty)
+                    Text(
+                      'no errors',
+                      style: AppTheme.mono(
+                        size: 10,
+                        color: AppColors.isWarm
+                            ? AppColors.overlayFaint
+                            : AppColors.textMuted,
+                        height: 1.6,
+                      ),
+                    )
+                  else ...[
+                    Text(
+                      'ERRORS',
+                      style: AppTheme.mono(
+                        size: 8.5,
+                        w: FontWeight.w700,
+                        color: AppColors.isWarm
+                            ? AppColors.overlayFaint
+                            : AppColors.textMuted,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...tail.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          '✗ $e',
+                          style: AppTheme.mono(
+                            size: 10,
+                            color: AppColors.isWarm
+                                ? AppColors.overlayInk
+                                : AppColors.text,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _DebugAction(label: 'ERUDA', onTap: _injectEruda),
+              const SizedBox(width: 6),
+              _DebugAction(label: 'REBUILD', onTap: _rebuildSurface),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  /// Inject Eruda into the active tab straight from the panel — console,
+  /// network and DOM inspection of the page that just went black.
+  void _injectEruda() {
+    final tab = TabManager.debugInstance?.active;
+    if (tab == null) {
+      ErrorLog.instance.trace('eruda: no active tab');
+      AppToast.show(context, 'No active tab');
+      return;
+    }
+    unawaited(tab.injectEruda());
+    ErrorLog.instance.trace('tab ${tab.id}: eruda injected from panel');
+    AppToast.show(context, 'Eruda injected into tab ${tab.id}');
+  }
+
+  /// Force a fresh platform view around the active tab's page. When the
+  /// screen goes black the renderer may be dead; rebuilding the surface gives
+  /// the page a new chance to paint and logs the attempt.
+  void _rebuildSurface() {
+    final tab = TabManager.debugInstance?.active;
+    if (tab == null) {
+      ErrorLog.instance.trace('rebuild: no active tab');
+      AppToast.show(context, 'No active tab');
+      return;
+    }
+    tab.rebuildSurface();
+    ErrorLog.instance.trace('tab ${tab.id}: surface rebuilt from panel');
+    AppToast.show(context, 'Surface rebuilt for tab ${tab.id}');
   }
 }
 

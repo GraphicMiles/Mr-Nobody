@@ -106,6 +106,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    // The debug overlay is global and the tab set lives here; this registry
+    // lets the panel's ERUDA/REBUILD actions reach the active tab.
+    TabManager.debugInstance = _tabs;
     WidgetsBinding.instance.addObserver(this);
     _listenForDeepLinks();
     _checkFirstLaunch();
@@ -140,6 +143,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     AppState.instance.removeListener(_onAppStateChanged);
     for (final c in _scrollControllers.values) {
       c.dispose();
+    }
+    if (identical(TabManager.debugInstance, _tabs)) {
+      TabManager.debugInstance = null;
     }
     _tabs.dispose();
     super.dispose();

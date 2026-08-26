@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
+import '../state/error_log.dart';
 import 'browser_engine.dart';
 import 'native_webview_engine.dart';
 
@@ -104,6 +105,8 @@ class BrowserTab extends ChangeNotifier {
           _loadingTimeout = Timer(const Duration(seconds: 25), () {
             if (_disposed) return;
             if (isLoading) {
+              ErrorLog.instance.trace(
+                  'tab $id: loading timeout — native never reported finished');
               isLoading = false;
               notifyListeners();
             }
@@ -254,6 +257,16 @@ class BrowserTab extends ChangeNotifier {
     await engine.clearConsole();
   }
   Future<void> injectEruda() => engine.injectEruda();
+
+  /// Debug recovery: force a fresh platform view around this tab's page
+  /// without losing the document. When the page has gone black the renderer
+  /// may be dead; the native side releases the dead WebView and a new surface
+  /// is created at the tab's last URL. Invoked from the debug panel.
+  void rebuildSurface() {
+    engine.recoverFromRendererFailure();
+    notifyListeners();
+  }
+
   Future<List<Map<String, dynamic>>> getNetworkFromNative() => engine.getNetworkLogs();
   Future<void> clearNetwork() async {
     networkLogs.value = const [];

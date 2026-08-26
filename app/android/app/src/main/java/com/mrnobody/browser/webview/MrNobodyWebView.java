@@ -168,6 +168,16 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
     private boolean destroyed;
 
     /**
+     * Progress milestone next to be traced. The debug panel needs to know the
+     * page actually reached 100% before the screen went black — that pinpoints
+     * the failure to the compositor, not the load.
+     */
+    private int nextProgressMilestone = 25;
+
+    /** Last progress reported, for the capture-black diagnostic line. */
+    private int lastProgress = 0;
+
+    /**
      * Last document known to have entered this tab's history. Request
      * interception runs off-main and cannot call WebView#getUrl safely, so it
      * uses this snapshot to recognize cross-site POST/redirect navigations
@@ -215,6 +225,86 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         }
     }
 
+    /**
+     * One diagnostic line for the debug panel, tagged with this tab and a
+     * timestamp so the sequence around a black screen can be read back in
+     * order. Diagnostics live on the trace channel: visible in the panel, but
+     * not counted as errors.
+     */
+    private void trace(String what) {
+        try {
+            long now = System.currentTimeMillis();
+            String ts = String.format(java.util.Locale.US, "%1$tH:%1$tM:%1$tS.%1$tL", now);
+            com.mrnobody.debug.ErrorLog.trace("[" + ts + "][tab " + tabId + "] " + what);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Host of a URL for a compact trace line; "" when unparseable. */
+    private static String hostOf(String url) {
+        try {
+            Uri uri = Uri.parse(url);
+            return uri.getHost() == null ? "" : uri.getHost();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    private static String visibilityName(int visibility) {
+        switch (visibility) {
+            case View.VISIBLE: return "visible";
+            case View.INVISIBLE: return "invisible";
+            case View.GONE: return "gone";
+            default: return String.valueOf(visibility);
+        }
+    }
+
+    /**
+     * A plain WebView that reports its window lifecycle to the trace channel.
+     *
+     * <p>The black-screen defect shows up as a page that painted, then went
+     * black right after finishing. Two things can do that: the renderer dying
+     * (covered by {@link #onRenderProcessGone}) or the view silently losing
+     * its window/surface — a detach while visible, a visibility flip, a
+     * rebuild that never re-attached. These overrides record exactly those
+     * transitions, so the debug panel can show whether the view was attached
+     * and visible at the moment the screen went black.
+     */
+    private final class DiagnosticWebView extends WebView {
+
+        DiagnosticWebView(Context context) {
+            super(context);
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            trace("attached to window");
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            trace("detached from window");
+        }
+
+        @Override
+        protected void onVisibilityChanged(View changedView, int visibility) {
+            super.onVisibilityChanged(changedView, visibility);
+            // Descendant views (autofill, internal Chromium chrome) flip
+            // visibility constantly; only the WebView itself matters here.
+            if (changedView == this) {
+                trace("visibility=" + visibilityName(visibility));
+            }
+        }
+
+        @Override
+        protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            trace("window visibility=" + visibilityName(visibility));
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     MrNobodyWebView(@NonNull Context context, @NonNull BinaryMessenger messenger, int viewId,
                     @NonNull Map<String, Object> params) {
@@ -230,9 +320,12 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         // of handing the user a black rectangle with nothing loaded in it.
         WebView retained = tabId >= 0 ? TabWebViews.get(tabId) : null;
         boolean fresh = retained == null;
-        this.webView = fresh ? new WebView(context) : retained;
+        this.webView = fresh ? new DiagnosticWebView(context) : retained;
         this.lastCommittedUrl = webView.getUrl();
         this.lastMainFrameRequestUrl = lastCommittedUrl;
+        trace(fresh
+                ? "view created: fresh WebView"
+                : "view created: adopted retained WebView");
 
         // Storage isolation has to happen here, before the WebView navigates:
         // setProfile throws once a page has loaded. Only a fresh WebView is
@@ -527,6 +620,9 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            trace("page start " + hostOf(url));
+            nextProgressMilestone = 25;
+            lastProgress = 0;
             if (sameUrl(url, blockedMainFrameUrl)) {
                 // P0 fix: blocked main frame must not leave tab in loading=true forever.
                 container.setRefreshing(false);
@@ -596,6 +692,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             data.put("canGoForward", view.canGoForward());
             send("onNavigation", data);
             send("onBlocked", counters(null));
+            trace("page finished " + hostOf(url));
         }
 
         @Override
@@ -603,6 +700,8 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             // A failed image or script is not a failed page.
             if (!request.isForMainFrame()) return;
             container.setRefreshing(false);
+            trace("main-frame error code=" + error.getErrorCode()
+                    + (error.getDescription() == null ? "" : " " + error.getDescription()));
             // P0 fix: ensure loading=false sent even on error, to avoid stuck spinner
             Map<String, Object> nav = new HashMap<>();
             String restore = lastCommittedUrl != null ? lastCommittedUrl : lastMainFrameRequestUrl;
@@ -629,9 +728,11 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
         @Override
         public boolean onRenderProcessGone(WebView view,
                 android.webkit.RenderProcessGoneDetail detail) {
+            boolean crashed = detail != null && detail.didCrash();
+            trace("renderer gone: " + (crashed ? "crashed" : "killed by system"));
             com.mrnobody.debug.ErrorLog.record("webview tab " + tabId
                     + ": renderer gone"
-                    + (detail != null && detail.didCrash()
+                    + (crashed
                         ? " (renderer crashed)" : " (renderer killed by system)"));
             // P0 fix: notify Dart before destroying, so UI can show retry instead of black screen
             try {
@@ -700,9 +801,16 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
         @Override
         public void onProgressChanged(WebView view, int newProgress) {
+            lastProgress = newProgress;
             Map<String, Object> data = new HashMap<>();
             data.put("progress", newProgress);
             send("onProgress", data);
+            // Milestone trace: the panel must show whether the load actually
+            // reached 100% before the page turned black.
+            if (newProgress >= nextProgressMilestone) {
+                trace("progress " + newProgress + "%");
+                nextProgressMilestone = ((newProgress / 25) + 1) * 25;
+            }
         }
 
         @Override
@@ -1152,7 +1260,13 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
             // A detached retained WebView may briefly draw only its background
             // while Chromium resumes the renderer. Reject an all-background
             // frame so Dart can keep the previous useful preview and retry.
-            if (isUniformBackground(bitmap)) return null;
+            // This is also the strongest signal of the black-screen defect:
+            // the page reported finished, but the compositor painted nothing.
+            if (isUniformBackground(bitmap)) {
+                trace("capture: uniform/black frame — page not compositing"
+                        + " (progress " + lastProgress + "%)");
+                return null;
+            }
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.JPEG, 55, out);
             bitmap.recycle();
@@ -1415,8 +1529,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      */
     @Override
     public void dispose() {
-        com.mrnobody.debug.ErrorLog.record("webview tab " + tabId
-                + ": platform view disposed (page retained)");
+        trace("platform view disposed (page retained)");
         container.setRefreshing(false);
         if (tabId < 0) {
             // No tab identity to retain against: this view owned its page.

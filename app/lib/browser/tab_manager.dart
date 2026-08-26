@@ -1,11 +1,18 @@
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
+import '../state/error_log.dart';
 import 'browser_tab.dart';
 
 /// Sequential tab model (mirrors the Java TabManager's invariant):
 /// new tabs insert immediately after the active tab; closing the active tab
 /// activates its sequential neighbor; only an explicit tap jumps arbitrarily.
 class TabManager extends ChangeNotifier {
+  /// The one live manager, for the global debug overlay. The overlay is
+  /// global (it floats above every screen) and the tab set is owned by the
+  /// shell, so this registry is how the panel's ERUDA/REBUILD actions reach
+  /// the active tab. No analytics: it exists only so the debug panel can act.
+  static TabManager? debugInstance;
+
   final List<BrowserTab> _tabs = [];
   int _activeIndex = -1;
   int _nextId = 0;
@@ -26,6 +33,8 @@ class TabManager extends ChangeNotifier {
       _tabs.add(tab);
       _activeIndex = _tabs.length - 1;
     }
+    ErrorLog.instance.trace(
+        'tab ${tab.id}: created${isPrivate ? ' (private)' : ''}');
     notifyListeners();
     return tab;
   }
@@ -34,6 +43,8 @@ class TabManager extends ChangeNotifier {
   void select(int index) {
     if (index >= 0 && index < _tabs.length) {
       _activeIndex = index;
+      ErrorLog.instance.trace(
+          'tab ${_tabs[index].id}: selected (index $index)');
       notifyListeners();
     }
   }
@@ -54,6 +65,7 @@ class TabManager extends ChangeNotifier {
     if (index < 0 || index >= _tabs.length) return;
     final wasActive = index == _activeIndex;
     final tab = _tabs.removeAt(index);
+    ErrorLog.instance.trace('tab ${tab.id}: closed');
     tab.dispose();
     if (_tabs.isEmpty) {
       _activeIndex = -1;
