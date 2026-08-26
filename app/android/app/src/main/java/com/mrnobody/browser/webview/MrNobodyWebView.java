@@ -4,12 +4,14 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.PixelCopy;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -49,6 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
@@ -176,6 +179,9 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
 
     /** Last progress reported, for the capture-black diagnostic line. */
     private int lastProgress = 0;
+
+    /** One PixelCopy capture at a time; a busy tab falls back to canvas draw. */
+    private boolean captureInFlight = false;
 
     /**
      * Last document known to have entered this tab's history. Request
@@ -1137,7 +1143,7 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                 return;
             case "capture": {
                 // A tab card should show the page, not a drawing of one.
-                result.success(captureThumbnail());
+                captureThumbnail(result);
                 return;
             }
             case "extractText":
@@ -1242,8 +1248,99 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
      * record is kept. The bytes are handed to Dart and held in memory only —
      * nothing writes them to disk.
      */
-    private byte[] captureThumbnail() {
-        if (isPrivate) return null;
+    /**
+     * A small JPEG of what the page currently looks like, for the tab grid.
+     *
+     * <p>Never captured for a private tab: a thumbnail is a picture of what
+     * someone was reading, and a private tab exists precisely so that no such
+     * record is kept. The bytes are handed to Dart and held in memory only —
+     * nothing writes them to disk.
+     *
+     * <p>Prefers {@link android.view.PixelCopy}: it reads the window surface
+     * the WebView actually painted into, so it returns real content even
+     * where {@link View#draw(Canvas)} produces a black frame (Chromium
+     * refuses to software-draw a hardware-composited page — the
+     * "capture: uniform/black frame" lines in the trace). Falls back to the
+     * old canvas draw when PixelCopy fails or a silent OEM never calls back.
+     */
+    private void captureThumbnail(final MethodChannel.Result result) {
+        if (isPrivate) {
+            result.success(null);
+            return;
+        }
+        final int width = webView.getWidth();
+        final int height = webView.getHeight();
+        if (width <= 0 || height <= 0) {
+            result.success(null);
+            return;
+        }
+        final android.app.Activity activity = activityOf(context);
+        if (activity == null || captureInFlight) {
+            result.success(drawThumbnail());
+            return;
+        }
+        captureInFlight = true;
+        final AtomicBoolean done = new AtomicBoolean(false);
+        // Every path below must complete `result` exactly once; drawThumbnail
+        // is the shared, always-safe fallback.
+        final Runnable completeWithFallback = () -> {
+            if (done.compareAndSet(false, true)) {
+                result.success(drawThumbnail());
+            }
+        };
+        try {
+            final Bitmap bitmap =
+                    Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            final int[] loc = new int[2];
+            webView.getLocationInWindow(loc);
+            final Rect src = new Rect(loc[0], loc[1], loc[0] + width, loc[1] + height);
+            final View decor = activity.getWindow().getDecorView();
+            src.intersect(0, 0, decor.getWidth(), decor.getHeight());
+            if (src.isEmpty()) {
+                bitmap.recycle();
+                captureInFlight = false;
+                result.success(drawThumbnail());
+                return;
+            }
+            // Watchdog: if the OEM never invokes the listener, never leave
+            // the Dart side waiting on a capture.
+            main.postDelayed(() -> {
+                bitmap.recycle();
+                captureInFlight = false;
+                completeWithFallback.run();
+            }, 1500);
+            PixelCopy.request(activity.getWindow(), src, bitmap, copyResult -> {
+                captureInFlight = false;
+                if (done.get()) {
+                    // The watchdog already completed with the canvas fallback
+                    // and recycled the bitmap; never touch it again.
+                    return;
+                }
+                if (copyResult == PixelCopy.SUCCESS && !isUniformBackground(bitmap)) {
+                    if (done.compareAndSet(false, true)) {
+                        result.success(scaleAndCompress(bitmap)); // recycles bitmap
+                        return;
+                    }
+                } else {
+                    if (copyResult == PixelCopy.SUCCESS) {
+                        trace("capture: PixelCopy uniform/black frame — page not compositing"
+                                + " (progress " + lastProgress + "%)");
+                    }
+                }
+                bitmap.recycle();
+                completeWithFallback.run();
+            }, main);
+            return;
+        } catch (Throwable t) {
+            // A capture is a nicety; never let it take the page down.
+            captureInFlight = false;
+        }
+        result.success(drawThumbnail());
+    }
+
+    /** The old canvas-draw capture path, used when PixelCopy is unavailable. */
+    @Nullable
+    private byte[] drawThumbnail() {
         try {
             int width = webView.getWidth();
             int height = webView.getHeight();
@@ -1267,12 +1364,41 @@ class MrNobodyWebView implements PlatformView, MethodChannel.MethodCallHandler {
                         + " (progress " + lastProgress + "%)");
                 return null;
             }
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 55, out);
-            bitmap.recycle();
-            return out.toByteArray();
+            return compress(bitmap);
         } catch (Throwable t) {
             // A capture is a nicety; never let it take the page down.
+            return null;
+        }
+    }
+
+    /** Scale a full-size PixelCopy capture to thumbnail width and JPEG it. */
+    @Nullable
+    private byte[] scaleAndCompress(Bitmap full) {
+        try {
+            int width = full.getWidth();
+            int height = full.getHeight();
+            if (width <= 0 || height <= 0) return null;
+            float scale = (float) THUMBNAIL_WIDTH / width;
+            int outWidth = Math.max(1, Math.round(width * scale));
+            int outHeight = Math.max(1, Math.round(height * scale));
+            Bitmap thumb = Bitmap.createScaledBitmap(full, outWidth, outHeight, true);
+            full.recycle();
+            return compress(thumb);
+        } catch (Throwable t) {
+            // A capture is a nicety; never let it take the page down.
+            return null;
+        }
+    }
+
+    /** JPEG-encode a bitmap and recycle it. */
+    @Nullable
+    private byte[] compress(Bitmap bmp) {
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            bmp.compress(Bitmap.CompressFormat.JPEG, 55, out);
+            bmp.recycle();
+            return out.toByteArray();
+        } catch (Throwable t) {
             return null;
         }
     }

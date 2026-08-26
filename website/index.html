@@ -292,9 +292,9 @@
         <time>NEXT</time>
         <div class="info">
           <h3>Mr Nobody 1.0.8</h3>
-          <p>Debug panel back in release builds, with tab/WebView lifecycle tracing (page start, progress, finish, renderer and attach events) to catch the page-turns-black bug. Version bump synced with metadata.</p>
+          <p>Debug panel pruned from the distribution build. The page-goes-black regression is prevented by an invisible frame stabilizer in the browser surface, and tab thumbnails are captured from the real screen instead of a black offscreen draw.</p>
         </div>
-        <span class="tag">DEBUG</span>
+        <span class="tag">NEXT</span>
       </div>
       <div class="release">
         <time>25 AUG 2026</time>
@@ -390,8 +390,8 @@
         <p>Yes — MIT licensed on GitHub, with the main branch green in CI: 1,028 Java tests, 185 Flutter tests and 14 privacy-auditor tests run on every push, plus a strict signed-APK build gate.</p>
       </details>
       <details class="faqitem">
-        <summary>What is the ⓘ debug panel in the release?<i data-lucide="plus" width="18"></i></summary>
-        <p>While the page-turns-black-after-load bug is under investigation, release builds carry the ⓘ panel. It shows the tab/WebView lifecycle trace (page start, progress, finish, attach/detach, renderer events), the error log, one-tap copy, and a surface-rebuild action. It is the only channel a user has to report exactly what happened on a real device, and it will be removed from public builds once the defect is fixed.</p>
+        <summary>Where did the ⓘ debug panel go?<i data-lucide="plus" width="18"></i></summary>
+        <p>The ⓘ panel shipped in one distribution build while a black-screen defect was under investigation. That defect is now prevented invisibly: a hidden frame stabilizer keeps the browser surface refreshing after a page finishes loading, so the screen can never be left on a stale black frame. The panel itself is pruned from distribution builds again — developers can still reach DevTools and Eruda from the browser menu.</p>
       </details>
     </div>
   </div>

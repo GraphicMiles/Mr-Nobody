@@ -9,6 +9,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../widgets/debug_fab.dart';
+import '../widgets/surface_keepalive.dart';
 import '../widgets/menu_sheet.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/toast.dart';
@@ -289,6 +290,12 @@ class _BrowserScreenState extends State<BrowserScreen> {
                           if (tab.error != null && !tab.isLoading)
                             Positioned.fill(child: _errorView(tab)),
                           const DebugOverlay(bottomInset: 16),
+                          // Invisible frame keeper: keeps the platform view
+                          // re-presented after a page finishes loading so it
+                          // can never be left on a stale black frame. This
+                          // replaced the debug panel's accidental
+                          // frame-production and is safe for release builds.
+                          const SurfaceKeepAlive(),
                         ],
                       ),
                     ),
