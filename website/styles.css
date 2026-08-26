@@ -24,7 +24,7 @@
   --gap:1rem;
 }
 
-*{box-sizing:border-box}
+*{box-sizing:border-html}
 html{scroll-behavior:smooth}
 body{
   margin:0;
@@ -113,7 +113,6 @@ img{display:block;max-width:100%}
 .menu.open span:nth-child(1){top:14px;transform:rotate(45deg)}
 .menu.open span:nth-child(2){opacity:0}
 .menu.open span:nth-child(3){top:14px;transform:rotate(-45deg)}
-
 /* CTA — reusable button */
 .cta{
   display:flex;
@@ -397,7 +396,7 @@ img{display:block;max-width:100%}
 }
 .section.cta .wrap{
   flex-direction:row;
-  align-items:flex-end;
+  align-items:flex-bottom;
   justify-content:space-between;
   gap:40px;
 }
@@ -467,7 +466,7 @@ img{display:block;max-width:100%}
   .title.hero{font-size:clamp(54px,15vw,82px);max-width:650px}
   .text.hero{margin:27px 0}
   .actions{justify-content:flex-start}
-  .visual{margin-top:70px;padding:10px 10px 0}
+  .visual{margin-top:70px;padding:10x 10px 0}
   .mock{height:260px}
   .mock .side{width:72px;padding:12px 7px;font-size:7px}
   .mock .side b{font-size:8px;margin-bottom:16px}
