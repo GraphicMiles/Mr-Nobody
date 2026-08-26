@@ -3,7 +3,7 @@
   "releaseNotes": "Root-core fixes: browser tab sync, WebView renderer recovery, native replay race, settings debounce accumulation, download mounted guard, browser listener identity. Release/debug ABI match preserved; universal APK ready.",
   "downloadUrl": "https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.7/mr-nobody-1.0.7.apk",
   "required": false,
-  "sha256": "b6605b268d0c434b9008dd27bdf82fa3d34a3546e857c8b598e0a080c7b03935",
-  "signature": "5e9be13efa07c6fbfefc943a8a09b52d690aa8923b7a0563b51b527949196c1c",
-  "publishedAt": "2026-08-26T07:33:16Z"
+  "sha256": "38fbb0c54c1ca58899eccebc573a709c7465fe32fc8ba2056692eeee6e8a697d",
+  "signature": "1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5",
+  "publishedAt": "2026-08-26T07:52:36Z"
 }
