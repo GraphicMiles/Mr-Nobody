@@ -9,6 +9,48 @@ sandbox. One section per batch, newest first. Format: what shipped, why
 
 ---
 
+## 2026-08-26 — Batch: prune debug panel from distribution, keep black-screen fix
+
+**Why:** with the ⓘ panel enabled, the page-turns-black defect disappeared;
+with it disabled it returned. Device trace (panel on) showed the load itself
+healthy (start → progress 70/80/100 → finish, view attached and visible, no
+renderer gone) — and every offscreen capture black
+("capture: uniform/black frame — page not compositing"). Conclusion: the
+panel was fixing the symptom by accident — its poll timer and log listener
+kept Flutter frames flowing over the hybrid-composition platform view after
+the indeterminate progress bar was removed at load-finish. With
+`kDebugOverlayInRelease=false` the flag const-folds in release, R8 strips the
+overlay UI, nothing produces frames, and the platform view is left on a stale
+black buffer.
+
+**Shipped:**
+1. `kDebugOverlayInRelease = false` again — the visible panel is pruned from
+   the distribution APK (debug builds keep it).
+2. New `SurfaceKeepAlive` (lib/widgets/surface_keepalive.dart), mounted in
+   the browser screen's stack: a 2 s timer forces an empty Flutter frame, and
+   an ErrorLog listener forces one on any trace/error activity. Invisible
+   (IgnorePointer + empty child), no channel traffic, release-safe. This
+   deliberately replaces the panel's accidental frame-production.
+3. Thumbnail capture rewritten to prefer `PixelCopy` (reads the window
+   surface the WebView actually painted into; minSdk 31 so always available)
+   with the old `webView.draw(canvas)` path as fallback on failure, a 1.5 s
+   watchdog so Dart never waits forever, and the uniform/black-frame
+   rejection kept on both paths. Canvas draw of a hardware-composited
+   Chromium page yields black — that is why every capture line in the trace
+   was black.
+
+**How proven:** `flutter analyze` gate in CI. Mechanism evidence from the
+on-device trace correlation (panel on = stable, panel off = black) and the
+always-black canvas draws.
+
+**Retest:** build the distribution APK (release-apk.yml), open a URL, wait
+for load to finish — page must stay rendered with no ⓘ button anywhere.
+Check the tab grid: thumbnails should now show real page content (PixelCopy),
+not black cards. Flip `kDebugOverlayInRelease` back on only if the screen
+ever goes black again.
+
+---
+
 ## 2026-08-26 — Batch: release debug panel + tab black-screen tracing
 
 **Why:** the distribution APK still shows the page-turns-black defect: a URL

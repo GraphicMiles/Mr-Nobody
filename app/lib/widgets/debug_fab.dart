@@ -18,13 +18,16 @@ import 'toast.dart';
 /// only channel a user has to report what went wrong — it must be present on
 /// every screen and must never lie about the count.
 ///
-/// ON in the distribution APK while the "page turns black after it finishes
-/// loading" defect is being chased. The panel now carries the tab/WebView
-/// lifecycle trace (page start → progress → finish → attach/detach → renderer
-/// gone), so a tester watching the defect live can read and copy the exact
-/// sequence instead of reporting "it just went black". Flip to false once the
-/// defect is fixed and the public build can drop the overlay again.
-const bool kDebugOverlayInRelease = true;
+/// OFF in the distribution APK. The visible ⓘ panel stays in debug builds
+/// only.
+///
+/// The black-screen regression the panel used to paper over (its poll timer
+/// and log listener kept Flutter frames flowing over the platform view after
+/// a page finished loading) is now handled invisibly by [SurfaceKeepAlive],
+/// which sits in the browser stack and does the same frame-production job
+/// with no UI at all. So the panel can be pruned from distribution builds
+/// without the regression coming back.
+const bool kDebugOverlayInRelease = false;
 
 class DebugOverlay extends StatefulWidget {
   /// Extra bottom offset, so the button clears a bottom bar when one is shown.
@@ -89,8 +92,8 @@ class _DebugOverlayState extends State<DebugOverlay> {
   @override
   Widget build(BuildContext context) {
     // The developer panel and the ⓘ overlay are debug-only in a public
-    // release. While the distribution APK defect is being chased, the overlay
-    // stays in so the failure is observable on a tester's device; see
+    // release; the black-screen fix it used to provide by accident is now
+    // handled invisibly by SurfaceKeepAlive in the browser stack. See
     // [kDebugOverlayInRelease].
     if (kReleaseMode && !kDebugOverlayInRelease) return const SizedBox.shrink();
     final safeBottom = MediaQuery.of(context).padding.bottom;
