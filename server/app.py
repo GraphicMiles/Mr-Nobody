@@ -39,7 +39,7 @@ SITE = (ROOT.parent / "website").resolve()
 MAX_BODY = 1024 * 1024  # 1 MiB hard cap on anything this service serves
 
 UPDATE_JSON_HEADERS = {"Cache-Control": "no-cache"}
-STATIC_HEADERS = {"Cache-Control": "public, max-age=3600"}
+STATIC_HEADERS = {"Cache-Control": "no-cache, must-revalidate"}
 
 # Initialize SQLite metrics store
 METRICS_DB_PATH = os.environ.get("METRICS_DB_PATH", str(ROOT / "metrics.db"))
