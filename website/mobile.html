@@ -51,7 +51,6 @@
   <!-- ======================= HERO ======================= -->
   <div class="section hero" id="top">
     <div class="copy">
-      <p class="tag badge"><i class="fas fa-shield-halved"></i> v1.0.7 · Signed Android Release · 100% Open Source</p>
       <h1 class="title">Make the web work <span class="mark">for you.</span></h1>
       <p class="sub">A quiet, capable Android browser with a deterministic on-device agent. It searches, extracts citations, compares evidence, and manages downloads through one calm, fail-closed interface.</p>
       <div class="row">
@@ -71,54 +70,54 @@
     </div>
 
     <div class="art">
-      <div class="browser-box">
-        <div class="browser-header">
-          <div class="browser-dots">
-            <span></span><span></span><span></span>
-          </div>
-          <span>mrnobody://agent/research</span>
-          <span>TOR ROUTE</span>
-        </div>
-        <div class="browser-body">
-          <div class="query-card">
-            <span class="q-title"><i class="fas fa-bolt"></i> On-Device Deterministic Query</span>
-            <span class="q-sub">"Compare active battery drain under web browsing on Pixel 9 vs Galaxy S24"</span>
-            <div class="source-row">
-              <span class="source-item">anandtech.com</span>
-              <span class="source-item">gsmarena.com</span>
-              <span class="source-item">notebookcheck.net</span>
-            </div>
-          </div>
-          <div class="query-card">
-            <span class="q-title"><i class="fas fa-check-double"></i> Structured Extractive Answer</span>
-            <span class="q-sub">Under standardized 120 Hz Wi-Fi browsing tests, the <strong>Pixel 9 averaged 13h 05m</strong> while the <strong>Galaxy S24 sustained 12h 18m</strong> across identical display brightness levels.</span>
-          </div>
-          <div class="query-card">
-            <span class="q-title"><i class="fas fa-hard-drive"></i> App-Owned SAF Resumption</span>
-            <span class="q-sub">HTTP Range verified · Survives process death and screen lock · Zero tracking.</span>
+      <div class="release-card">
+        <div class="release-head">
+          <img src="mr-nobody-mark.png" alt="Mr Nobody">
+          <div>
+            <h3>Mr Nobody v1.0.7</h3>
+            <p>Signed Android Release · 25 MB</p>
           </div>
         </div>
+        <div class="release-specs">
+          <div class="spec-row">
+            <span>Engine</span>
+            <b>On-Device Deterministic</b>
+          </div>
+          <div class="spec-row">
+            <span>Network Routing</span>
+            <b>Fail-Closed Tor / Orbot</b>
+          </div>
+          <div class="spec-row">
+            <span>Download Engine</span>
+            <b>Storage Access Framework</b>
+          </div>
+          <div class="spec-row">
+            <span>Telemetry &amp; Ads</span>
+            <b>Zero · No Accounts</b>
+          </div>
+          <div class="spec-row">
+            <span>License</span>
+            <b>100% MIT Open Source</b>
+          </div>
+        </div>
+        <a class="cta" href="https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.7/mr-nobody-1.0.7.apk">
+          <p>Download Universal APK</p>
+          <i class="fas fa-arrow-down"></i>
+        </a>
       </div>
     </div>
   </div>
 
-  <!-- ======================= TICKER (SpaceFM Marquee) ======================= -->
+  <!-- ======================= TICKER MARQUEE ======================= -->
   <div class="ticker">
     <div class="tick">
-      <span>1,028 JAVA / JVM CI TESTS PASSING</span>
-      <span>•</span>
+      <span>1,028 JAVA AND JVM CI TESTS PASSING</span>
       <span>185 FLUTTER WIDGET TESTS</span>
-      <span>•</span>
-      <span>ZERO ANALYTICS &amp; TELEMETRY</span>
-      <span>•</span>
+      <span>ZERO ANALYTICS AND TELEMETRY</span>
       <span>APP-OWNED STORAGE ACCESS FRAMEWORK DOWNLOADS</span>
-      <span>•</span>
-      <span>FAIL-CLOSED TOR &amp; ORBOT ROUTING</span>
-      <span>•</span>
+      <span>FAIL-CLOSED TOR AND ORBOT ROUTING</span>
       <span>TIER-0 ON-DEVICE DETERMINISTIC AGENT</span>
-      <span>•</span>
-      <span>100% OPEN SOURCE (MIT)</span>
-      <span>•</span>
+      <span>100% OPEN SOURCE MIT LICENSED</span>
       <span>NO USER ACCOUNT REQUIRED</span>
     </div>
   </div>
@@ -127,11 +126,11 @@
   <div class="section stats">
     <div class="stat">
       <span class="big">1,028</span>
-      <span class="label">Java / JVM CI Tests</span>
+      <span class="label">Java / JVM Tests</span>
     </div>
     <div class="stat">
       <span class="big">185</span>
-      <span class="label">Flutter Widget Tests</span>
+      <span class="label">Flutter Tests</span>
     </div>
     <div class="stat">
       <span class="big">14</span>
@@ -150,39 +149,35 @@
   <!-- ======================= HOW IT WORKS ======================= -->
   <div class="section workflow" id="how-it-works">
     <div class="head">
-      <div>
-        <p class="tag"><i class="fas fa-diagram-project"></i> Architecture &amp; Workflow</p>
-        <h2 class="title small">How Mr Nobody Gets Work Done</h2>
-      </div>
+      <h2 class="title small">How Mr Nobody Gets Work Done</h2>
       <p class="sub">Deterministic software with explicit human checkpoints. Never invents facts, never leaks context.</p>
     </div>
 
     <div class="cards">
       <div class="card">
-        <span class="num">01 / PARSE &amp; CLASSIFY</span>
+        <span class="num">01 / PARSE</span>
         <h3 class="name">Tier-0 Fast Path</h3>
         <p class="desc">Device clock, arithmetic calculations, and direct single actions are handled locally on-device. No network call is made, and no AI tokens are consumed.</p>
       </div>
 
       <div class="card">
-        <span class="num">02 / EXTRACT &amp; CITE</span>
+        <span class="num">02 / EXTRACT</span>
         <h3 class="name">Structure Over Dumps</h3>
         <p class="desc">Transport noise, HTML tags, undecoded entities, and menu rails are stripped before sentences are scored. The engine ranks candidate facts specifically against question intent.</p>
       </div>
 
       <div class="card">
-        <span class="num">03 / GATE &amp; EXECUTE</span>
+        <span class="num">03 / EXECUTE</span>
         <h3 class="name">User Approval Gate</h3>
         <p class="desc">Consequential actions — like initiating large file downloads, writing to storage, or connecting to external endpoints — pause for your explicit confirmation.</p>
       </div>
     </div>
   </div>
 
-  <!-- ======================= SERVICES / CAPABILITIES ======================= -->
+  <!-- ======================= CAPABILITIES ======================= -->
   <div class="section services" id="capabilities">
     <div class="block">
       <div class="info">
-        <p class="tag"><i class="fas fa-magnifying-glass"></i> Research</p>
         <h3 class="name">Extractive, Cited Synthesis</h3>
         <p class="desc">Ask a question or provide web pages. Mr Nobody reads the primary sources, removes boilerplate noise, and delivers verified answers anchored to real citations.</p>
       </div>
@@ -194,7 +189,6 @@
 
     <div class="block">
       <div class="info">
-        <p class="tag"><i class="fas fa-shield"></i> Protection</p>
         <h3 class="name">Local Ad &amp; Tracker Blocker</h3>
         <p class="desc">On-device filter rules stop cross-site redirects, block pop-up networks, and automatically strip tracking parameters (?utm, ?fbclid) from links before requests leave your phone.</p>
       </div>
@@ -206,7 +200,6 @@
 
     <div class="block">
       <div class="info">
-        <p class="tag"><i class="fas fa-download"></i> Transfers</p>
         <h3 class="name">App-Owned Download Engine</h3>
         <p class="desc">Replaces Android's system DownloadManager. Provides Storage Access Framework folder selection, validated HTTP range resumption, and smart landing-page link resolution.</p>
       </div>
@@ -218,7 +211,6 @@
 
     <div class="block">
       <div class="info">
-        <p class="tag"><i class="fas fa-route"></i> Egress Gate</p>
         <h3 class="name">Fail-Closed Privacy Routes</h3>
         <p class="desc">Configure Orbot SOCKS5 or bundled Tor. If your privacy tunnel disconnects, the NetworkGate halts outbound traffic completely rather than leaking cleartext.</p>
       </div>
@@ -229,13 +221,10 @@
     </div>
   </div>
 
-  <!-- ======================= COMPARISON (SpaceFM Rate-Card Style) ======================= -->
+  <!-- ======================= COMPARISON ======================= -->
   <div class="section comparison" id="comparison">
     <div class="head">
-      <div>
-        <p class="tag"><i class="fas fa-scale-balanced"></i> Architectural Comparison</p>
-        <h2 class="title small">Straight Numbers, No Stories</h2>
-      </div>
+      <h2 class="title small">Straight Numbers, No Stories</h2>
       <p class="sub">How Mr Nobody stacks up against standard system browsers and cloud AI browsers.</p>
     </div>
 
@@ -347,10 +336,7 @@
   <!-- ======================= PRIVACY MODES ======================= -->
   <div class="section privacy" id="privacy">
     <div class="head">
-      <div>
-        <p class="tag"><i class="fas fa-lock"></i> Egress Control</p>
-        <h2 class="title small">Three Modes. One Rule: Fail Closed.</h2>
-      </div>
+      <h2 class="title small">Three Modes. One Rule: Fail Closed.</h2>
       <p class="sub">When a promised privacy route is unavailable, Mr Nobody refuses to silently fall back to cleartext.</p>
     </div>
 
@@ -378,34 +364,27 @@
   <!-- ======================= CODE AUDIT ======================= -->
   <div class="section audit" id="audit">
     <div class="head">
-      <div>
-        <p class="tag"><i class="fas fa-code-check"></i> Codebase Health</p>
-        <h2 class="title small">Audited Code. Verifiable Stability.</h2>
-      </div>
+      <h2 class="title small">Audited Code. Verifiable Stability.</h2>
       <p class="sub">Key architectural improvements confirmed in the latest 2026-08-25 codebase audit.</p>
     </div>
 
     <div class="audit-grid">
       <div class="audit-item">
-        <span class="audit-tag">AUDITED FIX 01</span>
         <h4>Invisible Frame Stabilizer</h4>
         <p>Eliminated release-only black page regressions by embedding an invisible refresh stabilizer in the browser surface, keeping active frames post-navigation.</p>
       </div>
 
       <div class="audit-item">
-        <span class="audit-tag">AUDITED FIX 02</span>
         <h4>Deterministic Z-Order Navigation</h4>
         <p>Moved browser navigation controls from a Flutter Stack overlay to deterministic sibling layout bounds, preventing Android native views from clipping chrome.</p>
       </div>
 
       <div class="audit-item">
-        <span class="audit-tag">AUDITED FIX 03</span>
         <h4>Renderer Crash Recovery</h4>
         <p>Fixed onRenderProcessGone handling by incrementing a platform-view generation key, automatically mounting a fresh WebView on renderer failure.</p>
       </div>
 
       <div class="audit-item">
-        <span class="audit-tag">AUDITED FIX 04</span>
         <h4>True Byte-Delta Throughput</h4>
         <p>Replaced synthetic OEM link downstream estimates with real measured byte deltas per active download, ensuring accurate transfer speed metrics.</p>
       </div>
@@ -415,10 +394,7 @@
   <!-- ======================= UPDATES & INTEGRITY ======================= -->
   <div class="section updates" id="updates">
     <div class="head">
-      <div>
-        <p class="tag"><i class="fas fa-file-shield"></i> Cryptographic Verification</p>
-        <h2 class="title small">Signed Releases. Zero Forced Code.</h2>
-      </div>
+      <h2 class="title small">Signed Releases. Zero Forced Code.</h2>
       <p class="sub">The app checks a small metadata endpoint quietly on launch. Updates are signed APKs verified by Android's package installer.</p>
     </div>
 
@@ -448,10 +424,7 @@
   <!-- ======================= FAQ ======================= -->
   <div class="section faq" id="faq">
     <div class="head">
-      <div>
-        <p class="tag"><i class="fas fa-circle-question"></i> Clarifications</p>
-        <h2 class="title small">Frequently Asked Questions</h2>
-      </div>
+      <h2 class="title small">Frequently Asked Questions</h2>
       <p class="sub">Clear answers on architecture, privacy guarantees, and open source integrity.</p>
     </div>
 
@@ -472,7 +445,7 @@
       </details>
 
       <details class="faq-item">
-        <summary>What data leaves my device? <i class="fas fa-plus"></i></summary>
+        <summary>What data ever leaves my device? <i class="fas fa-plus"></i></summary>
         <p>By default, only the requests required to fetch the web pages you visit. Version checks send minimal version metadata. If you choose to configure an optional remote AI provider (Gemini, Groq, OpenAI), task context leaves the device only for those explicit agent tasks.</p>
       </details>
 
@@ -491,7 +464,6 @@
   <!-- ======================= DOWNLOADS ======================= -->
   <div class="section downloads" id="downloads">
     <div class="copy">
-      <p class="tag"><i class="fas fa-download"></i> Get The Browser</p>
       <h2 class="title small">Be Nobody. Browse Freely.</h2>
       <p class="sub">Useful automation without turning your activity into a product. Free, open source, and yours.</p>
       <div class="row">
@@ -507,10 +479,9 @@
     </div>
 
     <div class="download-widget">
-      <span class="tag">ANDROID UNIVERSAL APK</span>
       <span class="big-spec">Mr Nobody v1.0.7</span>
       <p>Signed universal build · 25 MB · Android 8.0 (API 26) or newer. Verified by Android package installer on install.</p>
-      <a class="cta" href="https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.7/mr-nobody-1.0.7.apk" style="width:100%;">
+      <a class="cta" href="https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.7/mr-nobody-1.0.7.apk">
         <p>Download Signed APK</p>
         <i class="fas fa-download"></i>
       </a>

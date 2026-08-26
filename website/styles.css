@@ -1,12 +1,10 @@
 /* ==========================================================================
-   MR NOBODY — STYLESHEET
-   Inspired by spacefm.vercel.app architecture:
+   MR NOBODY — CLEAN EDITORIAL STYLES
    - Pure CSS Flexbox
-   - Bold, editorial typography
-   - ZERO green, ZERO yellow (Strict authentic monochrome + warm cream)
-   - Self-contained sections (.section [name])
-   - Simple button convention (.cta, .cta.ghost, .cta.small)
-   - 100% fluid mobile & desktop responsiveness
+   - Direct, bold typography
+   - Monochrome & warm cream only (NO green, NO yellow)
+   - ZERO eyebrows, ZERO decorative dots, ZERO dashed lines
+   - Clean, maintainable naming: .section.[name], .cta, .title, .sub, .card
    ========================================================================== */
 
 @font-face {
@@ -58,7 +56,7 @@
   --font-mono: 'Mono', monospace;
 }
 
-/* Base reset */
+/* Base Reset */
 *, *::before, *::after {
   margin: 0;
   padding: 0;
@@ -103,10 +101,10 @@ button {
 }
 
 /* ==========================================================================
-   SHARED ELEMENTS (.section, .cta, .title, .tag, .sub, .row)
+   SHARED ELEMENTS
    ========================================================================== */
 
-/* Every segment of the page */
+/* Every section is self-contained */
 .section {
   display: flex;
   width: 100%;
@@ -117,7 +115,7 @@ button {
   position: relative;
 }
 
-/* Any button (.cta) */
+/* Any button */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -169,7 +167,7 @@ button {
   font-size: 0.9em;
 }
 
-/* Shared text elements */
+/* Shared text components */
 .title {
   font-family: var(--font-head);
   font-weight: 700;
@@ -180,7 +178,8 @@ button {
 }
 
 .title.small {
-  font-size: clamp(1.6rem, 3.5vw, 2.6rem);
+  font-size: clamp(1.8rem, 3.8vw, 2.8rem);
+  letter-spacing: -0.03em;
 }
 
 .mark {
@@ -190,28 +189,8 @@ button {
   text-underline-offset: 6px;
 }
 
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  color: var(--cream);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.tag.badge {
-  padding: 0.35rem 0.85rem;
-  border: 1px solid var(--line2);
-  border-radius: 99px;
-  background: var(--card);
-  width: fit-content;
-}
-
 .sub {
-  max-width: 38rem;
+  max-width: 42rem;
   font-size: 1.1rem;
   line-height: 1.65;
   color: var(--copy);
@@ -229,6 +208,16 @@ button {
   word-break: break-all;
 }
 
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  width: 100%;
+  margin-bottom: 2.5rem;
+}
+
 /* ==========================================================================
    NAVIGATION
    ========================================================================== */
@@ -238,7 +227,7 @@ button {
   z-index: 1000;
   justify-content: space-between;
   padding: 1.1rem 6%;
-  background: rgba(22, 19, 18, 0.94);
+  background: rgba(22, 19, 18, 0.96);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 2px solid var(--line);
@@ -325,7 +314,7 @@ button {
 .section.hero {
   justify-content: space-between;
   gap: 3.5rem;
-  min-height: 85vh;
+  min-height: 82vh;
   background: var(--brown);
   padding-top: 6rem;
   padding-bottom: 5rem;
@@ -347,95 +336,80 @@ button {
   width: 100%;
 }
 
-.browser-box {
-  width: 100%;
-  background: var(--black);
+.release-card {
+  background: var(--card);
   border: 2px solid var(--line2);
   border-radius: 0.5rem;
-  overflow: hidden;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
 }
 
-.browser-header {
+.release-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  background: var(--card);
-  border-bottom: 2px solid var(--line);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--copy);
-}
-
-.browser-dots {
-  display: flex;
-  gap: 6px;
-}
-
-.browser-dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--line2);
-}
-
-.browser-body {
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
   gap: 1rem;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 1.2rem;
 }
 
-.query-card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 0.35rem;
-  padding: 0.9rem 1.1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+.release-head img {
+  width: 44px;
+  height: 44px;
 }
 
-.query-card .q-title {
-  font-size: 0.95rem;
+.release-head h3 {
+  font-size: 1.2rem;
   font-weight: 700;
-  color: var(--cream);
+  color: var(--white);
 }
 
-.query-card .q-sub {
+.release-head p {
   font-size: 0.85rem;
   color: var(--copy);
-  line-height: 1.5;
 }
 
-.source-row {
+.release-specs {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.4rem;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
-.source-item {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  padding: 0.25rem 0.55rem;
-  background: var(--soft);
-  border: 1px solid var(--line);
-  border-radius: 0.25rem;
+.spec-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.5rem;
+}
+
+.spec-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.spec-row span {
   color: var(--copy);
+}
+
+.spec-row b {
+  font-family: var(--font-head);
+  color: var(--white);
+  font-weight: 600;
 }
 
 /* ==========================================================================
-   TICKER (SpaceFM Marquee)
+   TICKER MARQUEE
    ========================================================================== */
 .ticker {
   display: flex;
   overflow: hidden;
   background: var(--cream);
   color: var(--ink);
-  padding: 0.85rem 0;
+  padding: 0.9rem 0;
   border-top: 2px solid var(--cream);
   border-bottom: 2px solid var(--cream);
 }
@@ -443,8 +417,8 @@ button {
 .tick {
   display: flex;
   align-items: center;
-  gap: 3rem;
-  padding-right: 3rem;
+  gap: 4rem;
+  padding-right: 4rem;
   min-width: 100%;
   flex-shrink: 0;
   font-family: var(--font-head);
@@ -452,7 +426,7 @@ button {
   font-size: 0.85rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  animation: marquee 26s linear infinite;
+  animation: marquee 28s linear infinite;
   white-space: nowrap;
 }
 
@@ -462,7 +436,7 @@ button {
 }
 
 /* ==========================================================================
-   STATS SECTION
+   STATS
    ========================================================================== */
 .section.stats {
   justify-content: space-between;
@@ -503,17 +477,7 @@ button {
 .section.workflow {
   flex-direction: column;
   align-items: stretch;
-  gap: 2.5rem;
   background: var(--brown);
-}
-
-.head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 1rem;
-  width: 100%;
 }
 
 .cards {
@@ -563,7 +527,7 @@ button {
 }
 
 /* ==========================================================================
-   SERVICES / CAPABILITIES (Full-width blocks like SpaceFM)
+   SERVICES / CAPABILITIES
    ========================================================================== */
 .section.services {
   flex-direction: column;
@@ -596,7 +560,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-width: 42rem;
+  max-width: 44rem;
 }
 
 .block .name {
@@ -613,12 +577,11 @@ button {
 }
 
 /* ==========================================================================
-   RATE CARDS / COMPARISON TABLE (Clean & Solid)
+   COMPARISON / RATE CARDS
    ========================================================================== */
 .section.comparison {
   flex-direction: column;
   align-items: stretch;
-  gap: 2.5rem;
   background: var(--black);
 }
 
@@ -651,9 +614,6 @@ button {
   background: var(--soft);
   border-bottom: 2px solid var(--line2);
   color: var(--white);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .ratecol.highlight h3 {
@@ -694,22 +654,20 @@ button {
 }
 
 /* ==========================================================================
-   PRIVACY MODES (.section.privacy)
+   PRIVACY MODES
    ========================================================================== */
 .section.privacy {
   flex-direction: column;
   align-items: stretch;
-  gap: 2.5rem;
   background: var(--brown);
 }
 
 /* ==========================================================================
-   AUDIT & RELEASES
+   CODE AUDIT
    ========================================================================== */
 .section.audit, .section.updates {
   flex-direction: column;
   align-items: stretch;
-  gap: 2.5rem;
   background: var(--black);
 }
 
@@ -725,18 +683,10 @@ button {
   background: var(--card);
   border: 2px solid var(--line2);
   border-radius: 0.5rem;
-  padding: 1.6rem;
+  padding: 1.8rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-}
-
-.audit-item .audit-tag {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--cream);
-  letter-spacing: 0.08em;
+  gap: 0.8rem;
 }
 
 .audit-item h4 {
@@ -748,7 +698,7 @@ button {
 .audit-item p {
   font-size: 0.9rem;
   color: var(--copy);
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 .hashbox {
@@ -758,14 +708,19 @@ button {
   background: var(--card);
   border: 2px solid var(--line2);
   border-radius: 0.35rem;
-  padding: 1rem 1.4rem;
+  padding: 1.1rem 1.4rem;
   gap: 1rem;
   flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.hashbox:last-child {
+  margin-bottom: 0;
 }
 
 .hashbox .mono-text {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--copy);
   word-break: break-all;
 }
@@ -780,7 +735,6 @@ button {
 .section.faq {
   flex-direction: column;
   align-items: stretch;
-  gap: 2.5rem;
   background: var(--brown);
 }
 
@@ -832,7 +786,7 @@ button {
 }
 
 /* ==========================================================================
-   DOWNLOADS / CALL TO ACTION
+   DOWNLOADS / ACTION
    ========================================================================== */
 .section.downloads {
   justify-content: space-between;
@@ -875,7 +829,7 @@ button {
 }
 
 /* ==========================================================================
-   FOOTER (SpaceFM Style)
+   FOOTER
    ========================================================================== */
 .section.footer {
   flex-direction: column;
@@ -949,7 +903,7 @@ button {
 }
 
 /* ==========================================================================
-   RESPONSIVE (Max-width 880px)
+   RESPONSIVE
    ========================================================================== */
 @media (max-width: 880px) {
   .section {
