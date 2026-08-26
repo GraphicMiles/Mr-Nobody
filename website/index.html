@@ -1,851 +1,566 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-  <title>Mr Nobody — The Private Browser with an On-Device Agent</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mr Nobody | The Private Android Browser with an On-Device Agent</title>
   <meta name="description" content="Mr Nobody is an open-source Android browser with an on-device deterministic agent. Search, read, compare and download authorised files through one calm, fail-closed interface.">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
-  <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
-<!-- NAVIGATION -->
-<div class="section nav">
-  <div class="wrap">
+  <!-- ======================= NAV ======================= -->
+  <div class="section nav">
     <a class="brand" href="#top">
-      <span class="mark"><img src="mr-nobody-mark.png" alt="Mr Nobody logo"></span>
+      <img src="mr-nobody-mark.png" alt="Mr Nobody">
       <span>mr nobody</span>
     </a>
-    <div class="navlinks">
-      <a href="#workflow">How It Works</a>
-      <a href="#features">Features</a>
+    <div class="links">
+      <a href="#how-it-works">How It Works</a>
+      <a href="#capabilities">Capabilities</a>
       <a href="#comparison">Compare</a>
-      <a href="#privacy">Privacy Modes</a>
-      <a href="#agent">Agent</a>
-      <a href="#downloads-engine">Downloads</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#audit">Audit</a>
       <a href="#faq">FAQ</a>
     </div>
-    <div class="navright">
-      <a class="cta small" href="#downloads">
-        <p class="ctatext">Download APK</p>
-        <i data-lucide="download" width="14"></i>
-      </a>
-      <button class="menu-toggle" aria-label="Toggle Menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
-    </div>
+    <a class="cta small" href="#downloads">
+      <p>Download APK</p>
+      <i class="fas fa-download"></i>
+    </a>
+    <button class="menu-btn" aria-label="Toggle Navigation">
+      <i class="fas fa-bars"></i>
+    </button>
   </div>
-</div>
 
-<!-- MOBILE SLIDE-DOWN MENU -->
-<div class="mobilemenu" id="mobileMenu">
-  <a href="#workflow">How It Works</a>
-  <a href="#features">Features</a>
-  <a href="#comparison">Compare</a>
-  <a href="#privacy">Privacy Modes</a>
-  <a href="#agent">Agent</a>
-  <a href="#downloads-engine">Downloads</a>
-  <a href="#audit">Code Audit</a>
-  <a href="#updates">Release Notes</a>
-  <a href="#faq">FAQ</a>
-  <a class="cta" href="#downloads">
-    <p class="ctatext">Download APK (v1.0.7)</p>
-    <i data-lucide="download" width="15"></i>
-  </a>
-</div>
-
-<!-- HERO -->
-<div class="section hero" id="top">
-  <div class="wrap">
-    <div class="badge">
-      <span class="dot"></span>
-      v1.0.7 · Signed Android Release · 100% Open Source (MIT)
-    </div>
-
-    <h1 class="title hero">
-      Make the web work <span>for you.</span>
-    </h1>
-
-    <p class="text hero">
-      Mr Nobody is an Android privacy browser with a deterministic on-device agent. It searches, extracts citations, compares evidence, and manages downloads through one calm, fail-closed interface.
-    </p>
-
-    <div class="actions">
-      <a class="cta" href="#downloads">
-        <p class="ctatext">Download v1.0.7 APK</p>
-        <i data-lucide="download" width="15"></i>
-      </a>
-      <a class="cta alt" href="#workflow">
-        <p class="ctatext">See How It Works</p>
-        <i data-lucide="arrow-down" width="15"></i>
-      </a>
-      <a class="cta alt" href="https://github.com/GraphicMiles/Mr-nobody" target="_blank" rel="noopener">
-        <p class="ctatext">GitHub</p>
-        <i data-lucide="arrow-up-right" width="15"></i>
-      </a>
-    </div>
-
-    <div class="hero-pills">
-      <div class="hero-pill">
-        <i data-lucide="shield-check" width="13"></i>
-        <span>Zero Telemetry</span>
-      </div>
-      <div class="hero-pill">
-        <i data-lucide="cpu" width="13"></i>
-        <span>Deterministic Agent</span>
-      </div>
-      <div class="hero-pill">
-        <i data-lucide="radio" width="13"></i>
-        <span>Tor / Orbot Route</span>
-      </div>
-      <div class="hero-pill">
-        <i data-lucide="folder-check" width="13"></i>
-        <span>Storage Access Framework</span>
-      </div>
-    </div>
-
-    <!-- RESPONSIVE INTERACTIVE PRODUCT MOCKUP -->
-    <div class="hero-mockup">
-      <div class="mockup-topbar">
-        <div class="window-controls">
-          <span></span><span></span><span></span>
-        </div>
-        <div class="mockup-address-bar">
-          <i data-lucide="lock" width="13"></i>
-          <span>mrnobody://agent/research?q=battery_comparison</span>
-        </div>
-        <div class="mockup-badges">
-          <span class="mock-badge shield">
-            <i data-lucide="shield" width="11"></i> 38 blocked
-          </span>
-          <span class="mock-badge tor">
-            <i data-lucide="radio" width="11"></i> Nobody (Tor)
-          </span>
-        </div>
-      </div>
-
-      <div class="mockup-view">
-        <div class="mockup-nav-tabs">
-          <button class="mock-tab-item active" data-tab="research">
-            <i data-lucide="search" width="14"></i>
-            <span>Extractive Agent</span>
-          </button>
-          <button class="mock-tab-item" data-tab="downloads">
-            <i data-lucide="download-cloud" width="14"></i>
-            <span>Owned Downloads</span>
-          </button>
-          <button class="mock-tab-item" data-tab="routing">
-            <i data-lucide="shield-alert" width="14"></i>
-            <span>Fail-Closed Route</span>
-          </button>
-          <button class="mock-tab-item" data-tab="devtools">
-            <i data-lucide="terminal" width="14"></i>
-            <span>Surface Stabilizer</span>
-          </button>
-        </div>
-
-        <!-- PANEL 1: RESEARCH -->
-        <div class="mockup-panel active" id="panel-research">
-          <div class="panel-header">
-            <span class="panel-title">On-Device Extractive Agent</span>
-            <span class="panel-tag">Tier-0 Fast Path Active · 0 Tokens Egressed</span>
-          </div>
-          <div class="panel-query">
-            <i data-lucide="sparkles" width="15"></i>
-            <span>Compare active battery drain under web browsing on Pixel 9 vs Galaxy S24</span>
-          </div>
-          <div class="panel-sources">
-            <span class="source-chip"><i data-lucide="globe" width="11"></i> anandtech.com (verified)</span>
-            <span class="source-chip"><i data-lucide="globe" width="11"></i> gsmarena.com (verified)</span>
-            <span class="source-chip"><i data-lucide="globe" width="11"></i> notebookcheck.net (verified)</span>
-          </div>
-          <div class="panel-result-card">
-            <p>Under standardized 120 Hz Wi-Fi browsing tests, the <strong>Pixel 9 averaged 13h 05m</strong> while the <strong>Galaxy S24 sustained 12h 18m</strong> across identical display brightness levels.</p>
-            <div class="panel-bullets">
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> Pixel 9: 4,700 mAh capacity · 5.8% lower idle screen drain [gsmarena.com]</div>
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> Galaxy S24: 4,000 mAh capacity · 11% faster full recharge cycle [anandtech.com]</div>
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> Page noise & trackers stripped before scoring; no raw HTML fed to model.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PANEL 2: DOWNLOADS -->
-        <div class="mockup-panel" id="panel-downloads">
-          <div class="panel-header">
-            <span class="panel-title">App-Owned Download Engine</span>
-            <span class="panel-tag">Android SAF · HTTP Range Validated</span>
-          </div>
-          <div class="panel-result-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-              <strong>debian-12.6.0-arm64-netinst.iso</strong>
-              <span class="mock-badge" style="color:var(--green);">ACTIVE · 6.4 MB/s</span>
-            </div>
-            <div class="progress-track" style="margin:8px 0;">
-              <div class="progress-fill" style="width: 68%;"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:0.75rem;color:var(--gray);">
-              <span>428 MB of 628 MB (68%)</span>
-              <span>ETA: 31s · Byte range verified</span>
-            </div>
-            <div style="font-family:monospace;font-size:0.72rem;color:var(--gray);margin-top:6px;display:flex;align-items:center;gap:6px;">
-              <i data-lucide="folder" width="12"></i>
-              <span>Destination: /storage/emulated/0/Download/MrNobody/</span>
-            </div>
-          </div>
-          <div class="panel-result-card">
-            <p>Direct resumption survives process death and screen lock. URLs ending with landing wrappers (<span class="mono">.iso.html</span>) are automatically resolved to authentic file streams before transfer begins.</p>
-          </div>
-        </div>
-
-        <!-- PANEL 3: FAIL-CLOSED ROUTE -->
-        <div class="mockup-panel" id="panel-routing">
-          <div class="panel-header">
-            <span class="panel-title">Nobody Mode Network Gate</span>
-            <span class="panel-tag">Strict Fail-Closed Enforcement</span>
-          </div>
-          <div class="panel-result-card">
-            <p><strong>Configured Egress:</strong> Orbot SOCKS5 Proxy (127.0.0.1:9050) with bundled Tor daemon.</p>
-            <div class="panel-bullets">
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> Zero cleartext leakage if Tor daemon shuts down or disconnects.</div>
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> Tracking query parameters (?utm_source, ?fbclid, ?gclid) stripped on egress.</div>
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> Insecure cleartext http:// requires explicit user consent per origin.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PANEL 4: SURFACE STABILIZER -->
-        <div class="mockup-panel" id="panel-devtools">
-          <div class="panel-header">
-            <span class="panel-title">Platform-View Surface Monitor</span>
-            <span class="panel-tag">v1.0.7 Surface Health: 100% OK</span>
-          </div>
-          <div class="panel-result-card">
-            <div class="panel-bullets">
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> Invisible Frame Stabilizer: ACTIVE (keeps surface refreshing post-render)</div>
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> Tab WebViews: 3 active · 1 pooled · Memory: 54 MB / 185 MB cap</div>
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> onRenderProcessGone recovery generation: 0 crashes detected</div>
-              <div class="panel-bullet-item"><i data-lucide="check" width="13"></i> DevTools v2 accessible via browser menu for power users</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <!-- ======================= MOBILE MENU ======================= -->
+  <div class="mobilemenu" id="mobileMenu">
+    <a href="#how-it-works">How It Works</a>
+    <a href="#capabilities">Capabilities</a>
+    <a href="#comparison">Compare</a>
+    <a href="#privacy">Privacy</a>
+    <a href="#audit">Audit</a>
+    <a href="#faq">FAQ</a>
+    <a class="cta" href="#downloads">
+      <p>Download APK (v1.0.7)</p>
+      <i class="fas fa-download"></i>
+    </a>
   </div>
-</div>
 
-<!-- STATS -->
-<div class="section stats">
-  <div class="wrap">
-    <div class="stat-item">
-      <div class="num">1,028</div>
-      <div class="label">Java / JVM CI Tests</div>
-    </div>
-    <div class="stat-item">
-      <div class="num">185</div>
-      <div class="label">Flutter Widget Tests</div>
-    </div>
-    <div class="stat-item">
-      <div class="num">14</div>
-      <div class="label">Privacy Auditor Checks</div>
-    </div>
-    <div class="stat-item">
-      <div class="num">25 MB</div>
-      <div class="label">Lean Universal APK</div>
-    </div>
-    <div class="stat-item">
-      <div class="num">0</div>
-      <div class="label">Telemetry & Trackers</div>
-    </div>
-  </div>
-</div>
-
-<!-- WORKFLOW (01 / 02 / 03) -->
-<div class="section workflow" id="workflow">
-  <div class="wrap">
-    <div class="eyebrow">Architecture & Workflow</div>
-    <h2 class="title main">How Mr Nobody <span>gets work done.</span></h2>
-    <p class="text sub">The agent is deterministic software with strict boundaries. It does not hallucinate answers or act secretly in the background.</p>
-
-    <div class="grid-3">
-      <div class="step-card">
-        <span class="num">01 / PARSE & CLASSIFY</span>
-        <h3>Tier-0 Fast Path</h3>
-        <p>Device clock, arithmetic calculations, and single-step direct actions are handled entirely on-device by deterministic code. No network egress, no AI tokens consumed.</p>
-      </div>
-
-      <div class="step-card">
-        <span class="num">02 / EXTRACT & CITE</span>
-        <h3>Structure Over Dumps</h3>
-        <p>Transport noise, HTML tags, undecoded entities, and site-menu rails are purged before sentences are scored. The engine ranks candidate facts based on what the question specifically requested.</p>
-      </div>
-
-      <div class="step-card">
-        <span class="num">03 / GATE & EXECUTE</span>
-        <h3>User Approval Gate</h3>
-        <p>Consequential actions — like initiating large downloads, saving files to storage, or connecting to external endpoints — pause and require your explicit tap before execution.</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- FEATURES -->
-<div class="section features" id="features">
-  <div class="wrap">
-    <div class="eyebrow">Engineered For Performance</div>
-    <h2 class="title main">Built for people <span>who want more from the web.</span></h2>
-    <p class="text sub">A browser should be a high-performance tool, not an advertising conduit. Every layer in Mr Nobody is built to keep the interface fast and private.</p>
-
-    <div class="grid-features">
-      <div class="feature-card">
-        <div class="feature-icon"><i data-lucide="search"></i></div>
-        <h3>Extractive, Cited Research</h3>
-        <p>Ask a question or provide URLs. Mr Nobody reads primary sources, cleans out markup noise, scores relevance, and returns structured answers with clickable citations.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon"><i data-lucide="shield-check"></i></div>
-        <h3>Local Ad & Tracker Blocker</h3>
-        <p>High-efficiency on-device ad and analytics filter lists prevent cross-site redirects, block pop-up networks, and strip tracking tokens (?utm, ?fbclid) from URLs.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon"><i data-lucide="download-cloud"></i></div>
-        <h3>App-Owned Download Engine</h3>
-        <p>Independent of Android's system DownloadManager. Supports custom Storage Access Framework folders, validated HTTP range resumption, and persistent notifications.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon"><i data-lucide="panels-top-left"></i></div>
-        <h3>Instant Tab Surface</h3>
-        <p>Invisible frame stabilizer keeps Android WebView surfaces active after page loads, permanently eliminating stale black screens and frame tear.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon"><i data-lucide="radio"></i></div>
-        <h3>Fail-Closed Privacy Routes</h3>
-        <p>Choose between Normal, Private, or Nobody (Tor / Orbot) mode. If your configured privacy proxy disconnects, the network gate halts rather than leaking traffic.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon"><i data-lucide="cpu"></i></div>
-        <h3>Crash & Process Resilience</h3>
-        <p>Designed around Android process lifecycle. Resumes active tasks, downloads, and tab states cleanly following OS background kills without repeating side effects.</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- COMPARISON TABLE -->
-<div class="section comparison" id="comparison">
-  <div class="wrap">
-    <div class="eyebrow">Objective Comparison</div>
-    <h2 class="title main">How Mr Nobody <span>stands apart.</span></h2>
-    <p class="text sub">See how Mr Nobody compares against default system browsers and cloud-based AI browser applications.</p>
-
-    <div class="comparison-scroll">
-      <table class="comparison-table">
-        <thead>
-          <tr>
-            <th class="col-feature">Capabilities</th>
-            <th class="col-std">Standard Mobile Browser</th>
-            <th class="col-ai">Cloud AI Browser</th>
-            <th class="col-mrnobody">Mr Nobody (v1.0.7)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="col-feature">Local Ad & Tracker Blocking</td>
-            <td class="col-std">None / Add-on required</td>
-            <td class="col-ai">Varies by provider</td>
-            <td class="col-mrnobody"><i data-lucide="check" width="14"></i> Built-in Native Shield</td>
-          </tr>
-          <tr>
-            <td class="col-feature">URL Tracking Parameter Stripper</td>
-            <td class="col-std">No</td>
-            <td class="col-ai">Rare</td>
-            <td class="col-mrnobody"><i data-lucide="check" width="14"></i> Automatic (?utm, ?fbclid)</td>
-          </tr>
-          <tr>
-            <td class="col-feature">Default Browsing History</td>
-            <td class="col-std">Stored indefinitely</td>
-            <td class="col-ai">Cloud synchronized</td>
-            <td class="col-mrnobody"><i data-lucide="check" width="14"></i> Disabled by default</td>
-          </tr>
-          <tr>
-            <td class="col-feature">On-Device Task Agent</td>
-            <td class="col-std">None</td>
-            <td class="col-ai">Cloud LLM (Data sent to servers)</td>
-            <td class="col-mrnobody"><i data-lucide="check" width="14"></i> Deterministic on-device</td>
-          </tr>
-          <tr>
-            <td class="col-feature">Download Engine & SAF</td>
-            <td class="col-std">Android DownloadManager</td>
-            <td class="col-ai">Standard browser download</td>
-            <td class="col-mrnobody"><i data-lucide="check" width="14"></i> App-Owned HTTP Range Engine</td>
-          </tr>
-          <tr>
-            <td class="col-feature">Tor / Orbot Routing</td>
-            <td class="col-std">Unsupported</td>
-            <td class="col-ai">Unsupported</td>
-            <td class="col-mrnobody"><i data-lucide="check" width="14"></i> Fail-closed Tor integration</td>
-          </tr>
-          <tr>
-            <td class="col-feature">Telemetry & User Accounts</td>
-            <td class="col-std">Mandatory telemetry / accounts</td>
-            <td class="col-ai">Account required</td>
-            <td class="col-mrnobody"><i data-lucide="check" width="14"></i> Zero telemetry · No account</td>
-          </tr>
-          <tr>
-            <td class="col-feature">Source Code License</td>
-            <td class="col-std">Proprietary / Closed</td>
-            <td class="col-ai">Proprietary</td>
-            <td class="col-mrnobody"><i data-lucide="check" width="14"></i> 100% MIT Licensed</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- PRIVACY MODES -->
-<div class="section privacy" id="privacy">
-  <div class="wrap">
-    <div class="eyebrow">Egress Control</div>
-    <h2 class="title main">Three modes. <span>One rule: fail closed.</span></h2>
-    <p class="text sub">Choose your privacy profile with clear guarantees. If an encrypted or proxied route becomes unavailable, Mr Nobody refuses to silently fall back to cleartext.</p>
-
-    <div class="grid-3">
-      <div class="mode-card">
-        <div class="mode-icon"><i data-lucide="globe"></i></div>
-        <h3>Normal Mode</h3>
-        <p>Standard browsing through your device connection with native tracker and ad blocking active. History is off by default.</p>
-        <div class="mode-specs">
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Tracking parameters stripped</div>
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Third-party cookies disabled</div>
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Cleartext http:// warning gate</div>
-        </div>
-      </div>
-
-      <div class="mode-card">
-        <div class="mode-icon"><i data-lucide="eye-off"></i></div>
-        <h3>Private Mode</h3>
-        <p>Reduced local retention with stronger sandboxing and isolation when supported by the installed Android WebView engine.</p>
-        <div class="mode-specs">
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Zero local session persistence</div>
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Storage cleared on exit</div>
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Isolated cookie jars per tab</div>
-        </div>
-      </div>
-
-      <div class="mode-card">
-        <div class="mode-icon"><i data-lucide="radio"></i></div>
-        <h3>Nobody Mode (Tor)</h3>
-        <p>Routes all traffic through Orbot SOCKS5 or the bundled Tor service. Strict fail-closed design prevents silent leaks.</p>
-        <div class="mode-specs">
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Multi-hop onion routing</div>
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Fails closed if proxy drops</div>
-          <div class="mode-spec-row"><i data-lucide="check" width="12"></i> Hides origin IP from destinations</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="callout-note">
-      Honest by design: Privacy is not synonymous with absolute anonymity. Mr Nobody provides transparent engineering metrics instead of marketing illusions.
-    </div>
-  </div>
-</div>
-
-<!-- AGENT DETAILS -->
-<div class="section agent" id="agent">
-  <div class="wrap">
-    <div class="split-layout">
-      <div class="split-left">
-        <div class="eyebrow">Deterministic Intelligence</div>
-        <h2 class="title main">An agent <span>with boundaries.</span></h2>
-        <p class="text sub">
-          Mr Nobody's local task agent is deterministic code, not a bulky on-device language model. It searches, extracts, ranks, and verifies facts with plain, auditable logic — and always pauses for confirmation before consequential operations.
-        </p>
-        <a class="cta alt" href="#faq" style="align-self:flex-start;">
-          <p class="ctatext">Read Agent FAQ</p>
-          <i data-lucide="arrow-right" width="15"></i>
+  <!-- ======================= HERO ======================= -->
+  <div class="section hero" id="top">
+    <div class="copy">
+      <p class="tag badge"><i class="fas fa-shield-halved"></i> v1.0.7 · Signed Android Release · 100% Open Source</p>
+      <h1 class="title">Make the web work <span class="mark">for you.</span></h1>
+      <p class="sub">A quiet, capable Android browser with a deterministic on-device agent. It searches, extracts citations, compares evidence, and manages downloads through one calm, fail-closed interface.</p>
+      <div class="row">
+        <a class="cta" href="#downloads">
+          <p>Download v1.0.7 APK</p>
+          <i class="fas fa-download"></i>
+        </a>
+        <a class="cta ghost" href="#how-it-works">
+          <p>See How It Works</p>
+          <i class="fas fa-arrow-down"></i>
+        </a>
+        <a class="cta ghost" href="https://github.com/GraphicMiles/Mr-nobody" target="_blank" rel="noopener">
+          <p>GitHub</p>
+          <i class="fab fa-github"></i>
         </a>
       </div>
-
-      <div class="split-right">
-        <div class="check-item">
-          <i data-lucide="check"></i>
-          <p><strong>Tier-0 Local Fast Path:</strong> Device clock, arithmetic, and direct tasks resolved locally with 0 network calls.</p>
-        </div>
-        <div class="check-item">
-          <i data-lucide="check"></i>
-          <p><strong>Extractive Sentence Ranking:</strong> Classifies query intent (figure, person, definition) and scores sentences specifically.</p>
-        </div>
-        <div class="check-item">
-          <i data-lucide="check"></i>
-          <p><strong>Markup & Noise Sanitization:</strong> Strips scripts, JSON-LD schema, menu rails, and HTML entities prior to citation.</p>
-        </div>
-        <div class="check-item">
-          <i data-lucide="check"></i>
-          <p><strong>Rendered WebView Extraction:</strong> Falls back to rendered DOM extraction when plain HTTP responses lack dynamic content.</p>
-        </div>
-        <div class="check-item">
-          <i data-lucide="check"></i>
-          <p><strong>App-Owned Downloads:</strong> Direct integration with the built-in HTTP range resumption engine.</p>
-        </div>
-        <div class="check-item">
-          <i data-lucide="check"></i>
-          <p><strong>Android WorkManager:</strong> Runs scheduled recurring monitoring checks reliably across system reboots.</p>
-        </div>
-        <div class="chip-box">
-          <i data-lucide="lock"></i>
-          <p><strong>Optional Remote AI:</strong> Gemini, Groq, or OpenAI-compatible endpoints can be enabled manually. Task context leaves the device only then, while tool execution stays strictly under local gate policy.</p>
-        </div>
-      </div>
     </div>
-  </div>
-</div>
 
-<!-- DOWNLOADS ENGINE -->
-<div class="section downloads-engine" id="downloads-engine">
-  <div class="wrap">
-    <div class="split-layout">
-      <div class="split-left">
-        <div class="eyebrow">App-Owned Transfers</div>
-        <h2 class="title main">Downloads <span>you control.</span></h2>
-        <p class="text sub">
-          Mr Nobody replaces Android's system DownloadManager with an internal engine designed for reliability, privacy, and full resumption.
-        </p>
-        <div style="display:flex;flex-direction:column;gap:0.75rem;">
-          <div class="check-item">
-            <i data-lucide="folder"></i>
-            <p><strong>Storage Access Framework:</strong> Save to public Downloads or select any private folder on internal or SD storage.</p>
+    <div class="art">
+      <div class="browser-box">
+        <div class="browser-header">
+          <div class="browser-dots">
+            <span></span><span></span><span></span>
           </div>
-          <div class="check-item">
-            <i data-lucide="refresh-cw"></i>
-            <p><strong>Validated HTTP Range Resumption:</strong> Never restart large files from zero after cellular drops.</p>
-          </div>
-          <div class="check-item">
-            <i data-lucide="link"></i>
-            <p><strong>Smart Landing Page Resolver:</strong> Links pointing to wrapper pages (<span class="mono">.iso.html</span>) resolve to the true file stream.</p>
-          </div>
-          <div class="check-item">
-            <i data-lucide="bell"></i>
-            <p><strong>Foreground Service:</strong> Progress notifications remain responsive even under OEM background task killing.</p>
-          </div>
+          <span>mrnobody://agent/research</span>
+          <span>TOR ROUTE</span>
         </div>
-      </div>
-
-      <div class="split-right">
-        <div style="background-color:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:1.5rem;display:flex;flex-direction:column;gap:1.2rem;width:100%;">
-          <div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <strong style="font-size:0.92rem;color:var(--white);">archlinux-2026.08.01-x86_64.iso</strong>
-              <span class="mock-badge" style="color:var(--green);">DOWNLOADING</span>
-            </div>
-            <div class="progress-track" style="margin:8px 0;">
-              <div class="progress-fill" style="width: 74%;"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:0.72rem;color:var(--gray);">
-              <span>762 MB / 1,028 MB (74%)</span>
-              <span>9.8 MB/s · 26s remaining</span>
+        <div class="browser-body">
+          <div class="query-card">
+            <span class="q-title"><i class="fas fa-bolt"></i> On-Device Deterministic Query</span>
+            <span class="q-sub">"Compare active battery drain under web browsing on Pixel 9 vs Galaxy S24"</span>
+            <div class="source-row">
+              <span class="source-item">anandtech.com</span>
+              <span class="source-item">gsmarena.com</span>
+              <span class="source-item">notebookcheck.net</span>
             </div>
           </div>
-
-          <div style="border-top:1px solid var(--line);padding-top:1rem;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <strong style="font-size:0.92rem;color:var(--white);">quantum_computing_paper.pdf</strong>
-              <span class="mock-badge" style="color:var(--cream);">COMPLETED</span>
-            </div>
-            <div class="progress-track" style="margin:8px 0;">
-              <div class="progress-fill" style="width: 100%;"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:0.72rem;color:var(--gray);">
-              <span>14.2 MB · Verified SHA-256</span>
-              <span>Saved to SAF Folder</span>
-            </div>
+          <div class="query-card">
+            <span class="q-title"><i class="fas fa-check-double"></i> Structured Extractive Answer</span>
+            <span class="q-sub">Under standardized 120 Hz Wi-Fi browsing tests, the <strong>Pixel 9 averaged 13h 05m</strong> while the <strong>Galaxy S24 sustained 12h 18m</strong> across identical display brightness levels.</span>
+          </div>
+          <div class="query-card">
+            <span class="q-title"><i class="fas fa-hard-drive"></i> App-Owned SAF Resumption</span>
+            <span class="q-sub">HTTP Range verified · Survives process death and screen lock · Zero tracking.</span>
           </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- CODE AUDIT -->
-<div class="section audit" id="audit">
-  <div class="wrap">
-    <div class="eyebrow">Engineering Rigor</div>
-    <h2 class="title main">Audited code. <span>Verifiable stability.</span></h2>
-    <p class="text sub">Key architectural improvements confirmed in the latest 2026-08-25 codebase audit.</p>
+  <!-- ======================= TICKER (SpaceFM Marquee) ======================= -->
+  <div class="ticker">
+    <div class="tick">
+      <span>1,028 JAVA / JVM CI TESTS PASSING</span>
+      <span>•</span>
+      <span>185 FLUTTER WIDGET TESTS</span>
+      <span>•</span>
+      <span>ZERO ANALYTICS &amp; TELEMETRY</span>
+      <span>•</span>
+      <span>APP-OWNED STORAGE ACCESS FRAMEWORK DOWNLOADS</span>
+      <span>•</span>
+      <span>FAIL-CLOSED TOR &amp; ORBOT ROUTING</span>
+      <span>•</span>
+      <span>TIER-0 ON-DEVICE DETERMINISTIC AGENT</span>
+      <span>•</span>
+      <span>100% OPEN SOURCE (MIT)</span>
+      <span>•</span>
+      <span>NO USER ACCOUNT REQUIRED</span>
+    </div>
+  </div>
 
-    <div class="grid-features">
-      <div class="feature-card">
-        <div style="font-family:monospace;font-size:0.72rem;color:var(--green);font-weight:600;display:flex;align-items:center;gap:5px;margin-bottom:0.8rem;">
-          <i data-lucide="check-circle" width="14"></i> AUDITED & VERIFIED
-        </div>
-        <h3>Invisible Frame Stabilizer</h3>
-        <p>Eliminated release-only black page regressions by embedding an invisible refresh stabilizer in the browser surface, ensuring active frames post-navigation.</p>
+  <!-- ======================= STATS ======================= -->
+  <div class="section stats">
+    <div class="stat">
+      <span class="big">1,028</span>
+      <span class="label">Java / JVM CI Tests</span>
+    </div>
+    <div class="stat">
+      <span class="big">185</span>
+      <span class="label">Flutter Widget Tests</span>
+    </div>
+    <div class="stat">
+      <span class="big">14</span>
+      <span class="label">Privacy Auditor Checks</span>
+    </div>
+    <div class="stat">
+      <span class="big">25 MB</span>
+      <span class="label">Lean Universal APK</span>
+    </div>
+    <div class="stat">
+      <span class="big">0</span>
+      <span class="label">Telemetry &amp; Tracking</span>
+    </div>
+  </div>
+
+  <!-- ======================= HOW IT WORKS ======================= -->
+  <div class="section workflow" id="how-it-works">
+    <div class="head">
+      <div>
+        <p class="tag"><i class="fas fa-diagram-project"></i> Architecture &amp; Workflow</p>
+        <h2 class="title small">How Mr Nobody Gets Work Done</h2>
+      </div>
+      <p class="sub">Deterministic software with explicit human checkpoints. Never invents facts, never leaks context.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <span class="num">01 / PARSE &amp; CLASSIFY</span>
+        <h3 class="name">Tier-0 Fast Path</h3>
+        <p class="desc">Device clock, arithmetic calculations, and direct single actions are handled locally on-device. No network call is made, and no AI tokens are consumed.</p>
       </div>
 
-      <div class="feature-card">
-        <div style="font-family:monospace;font-size:0.72rem;color:var(--green);font-weight:600;display:flex;align-items:center;gap:5px;margin-bottom:0.8rem;">
-          <i data-lucide="check-circle" width="14"></i> AUDITED & VERIFIED
-        </div>
-        <h3>Deterministic Z-Order Navigation</h3>
-        <p>Moved browser navigation controls from a Flutter Stack overlay to deterministic sibling layout bounds, preventing Android native platform-views from clipping chrome.</p>
+      <div class="card">
+        <span class="num">02 / EXTRACT &amp; CITE</span>
+        <h3 class="name">Structure Over Dumps</h3>
+        <p class="desc">Transport noise, HTML tags, undecoded entities, and menu rails are stripped before sentences are scored. The engine ranks candidate facts specifically against question intent.</p>
       </div>
 
-      <div class="feature-card">
-        <div style="font-family:monospace;font-size:0.72rem;color:var(--green);font-weight:600;display:flex;align-items:center;gap:5px;margin-bottom:0.8rem;">
-          <i data-lucide="check-circle" width="14"></i> AUDITED & VERIFIED
+      <div class="card">
+        <span class="num">03 / GATE &amp; EXECUTE</span>
+        <h3 class="name">User Approval Gate</h3>
+        <p class="desc">Consequential actions — like initiating large file downloads, writing to storage, or connecting to external endpoints — pause for your explicit confirmation.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= SERVICES / CAPABILITIES ======================= -->
+  <div class="section services" id="capabilities">
+    <div class="block">
+      <div class="info">
+        <p class="tag"><i class="fas fa-magnifying-glass"></i> Research</p>
+        <h3 class="name">Extractive, Cited Synthesis</h3>
+        <p class="desc">Ask a question or provide web pages. Mr Nobody reads the primary sources, removes boilerplate noise, and delivers verified answers anchored to real citations.</p>
+      </div>
+      <a class="cta ghost" href="#downloads">
+        <p>Try In App</p>
+        <i class="fas fa-arrow-right"></i>
+      </a>
+    </div>
+
+    <div class="block">
+      <div class="info">
+        <p class="tag"><i class="fas fa-shield"></i> Protection</p>
+        <h3 class="name">Local Ad &amp; Tracker Blocker</h3>
+        <p class="desc">On-device filter rules stop cross-site redirects, block pop-up networks, and automatically strip tracking parameters (?utm, ?fbclid) from links before requests leave your phone.</p>
+      </div>
+      <a class="cta ghost" href="#downloads">
+        <p>Try In App</p>
+        <i class="fas fa-arrow-right"></i>
+      </a>
+    </div>
+
+    <div class="block">
+      <div class="info">
+        <p class="tag"><i class="fas fa-download"></i> Transfers</p>
+        <h3 class="name">App-Owned Download Engine</h3>
+        <p class="desc">Replaces Android's system DownloadManager. Provides Storage Access Framework folder selection, validated HTTP range resumption, and smart landing-page link resolution.</p>
+      </div>
+      <a class="cta ghost" href="#downloads">
+        <p>Try In App</p>
+        <i class="fas fa-arrow-right"></i>
+      </a>
+    </div>
+
+    <div class="block">
+      <div class="info">
+        <p class="tag"><i class="fas fa-route"></i> Egress Gate</p>
+        <h3 class="name">Fail-Closed Privacy Routes</h3>
+        <p class="desc">Configure Orbot SOCKS5 or bundled Tor. If your privacy tunnel disconnects, the NetworkGate halts outbound traffic completely rather than leaking cleartext.</p>
+      </div>
+      <a class="cta ghost" href="#downloads">
+        <p>Try In App</p>
+        <i class="fas fa-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+
+  <!-- ======================= COMPARISON (SpaceFM Rate-Card Style) ======================= -->
+  <div class="section comparison" id="comparison">
+    <div class="head">
+      <div>
+        <p class="tag"><i class="fas fa-scale-balanced"></i> Architectural Comparison</p>
+        <h2 class="title small">Straight Numbers, No Stories</h2>
+      </div>
+      <p class="sub">How Mr Nobody stacks up against standard system browsers and cloud AI browsers.</p>
+    </div>
+
+    <div class="ratecols">
+      <div class="ratecol">
+        <h3>Standard Mobile Browser</h3>
+        <div class="ratecol-body">
+          <div class="raterow">
+            <p>Ad &amp; Tracker Blocking</p>
+            <p>None / Add-on required</p>
+          </div>
+          <div class="raterow">
+            <p>Tracking Param Stripping</p>
+            <p>No</p>
+          </div>
+          <div class="raterow">
+            <p>Default Browsing History</p>
+            <p>Stored Indefinitely</p>
+          </div>
+          <div class="raterow">
+            <p>On-Device Agent</p>
+            <p>None</p>
+          </div>
+          <div class="raterow">
+            <p>Fail-Closed Tor Routing</p>
+            <p>Unsupported</p>
+          </div>
+          <div class="raterow">
+            <p>Telemetry / Accounts</p>
+            <p>Mandatory</p>
+          </div>
+          <div class="raterow">
+            <p>License</p>
+            <p>Proprietary</p>
+          </div>
         </div>
-        <h3>Renderer Crash Recovery</h3>
-        <p>Fixed onRenderProcessGone handling by generating a fresh platform-view key, automatically restoring tab state rather than leaving dead surfaces.</p>
       </div>
 
-      <div class="feature-card">
-        <div style="font-family:monospace;font-size:0.72rem;color:var(--green);font-weight:600;display:flex;align-items:center;gap:5px;margin-bottom:0.8rem;">
-          <i data-lucide="check-circle" width="14"></i> AUDITED & VERIFIED
+      <div class="ratecol">
+        <h3>Cloud AI Browser</h3>
+        <div class="ratecol-body">
+          <div class="raterow">
+            <p>Ad &amp; Tracker Blocking</p>
+            <p>Varies by Vendor</p>
+          </div>
+          <div class="raterow">
+            <p>Tracking Param Stripping</p>
+            <p>Rare</p>
+          </div>
+          <div class="raterow">
+            <p>Default Browsing History</p>
+            <p>Cloud Synchronized</p>
+          </div>
+          <div class="raterow">
+            <p>On-Device Agent</p>
+            <p>Cloud LLM Only</p>
+          </div>
+          <div class="raterow">
+            <p>Fail-Closed Tor Routing</p>
+            <p>Unsupported</p>
+          </div>
+          <div class="raterow">
+            <p>Telemetry / Accounts</p>
+            <p>Account Required</p>
+          </div>
+          <div class="raterow">
+            <p>License</p>
+            <p>Proprietary</p>
+          </div>
         </div>
-        <h3>True Byte-Delta Throughput</h3>
+      </div>
+
+      <div class="ratecol highlight">
+        <h3>Mr Nobody (v1.0.7)</h3>
+        <div class="ratecol-body">
+          <div class="raterow">
+            <p>Ad &amp; Tracker Blocking</p>
+            <p>Native On-Device Shield</p>
+          </div>
+          <div class="raterow">
+            <p>Tracking Param Stripping</p>
+            <p>Automatic (?utm, ?fbclid)</p>
+          </div>
+          <div class="raterow">
+            <p>Default Browsing History</p>
+            <p>Disabled By Default</p>
+          </div>
+          <div class="raterow">
+            <p>On-Device Agent</p>
+            <p>Deterministic Engine</p>
+          </div>
+          <div class="raterow">
+            <p>Fail-Closed Tor Routing</p>
+            <p>Native Integration</p>
+          </div>
+          <div class="raterow">
+            <p>Telemetry / Accounts</p>
+            <p>Zero Telemetry · No Account</p>
+          </div>
+          <div class="raterow">
+            <p>License</p>
+            <p>100% MIT Licensed</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= PRIVACY MODES ======================= -->
+  <div class="section privacy" id="privacy">
+    <div class="head">
+      <div>
+        <p class="tag"><i class="fas fa-lock"></i> Egress Control</p>
+        <h2 class="title small">Three Modes. One Rule: Fail Closed.</h2>
+      </div>
+      <p class="sub">When a promised privacy route is unavailable, Mr Nobody refuses to silently fall back to cleartext.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <span class="num">MODE 01</span>
+        <h3 class="name">Normal Mode</h3>
+        <p class="desc">Standard browsing through your current connection with native ad and tracker blocking enabled. Browsing history is turned off by default.</p>
+      </div>
+
+      <div class="card">
+        <span class="num">MODE 02</span>
+        <h3 class="name">Private Mode</h3>
+        <p class="desc">Reduced local retention with isolated cookie jars and stronger sandboxing when supported by the installed Android WebView engine.</p>
+      </div>
+
+      <div class="card">
+        <span class="num">MODE 03</span>
+        <h3 class="name">Nobody Mode (Tor)</h3>
+        <p class="desc">Routes all traffic through Orbot SOCKS5 or the bundled Tor service. If the proxy terminates, the NetworkGate halts all outbound traffic.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= CODE AUDIT ======================= -->
+  <div class="section audit" id="audit">
+    <div class="head">
+      <div>
+        <p class="tag"><i class="fas fa-code-check"></i> Codebase Health</p>
+        <h2 class="title small">Audited Code. Verifiable Stability.</h2>
+      </div>
+      <p class="sub">Key architectural improvements confirmed in the latest 2026-08-25 codebase audit.</p>
+    </div>
+
+    <div class="audit-grid">
+      <div class="audit-item">
+        <span class="audit-tag">AUDITED FIX 01</span>
+        <h4>Invisible Frame Stabilizer</h4>
+        <p>Eliminated release-only black page regressions by embedding an invisible refresh stabilizer in the browser surface, keeping active frames post-navigation.</p>
+      </div>
+
+      <div class="audit-item">
+        <span class="audit-tag">AUDITED FIX 02</span>
+        <h4>Deterministic Z-Order Navigation</h4>
+        <p>Moved browser navigation controls from a Flutter Stack overlay to deterministic sibling layout bounds, preventing Android native views from clipping chrome.</p>
+      </div>
+
+      <div class="audit-item">
+        <span class="audit-tag">AUDITED FIX 03</span>
+        <h4>Renderer Crash Recovery</h4>
+        <p>Fixed onRenderProcessGone handling by incrementing a platform-view generation key, automatically mounting a fresh WebView on renderer failure.</p>
+      </div>
+
+      <div class="audit-item">
+        <span class="audit-tag">AUDITED FIX 04</span>
+        <h4>True Byte-Delta Throughput</h4>
         <p>Replaced synthetic OEM link downstream estimates with real measured byte deltas per active download, ensuring accurate transfer speed metrics.</p>
       </div>
     </div>
   </div>
-</div>
 
-<!-- RELEASES & UPDATES -->
-<div class="section updates" id="updates">
-  <div class="wrap">
-    <div class="split-layout">
-      <div class="split-left">
-        <div class="eyebrow">Version Control</div>
-        <h2 class="title main">Signed releases, <span>zero forced code.</span></h2>
-        <p class="text sub">
-          The app checks a lightweight metadata endpoint on launch. It queries version numbers, release notes, and cryptographic signatures — never executable code. Updates are always user-confirmed through Android's package installer.
-        </p>
-        <a class="cta" href="#downloads" style="align-self:flex-start;">
-          <p class="ctatext">Download v1.0.7 APK</p>
-          <i data-lucide="download" width="15"></i>
-        </a>
+  <!-- ======================= UPDATES & INTEGRITY ======================= -->
+  <div class="section updates" id="updates">
+    <div class="head">
+      <div>
+        <p class="tag"><i class="fas fa-file-shield"></i> Cryptographic Verification</p>
+        <h2 class="title small">Signed Releases. Zero Forced Code.</h2>
       </div>
+      <p class="sub">The app checks a small metadata endpoint quietly on launch. Updates are signed APKs verified by Android's package installer.</p>
+    </div>
 
-      <div class="split-right">
-        <div class="release-entry">
-          <span class="release-tag">UPCOMING</span>
-          <div class="release-info">
-            <h3>Mr Nobody 1.0.8</h3>
-            <p>Debug panel pruned from distribution builds. Real-screen tab thumbnail capture and invisible frame stabilizer active across all viewports.</p>
-          </div>
-        </div>
-
-        <div class="release-entry">
-          <span class="release-tag" style="border-color:var(--green);color:var(--green);">CURRENT</span>
-          <div class="release-info">
-            <h3>Mr Nobody 1.0.7 (26 AUG 2026)</h3>
-            <p>23% smaller universal APK (25 MB), instant tab switching, DevTools v2 with 5 inspection tabs, and platform-view lifecycle synchronization.</p>
-          </div>
-        </div>
-
-        <div class="release-entry">
-          <span class="release-tag">SIGNED</span>
-          <div class="release-info">
-            <h3>Mr Nobody 1.0.2 (23 AUG 2026)</h3>
-            <p>Extractive citation accuracy improvements, hardened tracker blocklist, and offline metadata caching.</p>
-          </div>
-        </div>
-
-        <div class="hash-row">
-          <div class="hash-text">
-            <strong>SHA-256: </strong>
-            <span>38fbb0c54c1ca58899eccebc573a709c7465fe32fc8ba2056692eeee6e8a697d</span>
-          </div>
-          <button class="copy-btn" data-copy="38fbb0c54c1ca58899eccebc573a709c7465fe32fc8ba2056692eeee6e8a697d">
-            <i data-lucide="copy" width="11"></i> Copy
-          </button>
-        </div>
-
-        <div class="hash-row">
-          <div class="hash-text">
-            <strong>SIGNATURE: </strong>
-            <span>1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5</span>
-          </div>
-          <button class="copy-btn" data-copy="1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5">
-            <i data-lucide="copy" width="11"></i> Copy
-          </button>
-        </div>
+    <div class="hashbox">
+      <div class="mono-text">
+        <b>SHA-256: </b>
+        <span>38fbb0c54c1ca58899eccebc573a709c7465fe32fc8ba2056692eeee6e8a697d</span>
       </div>
+      <button class="cta small ghost copy-btn" data-copy="38fbb0c54c1ca58899eccebc573a709c7465fe32fc8ba2056692eeee6e8a697d">
+        <p>Copy SHA-256</p>
+        <i class="fas fa-copy"></i>
+      </button>
+    </div>
+
+    <div class="hashbox">
+      <div class="mono-text">
+        <b>SIGNATURE: </b>
+        <span>1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5</span>
+      </div>
+      <button class="cta small ghost copy-btn" data-copy="1106131f67b38e0644431679cf0edf497d1830cc4bdf031a475aa2c747516bd5">
+        <p>Copy Signature</p>
+        <i class="fas fa-copy"></i>
+      </button>
     </div>
   </div>
-</div>
 
-<!-- FAQ ACCORDION -->
-<div class="section faq" id="faq">
-  <div class="wrap">
-    <div class="eyebrow">Frequently Asked Questions</div>
-    <h2 class="title main">Questions? <span>Clear answers.</span></h2>
-    <p class="text sub">Everything you need to know about Mr Nobody's privacy model, local agent, and download architecture.</p>
+  <!-- ======================= FAQ ======================= -->
+  <div class="section faq" id="faq">
+    <div class="head">
+      <div>
+        <p class="tag"><i class="fas fa-circle-question"></i> Clarifications</p>
+        <h2 class="title small">Frequently Asked Questions</h2>
+      </div>
+      <p class="sub">Clear answers on architecture, privacy guarantees, and open source integrity.</p>
+    </div>
 
     <div class="faq-list">
       <details class="faq-item" open>
-        <summary>What exactly is Mr Nobody? <i data-lucide="plus" width="18"></i></summary>
-        <p>An open-source Android browser featuring an on-device deterministic agent for research, structured page extractions, and reliable downloads. Both browser and agent share identical privacy configurations and network routing.</p>
+        <summary>What exactly is Mr Nobody? <i class="fas fa-plus"></i></summary>
+        <p>An open-source Android browser with an on-device deterministic agent for research, page extractions, and reliable downloads. Both browser and agent share identical privacy configurations and network routing.</p>
       </details>
 
       <details class="faq-item">
-        <summary>Does Mr Nobody run a local Large Language Model (LLM)? <i data-lucide="plus" width="18"></i></summary>
-        <p>No. The on-device agent is purely deterministic code. It parses queries, strips markup noise, scores candidate sentences against question intent, and generates structured citations. This ensures instantaneous answers without high battery consumption or hallucinations.</p>
+        <summary>Does Mr Nobody run a local Large Language Model (LLM)? <i class="fas fa-plus"></i></summary>
+        <p>No. The on-device agent is purely deterministic code. It parses queries, strips markup noise, scores candidate sentences against question intent, and generates structured citations. This guarantees zero hallucinations and fast battery-efficient answers.</p>
       </details>
 
       <details class="faq-item">
-        <summary>Does it require an account or subscription? <i data-lucide="plus" width="18"></i></summary>
-        <p>Never. There are no accounts, sign-ins, user profiles, or cloud databases. You download the APK, install it, and it works immediately.</p>
+        <summary>Does it require an account or subscription? <i class="fas fa-plus"></i></summary>
+        <p>No. There is no account, no sign-in, and no profile. You install the APK and it works immediately.</p>
       </details>
 
       <details class="faq-item">
-        <summary>What data ever leaves my device? <i data-lucide="plus" width="18"></i></summary>
-        <p>Only the network requests required to fetch the web pages you visit. Version checks send minimal version metadata. If you choose to configure an optional remote AI provider (Gemini, Groq, OpenAI), task context is transmitted to that provider only during explicit agent tasks.</p>
+        <summary>What data leaves my device? <i class="fas fa-plus"></i></summary>
+        <p>By default, only the requests required to fetch the web pages you visit. Version checks send minimal version metadata. If you choose to configure an optional remote AI provider (Gemini, Groq, OpenAI), task context leaves the device only for those explicit agent tasks.</p>
       </details>
 
       <details class="faq-item">
-        <summary>How does Nobody Mode enforce fail-closed privacy? <i data-lucide="plus" width="18"></i></summary>
-        <p>When Nobody Mode is active, all socket egress is bound to the configured Tor or Orbot proxy. If the proxy process terminates or disconnects, the NetworkGate halts all outbound requests rather than failing open to cleartext.</p>
+        <summary>How does Nobody Mode enforce fail-closed privacy? <i class="fas fa-plus"></i></summary>
+        <p>When Nobody Mode is active, all socket egress is bound to the configured Tor or Orbot proxy. If the proxy terminates or drops, the NetworkGate halts all outbound requests rather than silently failing open to cleartext.</p>
       </details>
 
       <details class="faq-item">
-        <summary>Why does Mr Nobody have its own download engine? <i data-lucide="plus" width="18"></i></summary>
-        <p>Android's native DownloadManager lacks robust HTTP range verification, SAF custom folder support, and fails when connections drop on cellular networks. Mr Nobody's engine supports pause, resume, retries, and landing-page link resolution.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>How are plain http:// pages treated? <i data-lucide="plus" width="18"></i></summary>
-        <p>Mr Nobody enforces HTTPS by default. Insecure cleartext HTTP triggers a strict "Load anyway / Cancel" warning. Insecure file downloads present an explicit Continue/Reject prompt, protecting your Referer headers.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>Is Mr Nobody really 100% open source? <i data-lucide="plus" width="18"></i></summary>
-        <p>Yes, licensed under MIT. Every push is validated by 1,028 Java tests, 185 Flutter widget tests, and 14 privacy auditor tests in continuous integration.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>How do I verify the downloaded APK? <i data-lucide="plus" width="18"></i></summary>
-        <p>You can run <code>sha256sum mr-nobody-1.0.7.apk</code> and match the output against the hash provided on this page and in <code>update.json</code>. Android's package installer also validates the cryptographic certificate signature on install.</p>
+        <summary>Why does Mr Nobody have its own download engine? <i class="fas fa-plus"></i></summary>
+        <p>Android's native DownloadManager lacks robust HTTP range verification, custom Storage Access Framework folder selection, and fails on unstable networks. Mr Nobody's engine supports pause, resume, retries, and landing-page link resolution.</p>
       </details>
     </div>
   </div>
-</div>
 
-<!-- DOWNLOADS SECTION -->
-<div class="section downloads" id="downloads">
-  <div class="wrap">
-    <div class="eyebrow">Get Mr Nobody</div>
-    <h2 class="title main">Ready when <span>you are.</span></h2>
-    <p class="text sub">Download the latest signed Android release. Free, open source, and self-contained.</p>
-
-    <div class="grid-3">
-      <div class="platform-card">
-        <div>
-          <h3>Android Universal APK</h3>
-          <p>v1.0.7 · Signed Universal Build · 25 MB · Android 8.0 (API 26) or newer.</p>
-        </div>
+  <!-- ======================= DOWNLOADS ======================= -->
+  <div class="section downloads" id="downloads">
+    <div class="copy">
+      <p class="tag"><i class="fas fa-download"></i> Get The Browser</p>
+      <h2 class="title small">Be Nobody. Browse Freely.</h2>
+      <p class="sub">Useful automation without turning your activity into a product. Free, open source, and yours.</p>
+      <div class="row">
         <a class="cta" href="https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.7/mr-nobody-1.0.7.apk">
-          <p class="ctatext">Download APK</p>
-          <i data-lucide="download" width="15"></i>
+          <p>Download v1.0.7 APK</p>
+          <i class="fas fa-download"></i>
         </a>
-      </div>
-
-      <div class="platform-card">
-        <div>
-          <h3>Release Metadata</h3>
-          <p>Cryptographic checksums, signatures, release notes, and update schema.</p>
-        </div>
-        <a class="cta alt" href="update.json" target="_blank">
-          <p class="ctatext">update.json</p>
-          <i data-lucide="arrow-up-right" width="14"></i>
-        </a>
-      </div>
-
-      <div class="platform-card">
-        <div>
-          <h3>Source Repository</h3>
-          <p>Explore the Flutter shell, Android platform bridge, tests, and documentation.</p>
-        </div>
-        <a class="cta alt" href="https://github.com/GraphicMiles/Mr-nobody" target="_blank" rel="noopener">
-          <p class="ctatext">View on GitHub</p>
-          <i data-lucide="arrow-up-right" width="15"></i>
+        <a class="cta ghost" href="update.json" target="_blank">
+          <p>update.json</p>
+          <i class="fas fa-arrow-up-right-from-square"></i>
         </a>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- CTA BANNER -->
-<div class="section cta-banner">
-  <div class="wrap">
-    <div>
-      <div class="eyebrow">Zero Telemetry · Pure Utility</div>
-      <h2 class="title main" style="margin-bottom:0;">Be nobody. <span>Browse freely.</span></h2>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:1rem;max-width:320px;">
-      <p class="text" style="font-size:0.95rem;">A quiet, capable browser that searches, reads, and gets things done without turning your data into a product.</p>
-      <a class="cta" href="#downloads" style="align-self:flex-start;">
-        <p class="ctatext">Get Mr Nobody</p>
-        <i data-lucide="arrow-up-right" width="15"></i>
+    <div class="download-widget">
+      <span class="tag">ANDROID UNIVERSAL APK</span>
+      <span class="big-spec">Mr Nobody v1.0.7</span>
+      <p>Signed universal build · 25 MB · Android 8.0 (API 26) or newer. Verified by Android package installer on install.</p>
+      <a class="cta" href="https://github.com/GraphicMiles/Mr-Nobody/releases/download/v1.0.7/mr-nobody-1.0.7.apk" style="width:100%;">
+        <p>Download Signed APK</p>
+        <i class="fas fa-download"></i>
       </a>
     </div>
   </div>
-</div>
 
-<!-- FOOTER -->
-<div class="section footer">
-  <div class="wrap">
-    <div class="footer-columns">
-      <div class="footer-brand-col">
+  <!-- ======================= FOOTER ======================= -->
+  <div class="section footer">
+    <div class="top">
+      <div class="footer-info">
         <a class="brand" href="#top">
-          <span class="mark"><img src="mr-nobody-mark.png" alt="Mr Nobody"></span>
+          <img src="mr-nobody-mark.png" alt="Mr Nobody">
           <span>mr nobody</span>
         </a>
-        <p>An open-source Android privacy browser with an on-device deterministic agent. No accounts, no profiling, no tracking.</p>
-        <div style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;background:var(--black);border:1px solid var(--line2);font-family:monospace;font-size:0.72rem;color:var(--green);width:fit-content;">
-          <span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--green);"></span>
-          <span>CI Passing · 1,227 Automated Tests</span>
-        </div>
+        <p class="sub" style="font-size:0.95rem;">An open-source Android privacy browser with an on-device deterministic agent. No accounts, no profiling, no tracking.</p>
       </div>
 
-      <div class="footer-links-group">
-        <div class="footer-col">
+      <div class="footer-links">
+        <div class="col">
           <h4>Navigation</h4>
-          <a href="#workflow">How It Works</a>
-          <a href="#features">Features</a>
+          <a href="#how-it-works">How It Works</a>
+          <a href="#capabilities">Capabilities</a>
           <a href="#comparison">Compare</a>
           <a href="#privacy">Privacy Modes</a>
         </div>
 
-        <div class="footer-col">
+        <div class="col">
           <h4>Engineering</h4>
-          <a href="#agent">Deterministic Agent</a>
-          <a href="#downloads-engine">Download Engine</a>
           <a href="#audit">Code Audit</a>
-          <a href="#updates">Release Notes</a>
+          <a href="#updates">Verification</a>
+          <a href="#faq">FAQs</a>
+          <a href="/stats">Live Stats</a>
         </div>
 
-        <div class="footer-col">
+        <div class="col">
           <h4>Open Source</h4>
-          <a href="https://github.com/GraphicMiles/Mr-nobody" target="_blank" rel="noopener">GitHub Repository</a>
+          <a href="https://github.com/GraphicMiles/Mr-nobody" target="_blank" rel="noopener">GitHub</a>
           <a href="update.json">update.json</a>
           <a href="LICENSE" target="_blank">MIT License</a>
-          <a href="/stats">Device Stats</a>
+          <a href="mailto:hello@mrnobody.app">Contact</a>
         </div>
       </div>
     </div>
 
-    <div class="footer-bottom">
+    <div class="bottom">
       <span>© <span id="year">2026</span> Mr Nobody · Released under MIT License</span>
       <span>Built for the open web · Lagos, Nigeria</span>
     </div>
   </div>
-</div>
 
-<script src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
