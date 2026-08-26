@@ -85,15 +85,30 @@ public final class UpdateChecker {
     public static boolean checkNow(Context context) {
         HttpURLConnection conn = null;
         try {
-            conn = NetworkGate.openHttp(UPDATE_URL);
+            Settings s = MrNobodyApp.settings();
+            String installId = s.getOrCreateInstallId();
+            String version = installedVersion(context);
+
+            String url = UPDATE_URL;
+            if (installId != null && !installId.isEmpty()) {
+                url += "?id=" + installId;
+                if (version != null && !version.isEmpty()) {
+                    url += "&v=" + version;
+                }
+            }
+
+            conn = NetworkGate.openHttp(url);
             conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
             conn.setReadTimeout(READ_TIMEOUT_MS);
             conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("X-Install-ID", installId);
+            if (version != null && !version.isEmpty()) {
+                conn.setRequestProperty("X-App-Version", version);
+            }
             if (conn.getResponseCode() != 200) return false;
             byte[] body = readBounded(conn.getInputStream(), MAX_BODY_BYTES);
             String json = new String(body, StandardCharsets.UTF_8);
             if (UpdateInfo.parse(json) == null) return false;
-            Settings s = MrNobodyApp.settings();
             s.setLastUpdateCheck(json);
             s.setLastUpdateCheckTs(System.currentTimeMillis());
             return true;

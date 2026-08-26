@@ -52,6 +52,8 @@ public final class Settings {
     public static final String KEY_UPDATE_LAST_CHECK_TS = "update_last_check_ts";
     /** Version the user chose "remind me later" for. Reappears when a newer one is published. */
     public static final String KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version";
+    /** Anonymous, locally generated random UUID for update telemetry deduplication. */
+    public static final String KEY_INSTALL_ID = "install_id";
 
     public static final String SEARCH_DDG = "https://duckduckgo.com/?q=";
     public static final String SEARCH_BING = "https://www.bing.com/search?q=";
@@ -396,5 +398,19 @@ public final class Settings {
         prefs.edit()
                 .putString(KEY_UPDATE_DISMISSED_VERSION, version == null ? "" : version)
                 .apply();
+    }
+
+    /**
+     * An anonymous, locally generated UUID. Contains no hardware, phone, or
+     * personal identifiers. Used strictly to deduplicate update check pings on
+     * the server without profiling or tracking the user.
+     */
+    public synchronized String getOrCreateInstallId() {
+        String id = prefs.getString(KEY_INSTALL_ID, "");
+        if (id == null || id.isEmpty()) {
+            id = java.util.UUID.randomUUID().toString();
+            prefs.edit().putString(KEY_INSTALL_ID, id).apply();
+        }
+        return id;
     }
 }

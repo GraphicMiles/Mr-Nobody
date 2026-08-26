@@ -33,3 +33,8 @@ app/test/failures/
 
 # Local Flutter/Dart/Android SDKs fetched by tools/. Never committed.
 .toolchain/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
