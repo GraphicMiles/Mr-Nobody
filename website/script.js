@@ -1,5 +1,5 @@
-// Mr Nobody — Landing Page Script
-// Simple, referenceable naming: init + feature name
+// Mr Nobody — Website Scripts
+// Naming: init + feature name, clean and maintainable
 
 function initIcons() {
   if (window.lucide) {
@@ -29,9 +29,8 @@ function initMenu() {
     });
   });
 
-  // close the menu when the screen grows past the mobile breakpoint
   window.addEventListener('resize', function () {
-    if (window.innerWidth > 800) set(false);
+    if (window.innerWidth > 880) set(false);
   });
 }
 
@@ -40,9 +39,60 @@ function initYear() {
   if (el) el.textContent = new Date().getFullYear();
 }
 
-// Init
+function initInteractiveMockup() {
+  const buttons = document.querySelectorAll('.mock-tab-btn');
+  const panes = document.querySelectorAll('.mock-tab-pane');
+
+  buttons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const tabId = btn.getAttribute('data-tab');
+      if (!tabId) return;
+
+      buttons.forEach(function (b) {
+        b.classList.remove('active');
+      });
+      panes.forEach(function (p) {
+        p.classList.remove('active');
+      });
+
+      btn.classList.add('active');
+      const targetPane = document.getElementById('pane-' + tabId);
+      if (targetPane) {
+        targetPane.classList.add('active');
+      }
+    });
+  });
+}
+
+function initCopyChecksum() {
+  const copyButtons = document.querySelectorAll('.copy-btn');
+  copyButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const textToCopy = btn.getAttribute('data-copy');
+      if (!textToCopy) return;
+
+      navigator.clipboard.writeText(textToCopy).then(function () {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="check" width="12"></i> Copied!';
+        if (window.lucide) lucide.createIcons();
+
+        setTimeout(function () {
+          btn.innerHTML = originalHtml;
+          if (window.lucide) lucide.createIcons();
+        }, 2200);
+      }).catch(function () {
+        // Fallback prompt if clipboard API is restricted
+        window.prompt('Copy checksum:', textToCopy);
+      });
+    });
+  });
+}
+
+// Initialise everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', function () {
   initIcons();
   initMenu();
   initYear();
+  initInteractiveMockup();
+  initCopyChecksum();
 });
