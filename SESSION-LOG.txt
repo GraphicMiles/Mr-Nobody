@@ -1,4 +1,4 @@
-SESSION LOG — Mr Nobody
+SESSION LOG - Mr Nobody
 =======================
 
 Plain-text on purpose: the Flutter CI "Documentation surface" gate allows
@@ -9,14 +9,14 @@ sandbox. One section per batch, newest first. Format: what shipped, why
 
 ---
 
-## 2026-08-26 — Batch: prune debug panel from distribution, keep black-screen fix
+## 2026-08-26 - Batch: prune debug panel from distribution, keep black-screen fix
 
 **Why:** with the ⓘ panel enabled, the page-turns-black defect disappeared;
 with it disabled it returned. Device trace (panel on) showed the load itself
 healthy (start → progress 70/80/100 → finish, view attached and visible, no
-renderer gone) — and every offscreen capture black
-("capture: uniform/black frame — page not compositing"). Conclusion: the
-panel was fixing the symptom by accident — its poll timer and log listener
+renderer gone) - and every offscreen capture black
+("capture: uniform/black frame - page not compositing"). Conclusion: the
+panel was fixing the symptom by accident - its poll timer and log listener
 kept Flutter frames flowing over the hybrid-composition platform view after
 the indeterminate progress bar was removed at load-finish. With
 `kDebugOverlayInRelease=false` the flag const-folds in release, R8 strips the
@@ -24,7 +24,7 @@ overlay UI, nothing produces frames, and the platform view is left on a stale
 black buffer.
 
 **Shipped:**
-1. `kDebugOverlayInRelease = false` again — the visible panel is pruned from
+1. `kDebugOverlayInRelease = false` again - the visible panel is pruned from
    the distribution APK (debug builds keep it).
 2. New `SurfaceKeepAlive` (lib/widgets/surface_keepalive.dart), mounted in
    the browser screen's stack: a 2 s timer forces an empty Flutter frame, and
@@ -36,7 +36,7 @@ black buffer.
    with the old `webView.draw(canvas)` path as fallback on failure, a 1.5 s
    watchdog so Dart never waits forever, and the uniform/black-frame
    rejection kept on both paths. Canvas draw of a hardware-composited
-   Chromium page yields black — that is why every capture line in the trace
+   Chromium page yields black - that is why every capture line in the trace
    was black.
 
 **How proven:** `flutter analyze` gate in CI. Mechanism evidence from the
@@ -44,26 +44,26 @@ on-device trace correlation (panel on = stable, panel off = black) and the
 always-black canvas draws.
 
 **Retest:** build the distribution APK (release-apk.yml), open a URL, wait
-for load to finish — page must stay rendered with no ⓘ button anywhere.
+for load to finish - page must stay rendered with no ⓘ button anywhere.
 Check the tab grid: thumbnails should now show real page content (PixelCopy),
 not black cards. Flip `kDebugOverlayInRelease` back on only if the screen
 ever goes black again.
 
 ---
 
-## 2026-08-26 — Batch: release debug panel + tab black-screen tracing
+## 2026-08-26 - Batch: release debug panel + tab black-screen tracing
 
 **Why:** the distribution APK still shows the page-turns-black defect: a URL
 loads, and right after it finishes loading the screen goes black until a
-reload — which then goes black again once loading completes. The ⓘ debug
+reload - which then goes black again once loading completes. The ⓘ debug
 overlay was disabled in release builds, so there was no channel to observe
 the failure on a real device.
 
 **Shipped:**
-1. `kDebugOverlayInRelease = true` — the ⓘ panel now ships in the
+1. `kDebugOverlayInRelease = true` - the ⓘ panel now ships in the
    distribution APK (flip back to false once the defect is fixed).
 2. New trace channel (Java `ErrorLog.trace` + Dart `ErrorLog.trace`, bridged
-   as `debugTrace`): tab/WebView lifecycle events — view created (fresh vs
+   as `debugTrace`): tab/WebView lifecycle events - view created (fresh vs
    adopted retained), page start / progress milestones (25/50/75/100) /
    finish, main-frame errors, renderer gone, attach/detach / window
    visibility (new `DiagnosticWebView`), uniform-black thumbnail capture,
@@ -87,44 +87,44 @@ panel and read the TRACE order; try REBUILD and ERUDA on the black page.
 
 ---
 
-## 2026-08-20 — Batch: read-loop economics + image downloads + benchmark fixes
+## 2026-08-20 - Batch: read-loop economics + image downloads + benchmark fixes
 
 **Scope (owner-approved):** items A, C and D of the handoff. Embedded Tor (B)
 deliberately deferred to its own batch. Baseline `a83b4af`, 786 JVM tests
 green; this batch ends at 838 green.
 
-### A. Read-loop economics — the owner's six rules
+### A. Read-loop economics - the owner's six rules
 
 Core principle wired in: *cheapest sufficient action first; escalate only on
 validated failure, never preemptively.*
 
-1. **Evidence-sufficiency early exit** — new `EvidenceSufficiency` (planner):
+1. **Evidence-sufficiency early exit** - new `EvidenceSufficiency` (planner):
    after each read, if ≥2 distinct (body-deduped) sources each contribute ≥2
    question-matching prose sentences (reusing `ExtractiveAnswer.pick`, post
    boilerplate/prose gates, cross-source sentence dedupe), the remaining read
    steps are skipped without being fetched. Device evidence: "whats the time"
    53s/5 pages, "how old is messi" >69s/6 pages, both user-stopped.
-2. **Escalate only on validated failure** — `readBestEffort` now refuses to
+2. **Escalate only on validated failure** - `readBestEffort` now refuses to
    launch the headless browser when the read could not be recorded anyway
-   (read cap hit, duplicate URL, evidence already sufficient) — that was the
+   (read cap hit, duplicate URL, evidence already sufficient) - that was the
    "browser after a successful 3.0s http.fetch" screenshot. Escalation still
    happens when http output fails `ReadableText.usable()` / the contract, or
    the host is a known challenge/SPA. Escalated page loads are capped at
    **8s** (`BROWSER_FETCH_TIMEOUT_MS`), passed to `browser.fetch`/`links`.
-3. **ClockSkill** — time/date/day questions answer from the device clock,
+3. **ClockSkill** - time/date/day questions answer from the device clock,
    zero network, before classification or planning. Handles "in <city>" by
    IANA-zone resolution; unresolvable places fall through to research rather
    than guessing a timezone. Hooked in `DeterministicEngine.run` right after
    the direct-reply path.
-4. **No retry on success-but-imperfect** — `FetchRetry.MAX_ATTEMPTS` 3 → 2
+4. **No retry on success-but-imperfect** - `FetchRetry.MAX_ATTEMPTS` 3 → 2
    (one retry, hard failures 429/502/503 only, as before). The pngtree
    "2.1s then 20.2s recovered" pattern is killed by rule 2's guards.
-5. **TaskBudget** — new wall-clock ceiling (`agent/policy/TaskBudget`):
+5. **TaskBudget** - new wall-clock ceiling (`agent/policy/TaskBudget`):
    90s research / 120s download, checked between steps on both the
    deterministic and autonomous paths and inside the download link harvest.
    On expiry the engine composes the answer from evidence in hand (snippets
-   at worst) — never a spinner death.
-6. **Cheap-success ranking** — `SiteMemory` gains a clamped ±3 per-host
+   at worst) - never a spinner death.
+6. **Cheap-success ranking** - `SiteMemory` gains a clamped ±3 per-host
    http-outcome score (recorded by `HttpTool` on every fetch: usable text vs
    failure/needsBrowser); new `CandidateRank.byCheapSuccess` stable-sorts the
    CHOOSE PAGES candidates by it in `planReads`.
@@ -144,11 +144,11 @@ validated failure, never preemptively.*
 
 ### D. In-app benchmarks
 
-- **`input.route` ("one misclassified")** — probed all six fixtures against
+- **`input.route` ("one misclassified")** - probed all six fixtures against
   HEAD Java `IntentRouter`: all six route correctly. The device ❌ was from a
   pre-`a83b4af` APK. No code change; owner should re-run Benchmarks on the
   new APK.
-- **`settings.defaults` (`history=true` ❌)** — the benchmark read the LIVE
+- **`settings.defaults` (`history=true` ❌)** - the benchmark read the LIVE
   prefs file, so any device where the user toggled history on "failed its
   defaults". `Settings` gains a named-prefs-file constructor; Diagnostics now
   probes an empty `mrnobody_defaults_probe` file (cleared before and after)
@@ -158,23 +158,23 @@ validated failure, never preemptively.*
 ### Enablers
 
 - `MrNobodyApp.activeProvider()` is null-safe before `onCreate` (returns
-  `LocalProvider`) — also what lets the whole `DeterministicEngine.run` be
+  `LocalProvider`) - also what lets the whole `DeterministicEngine.run` be
   exercised on the JVM harness with fake tools for the first time.
 - `ExtractiveAnswer.normalise` package-visible for `EvidenceSufficiency`.
 
 ### Tests (786 → 838)
 
-- `DeterministicEngineReadLoopTest` — full engine runs with fake tools:
+- `DeterministicEngineReadLoopTest` - full engine runs with fake tools:
   early exit at 2 sources, no escalation on usable-but-bland http, escalation
   + 8s cap on validated failure, budget-expiry-still-answers, cheap-host
   ranking, clock-question-touches-no-tool.
 - `EvidenceSufficiencyTest`, `ClockSkillTest`, `TaskBudgetTest`,
   `CandidateRankTest`; extended `SiteMemoryTest`, `DownloadLinkResolverTest`;
   `FetchRetryTest` updated for MAX_ATTEMPTS=2.
-- `ReadLoopWiringTest` — source-wiring pins for everything Android-touching
+- `ReadLoopWiringTest` - source-wiring pins for everything Android-touching
   (per the harness's throwing-stub rule).
 
-### Owner retest list (new APK) — this batch
+### Owner retest list (new APK) - this batch
 
 1. "whats the time" / "what time is it in london" → instant, zero network,
    correct zone.
@@ -194,7 +194,7 @@ contents (9 entries at 20:39). Embedded Tor (B) is the next batch.
 
 ---
 
-## 2026-08-21 — Batch: embedded Tor + harness (scope, blocking verifier, outcome check)
+## 2026-08-21 - Batch: embedded Tor + harness (scope, blocking verifier, outcome check)
 
 **Scope (owner-approved):** handoff item B plus the three harness gaps
 identified in review. Baseline 838 JVM tests green; this batch ends at 879.
@@ -202,17 +202,17 @@ identified in review. Baseline 838 JVM tests green; this batch ends at 879.
 ### B. Embedded Tor (no Orbot required)
 
 - Dependencies: `info.guardianproject:tor-android:0.4.9.11` +
-  `jtorctl:0.4.5.7` — **from Maven Central** (verified live; the gpmaven raw
+  `jtorctl:0.4.5.7` - **from Maven Central** (verified live; the gpmaven raw
   URL in the handoff research now 404s, so no extra repository at all).
 - `browser/net/EmbeddedTor`: starts `org.torproject.jni.TorService` by class
-  name — deliberately **no compile-time dependency** on the AAR, so the
+  name - deliberately **no compile-time dependency** on the AAR, so the
   javac harness compiles unchanged and an AAR-less build degrades cleanly to
   the Orbot-only path (`isBundled()` false). Readiness = ACTION_STATUS/ON
   broadcast (system receiver NOT_EXPORTED on 33+, LocalBroadcastManager via
   reflection) OR the 9050 port probe OrbotTorRoute already trusts.
 - `browser/net/EmbeddedTorPolicy` (pure): Orbot priority, Tor-route-only
   start, 2.5s apply-wait (platform channel thread; ANR-safe), honest
-  refusal messages ("still starting — try again shortly" vs "install Orbot"
+  refusal messages ("still starting - try again shortly" vs "install Orbot"
   only when genuinely unbundled).
 - `PrivacyController.apply(mode, settings, context)`: when NOBODY is chosen,
   the Tor route is configured, and nothing serves 9050 → start bundled Tor,
@@ -222,12 +222,12 @@ identified in review. Baseline 838 JVM tests green; this batch ends at 879.
   startup NOBODY restore).
 - Manifest: TorService declared `exported=false`; Gradle: release ABIs
   arm64-v8a / armeabi-v7a / x86_64 (CI emulators keep x86_64; 32-bit x86
-  dropped). Expected APK growth ~5MB per ABI — inside the 45MiB CI gate.
+  dropped). Expected APK growth ~5MB per ABI - inside the 45MiB CI gate.
 - Known bound (logged in code): if a non-Tor process squats 9050, TorService
   auto-ports where the fixed-port route cannot see it → honest fail-closed
   refusal. Orbot on its usual 9050 keeps absolute priority.
 
-### Harness 1 — Tool scope (`ToolScope` + `callScoped`)
+### Harness 1 - Tool scope (`ToolScope` + `callScoped`)
 
 Which tools EXIST for a run, decided from the task's shape before any step:
 research = search/http/browser (+download only on download intent; terminal
@@ -236,14 +236,14 @@ never); routed one-step actions = exactly their one tool. Enforced at a new
 is now shown only the scope. The public `callTool` (address-bar search)
 stays unscoped by design, and scope is cleared at run start.
 
-### Harness 2 — Blocking verifier (`AnswerGate`)
+### Harness 2 - Blocking verifier (`AnswerGate`)
 
 Remote answers that fail `AnswerVerifier`/`FigureCheck` no longer ship under
 a warning footnote: one corrective re-ask (findings quoted at the model,
 spend-cap-checked), then a second failure **discards the draft** and answers
 extractively from the pages read, with a note saying exactly that.
 
-### Harness 3 — Outcome check (`OutcomeCheck`)
+### Harness 3 - Outcome check (`OutcomeCheck`)
 
 Intent-vs-outcome, both paths: a download instruction that ends with no
 download says so in as many words; a named site answered entirely from
@@ -268,15 +268,15 @@ with fake tools incl. the unscoped host path), HarnessWiringTest.
    removed; the splits already select arm64-v8a/armeabi-v7a/x86_64.
 
 Final state at `20914b8`: Flutter Build ✅ (APK + 45MiB/ABI size gate),
-Emulator Smoke API 31 ✅ + API 34 ✅ (API 34 needed one re-run — the same
+Emulator Smoke API 31 ✅ + API 34 ✅ (API 34 needed one re-run - the same
 40-minute-timeout flake that cancelled it at baseline a83b4af; pre-existing,
 not introduced here).
 
 ---
 
-## 2026-08-21 (later) — DEFECT: crash on first Nobody toggle (embedded Tor)
+## 2026-08-21 (later) - DEFECT: crash on first Nobody toggle (embedded Tor)
 
-**Report:** owner screenshot — "Mr Nobody closed because this app has a bug"
+**Report:** owner screenshot - "Mr Nobody closed because this app has a bug"
 immediately on enabling Nobody mode, APK 20914b8, no Orbot installed.
 
 **Root cause (confirmed from sources, not guessed):** tor-android's POM
@@ -289,7 +289,7 @@ inside the service lifecycle, past any try/catch in EmbeddedTor.
 1. Package `androidx.localbroadcastmanager:localbroadcastmanager:1.1.0`
    explicitly (the actual repair).
 2. `EmbeddedTor.isBundled()` now also verifies LocalBroadcastManager is on
-   the classpath — a future build that loses the dep refuses Nobody honestly
+   the classpath - a future build that loses the dep refuses Nobody honestly
    (Orbot-only message) instead of crashing.
 3. `isBundled()` uses non-initializing Class.forName so the availability
    check no longer triggers TorService's static `System.loadLibrary("tor")`.
@@ -297,7 +297,7 @@ inside the service lifecycle, past any try/catch in EmbeddedTor.
 Wiring tests pin all three. JVM suite green at 879.
 
 **Fix journey to green:** f0430d6 (the fix) → b907773 (sandbox had stripped
-the exec bit off tools/*.sh; restored — recurring environment gotcha, watch
+the exec bit off tools/*.sh; restored - recurring environment gotcha, watch
 for it in every commit) → 5340051 (bundled-check test made environment-aware:
 Gradle's unit-test classpath HAS the AAR, the javac harness does not; the
 non-initializing Class.forName is also what keeps Gradle unit tests from
@@ -307,16 +307,16 @@ LocalBroadcastManager; verify Nobody now applies and exits via Tor).
 
 ---
 
-## 2026-08-21 (later still) — DEFECT 2: release-only crash in the tor thread
+## 2026-08-21 (later still) - DEFECT 2: release-only crash in the tor thread
 
-**Report:** owner stack trace — NoSuchFieldError: no "J" field
+**Report:** owner stack trace - NoSuchFieldError: no "J" field
 "torConfiguration" in TorService, thrown from mainConfigurationFree (native),
 frames showing R8-obfuscated names (TorService.i, inner class $c).
 
 **Root cause:** release builds minify with R8; libtor.so resolves
 TorService's fields via JNI (GetFieldID) at RUNTIME, invisible to R8, which
 stripped the private fields. The 0.4.7.14 AAR ships no consumer proguard
-rules. Debug builds don't minify — hence green CI emulators alongside a
+rules. Debug builds don't minify - hence green CI emulators alongside a
 crashing release APK. Lesson recorded: for JNI-heavy deps, emulator-green ≠
 release-green; the smoke tests exercise debug.
 
@@ -327,11 +327,11 @@ the file is actually referenced. JVM suite 881 green.
 
 ---
 
-## 2026-08-21 — UX: bundled Tor auto-applies (owner picked option A)
+## 2026-08-21 - UX: bundled Tor auto-applies (owner picked option A)
 
 Why the wait exists at all (physics, not implementation): a cold Tor start
 must download and verify the relay consensus and build a 3-hop circuit;
-10-60s on mobile data, same as Orbot. It is a first-start cost — the
+10-60s on mobile data, same as Orbot. It is a first-start cost - the
 service stays warm afterwards and caches the consensus on disk.
 
 What changed: toggling Nobody while the bundled Tor bootstraps no longer
@@ -341,18 +341,18 @@ for the real budget (BOOTSTRAP_WAIT_MS=90s), and applies the mode itself at
 the first circuit, persisting the achieved mode. Any newer user decision
 (switching to NORMAL mid-bootstrap) supersedes the waiter. Async failures
 surface exactly once via the new privacyStatus channel method. Dart:
-setPrivacyMode shows "Starting built-in Tor — Nobody switches on when it
+setPrivacyMode shows "Starting built-in Tor - Nobody switches on when it
 connects", polls privacyStatus (2s interval, bounded at 60 polls), and the
 mode label flips by itself. JVM suite 884 green.
 
 ---
 
-## 2026-08-21 — FEATURE: one-tap Device Suite (owner-requested test automation)
+## 2026-08-21 - FEATURE: one-tap Device Suite (owner-requested test automation)
 
 Owner asked for an overlay widget to automate the device checklist; overlay
 rejected on principle (SYSTEM_ALERT_WINDOW + AccessibilityService in a
 privacy browser, and it dies with the app anyway). Built instead: Dev mode →
-Benchmarks → "Device suite" — runs the REAL core on the real device/network.
+Benchmarks → "Device suite" - runs the REAL core on the real device/network.
 
 - debug/DeviceSuite.java: 12 checks, one channel call each so progress is
   visible ("deviceSuiteChecks" catalogue + "deviceSuiteRun" per id).
@@ -363,7 +363,7 @@ Benchmarks → "Device suite" — runs the REAL core on the real device/network.
   exit verified against check.torproject.org, and a final check restoring
   the privacy mode the suite found.
 - Dart: suite section in dev_panel with per-row progress; results join the
-  copyable report ("— device suite —") and failures land in the ⓘ log.
+  copyable report ("- device suite -") and failures land in the ⓘ log.
 - Every check returns a row rather than throwing (a crash would eat the
   report); pure checks are executed verbatim by DeviceSuiteTest on the JVM.
 
@@ -374,7 +374,7 @@ JVM suite 889 green.
 
 ---
 
-## 2026-08-21 — DEVICE RUN 1 TRIAGE (owner's first suite report)
+## 2026-08-21 - DEVICE RUN 1 TRIAGE (owner's first suite report)
 
 Headline wins confirmed on device: agent question 11s cited (was >69s
 user-stopped), clock/scope/outcome/routing/gates all PASS, defaults
@@ -390,7 +390,7 @@ benchmark PASS, suite restores mode. Four FAILs, all dispositioned:
    TaskScope.NO_TASK == 0 → no headless session → browser link harvest
    failed instantly (7s). Suite now runs as SUITE_TASK_ID with the scope
    bound and the session released, like the worker. Product path unproven
-   either way — RETEST on device.
+   either way - RETEST on device.
 4. tor exit ❌ → REAL PRODUCT BUG, fixed: TorService binds 9050 BEFORE the
    first circuit, so port-probe readiness applied Nobody against a Tor that
    could not carry traffic (every fetch timed out). Readiness is now
@@ -403,28 +403,28 @@ JVM suite 894 green.
 
 ---
 
-## 2026-08-21 — DEVICE RUN 2: "download a png icon of a boy" (two more real bugs)
+## 2026-08-21 - DEVICE RUN 2: "download a png icon of a boy" (two more real bugs)
 
 **Owner evidence:** answer quoted raw CSS (":root{--i8-background-…}") as
-page evidence from three icon sites, then "No downloadable file was found" —
+page evidence from three icon sites, then "No downloadable file was found" -
 on a REAL task id (agent-task-4), so this was the product path, not the
 suite harness. Plus a ⓘ line "profile remained in use after cleanup
-retries: agent-task-4 (data wiped; deletion owed to next startup)" — that
+retries: agent-task-4 (data wiped; deletion owed to next startup)" - that
 one is BUG-1's DESIGNED fallback, not a defect; A1's relaunch sweep check
 verifies it collects the owed deletion.
 
-**Bug 5 — CSS soup as evidence.** HeadlessWebViewEngine's EXTRACT_JS fell
+**Bug 5 - CSS soup as evidence.** HeadlessWebViewEngine's EXTRACT_JS fell
 back from innerText to raw textContent, which includes <style> text; the
 excerpt fallback then quoted it, because a title glued to a css-var block is
-one giant "sentence" with one '{' and no quotes — invisible to the
+one giant "sentence" with one '{' and no quotes - invisible to the
 count-based gates. Fixed twice over: the extraction clones the node and
 removes style/script/noscript/template/svg before reading textContent, and
 ReadableText gains a cssShaped() gate (:root{, {--, @media/@layer/@import,
 !important, --var: pattern, declaration-chain density) wired into
 proseSentence.
 
-**Bug 6 — image URLs with the format in the query.** Icon CDNs serve
-/?size=100&id=…&format=png — no path extension, so isDownloadable rejected
+**Bug 6 - image URLs with the format in the query.** Icon CDNs serve
+/?size=100&id=…&format=png - no path extension, so isDownloadable rejected
 every real candidate on the page. queryImageExt() now recognises
 format=/ext=/type= image declarations (isDownloadable, isImage, and the
 asked-extension preference in resolveImage). Lazy-load galleries were the
@@ -436,7 +436,7 @@ time of this entry.
 
 ---
 
-## 2026-08-21 — HOUSEKEEPING: emulator workflow manual-only, jargon sweep, docs refreshed
+## 2026-08-21 - HOUSEKEEPING: emulator workflow manual-only, jargon sweep, docs refreshed
 
 - Android Emulator Smoke no longer runs on push (workflow_dispatch only):
   the API 34 leg overran its 40-minute ceiling on most runs and cost a
@@ -458,7 +458,7 @@ time of this entry.
 
 ---
 
-## 2026-08-21 — DEVICE RUN 3 (suite on the fixed APK): everything green except Tor + png
+## 2026-08-21 - DEVICE RUN 3 (suite on the fixed APK): everything green except Tor + png
 
 Green on device: agent question 19s cited, clock/routing/scope/outcome/junk,
 Tor packaged, mode restore, address-bar and Orbot benchmarks now ✅, all
@@ -466,7 +466,7 @@ manual "needs your eyes" items the owner exercised marked PASS.
 
 Two remaining ❌, both now instrumented instead of guessed at:
 
-1. tor_nobody — the refusal text was the BACKGROUND WAITER's verdict: apply
+1. tor_nobody - the refusal text was the BACKGROUND WAITER's verdict: apply
    correctly went pending, Tor got its full 90s, no circuit. With run 2's
    port-open-no-circuits evidence, conclusion: first bootstrap on this 4G
    network needs more than 90s (or is interfered with). Changes:
@@ -474,7 +474,7 @@ Two remaining ❌, both now instrumented instead of guessed at:
    TorService ACTION_ERROR broadcasts now land in the ⓘ log; timeout logs
    the final status word; the suite check reports [tor status=STARTING|OFF]
    with what each means, ceiling raised to cover the budget.
-2. image_download — the quoted "outcome" was a search-LISTING row: ZERO
+2. image_download - the quoted "outcome" was a search-LISTING row: ZERO
    pages were readable that run (challenge walls), so the resolver had
    nothing to harvest; the query-format fix never got exercised. The check
    now says explicitly whether nothing was readable vs pages-read-but-no-
@@ -486,17 +486,17 @@ text captured. JVM suite 901 green.
 
 ---
 
-## 2026-08-21 — UX GAP: bookmarks unreachable outside a tab (owner report)
+## 2026-08-21 - UX GAP: bookmarks unreachable outside a tab (owner report)
 
 Bookmarks existed only in a tab's sheet menu, capped at eight, with no
-delete — from Settings there was no trace of them. Shipped:
+delete - from Settings there was no trace of them. Shipped:
 
 - New Bookmarks screen: full list, tap to open in a new tab (via the
   shell's opener callback, so the screen knows nothing about tabs), per-row
   delete, empty state that says where bookmarks come from.
 - Settings → Data gains a "Bookmarks" row with a live count (same pattern
   as Downloads), wired from both shell paths (settings tab + browser menu).
-- Channel: new removeBookmark method — BookmarksStore.remove(id) existed
+- Channel: new removeBookmark method - BookmarksStore.remove(id) existed
   since V1 but was never reachable from the UI.
 - BookmarksWiringTest pins channel → bridge → screen → shell.
 
@@ -504,26 +504,26 @@ JVM suite 904 green. Dart side verified by CI (strict analyze + tests).
 
 ---
 
-## 2026-08-21 — DEVICE RUN 4: the instrumentation paid off — two bugs nailed
+## 2026-08-21 - DEVICE RUN 4: the instrumentation paid off - two bugs nailed
 
 The new diagnostics turned both remaining failures into exact causes:
 
-**Bug 7 — refusal with [tor status=ON].** Tor bootstrapped successfully but
+**Bug 7 - refusal with [tor status=ON].** Tor bootstrapped successfully but
 TorService had auto-ported: 9050 was in TIME_WAIT from the previous killed
 process at ITS configuration time, so Tor came up ON at a random port while
 the route kept probing 9050 and refused a working Tor. Fix: the route now
-follows the real port — EmbeddedTor.readySocksPort() reads TorService's own
+follows the real port - EmbeddedTor.readySocksPort() reads TorService's own
 socksPort field (guarded, reflection); OrbotTorRoute gains a static
 activePort used by probe/proxy/WebView rule (9050 default, so the Orbot
 path is untouched); PrivacyController re-aims the port on every apply and
 after every bootstrap wait. Suite detail now prints the socks port too.
 
-**Bug 8 — resolved .png answered 403.** The resolver WORKED (seeklogo .png
-found and enqueued — the query-format/lazy-src fixes proven on device); the
+**Bug 8 - resolved .png answered 403.** The resolver WORKED (seeklogo .png
+found and enqueued - the query-format/lazy-src fixes proven on device); the
 CDN then hotlink-refused a bare "MrNobody/1.0" with no Referer. Fix: the
 engine tracks where every candidate was harvested and passes that page as a
 new `referer` param; DownloadTool sends it plus a browser-class client
-string. The download engine had supported both headers since V1 — nothing
+string. The download engine had supported both headers since V1 - nothing
 ever set them.
 
 Also in the report: the agent-task-424242 owed-deletion line is the
@@ -532,15 +532,15 @@ collects it. JVM suite 908 green.
 
 ---
 
-## 2026-08-21 — DEVICE RUN 5: Tor waits while Tor works (owner: Tor-only focus)
+## 2026-08-21 - DEVICE RUN 5: Tor waits while Tor works (owner: Tor-only focus)
 
-Evidence: refusal with [tor status=ON, socks=9050] — Tor bootstrapped on
+Evidence: refusal with [tor status=ON, socks=9050] - Tor bootstrapped on
 the right port moments AFTER the waiter's 180s deadline refused. This 4G
 needs longer than any fixed guess, so the guess is gone:
 
 - The waiter now keeps waiting while TorService reports STARTING (progress,
   not failure), in 180s slices with ⓘ breadcrumbs, up to a 600s hard cap.
-  Only OFF/STOPPING or the cap refuse — the cap with its own honest message
+  Only OFF/STOPPING or the cap refuse - the cap with its own honest message
   (slowNetworkMessage). A user mode-switch still supersedes instantly.
 - Suite second chance: if Tor reached ON right after the first wait, the
   check re-applies NOBODY and takes the success ("bootstrap outlasted the
@@ -550,7 +550,7 @@ needs longer than any fixed guess, so the guess is gone:
 - Dart status poll bound raised 60→240 ticks to cover the longer waits.
 
 Parked for next turn per owner: the icon download saved pngtree's .jpg
-preview banner instead of a .png (referer fix proven — the download itself
+preview banner instead of a .png (referer fix proven - the download itself
 now completes; extension preference needs to be a requirement when the user
 names one), plus general agent logic and device optimisation.
 
@@ -558,22 +558,22 @@ JVM suite 909 green.
 
 ---
 
-## 2026-08-21 — Bug 9: the apply wait was starving TorService of its own thread
+## 2026-08-21 - Bug 9: the apply wait was starving TorService of its own thread
 
 Owner ⓘ capture: "not ready after 2s, status=OFF" on a manual Nobody
-toggle. Root cause: the 2.5s synchronous wait ran on the main thread — the
+toggle. Root cause: the 2.5s synchronous wait ran on the main thread - the
 same thread Android delivers TorService.onCreate on. While apply waited,
-Tor could not even begin to start. Fix: the apply path never waits at all —
+Tor could not even begin to start. Fix: the apply path never waits at all -
 EmbeddedTor.requestStart() (fire-and-forget), an instant readiness recheck,
 then pending; the background waiter owns all waiting. APPLY_WAIT_MS
 deleted. Every toggle also feels 2.5s faster.
 
 Also this batch (owner's licensing question):
-- Tor/tor-android/jtorctl are BSD-3-Clause — commercial embedding is
+- Tor/tor-android/jtorctl are BSD-3-Clause - commercial embedding is
   explicitly permitted; obligations are notice retention and no implied
   endorsement. About dialog now carries the attribution, the trademark
   disclaimer and a donation pointer; the Nobody picker names "built-in
-  Tor" plainly (users must know their traffic enters Tor — it is also
+  Tor" plainly (users must know their traffic enters Tor - it is also
   visible to their carrier); README documents the terms. The onion logo is
   never used.
 
@@ -581,14 +581,14 @@ JVM suite 910 green.
 
 ---
 
-## 2026-08-21 — Bug 10 (THE Tor bug): the availability probe lied on the main thread
+## 2026-08-21 - Bug 10 (THE Tor bug): the availability probe lied on the main thread
 
-Owner ⓘ after fresh install: refusal pair with NO waiter breadcrumbs — the
+Owner ⓘ after fresh install: refusal pair with NO waiter breadcrumbs - the
 waiter succeeded and the post-bootstrap re-apply still refused. Root cause:
 route.isAvailable()'s socket probe, when called from the mode toggle (a
 main-thread platform-channel call), hits Android's NetworkOnMainThread
 policy; the catch treated that exception as "not listening". A running,
-ready Tor was therefore refused at the final gate on every MANUAL toggle —
+ready Tor was therefore refused at the final gate on every MANUAL toggle -
 while the suite, running on an executor thread, probed fine. This single
 defect explains the entire family of "refused with [tor status=ON]"
 device results.
@@ -602,10 +602,10 @@ JVM suite 911 green.
 
 ---
 
-## 2026-08-21 — DEVICE VERIFIED ✅: Nobody exits via Tor (owner screenshot, 19:13)
+## 2026-08-21 - DEVICE VERIFIED ✅: Nobody exits via Tor (owner screenshot, 19:13)
 
 check.torproject.org inside Mr Nobody: "Congratulations. This browser is
-configured to use Tor." — built-in Tor, no Orbot, real device, 4G. The
+configured to use Tor." - built-in Tor, no Orbot, real device, 4G. The
 "does not appear to be Tor Browser" note is the expected fingerprint
 disclaimer every non-Tor-Browser client gets; routing is what was claimed
 and routing is what was proven. Features closed: built-in Tor end-to-end
@@ -616,7 +616,7 @@ kill/relaunch under Nobody, airplane-mode refusal.
 
 ---
 
-## 2026-08-22 — Tier 0 execution safety: durable identity before design tools
+## 2026-08-22 - Tier 0 execution safety: durable identity before design tools
 
 The agent harness now distinguishes a reusable task row from one execution
 cycle. Every new task/follow-up/recurring wake receives a durable run ID;
@@ -648,7 +648,7 @@ strict Dart analysis/widget tests remain for CI.
 
 ---
 
-## 2026-08-22 — Provider resilience, two lanes, design sessions, and official Canva MCP
+## 2026-08-22 - Provider resilience, two lanes, design sessions, and official Canva MCP
 
 The post-Tier-0 stack now pins AI provider/model/base and execution platform
 per run. Explicitly consented remote fallback providers are frozen with that
@@ -693,7 +693,7 @@ Canva/device evidence remains pending until an approved CIMD/redirect exists.
 
 ---
 
-## 2026-08-22 — Repository cleanup and plain-language documentation
+## 2026-08-22 - Repository cleanup and plain-language documentation
 
 Both remaining topic branches were already fully contained in main. The local
 `feat/resilient-design-mcp` branch and the remote
@@ -716,7 +716,7 @@ notes remain in README rather than being appended to the MIT grant.
 
 ---
 
-## 2026-08-22 — Randomized home-logo motion and immediate theme repaint
+## 2026-08-22 - Randomized home-logo motion and immediate theme repaint
 
 The home hero is now 190px tall, adding roughly fifty percent more vertical
 breathing room and moving the search/tasks/shortcuts composition lower while
@@ -748,29 +748,29 @@ and corrected Warm cream screen goldens.
 
 ---
 
-## 2026-08-22 — Batch: server-backed update notifications (metadata-only)
+## 2026-08-22 - Batch: server-backed update notifications (metadata-only)
 
-**Scope (owner-approved):** the update-notification system from the brief —
+**Scope (owner-approved):** the update-notification system from the brief -
 quiet startup check, Settings badge, cached/offline behavior, dismissal,
 metadata-only contract. Landing page and `website/update.json` schema had
 already landed; the app side and the service were not started.
 
 ### What shipped
 
-1. **Update service (`server/`)** — zero-dependency Python stdlib service,
+1. **Update service (`server/`)** - zero-dependency Python stdlib service,
    deployable to Render via the included blueprint (`render.yaml`).
    Serves the landing page, `/update.json` (the app's endpoint,
    `Cache-Control: no-cache`), `/health`, and the other `website/` statics.
    Path traversal rejected; every mutating method refused; 1 MiB body cap.
    `website/update.json` is the single source of truth for both the
    landing page's metadata card and the app.
-2. **Release helper (`tools/publish_update.py`)** — validates the version,
+2. **Release helper (`tools/publish_update.py`)** - validates the version,
    computes the APK sha256, stamps publishedAt, rewrites
    `website/update.json`. Refuses non-https URLs and malformed versions.
    Signing metadata stays a documented placeholder until apksigner digests
    are settled.
-3. **Java core (`browser/update/`)** — `UpdateInfo` (paranoid payload
-   parsing: semver, https-only download URL, well-formed checksums — a
+3. **Java core (`browser/update/`)** - `UpdateInfo` (paranoid payload
+   parsing: semver, https-only download URL, well-formed checksums - a
    placeholder sha256 is rejected, not displayed), `UpdateStatus` (pure
    status computation, no Android imports), `UpdateChecker` (NetworkGate
    round-trip with 5 s/6 s timeouts, 64 KB cap, last-successful-check
@@ -778,16 +778,16 @@ already landed; the app side and the service were not started.
    `updateStatus` (instant, offline-safe), `updateCheck` (one quiet
    round-trip on the existing single-thread executor; failure returns the
    cache flagged `networkFailed`), `updateDismiss`.
-4. **Flutter** — `UpdateStatus` model in `AppState`; the quiet kickoff
+4. **Flutter** - `UpdateStatus` model in `AppState`; the quiet kickoff
    check runs once per session from `load()` and is never on the critical
    path; a stale (>6 h) check is repeated when the app resumes.
    Settings gained an "App" section: an Updates row with a badge (accent
-   dot for optional, warning dot + persistent banner for required — nudge
+   dot for optional, warning dot + persistent banner for required - nudge
    only, the app never blocks), and a detail sheet with version,
    optional/required chip, release notes, publish/check times, truncated
    sha256, "Update" (hands the download URL to the app's browser; the
    install stays Android's signed job) and "Remind me later".
-5. **Docs** — README "Updates" section + "Update distribution" under
+5. **Docs** - README "Updates" section + "Update distribution" under
    what-is-not-finished; ROADMAP built-list, Priority 3 "Updates
    distribution" work, and the startup-request exception noted.
 
@@ -803,12 +803,12 @@ cannot be force-installed, and locking users out would break the product.
 
 ### How it is proven
 
-- JVM: 18 new tests — `UpdateInfoTest` (parsing, https enforcement,
+- JVM: 18 new tests - `UpdateInfoTest` (parsing, https enforcement,
   placeholder-sha rejection, numeric version ordering incl. 1.10.0 > 1.9.9)
   and `UpdateStatusTest` (badge, dismissal for-that-version-only,
   offline fallback, malformed cache). Ran green locally against the same
   junit/json versions as the gradle build.
-- Server: run locally and probed — health, update.json (body + no-cache),
+- Server: run locally and probed - health, update.json (body + no-cache),
   landing page, HEAD (headers, no body), traversal (raw + encoded), POST/
   PUT/DELETE refusal, 404. `tools/publish_update.py` verified: sha256
   matches `sha256sum`, bad version and http URL refused, `--required`
@@ -829,6 +829,6 @@ cannot be force-installed, and locking users out would break the product.
   restart, airplane-mode launch shows the cached state, Nobody-mode check
   rides Tor.
 - The landing page's "Download APK" button points at
-  `downloads/mr-nobody-latest.apk`, which does not exist yet — it will
+  `downloads/mr-nobody-latest.apk`, which does not exist yet - it will
   work the moment an APK is dropped in `website/downloads/` (the service
   serves any static file under `website/`).

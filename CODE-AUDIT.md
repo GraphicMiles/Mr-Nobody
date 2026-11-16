@@ -10,7 +10,7 @@ The working tree was cloned from `GraphicMiles/Mr-nobody`; Git author is configu
 
 ## Root causes found
 
-### 1. Release-only black page / unreliable page recovery — fixed
+### 1. Release-only black page / unreliable page recovery - fixed
 
 The release regression was introduced in `dc40c44` and compounded by the later release changes:
 
@@ -23,17 +23,17 @@ The last item is a concrete debug/release mismatch: an x86_64 emulator/device ca
 
 A second recovery defect was present in `onRenderProcessGone`: the dead WebView was released, but Dart only tried `reload()` against the old platform-view key. That cannot recover a destroyed renderer, so the view remained black until a larger navigation/reload happened. The Android engine now increments a platform-view generation on renderer failure, forcing Flutter to mount a fresh WebView using the last known URL.
 
-### 2. Bottom browser controls disappearing / being clipped — fixed
+### 2. Bottom browser controls disappearing / being clipped - fixed
 
 `BrowserNav` was painted in a Flutter `Stack` above an Android platform view. Depending on platform-view composition and timing, Android could win the z-order. Symptoms match the report: controls disappeared, only a clipped/small element remained, and the page could appear black underneath.
 
 The browser controls now occupy a sibling region outside the platform-view bounds. Their height is animated to zero when chrome is hidden, but when visible it is deterministic and remains tappable in both debug and release builds. This also prevents the page from being covered by a bar at an inconsistent height.
 
-### 3. Direct navigation bypassed tab state — fixed
+### 3. Direct navigation bypassed tab state - fixed
 
 `AppShell._openBrowser` called `tab.engine.loadUrl()` directly. That skipped `BrowserTab.load`, leaving Dart loading/error state, timeout handling, and the recreation URL out of sync with native navigation. It now calls `tab.load()`.
 
-### 4. Download speed presentation — fixed
+### 4. Download speed presentation - fixed
 
 The download screen correctly samples real byte deltas per active download, but it also displayed Android's `NetworkCapabilities.getLinkDownstreamBandwidthKbps()` as “Link capability”. That value is an estimate and is commonly stale or OEM-provided (the reported 105 Mbps symptom). It was easy to interpret as the current transfer speed.
 

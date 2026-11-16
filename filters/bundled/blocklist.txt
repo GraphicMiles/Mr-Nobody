@@ -4,10 +4,10 @@
 ! Comments start with "!". Domain rules use ||domain^  (blocks domain + subdomains).
 ! Licensing: this list is self-authored/curated from public domain names of
 ! advertising and analytics services. No third-party list (EasyList/EasyPrivacy)
-! is redistributed here — those carry their own licenses and can be compiled in
+! is redistributed here - those carry their own licenses and can be compiled in
 ! via tools/filter_compile.py if desired.
 !
-! NOTE: conservative by design — we block known ads/trackers while preserving
+! NOTE: conservative by design - we block known ads/trackers while preserving
 ! normal site compatibility. This is not an exhaustive block-everything list.
 
 [ADS]

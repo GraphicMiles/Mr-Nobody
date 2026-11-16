@@ -102,11 +102,11 @@ Automated success does not prove behavior on every Android device. System WebVie
 
 MCP and online design-platform work is suspended. The next development work should focus only on the core agent, the remote worker, and general application polish.
 
-## Priority 1 — Agent quality and reliability
+## Priority 1 - Agent quality and reliability
 
 ### Answer quality
 
-The local path is a **light-duty, rule-driven** extractor, not a general-purpose reasoner. Its job is to make light, well-scoped tasks reliable and honest; genuinely ambiguous, compound or creative instructions belong to the remote model / remote worker. Intent classification is form-first (question shape, not a cue-word list) so it is less brittle, but it is still bounded — don't keep expanding local heuristics to chase general intelligence.
+The local path is a **light-duty, rule-driven** extractor, not a general-purpose reasoner. Its job is to make light, well-scoped tasks reliable and honest; genuinely ambiguous, compound or creative instructions belong to the remote model / remote worker. Intent classification is form-first (question shape, not a cue-word list) so it is less brittle, but it is still bounded - don't keep expanding local heuristics to chase general intelligence.
 
 - Improve intent classification without adding broad, unsafe keyword matches (form-first; fewer brittle lists).
 - Improve source selection for factual, current, official, and technical questions.
@@ -141,7 +141,7 @@ The local path is a **light-duty, rule-driven** extractor, not a general-purpose
 - [ ] Recurring tasks survive process death and do not notify on unchanged results.
 - [ ] Approval allow, deny, background, timeout, and restart behavior match the UI wording.
 
-## Priority 2 — Remote worker and server persistence
+## Priority 2 - Remote worker and server persistence
 
 The Android client protocol exists, but the production remote server does not.
 
@@ -202,7 +202,7 @@ Build a service with:
 - [ ] Local tasks never silently move to the server.
 - [ ] Server-side provider fallback does not duplicate external effects.
 
-## Priority 3 — General application polish
+## Priority 3 - General application polish
 
 ### Navigation and screens
 
@@ -241,7 +241,7 @@ Build a service with:
 
 - Deploy the `server/` service to Render and point `UpdateChecker.UPDATE_URL` at the live host.
 - Decide where the signed APK is hosted, then cut the first real release with `tools/publish_update.py` (real sha256, then apksigner cert digest for `signature`).
-- Regenerate the S6 settings goldens (classic + warm) for the new App section — intentional UI change.
+- Regenerate the S6 settings goldens (classic + warm) for the new App section - intentional UI change.
 - Device evidence: badge appears on a real launch, dismissal survives a restart, offline fallback shows the cached state.
 
 ### Performance

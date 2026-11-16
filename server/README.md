@@ -14,22 +14,22 @@ Returns { latestVersion, releaseNotes, downloadUrl, required, sha256, signature,
 
 The app compares `latestVersion` with the installed version and, when a
 newer release is published, surfaces it in **Settings → App → Updates**.
-The response is metadata only — this service never serves executable code,
+The response is metadata only - this service never serves executable code,
 and the app never auto-downloads or injects anything. Installing an update
 goes through Android's normal signed package installer.
 
 ## What runs here
 
-- `GET /` — the landing page (`website/index.html`)
-- `GET /update.json` — the update endpoint (served from `website/update.json`,
+- `GET /` - the landing page (`website/index.html`)
+- `GET /update.json` - the update endpoint (served from `website/update.json`,
   `Cache-Control: no-cache` so a new release is visible on the next launch;
   also records anonymous device ping in `metrics.db`)
-- `GET /stats` — live HTML dashboard of active devices (DAU, WAU, MAU, version breakdown)
-- `GET /stats.json` — machine-readable JSON metrics of active device counts
-- `GET /health` — health check
-- `GET /<file>` — other static files under `website/` (fonts, images)
+- `GET /stats` - live HTML dashboard of active devices (DAU, WAU, MAU, version breakdown)
+- `GET /stats.json` - machine-readable JSON metrics of active device counts
+- `GET /health` - health check
+- `GET /<file>` - other static files under `website/` (fonts, images)
 
-Python 3 standard library only — zero third-party dependencies to install.
+Python 3 standard library only - zero third-party dependencies to install.
 
 ## Device counting & Privacy
 
@@ -64,7 +64,7 @@ curl -s localhost:8080/stats.json
    The blueprint (`render.yaml` at the repo root) starts a Python 3.12 web
    service running `python3 server/app.py` with a `/health` health check.
 2. Note the public URL, e.g. `https://mrnobody-updates.onrender.com`.
-3. Point the app at it — there is exactly one place to change:
+3. Point the app at it - there is exactly one place to change:
    `UpdateChecker.UPDATE_URL` in
    `app/android/app/src/main/java/com/mrnobody/browser/update/UpdateChecker.java`.
 4. Check your live user counts anytime at `https://<service>.onrender.com/stats`.
